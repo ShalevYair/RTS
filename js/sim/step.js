@@ -16,7 +16,7 @@ function step(s, dt) {
   for (const f of s.fx) f.life -= dt;
   s.fx = s.fx.filter(f => f.life > 0);
   s.marks = s.marks.filter(k => s.t - k.t < MARK_LIFE);
-  updateEyes(s, dt);
+  updateNodes(s, dt);
   deliver(s);
   calls(s);
   record(s, dt);
@@ -30,4 +30,4 @@ function step(s, dt) {
   if (s.score.blue >= s.WIN) s.over = 'blue'; else if (s.score.red >= s.WIN) s.over = 'red';
 }
 
-const Sim = { create, step, order, answer, orderDelay, TEMPERS, eye, EYE_TIME, setTrait, reinRate, catchup, seen, note, MARK_LIFE, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+const Sim = { create, step, order, answer, orderDelay, quality, drone, buildFhq, canBuildFhq, NODES, TEMPERS, setTrait, reinRate, catchup, seen, note, MARK_LIFE, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };

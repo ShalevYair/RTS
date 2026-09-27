@@ -2,7 +2,7 @@
 // ---- selection & commands ----
 const blueIds = () => s.squads.filter(q => q.side === 'blue').map(q => q.id);
 const selIds = () => sel === 'all' ? blueIds() : [sel];
-function select(id) { sel = id; syncButtons(); }
+function select(id) { sel = id; syncButtons(); updateHud(); }
 function issue(type, x, y) {
   const all = sel === 'all';
   const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id) : [sel];
@@ -25,7 +25,7 @@ function syncButtons() {
   const pb = $('play'); pb.textContent = playing ? '⏸' : '▶'; pb.setAttribute('aria-label', playing ? 'עצור' : 'התחל');
   document.querySelectorAll('[data-win]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.win === win)));
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
-  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('eye').hidden = !s.fog; cv.style.cursor = eyeArmed ? 'zoom-in' : '';
+  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('eye').hidden = $('fhq').hidden = !s.fog; cv.style.cursor = eyeArmed ? 'zoom-in' : '';
 }
 
 let replayAuto = false, replayAt = 0;
@@ -67,8 +67,13 @@ function showEnd() {
 function updateHud() {
   $('sb').textContent = Math.floor(s.score.blue); $('sr').textContent = Math.floor(s.score.red);
   const res = Math.floor(s.reserve.blue); $('res').textContent = '👥' + res; $('res').classList.toggle('low', res < 2);
-  const E = s.eyes.blue; $('eyeN').textContent = E.charges || ''; $('eye').disabled = E.charges < 1 && !eyeArmed;
-  $('eye').style.setProperty('--p', E.charges >= 2 ? 1 : E.prog.toFixed(2));
+  // drone / forward HQ buttons: seconds until ready, and a refill bar
+  const cd = s.cd.blue, N = Sim.NODES;
+  $('eyeN').textContent = cd.drone > 0 ? Math.ceil(cd.drone) : ''; $('eye').disabled = cd.drone > 0 && !eyeArmed;
+  $('eye').style.setProperty('--p', (1 - cd.drone / N.drone.every).toFixed(2));
+  const bsq = sel !== 'all' && s.squads.find(q => q.id === sel);
+  $('fhqN').textContent = cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').disabled = !Sim.canBuildFhq(s, bsq);
+  $('fhq').style.setProperty('--p', (1 - cd.fhq / N.fhq.every).toFixed(2));
   $('bb').hidden = Sim.catchup(s, 'blue') < 0.15; $('rb').hidden = Sim.catchup(s, 'red') < 0.15;
   const key = s.log.length + ':' + (s.log.at(-1)?.t ?? '') + ':' + Math.floor(s.t / 2);
   if (key !== logKey) {
@@ -138,8 +143,11 @@ document.querySelectorAll('[data-fog]').forEach(b => b.addEventListener('click',
   syncButtons();
 }));
 let eyeArmed = false;
-function toggleEye() { eyeArmed = !eyeArmed && s.fog && s.eyes.blue.charges >= 1; syncButtons(); }
+function toggleEye() { eyeArmed = !eyeArmed && s.fog && s.cd.blue.drone <= 0; syncButtons(); }
 $('eye').addEventListener('click', toggleEye);
+// forward HQ: the selected tank/jeep squad sets one up where it stands (the order travels like any other)
+function buildHere() { if (sel !== 'all' && Sim.buildFhq(s, sel)) updateHud(); }
+$('fhq').addEventListener('click', buildHere);
 const answerCall = choice => { if (Sim.answer(s, +$('call').dataset.id, choice)) updateHud(); };
 $('callHold').addEventListener('click', () => answerCall('hold'));
 $('callBack').addEventListener('click', () => answerCall('retreat'));

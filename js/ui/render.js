@@ -172,7 +172,7 @@ function drawFog() {
   const b = s.bases.blue; f.fillRect(b.x0, 0, b.x1 - b.x0 + 5, s.H);
   for (const p of s.points) if (p.owner === 'blue') hole(p.x, p.y, p.r * 2.5);
   for (const q of s.squads) if (q.side === 'blue' && !q.dead) { const p = pos(q); hole(p.x, p.y, Sim.TYPES[q.type].sight + 30); }
-  for (const d of s.eyes.blue.active) hole(d.x, d.y, d.r + 15);
+  for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, n.kind === 'drone' ? Sim.NODES.drone.r0 + 15 : Sim.NODES.fhq.sight);
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(fogCv, 0, 0); ctx.restore();
 }
 
@@ -196,17 +196,37 @@ function drawEnemyIntel(c) {
     c.globalAlpha = 1;
   }
 }
-// active drones: dashed ring, drone icon and the time it has left
-function drawEyes(c) {
-  for (const d of s.eyes.blue.active) {
-    const left = Math.max(0, (d.until - s.t) / Sim.EYE_TIME);
-    c.strokeStyle = colors.blue; c.lineWidth = 2; c.setLineDash([6, 4]); ring(d.x, d.y, d.r); c.stroke(); c.setLineDash([]);
-    c.lineWidth = 3; c.beginPath(); c.arc(d.x, d.y, d.r + 5, -Math.PI / 2, -Math.PI / 2 + Math.min(1, left) * Math.PI * 2); c.stroke();
-    c.font = '18px sans-serif'; c.fillText('🛸', d.x, d.y - d.r - 10);
+// control quality: a soft blue wash around every working node, full inside r0 and fading out to r1
+function drawQuality(c) {
+  const nodes = [{ kind: 'hq', x: s.bases.blue.x, y: s.H / 2 }, ...s.nodes.filter(n => n.side === 'blue' && s.t >= n.ready)];
+  for (const n of nodes) {
+    const N = Sim.NODES[n.kind], a = 0.2 * N.q, g = c.createRadialGradient(n.x, n.y, 0, n.x, n.y, N.r1);
+    g.addColorStop(0, hexA(colors.blue, a)); g.addColorStop(N.r0 / N.r1, hexA(colors.blue, a)); g.addColorStop(1, hexA(colors.blue, 0));
+    c.fillStyle = g; ring(n.x, n.y, N.r1); c.fill();
+  }
+}
+// control nodes: forward HQs (build-up ring, then working) and drones (warm-up, then flight time left)
+const NODE_ICON = { fhq: '🏕', drone: '🛸' };
+const nodeShown = n => n.side === 'blue' || !s.fog || s.visNodes.blue.has(n.id);
+function drawNodes(c) {
+  for (const n of s.nodes) {
+    if (!nodeShown(n)) continue;
+    const N = Sim.NODES[n.kind], col = colors[n.side], on = s.t >= n.ready;
+    if (n.side === 'blue') {
+      c.strokeStyle = col; c.lineWidth = on ? 2 : 1; c.globalAlpha = on ? 0.7 : 0.35; c.setLineDash([6, 5]);
+      ring(n.x, n.y, N.r0); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+    }
+    // arc: build-up / warm-up progress, then (drones) the flight time left
+    const k = !on ? (s.t - n.t0) / (n.ready - n.t0) : n.kind === 'drone' ? (n.until - s.t) / N.life : 1;
+    c.strokeStyle = col; c.lineWidth = 3; c.beginPath(); c.arc(n.x, n.y, 16, -Math.PI / 2, -Math.PI / 2 + Math.max(0, Math.min(1, k)) * Math.PI * 2); c.stroke();
+    c.fillStyle = colors.halo; ring(n.x, n.y, 13); c.fill();
+    c.globalAlpha = on ? 1 : 0.55; c.font = '16px sans-serif'; c.fillText(NODE_ICON[n.kind], n.x, n.y + 6); c.globalAlpha = 1;
+    if (!on) label(String(Math.ceil(n.ready - s.t)), n.x, n.y - 20, col);
+    if (n.hp < N.hp) { c.fillStyle = colors.shadow; c.fillRect(n.x - 14, n.y + 19, 28, 3); c.fillStyle = col; c.fillRect(n.x - 14, n.y + 19, 28 * Math.max(0, n.hp / N.hp), 3); }
   }
 }
 // event reports appear where they happened, pop in and fade out
-const MARK = { contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳', call: '📞' };
+const MARK = { contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕', nodeLost: '💥' };
 // orders still on their way: a courier dot runs from HQ toward the squad, the new target is a ghost ring
 function drawMail(c) {
   const hq = { x: s.bases.blue.x, y: s.H / 2 };
@@ -287,11 +307,11 @@ function draw() {
   }
   c.restore();
   // units: exact picture without fog; under fog only what a drone is looking at right now
-  const eyes = s.eyes.blue.active;
+  const eyes = s.nodes.filter(n => n.side === 'blue' && n.kind === 'drone' && s.t >= n.ready), R = Sim.NODES.drone.r0;
   if (!s.fog) drawUnits(c, () => true);
   else if (eyes.length) {
-    c.save(); c.beginPath(); for (const d of eyes) { c.moveTo(d.x + d.r, d.y); c.arc(d.x, d.y, d.r, 0, Math.PI * 2); } c.clip();
-    drawUnits(c, u => eyes.some(d => Math.hypot(u.x - d.x, u.y - d.y) <= d.r + 10)); c.restore();
+    c.save(); c.beginPath(); for (const d of eyes) { c.moveTo(d.x + R, d.y); c.arc(d.x, d.y, R, 0, Math.PI * 2); } c.clip();
+    drawUnits(c, u => eyes.some(d => Math.hypot(u.x - d.x, u.y - d.y) <= R + 10)); c.restore();
   }
   // explosions: fireball, smoke ring for medium+, sparks for big
   for (const f of s.fx) {
@@ -309,7 +329,8 @@ function draw() {
       }
     }
   }
-  if (s.fog) { drawFog(); drawEnemyIntel(c); drawMarks(c); drawEyes(c); drawMail(c); }
+  if (s.fog) { drawFog(); drawQuality(c); drawEnemyIntel(c); drawMarks(c); drawMail(c); }
+  drawNodes(c);
   // squad badges: tap to select; type icon, strength bar, posture. Under fog: at the last report.
   const pulse = 0.55 + 0.25 * Math.sin(performance.now() / 180);
   for (const q of s.squads) {

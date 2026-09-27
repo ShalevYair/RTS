@@ -1,8 +1,9 @@
 // Sim: orders as messages, postures, calls from commanders, drones, reports, history
-// Under fog an order is a message: it reaches the squad after orderDelay seconds. A newer message of
-// the same kind replaces one still on its way, so orders can't arrive out of sequence.
+// Under fog an order is a message: it reaches the squad after orderDelay seconds, longer where control is
+// poor (see control.js). A newer message of the same kind replaces one still on its way, so orders can't
+// arrive out of sequence.
 const hq = (s, side) => ({ x: s.bases[side].x, y: H / 2 });
-const orderDelay = (s, sq) => Math.min(ORDER_DELAY_MAX, ORDER_DELAY_BASE + dist({ x: sq.cx, y: sq.cy }, hq(s, sq.side)) / ORDER_SPEED);
+const orderDelay = (s, sq) => DELAY_MIN + DELAY_SPAN * (1 - qualityAt(s, sq));
 function send(s, sq, msg) {
   s.outbox = s.outbox.filter(m => !(m.id === sq.id && m.kind === msg.kind));
   const d = orderDelay(s, sq);
@@ -18,6 +19,7 @@ function deliver(s) {
     const sq = s.squads.find(q => q.id === m.id);
     if (!sq || sq.dead) continue; // the squad is gone; the message is lost
     if (m.kind === 'order') applyOrder(s, sq, m.type, m.x, m.y, m.quiet);
+    else if (m.kind === 'build') setUpFhq(s, sq);
     else applyTrait(s, sq, m.trait, m.quiet);
   }
 }
@@ -94,30 +96,14 @@ function record(s, dt) {
   }) });
 }
 
-// "eyes": a drone gives a live look at a small area for a few seconds; charges refill slowly
-function eye(s, side, x, y) {
-  const E = s.eyes[side];
-  if (!E || s.over || E.charges < 1 || !Number.isFinite(x) || !Number.isFinite(y)) return false;
-  E.charges--; E.active.push({ x: clamp(x, 0, s.W), y: clamp(y, 0, H), r: EYE_R, until: s.t + EYE_TIME });
-  if (side === 'blue') note(s, 'רחפן באוויר');
-  return true;
-}
-function updateEyes(s, dt) {
-  for (const side of ['blue', 'red']) {
-    const E = s.eyes[side];
-    E.active = E.active.filter(d => d.until > s.t);
-    if (E.charges >= EYE_MAX) { E.prog = 0; continue; }
-    E.prog += dt / EYE_EVERY;
-    if (E.prog >= 1) { E.prog -= 1; E.charges++; }
-  }
-}
-
 // Situation picture: blue sees its own squads only as their commanders report them.
 // A report snapshots the squad (position, strength); an event report also drops a mark on the map.
+// Where control is poor the report is off: position by up to NOISE_POS·(1−Q), strength by NOISE_STR·(1−Q).
 function sendReport(s, sq, kind) {
   if (sq.side !== 'blue') return;
-  const r = s.rep[sq.id];
-  const said = sq.strength < 1 ? clamp(sq.strength + TEMPERS[sq.temper].rosy, 0.05, 1) : 1; // bold ones play losses down
-  s.rep[sq.id] = { x: sq.cx, y: sq.cy, strength: said, t: s.t, prev: r ? { x: r.x, y: r.y } : null };
+  const r = s.rep[sq.id], miss = 1 - qualityAt(s, sq), jit = () => (s.rand() * 2 - 1) * miss;
+  let said = sq.strength < 1 ? clamp(sq.strength + TEMPERS[sq.temper].rosy, 0.05, 1) : 1; // bold ones play losses down
+  said = clamp(said + NOISE_STR * jit(), 0.05, 1);
+  s.rep[sq.id] = { x: clamp(sq.cx + NOISE_POS * jit(), 0, s.W), y: clamp(sq.cy + NOISE_POS * jit(), 0, H), strength: said, t: s.t, q: 1 - miss, prev: r ? { x: r.x, y: r.y } : null };
   if (kind) s.marks.push({ x: sq.cx, y: sq.cy, kind, t: s.t, who: sq.name });
 }

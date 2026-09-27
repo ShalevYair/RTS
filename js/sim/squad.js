@@ -30,7 +30,8 @@ function updateSquad(s, sq, dt) {
   sq.wasRearm = rearming;
   // routine check-in; a squad in a fight is busy and reports half as often
   const r = s.rep[sq.id];
-  if (sq.side === 'blue' && (!r || s.t - r.t >= REPORT_EVERY * TEMPERS[sq.temper].report * (s.t - sq.lastContact < CONTACT_MEMORY ? 2 : 1))) sendReport(s, sq);
+  const every = (REPORT_MIN + REPORT_SPAN * (1 - qualityAt(s, sq))) * TEMPERS[sq.temper].report * (s.t - sq.lastContact < CONTACT_MEMORY ? 2 : 1);
+  if (sq.side === 'blue' && (!r || s.t - r.t >= every)) sendReport(s, sq);
   // under pressure but not yet breaking: ask HQ
   const thr = retreatAt(s, sq);
   if (sq.side === 'blue' && s.fog && contact && !sq.retreating && !s.calls.length && sq.order.type !== 'retreat' &&
@@ -104,6 +105,16 @@ function updateUnit(s, u, sq, dt) {
     if (!retreat && d <= T.sight && dist(anchor, e) <= leash + range && w < bw) { bw = w; bd = d; best = e; }
   }
   const tgt = best && bd <= range ? best : near;
+  // nothing else to shoot at: hit an enemy forward HQ or (AA only) a drone in range
+  if (!tgt && !retreat && u.cd === 0) {
+    const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= range);
+    if (n) {
+      u.engaged = true; n.hp -= T.dmg * NODE_MULT[u.type]; u.cd = T.cd; if (T.ammo) u.ammo--;
+      u.aim = Math.atan2(n.y - u.y, n.x - u.x); u.lastFire = s.t;
+      s.shots.push({ x1: u.x, y1: u.y, x2: n.x, y2: n.y, life: 0.15, side: u.side, kind: u.type });
+      s.fx.push({ x: n.x, y: n.y, life: IMPACT[u.type].life, max: IMPACT[u.type].life, size: IMPACT[u.type].size });
+    }
+  }
   if (tgt) {
     u.engaged = true;
     if (u.cd === 0) {

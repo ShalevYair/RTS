@@ -72,10 +72,16 @@ function enemyAI(s) {
     const tr = lead > 30 ? 'cautious' : lead < -30 ? 'aggressive' : 'balanced';
     for (const sq of s.squads) if (sq.side === 'red') sq.trait = tr;
   }
-  if (D.smart && s.fog && s.eyes.red.charges >= 1) {
+  if (D.smart && s.fog && s.cd.red.drone <= 0) {
     const known = p => s.squads.some(q => { const k = q.side === 'blue' && intel(s, 'red', q); return k && Math.hypot(k.x - p.x, k.y - p.y) < AI_NEAR; });
     const p = s.points.filter(p => p.owner !== 'red' || p.contested).find(p => !known(p));
-    if (p) eye(s, 'red', p.x, p.y);
+    if (p) drone(s, 'red', p.x, p.y);
+  }
+  // forward HQ: a builder that reached its point, far from any red node, sets one up there
+  if (D.smart && s.fog && s.cd.red.fhq <= 0) {
+    const b = red.find(q => FHQ_BUILDERS.includes(q.type) && q.arrived && !pending(s, q.id, 'order') &&
+      controlNodes(s, 'red').every(n => dist(n, { x: q.cx, y: q.cy }) > NODES.fhq.r1));
+    if (b) buildFhq(s, b.id);
   }
   return D.every;
 }

@@ -16,7 +16,7 @@ cv.addEventListener('pointerdown', e => {
   if (s.over) return;
   const { x, y } = toWorld(e);
   if (x < 0 || y < 0 || x > s.W || y > s.H) return;
-  if (eyeArmed) { Sim.eye(s, 'blue', x, y); eyeArmed = false; syncButtons(); updateHud(); return; }
+  if (eyeArmed) { Sim.drone(s, 'blue', x, y); eyeArmed = false; syncButtons(); updateHud(); return; }
   // tapping a facility in the base selects that force
   for (const t in s.bases.blue.fac) {
     const f = s.bases.blue.fac[t];
@@ -41,5 +41,6 @@ document.addEventListener('keydown', e => {
   else if (k in TRAIT_KEY) document.querySelector(`[data-trait="${TRAIT_KEY[k]}"]`).click();
   else if (k === ' ') { e.preventDefault(); setPlaying(!playing); }
   else if (k === 'd') toggleEye();
+  else if (k === 'b') buildHere();
   else if (k === 'escape') { eyeArmed = false; syncButtons(); menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false'); }
 });
