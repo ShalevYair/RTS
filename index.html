@@ -14,7 +14,7 @@
   --c-tree:#3d7534; --c-treeHi:#62a04e; --c-road:#e8d8ab; --c-roadEdge:#c3ab78; --c-water:#6db3dd; --c-waterEdge:#3f88ba; --c-rock:#9c9a8e;
   --c-shadow:rgba(20,30,10,.22); --c-halo:rgba(255,255,255,.88); --c-outline:rgba(15,20,10,.8);
   --c-blue:#1d4ed8; --c-red:#c62828; --c-ink:#17210f; --c-point:#6c7a5a; --c-line:#43513a;
-  --c-tInf:#2e7d32; --c-tAa:#7b1fa2; --c-tTank:#e65100; --c-tAir:#0277bd;
+  --c-tInf:#2e7d32; --c-tAa:#7b1fa2; --c-tTank:#e65100; --c-tAir:#0277bd; --c-fog:rgba(38,48,30,.5);
   box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
 @media (prefers-color-scheme: dark){
@@ -24,7 +24,7 @@
     --c-tree:#16301a; --c-treeHi:#2c5429; --c-road:#433a28; --c-roadEdge:#2e2819; --c-water:#1f4d6b; --c-waterEdge:#2d6a91; --c-rock:#5a5a52;
     --c-shadow:rgba(0,0,0,.35); --c-halo:rgba(10,15,8,.85); --c-outline:rgba(0,0,0,.85);
     --c-blue:#6ea0ff; --c-red:#ff6b5b; --c-ink:#e7efdc; --c-point:#8a9878; --c-line:#9aa98a;
-    --c-tInf:#4caf50; --c-tAa:#ab47bc; --c-tTank:#ff8f00; --c-tAir:#29b6f6;
+    --c-tInf:#4caf50; --c-tAa:#ab47bc; --c-tTank:#ff8f00; --c-tAir:#29b6f6; --c-fog:rgba(0,0,0,.55);
   }
 }
 :root[data-theme="dark"]{
@@ -33,7 +33,7 @@
   --c-tree:#16301a; --c-treeHi:#2c5429; --c-road:#433a28; --c-roadEdge:#2e2819; --c-water:#1f4d6b; --c-waterEdge:#2d6a91; --c-rock:#5a5a52;
   --c-shadow:rgba(0,0,0,.35); --c-halo:rgba(10,15,8,.85); --c-outline:rgba(0,0,0,.85);
   --c-blue:#6ea0ff; --c-red:#ff6b5b; --c-ink:#e7efdc; --c-point:#8a9878; --c-line:#9aa98a;
-  --c-tInf:#4caf50; --c-tAa:#ab47bc; --c-tTank:#ff8f00; --c-tAir:#29b6f6;
+  --c-tInf:#4caf50; --c-tAa:#ab47bc; --c-tTank:#ff8f00; --c-tAir:#29b6f6; --c-fog:rgba(0,0,0,.55);
 }
 *,*::before,*::after{box-sizing:inherit}
 html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);background:var(--c-ground)}
@@ -119,11 +119,13 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
         <li><span>👆</span><span>בחר כוח: בכפתורים למטה, לחיצה עליו במפה, או מקשים <kbd>1</kbd> עד <kbd>4</kbd>. מקש <kbd>0</kbd> בוחר את כולם.</span></li>
         <li><span>📍</span><span>בחר <b>⚓ החזק</b> או <b>⚔ תקוף</b> ולחץ על היעד במפה. <b>↩ סגת</b> מחזיר לבסיס.</span></li>
         <li><span>⚖</span><span>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: מתי המפקד נסוג (50%, 30%, 15%).</span></li>
+        <li><span>🌫</span><span>ערפל: רואים את האויב רק ליד הכוחות שלך, בבסיס ובנקודות שלך. כוח שיורה נחשף.</span></li>
         <li><span>⚡</span><span>מפגרים? התגבורת והכיבוש שלך מהירים יותר. אף משחק לא אבוד מוקדם.</span></li>
         <li><span>✂</span><span>נ"מ מנצח מטוסים, מטוסים מנצחים טנקים, טנקים מנצחים חי"ר ונ"מ.</span></li>
         <li><span>⏸</span><span>עצירה בכל רגע: <kbd>רווח</kbd> או ⏸. אפשר לתת פקודות גם בעצירה.</span></li>
       </ol>
       <div class="mrow"><span>אורך</span><button data-win="150">קצר (150)</button><button data-win="300">רגיל (300)</button></div>
+      <div class="mrow"><span>ערפל</span><button data-fog="1">פעיל</button><button data-fog="0">כבוי</button></div>
       <div class="mrow"><span>קושי</span><button data-diff="easy">קל</button><button data-diff="normal">רגיל</button><button data-diff="hard">קשה</button></div>
       <button id="go">התחל ▶</button>
     </div>
@@ -233,7 +235,7 @@ const Sim = (() => {
                { name: 'מוסך', type: 'tank', x: cx, y: 400 }, { name: 'מכ"ם', type: 'aa', x: cx, y: 555 }]
         .map(p => ({ ...p, r: 40, owner: null, prog: 0, contested: false })),
       bases: { blue: makeBase(30, 0, 60), red: makeBase(W - 30, W - 60, W) },
-      squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, stats: { rein: { blue: 0, red: 0 } },
+      squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true, vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} },
       tune: { point: REIN_PER_POINT, match: REIN_PER_MATCH, catchup: CATCHUP_MAX, capture: CATCHUP_CAPTURE }, diff: diff in DIFFS ? diff : 'normal' };
     const comp = [['א', 'inf', 6], ['ב', 'aa', 4], ['ג', 'tank', 3], ['ד', 'air', 2]];
     const blueTraits = ['aggressive', 'cautious', 'balanced', 'balanced'];
@@ -250,6 +252,7 @@ const Sim = (() => {
         const c0 = bodyCenter(s.units.filter(u => u.squad === sq.id)); sq.cx = c0.x; sq.cy = c0.y;
       });
     }
+    visibility(s);
     return s;
   }
 
@@ -319,7 +322,31 @@ const Sim = (() => {
     sq.wasRearm = rearming;
   }
 
-  const threatAt = (s, side, p, r) => s.units.some(u => u.side !== side && dist(u, p) <= r);
+  // fog of war: a side only knows about enemy units it can currently see
+  const seen = (s, side, u) => u.side === side || !s.fog || s.vis[side].has(u.id);
+  // what a side believes about an enemy squad: live when seen, else its last sighting for MEMORY seconds
+  function intel(s, side, q) {
+    if (q.side === side || !s.fog) return q.dead ? null : { x: q.cx, y: q.cy, strength: q.strength };
+    const m = s.mem[side][q.id];
+    return m && s.t - m.t <= MEMORY ? m : null;
+  }
+  const threatAt = (s, side, p, r) => s.units.some(u => u.side !== side && dist(u, p) <= r && seen(s, side, u));
+  // seen = within sight of a friendly unit, inside the side's own base or a point it holds,
+  // or it fired in the last FIRE_REVEAL seconds (muzzle flash)
+  function visibility(s) {
+    for (const side of ['blue', 'red']) {
+      const eyes = s.units.filter(u => u.side === side), held = s.points.filter(p => p.owner === side);
+      const v = new Set(), vq = new Set();
+      for (const e of s.units) {
+        if (e.side === side) continue;
+        if (s.t - e.lastFire < FIRE_REVEAL || inBase(s, side, e) || held.some(p => dist(p, e) < p.r * POINT_SIGHT) ||
+            eyes.some(u => dist(u, e) <= TYPES[u.type].sight)) { v.add(e.id); vq.add(e.squad); }
+      }
+      s.vis[side] = v; s.visSq[side] = vq;
+      for (const q of s.squads) if (vq.has(q.id)) s.mem[side][q.id] = { x: q.cx, y: q.cy, strength: q.strength, t: s.t };
+        else if (q.dead) delete s.mem[side][q.id];
+    }
+  }
   function effOrder(s, sq) {
     if (sq.support) {
       const t = s.squads.find(q => q.id === sq.support);
@@ -470,15 +497,16 @@ const Sim = (() => {
     normal: { name: 'רגיל', every: 8,  smart: true,  traits: false },
     hard:   { name: 'קשה',  every: 5,  smart: true,  traits: true },
   };
-  const AI_NEAR = 170, AI_KEEP = 60;
+  const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, POINT_SIGHT = 2.5, MEMORY = 20;
 
   // how much blue force sits near p, weighed by how the red squad fares against it.
   // > 0: the red squad has the upper hand there; < 0: it would be countered.
   function edgeAt(s, sq, p) {
     let e = 0;
     for (const q of s.squads) {
-      if (q.side !== 'blue' || q.dead || Math.hypot(q.cx - p.x, q.cy - p.y) > AI_NEAR) continue;
-      e += (MULT[sq.type][q.type] - MULT[q.type][sq.type]) * q.strength * q.size;
+      const k = q.side === 'blue' && intel(s, 'red', q);
+      if (!k || Math.hypot(k.x - p.x, k.y - p.y) > AI_NEAR) continue;
+      e += (MULT[sq.type][q.type] - MULT[q.type][sq.type]) * k.strength * q.size;
     }
     return e;
   }
@@ -516,11 +544,14 @@ const Sim = (() => {
     for (const sq of red.filter(q => q.type === 'air')) {
       let tgt = null, bs = Infinity;
       for (const q of s.squads) {
-        if (q.side !== 'blue' || q.dead || q.type === 'air') continue;
-        if (!D.smart && q.type !== 'tank') continue;
-        let sc = Math.hypot(q.cx - sq.cx, q.cy - sq.cy) - 250 * MULT.air[q.type];
-        if (D.smart) for (const a of s.squads) if (a.side === 'blue' && a.type === 'aa' && !a.dead && Math.hypot(a.cx - q.cx, a.cy - q.cy) < 150) sc += 300 * a.strength;
-        if (sc < bs) { bs = sc; tgt = { x: q.cx, y: q.cy }; }
+        const k = q.side === 'blue' && q.type !== 'air' && intel(s, 'red', q);
+        if (!k || (!D.smart && q.type !== 'tank')) continue;
+        let sc = Math.hypot(k.x - sq.cx, k.y - sq.cy) - 250 * MULT.air[q.type];
+        if (D.smart) for (const a of s.squads) {
+          const ka = a.side === 'blue' && a.type === 'aa' && intel(s, 'red', a);
+          if (ka && Math.hypot(ka.x - k.x, ka.y - k.y) < 150) sc += 300 * ka.strength;
+        }
+        if (sc < bs) { bs = sc; tgt = { x: k.x, y: k.y }; }
       }
       if (!tgt || (D.smart && bs > 450)) {
         bs = Infinity;
@@ -561,12 +592,13 @@ const Sim = (() => {
     s.shots = s.shots.filter(sh => sh.life > 0);
     capture(s, dt);
     reinforce(s, dt);
+    visibility(s);
     s.aiIn -= dt;
     if (s.aiIn <= 0) s.aiIn = enemyAI(s);
     if (s.score.blue >= s.WIN) s.over = 'blue'; else if (s.score.red >= s.WIN) s.over = 'red';
   }
 
-  return { create, step, order, setTrait, reinRate, catchup, note, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+  return { create, step, order, setTrait, reinRate, catchup, seen, note, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
 })();
 </script>
 
@@ -574,13 +606,14 @@ const Sim = (() => {
 (() => {
   const $ = id => document.getElementById(id);
   const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage'), bar = $('bar'), menu = $('menu');
-  let s, decor, sel = 'blue0', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0, diff = 'normal', win = Sim.WIN, endShown = false;
+  let s, decor, sel = 'blue0', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0, diff = 'normal', win = Sim.WIN, endShown = false, fog = true;
+  try { fog = localStorage.getItem('irts-fog') !== '0'; } catch (e) { /* storage unavailable */ }
   try { const w = +localStorage.getItem('irts-win'); if (w === 150 || w === 300) win = w; } catch (e) { /* storage unavailable */ }
   try { const d = localStorage.getItem('irts-diff'); if (d in Sim.DIFFS) diff = d; } catch (e) { /* storage unavailable */ }
   const colors = {};
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
-    for (const k of ['ground', 'grass2', 'field', 'field2', 'hill', 'hillHi', 'hillLine', 'tree', 'treeHi', 'road', 'roadEdge', 'water', 'waterEdge', 'rock', 'shadow', 'halo', 'outline', 'blue', 'red', 'ink', 'point', 'line', 'tInf', 'tAa', 'tTank', 'tAir'])
+    for (const k of ['ground', 'grass2', 'field', 'field2', 'hill', 'hillHi', 'hillLine', 'tree', 'treeHi', 'road', 'roadEdge', 'water', 'waterEdge', 'rock', 'shadow', 'halo', 'outline', 'blue', 'red', 'ink', 'point', 'line', 'tInf', 'tAa', 'tTank', 'tAir', 'fog'])
       colors[k] = cs.getPropertyValue('--c-' + k).trim();
   }
   readColors();
@@ -657,6 +690,7 @@ const Sim = (() => {
     document.querySelectorAll('[data-rate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.rate === rate)));
     const pb = $('play'); pb.textContent = playing ? '⏸' : '▶'; pb.setAttribute('aria-label', playing ? 'עצור' : 'התחל');
     document.querySelectorAll('[data-win]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.win === win)));
+    document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
   }
   const fmtTime = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
   function showEnd() {
@@ -719,6 +753,10 @@ const Sim = (() => {
   document.querySelectorAll('[data-win]').forEach(b => b.addEventListener('click', () => {
     win = +b.dataset.win; s.WIN = win; try { localStorage.setItem('irts-win', String(win)); } catch (e) { /* ignore */ }
     document.querySelectorAll('.goal').forEach(g => g.textContent = '/' + win); syncButtons();
+  }));
+  document.querySelectorAll('[data-fog]').forEach(b => b.addEventListener('click', () => {
+    fog = b.dataset.fog === '1'; s.fog = fog; try { localStorage.setItem('irts-fog', fog ? '1' : '0'); } catch (e) { /* ignore */ }
+    syncButtons();
   }));
   $('again').addEventListener('click', () => { newGame(true); setPlaying(true); });
   $('settings').addEventListener('click', () => newGame());
@@ -915,6 +953,27 @@ const Sim = (() => {
     }
   }
 
+  // fog of war: dim everything outside what blue can see (units' sight, own base, held points)
+  const fogCv = document.createElement('canvas'), fctx = fogCv.getContext('2d');
+  function drawFog() {
+    const f = fctx;
+    if (fogCv.width !== cv.width || fogCv.height !== cv.height) { fogCv.width = cv.width; fogCv.height = cv.height; }
+    f.setTransform(1, 0, 0, 1, 0, 0); f.globalCompositeOperation = 'source-over';
+    f.clearRect(0, 0, fogCv.width, fogCv.height);
+    f.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
+    f.fillStyle = colors.fog; f.fillRect(0, 0, s.W, s.H);
+    f.globalCompositeOperation = 'destination-out'; f.fillStyle = '#000';
+    const hole = (x, y, r) => {
+      const g = f.createRadialGradient(x, y, r * 0.75, x, y, r);
+      g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      f.fillStyle = g; f.beginPath(); f.arc(x, y, r, 0, Math.PI * 2); f.fill();
+    };
+    const b = s.bases.blue; f.fillRect(b.x0, 0, b.x1 - b.x0 + 5, s.H);
+    for (const p of s.points) if (p.owner === 'blue') hole(p.x, p.y, p.r * 2.5);
+    for (const u of s.units) if (u.side === 'blue') hole(u.x, u.y, Sim.TYPES[u.type].sight);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(fogCv, 0, 0); ctx.restore();
+  }
+
   function draw() {
     const c = ctx, W = s.W, H = s.H, mid = W / 2;
     c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = colors.ground; c.fillRect(0, 0, cv.width, cv.height);
@@ -946,7 +1005,7 @@ const Sim = (() => {
     c.restore();
     // units: ground first, aircraft (with drop shadows) on top
     for (const pass of [false, true]) for (const u of s.units) {
-      const T = Sim.TYPES[u.type]; if (!!T.air !== pass) continue;
+      const T = Sim.TYPES[u.type]; if (!!T.air !== pass || !Sim.seen(s, 'blue', u)) continue;
       const k = SIZE[u.type], recent = s.t - u.lastFire < 3;
       const aim = recent ? u.aim : (u.type === 'aa' ? idleAim('aa', u.side) : u.hd);
       if (T.air) { c.globalAlpha = 0.22; glyph(c, 'air', u.x + 7, u.y + 10, k, '#000', null, u.hd); c.globalAlpha = 1; }
@@ -978,6 +1037,7 @@ const Sim = (() => {
         }
       }
     }
+    if (s.fog) drawFog();
     // squad badges: tap to select; type icon, strength bar, posture
     for (const q of s.squads) {
       if (q.side !== 'blue' || q.dead) continue;
@@ -1196,7 +1256,7 @@ const Sim = (() => {
   syncMusic(false);
 
   function newGame(skipIntro) {
-    s = Sim.create((Date.now() % 1e6) | 0, worldWidth(), diff, win);
+    s = Sim.create((Date.now() % 1e6) | 0, worldWidth(), diff, win); s.fog = fog;
     decor = makeDecor(s.W); sel = 'blue0'; mode = 'hold'; playing = false; logKey = ''; endShown = false;
     $('end').hidden = true; $('share').textContent = 'שתף 🔗';
     document.querySelectorAll('.goal').forEach(g => g.textContent = '/' + s.WIN);
