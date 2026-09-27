@@ -47,7 +47,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
 .log{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:min(440px,56%);list-style:none;margin:0;padding:0;font-size:13px;text-align:center;pointer-events:none}
 .log li{border-radius:6px;padding:1px 8px;margin-bottom:3px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .6s}
 .log b{color:var(--c-blue)}
-.bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;padding:6px;border-radius:12px;max-width:calc(100% - 16px)}
+.bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:max-content;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;padding:6px;border-radius:12px;max-width:calc(100% - 16px)}
 .sep{width:1px;align-self:stretch;background:var(--border)}
 button{font:600 15px Assistant,sans-serif;color:var(--ink);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:7px 12px;cursor:pointer;min-height:40px}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -65,14 +65,20 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .mrow button{flex:1}
 .mrow input{flex:1;accent-color:var(--accent)}
 .legend{margin:0;font-size:13px;color:var(--muted);line-height:1.5}
-.banner{position:absolute;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 24px);border-radius:10px;padding:8px 14px;font-size:14px;text-align:center;pointer-events:none}
-.banner[hidden]{display:none}
 .sqb{position:relative;min-width:44px;padding:4px 6px}
 .sqb canvas{position:static;width:26px;height:26px;display:block;margin:auto;cursor:inherit}
 .sqb kbd{position:absolute;top:1px;inset-inline-end:3px;font:700 10px Assistant,sans-serif;color:var(--muted)}
 .sqb i{position:absolute;left:5px;right:5px;bottom:3px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--c-blue) calc(var(--st,1)*100%),var(--border) 0)}
 .sqb.dead{opacity:.4}
-@media (max-width:560px){.bar .sep{display:none}}
+@media (max-width:560px){.bar .sep{display:none}.bar{gap:4px;padding:5px}.sqb{min-width:40px}}
+.grp{display:flex;gap:6px}
+.sm{display:none}
+@media (max-width:560px){.lg{display:none}.sm{display:inline}.ord{min-width:42px;font-size:18px;padding:6px 8px}}
+.stats{margin:0 0 14px;font-size:17px;color:var(--muted)}
+.stats b{font:26px/1 "Secular One",sans-serif}
+.stats .me{color:var(--c-blue)} .stats .foe{color:var(--c-red)}
+.btns{display:flex;gap:8px}.btns button{flex:1}
+#again{background:var(--accent);color:#fff;border-color:var(--accent);font-size:17px}
 @media (pointer:coarse){.sqb kbd{display:none}}
 .intro{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:16px;background:rgb(0 0 0 / .35)}
 .intro[hidden]{display:none}
@@ -86,7 +92,6 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .card .mrow{margin-bottom:12px}
 .intro.short .card ol,.intro.short .sub{display:none}
 #go{width:100%;font-size:18px;background:var(--accent);color:#fff;border-color:var(--accent)}
-.banner.big{top:50%;bottom:auto!important;transform:translate(-50%,-50%);font:22px/1.3 "Secular One",sans-serif;padding:18px 24px}
 @media (prefers-reduced-motion: reduce){.log li{transition:none}}
 </style>
 </head>
@@ -96,7 +101,6 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
   <div class="score blue glass" title="הניקוד שלך"><b id="sb">0</b><small class="goal"></small></div>
   <ol class="log" id="log" aria-live="polite"></ol>
   <div class="score red glass" title="ניקוד האויב"><b id="sr">0</b><small class="goal"></small></div>
-  <div id="banner" class="banner glass"></div>
   <div class="menu glass" id="menu" hidden>
     <div class="mrow"><span>מהירות</span><button data-rate="0.5">איטי</button><button data-rate="1">רגיל</button><button data-rate="2">מהיר</button></div>
     <div class="mrow"><span>מוזיקה</span><button id="music" class="icon" aria-pressed="true" aria-label="מוזיקה">♪</button><input id="vol" type="range" min="0" max="100" value="35" aria-label="עוצמת מוזיקה"></div>
@@ -112,13 +116,21 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
       <ol>
         <li><span>🚩</span><span>החזק נקודות. כל נקודה = שנייה של ניקוד. הראשון ל-300 מנצח.</span></li>
         <li><span>👆</span><span>בחר כוח: בכפתורים למטה, לחיצה עליו במפה, או מקשים <kbd>1</kbd> עד <kbd>4</kbd>. מקש <kbd>0</kbd> בוחר את כולם.</span></li>
-        <li><span>📍</span><span>בחר <b>החזק</b> או <b>תקוף</b> ולחץ על היעד במפה. <b>סגת</b> מחזיר לבסיס.</span></li>
+        <li><span>📍</span><span>בחר <b>⚓ החזק</b> או <b>⚔ תקוף</b> ולחץ על היעד במפה. <b>↩ סגת</b> מחזיר לבסיס.</span></li>
         <li><span>⚖</span><span>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: מתי המפקד נסוג (50%, 30%, 15%).</span></li>
         <li><span>✂</span><span>נ"מ מנצח מטוסים, מטוסים מנצחים טנקים, טנקים מנצחים חי"ר ונ"מ.</span></li>
         <li><span>⏸</span><span>עצירה בכל רגע: <kbd>רווח</kbd> או ⏸. אפשר לתת פקודות גם בעצירה.</span></li>
       </ol>
+      <div class="mrow"><span>אורך</span><button data-win="150">קצר (150)</button><button data-win="300">רגיל (300)</button></div>
       <div class="mrow"><span>קושי</span><button data-diff="easy">קל</button><button data-diff="normal">רגיל</button><button data-diff="hard">קשה</button></div>
       <button id="go">התחל ▶</button>
+    </div>
+  </div>
+  <div class="intro" id="end" hidden>
+    <div class="card glass" role="dialog" aria-labelledby="endT">
+      <h1 id="endT"></h1>
+      <p class="stats"><b class="me" id="endMe"></b> : <b class="foe" id="endFoe"></b> · <span id="endInfo"></span></p>
+      <div class="btns"><button id="again">שוב ▶</button><button id="share">שתף 🔗</button><button id="settings">הגדרות</button></div>
     </div>
   </div>
   <div class="bar glass" id="bar" role="toolbar" aria-label="פקודות">
@@ -133,9 +145,11 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
       <button class="sqb" data-sq="blue3"><canvas width="52" height="52"></canvas><kbd>4</kbd><i></i></button>
     </div>
     <span class="sep"></span>
-    <button data-mode="hold" aria-pressed="true">החזק</button>
-    <button data-mode="attack" aria-pressed="false">תקוף</button>
-    <button id="retreat">סגת</button>
+    <div class="grp" role="group" aria-label="פקודה">
+    <button class="ord" data-mode="hold" aria-pressed="true" aria-label="החזק"><span class="lg">החזק</span><span class="sm" aria-hidden="true">⚓</span></button>
+    <button class="ord" data-mode="attack" aria-pressed="false" aria-label="תקוף"><span class="lg">תקוף</span><span class="sm" aria-hidden="true">⚔</span></button>
+    <button class="ord" id="retreat" aria-label="סגת"><span class="lg">סגת</span><span class="sm" aria-hidden="true">↩</span></button>
+    </div>
     <span class="sep"></span>
     <div class="seg" role="group" aria-label="מתי המפקד נסוג">
       <button data-trait="cautious" title="זהיר: נסוג ב-50%">🛡</button>
@@ -207,10 +221,10 @@ const Sim = (() => {
     return { x, y: H / 2, x0, x1, fac };
   }
 
-  function create(seed = 1, W = 1000, diff = 'normal') {
+  function create(seed = 1, W = 1000, diff = 'normal', win = WIN) {
     W = Math.max(700, Math.min(1500, Math.round(W) || 1000));
     const cx = W / 2, off = 0.17 * W;
-    const s = { W, H, WIN, t: 0, over: null, score: { blue: 0, red: 0 }, nextId: 1, rand: rng(seed),
+    const s = { W, H, WIN: clamp(Math.round(win) || WIN, 30, 1000), t: 0, over: null, score: { blue: 0, red: 0 }, nextId: 1, rand: rng(seed),
       hills: [{ x: cx, y: 555, r: 75 }, { x: cx - off, y: 165, r: 60 }, { x: cx + off, y: 165, r: 60 }, { x: cx - off, y: 470, r: 55 }, { x: cx + off, y: 470, r: 55 }],
       points: [{ name: 'שדה קדמי', type: 'air', x: cx, y: 85 }, { name: 'מחנה', type: 'inf', x: cx, y: 240 },
                { name: 'מוסך', type: 'tank', x: cx, y: 400 }, { name: 'מכ"ם', type: 'aa', x: cx, y: 555 }]
@@ -540,7 +554,7 @@ const Sim = (() => {
     reinforce(s, dt);
     s.aiIn -= dt;
     if (s.aiIn <= 0) s.aiIn = enemyAI(s);
-    if (s.score.blue >= WIN) s.over = 'blue'; else if (s.score.red >= WIN) s.over = 'red';
+    if (s.score.blue >= s.WIN) s.over = 'blue'; else if (s.score.red >= s.WIN) s.over = 'red';
   }
 
   return { create, step, order, setTrait, reinRate, note, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
@@ -551,7 +565,8 @@ const Sim = (() => {
 (() => {
   const $ = id => document.getElementById(id);
   const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage'), bar = $('bar'), menu = $('menu');
-  let s, decor, sel = 'blue0', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0, diff = 'normal';
+  let s, decor, sel = 'blue0', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0, diff = 'normal', win = Sim.WIN, endShown = false;
+  try { const w = +localStorage.getItem('irts-win'); if (w === 150 || w === 300) win = w; } catch (e) { /* storage unavailable */ }
   try { const d = localStorage.getItem('irts-diff'); if (d in Sim.DIFFS) diff = d; } catch (e) { /* storage unavailable */ }
   const colors = {};
   function readColors() {
@@ -606,7 +621,7 @@ const Sim = (() => {
   }
   function placeFloating() {
     const b = bar.offsetHeight + 16;
-    menu.style.bottom = b + 'px'; $('banner').style.bottom = b + 'px';
+    menu.style.bottom = b + 'px';
   }
 
   // ---- selection & commands ----
@@ -632,12 +647,14 @@ const Sim = (() => {
     document.querySelectorAll('[data-trait]').forEach(b => b.setAttribute('aria-pressed', String(traits.size === 1 && traits.has(b.dataset.trait))));
     document.querySelectorAll('[data-rate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.rate === rate)));
     const pb = $('play'); pb.textContent = playing ? '⏸' : '▶'; pb.setAttribute('aria-label', playing ? 'עצור' : 'התחל');
-    updateBanner();
+    document.querySelectorAll('[data-win]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.win === win)));
   }
-  function updateBanner() {
-    const el = $('banner');
-    if (s.over) { el.hidden = false; el.className = 'banner glass big'; el.textContent = s.over === 'blue' ? 'ניצחת! משחק חדש בתפריט ⚙' : 'הפסדת. משחק חדש בתפריט ⚙'; }
-    else el.hidden = true;
+  const fmtTime = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+  function showEnd() {
+    $('endT').textContent = s.over === 'blue' ? 'ניצחת! 🏆' : 'הפסדת';
+    $('endMe').textContent = Math.floor(s.score.blue); $('endFoe').textContent = Math.floor(s.score.red);
+    $('endInfo').textContent = `${fmtTime(s.t)} · ${Sim.DIFFS[s.diff].name}`;
+    $('end').hidden = false; $('again').focus();
   }
   function updateHud() {
     $('sb').textContent = Math.floor(s.score.blue); $('sr').textContent = Math.floor(s.score.red);
@@ -656,8 +673,7 @@ const Sim = (() => {
       const q = s.squads.find(x => x.id === b.dataset.sq);
       b.style.setProperty('--st', Math.min(1, q.strength).toFixed(2)); b.classList.toggle('dead', q.dead);
     }
-    if (s.over && playing) setPlaying(false);
-    else if (s.over && $('banner').hidden) updateBanner();
+    if (s.over && !endShown) { endShown = true; setPlaying(false); showEnd(); }
   }
 
   document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { mode = b.dataset.mode; syncButtons(); }));
@@ -690,6 +706,21 @@ const Sim = (() => {
     $('intro').classList.toggle('short', seen && !full); setPlaying(false); $('go').focus();
   };
   $('go').addEventListener('click', () => { showIntro(false); try { localStorage.setItem('irts-seen', '1'); } catch (e) { /* ignore */ } setPlaying(true); });
+  document.querySelectorAll('[data-win]').forEach(b => b.addEventListener('click', () => {
+    win = +b.dataset.win; s.WIN = win; try { localStorage.setItem('irts-win', String(win)); } catch (e) { /* ignore */ }
+    document.querySelectorAll('.goal').forEach(g => g.textContent = '/' + win); syncButtons();
+  }));
+  $('again').addEventListener('click', () => { newGame(true); setPlaying(true); });
+  $('settings').addEventListener('click', () => newGame());
+  $('share').addEventListener('click', async () => {
+    const url = location.href.split('#')[0];
+    const text = (s.over === 'blue' ? `ניצחתי ${Math.floor(s.score.blue)}:${Math.floor(s.score.red)}` : `הפסדתי ${Math.floor(s.score.blue)}:${Math.floor(s.score.red)}`)
+      + ` ברמה ${Sim.DIFFS[s.diff].name} ב"פיקוד על כוונה". נסה לנצח:`;
+    try {
+      if (navigator.share) await navigator.share({ title: 'פיקוד על כוונה', text, url });
+      else { await navigator.clipboard.writeText(text + ' ' + url); $('share').textContent = 'הועתק ✓'; }
+    } catch (e) { /* share cancelled or clipboard blocked */ }
+  });
   $('help').addEventListener('click', () => { menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false'); showIntro(true, true); });
   $('retreat').addEventListener('click', () => issue('retreat'));
   $('play').addEventListener('click', () => setPlaying(!playing));
@@ -726,6 +757,7 @@ const Sim = (() => {
   document.addEventListener('keydown', e => {
     if (e.target.closest('input,textarea')) return;
     if (!$('intro').hidden) { if (e.key === 'Escape') $('go').click(); return; }
+    if (!$('end').hidden) return;
     // physical key codes, so the shortcuts also work on a Hebrew keyboard layout
     const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : /^(Digit|Numpad)\d$/.test(e.code) ? e.code.slice(-1) : e.key.toLowerCase();
     if (['1', '2', '3', '4'].includes(k)) select('blue' + (+k - 1));
@@ -1153,11 +1185,12 @@ const Sim = (() => {
   for (const ev of ['pointerdown', 'keydown', 'touchend']) document.addEventListener(ev, () => { Music.unlock(); if (musicOn && vol > 0) Music.start(); });
   syncMusic(false);
 
-  function newGame() {
-    s = Sim.create((Date.now() % 1e6) | 0, worldWidth(), diff);
-    decor = makeDecor(s.W); sel = 'blue0'; mode = 'hold'; playing = false; logKey = '';
-    document.querySelectorAll('.goal').forEach(g => g.textContent = '/' + Sim.WIN);
-    resize(); syncButtons(); updateHud(); showIntro(true);
+  function newGame(skipIntro) {
+    s = Sim.create((Date.now() % 1e6) | 0, worldWidth(), diff, win);
+    decor = makeDecor(s.W); sel = 'blue0'; mode = 'hold'; playing = false; logKey = ''; endShown = false;
+    $('end').hidden = true; $('share').textContent = 'שתף 🔗';
+    document.querySelectorAll('.goal').forEach(g => g.textContent = '/' + s.WIN);
+    resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
   }
 
   const DT = 1 / 30; let last = performance.now(), acc = 0;
