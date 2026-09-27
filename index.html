@@ -111,7 +111,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
     <div class="mrow"><span>פיצוצים</span><button id="sfx" class="icon" aria-pressed="true" aria-label="קולות פיצוצים">💥</button><input id="sfxvol" type="range" min="0" max="100" value="60" aria-label="עוצמת פיצוצים"></div>
     <button id="help">❔ הסבר</button>
     <button id="restart">משחק חדש</button>
-    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>👥 מילואים: תגבורת עולה 1 (טנק ומטוס 2), מתמלאים לאט; נסיגה לבסיס מרפאת בחינם.<br>⚡ הצד שמפגר בניקוד מקבל תגבורת וכיבוש מהירים יותר.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
+    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>👥 מילואים: תגבורת עולה 1 (טנק ומטוס 2), מתמלאים לאט; נסיגה לבסיס מרפאת בחינם.<br>🗺 בערפל: כוחות לפי הדיווח האחרון, אויב ככתם שגדל ככל שהתצפית ישנה; ⚔ 💥 ✓ 🚩 = דיווחים על המפה.<br>⚡ הצד שמפגר בניקוד מקבל תגבורת וכיבוש מהירים יותר.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
   </div>
   <div class="intro" id="intro">
     <div class="card glass" role="dialog" aria-labelledby="introT">
@@ -123,7 +123,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
         <li><span>📍</span><span>בחר <b>⚓ החזק</b> או <b>⚔ תקוף</b> ולחץ על היעד במפה. <b>↩ סגת</b> מחזיר לבסיס.</span></li>
         <li><span>⚖</span><span>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: מתי המפקד נסוג (50%, 30%, 15%).</span></li>
         <li><span>👥</span><span>מילואים: כל תגבורת עולה 1 (טנק ומטוס 2) ומתמלאת לאט. כוח שנסוג לבסיס מתרפא בחינם.</span></li>
-        <li><span>🌫</span><span>ערפל: רואים את האויב רק ליד הכוחות שלך, בבסיס ובנקודות שלך. כוח שיורה נחשף.</span></li>
+        <li><span>🗺</span><span>ערפל: אתה רואה דיווחים, לא את השטח. הכוחות שלך מופיעים לפי הדיווח האחרון (❓ = לא דיווח מזמן), האויב ככתמים שמתפשטים עם הזמן.</span></li>
         <li><span>⚡</span><span>מפגרים? התגבורת והכיבוש שלך מהירים יותר. אף משחק לא אבוד מוקדם.</span></li>
         <li><span>✂</span><span>נ"מ מנצח מטוסים, מטוסים מנצחים טנקים, טנקים מנצחים חי"ר ונ"מ.</span></li>
         <li><span>⏸</span><span>עצירה בכל רגע: <kbd>רווח</kbd> או ⏸. אפשר לתת פקודות גם בעצירה.</span></li>
@@ -199,6 +199,7 @@ const Sim = (() => {
   // reserves: every reinforcement is paid for; the pool refills 1 per RESERVE_EVERY seconds
   const RESERVE_START = 20, RESERVE_EVERY = 6, RESERVE_MAX = 30;
   const FAC_Y = { inf: 80, aa: 240, tank: 400, air: 560 };
+  const REPORT_EVERY = 6, MARK_LIFE = 4;
   const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
   function rng(seed) {
@@ -241,7 +242,7 @@ const Sim = (() => {
                { name: 'מוסך', type: 'tank', x: cx, y: 400 }, { name: 'מכ"ם', type: 'aa', x: cx, y: 555 }]
         .map(p => ({ ...p, r: 40, owner: null, prog: 0, contested: false })),
       bases: { blue: makeBase(30, 0, 60), red: makeBase(W - 30, W - 60, W) },
-      squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true, vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} },
+      squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true, vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} }, rep: {}, marks: [],
       reserve: { blue: RESERVE_START, red: RESERVE_START },
       tune: { resEvery: RESERVE_EVERY, resMax: RESERVE_MAX, point: REIN_PER_POINT, match: REIN_PER_MATCH, catchup: CATCHUP_MAX, capture: CATCHUP_CAPTURE }, diff: diff in DIFFS ? diff : 'normal' };
     const comp = [['א', 'inf', 6], ['ב', 'aa', 4], ['ג', 'tank', 3], ['ד', 'air', 2]];
@@ -260,6 +261,7 @@ const Sim = (() => {
       });
     }
     visibility(s);
+    for (const q of s.squads) sendReport(s, q);
     return s;
   }
 
@@ -300,33 +302,47 @@ const Sim = (() => {
     return { x: g.reduce((a, u) => a + u.x, 0) / g.length, y: g.reduce((a, u) => a + u.y, 0) / g.length };
   }
 
+  // Situation picture: blue sees its own squads only as their commanders report them.
+  // A report snapshots the squad (position, strength); an event report also drops a mark on the map.
+  function sendReport(s, sq, kind) {
+    if (sq.side !== 'blue') return;
+    const r = s.rep[sq.id];
+    s.rep[sq.id] = { x: sq.cx, y: sq.cy, strength: sq.strength, t: s.t, prev: r ? { x: r.x, y: r.y } : null };
+    if (kind) s.marks.push({ x: sq.cx, y: sq.cy, kind, t: s.t });
+  }
+
   function updateSquad(s, sq, dt) {
     const m = s.units.filter(u => u.squad === sq.id);
     sq.count = m.length;
-    if (!m.length) { if (!sq.dead) { sq.dead = true; sq.strength = 0; report(s, sq, 'הכוח הושמד'); } return; }
-    if (sq.dead) { sq.dead = false; report(s, sq, 'הכוח הוקם מחדש מהתגבורת'); }
+    if (!m.length) { if (!sq.dead) { sq.dead = true; sq.strength = 0; report(s, sq, 'הכוח הושמד'); sendReport(s, sq, 'lost'); } return; }
+    let fresh = false;
+    if (sq.dead) { sq.dead = false; fresh = true; report(s, sq, 'הכוח הוקם מחדש מהתגבורת'); }
     const T = TYPES[sq.type], tr = TRAITS[sq.trait];
     sq.strength = m.reduce((a, u) => a + u.hp, 0) / (sq.size * T.hp);
     const body = bodyCenter(m); sq.cx = body.x; sq.cy = body.y;
     const c = { x: sq.cx, y: sq.cy };
+    if (fresh) sendReport(s, sq);
     if (!sq.retreating && sq.order.type !== 'retreat' && sq.strength < tr.retreatAt) {
       sq.retreating = true;
-      report(s, sq, `אבדות כבדות (${Math.round(sq.strength * 100)}%), נסוג להתארגנות`);
+      report(s, sq, `אבדות כבדות (${Math.round(sq.strength * 100)}%), נסוג להתארגנות`); sendReport(s, sq, 'hit');
     }
     if (sq.retreating && sq.strength >= 0.8 && inBase(s, sq.side, c)) {
       sq.retreating = false; sq.arrived = false; report(s, sq, 'התארגנו, חוזרים למשימה');
     }
     if (!sq.arrived && !sq.retreating && !sq.support && (sq.order.type === 'retreat' ? inBase(s, sq.side, c) : dist(c, sq.order) < sq.order.r)) {
-      sq.arrived = true; report(s, sq, sq.order.type === 'retreat' ? 'הגענו לבסיס' : 'הגענו ליעד');
+      sq.arrived = true; report(s, sq, sq.order.type === 'retreat' ? 'הגענו לבסיס' : 'הגענו ליעד'); sendReport(s, sq, 'ok');
     }
     sq.contactCd = Math.max(0, sq.contactCd - dt);
     const contact = m.some(u => u.engaged);
     if (contact) sq.lastContact = s.t;
-    if (contact && !sq.wasContact && sq.contactCd === 0) { report(s, sq, 'במגע עם האויב'); sq.contactCd = 10; }
+    if (contact && !sq.wasContact && sq.contactCd === 0) { report(s, sq, 'במגע עם האויב'); sq.contactCd = 10; sendReport(s, sq, 'contact'); }
     sq.wasContact = contact;
     const rearming = m.some(u => u.rearm);
     if (rearming && !sq.wasRearm) report(s, sq, 'נגמרה התחמושת, חוזרים לשדה התעופה לחימוש');
     sq.wasRearm = rearming;
+    // routine check-in; a squad in a fight is busy and reports half as often
+    const r = s.rep[sq.id];
+    if (sq.side === 'blue' && (!r || s.t - r.t >= REPORT_EVERY * (s.t - sq.lastContact < CONTACT_MEMORY ? 2 : 1))) sendReport(s, sq);
   }
 
   // fog of war: a side only knows about enemy units it can currently see
@@ -350,8 +366,14 @@ const Sim = (() => {
             eyes.some(u => dist(u, e) <= TYPES[u.type].sight)) { v.add(e.id); vq.add(e.squad); }
       }
       s.vis[side] = v; s.visSq[side] = vq;
-      for (const q of s.squads) if (vq.has(q.id)) s.mem[side][q.id] = { x: q.cx, y: q.cy, strength: q.strength, t: s.t };
+      // remember where the seen part of each enemy squad is, not the whole squad (that would leak)
+      const acc = {};
+      for (const e of s.units) if (v.has(e.id)) { const a = acc[e.squad] || (acc[e.squad] = { x: 0, y: 0, n: 0 }); a.x += e.x; a.y += e.y; a.n++; }
+      for (const q of s.squads) {
+        const a = acc[q.id];
+        if (a) s.mem[side][q.id] = { x: a.x / a.n, y: a.y / a.n, n: a.n, strength: q.strength, type: q.type, t: s.t };
         else if (q.dead) delete s.mem[side][q.id];
+      }
     }
   }
   function effOrder(s, sq) {
@@ -467,6 +489,7 @@ const Sim = (() => {
       else if (p.prog <= -1) p.owner = 'red';
       else if (p.owner === 'blue' && p.prog <= 0) p.owner = null;
       else if (p.owner === 'red' && p.prog >= 0) p.owner = null;
+      if (prev !== p.owner) s.marks.push({ x: p.x, y: p.y - p.r, kind: p.owner === 'blue' ? 'flag' : 'flagLost', t: s.t });
       if (prev !== p.owner) report(s, null, p.owner === 'blue' ? `כבשנו את ${p.name}` : p.owner === 'red' ? `האויב כבש את ${p.name}` : `${p.name} ניטרלית`);
       if (p.owner) s.score[p.owner] += dt;
     }
@@ -600,6 +623,7 @@ const Sim = (() => {
     }
     for (const f of s.fx) f.life -= dt;
     s.fx = s.fx.filter(f => f.life > 0);
+    s.marks = s.marks.filter(k => s.t - k.t < MARK_LIFE);
     for (const sh of s.shots) sh.life -= dt;
     s.shots = s.shots.filter(sh => sh.life > 0);
     capture(s, dt);
@@ -610,7 +634,7 @@ const Sim = (() => {
     if (s.score.blue >= s.WIN) s.over = 'blue'; else if (s.score.red >= s.WIN) s.over = 'red';
   }
 
-  return { create, step, order, setTrait, reinRate, catchup, seen, note, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+  return { create, step, order, setTrait, reinRate, catchup, seen, note, MARK_LIFE, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
 })();
 </script>
 
@@ -718,7 +742,7 @@ const Sim = (() => {
     const key = s.log.length + ':' + (s.log.at(-1)?.t ?? '') + ':' + Math.floor(s.t / 2);
     if (key !== logKey) {
       logKey = key; const ol = $('log'); ol.textContent = '';
-      for (const e of s.log.slice(-2)) {
+      for (const e of s.log.slice(s.fog ? -1 : -2)) {
         const li = document.createElement('li'); li.className = 'glass';
         li.style.opacity = s.t - e.t > 10 ? '0.45' : '1';
         li.innerHTML = '<b></b>: <span></span>';
@@ -728,7 +752,7 @@ const Sim = (() => {
     }
     for (const b of document.querySelectorAll('[data-sq]')) {
       const q = s.squads.find(x => x.id === b.dataset.sq);
-      b.style.setProperty('--st', Math.min(1, q.strength).toFixed(2)); b.classList.toggle('dead', q.dead);
+      b.style.setProperty('--st', Math.min(1, pos(q).strength).toFixed(2)); b.classList.toggle('dead', q.dead);
     }
     if (s.over && !endShown) { endShown = true; setPlaying(false); showEnd(); }
   }
@@ -794,8 +818,11 @@ const Sim = (() => {
     const r = cv.getBoundingClientRect();
     return { x: (e.clientX - r.left - view.cox) / view.css, y: (e.clientY - r.top - view.coy) / view.css };
   }
+  // what the player sees of a blue squad: its last report under fog, the truth otherwise
+  const pos = q => s.fog ? s.rep[q.id] : { x: q.cx, y: q.cy, strength: q.strength, t: s.t, prev: null };
   function hitSquad(x, y) {
-    for (const q of s.squads) if (q.side === 'blue' && !q.dead && Math.hypot(q.cx - x, q.cy - 26 - y) < 15) return q.id;
+    for (const q of s.squads) { const p = q.side === 'blue' && !q.dead && pos(q); if (p && Math.hypot(p.x - x, p.y - 26 - y) < 17) return q.id; }
+    if (s.fog) return null; // individual units aren't on the situation map
     const tol = Math.max(12, 22 / view.css); let best = null, bd = tol;
     for (const u of s.units) { if (u.side !== 'blue') continue; const d = Math.hypot(u.x - x, u.y - y); if (d < bd) { bd = d; best = u.squad; } }
     return best;
@@ -983,8 +1010,40 @@ const Sim = (() => {
     };
     const b = s.bases.blue; f.fillRect(b.x0, 0, b.x1 - b.x0 + 5, s.H);
     for (const p of s.points) if (p.owner === 'blue') hole(p.x, p.y, p.r * 2.5);
-    for (const u of s.units) if (u.side === 'blue') hole(u.x, u.y, Sim.TYPES[u.type].sight);
+    for (const q of s.squads) if (q.side === 'blue' && !q.dead) { const p = pos(q); hole(p.x, p.y, Sim.TYPES[q.type].sight + 30); }
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(fogCv, 0, 0); ctx.restore();
+  }
+
+  // enemy as blobs of uncertainty: tight when just seen, spreading and fading with the age of the sighting
+  const STALE = 12, TRAIL = 8, BLOB_LIFE = 40, BLOB_R = 25, BLOB_MAX = 150, UNSURE = 4;
+  function drawEnemyIntel(c) {
+    for (const q of s.squads) {
+      const m = q.side === 'red' && s.mem.blue[q.id], age = m ? s.t - m.t : Infinity;
+      if (!m || age > BLOB_LIFE) continue;
+      const k = 1 - age / BLOB_LIFE, r = Math.min(BLOB_MAX, BLOB_R + Sim.TYPES[m.type].speed * age * 0.5);
+      const g = c.createRadialGradient(m.x, m.y, 0, m.x, m.y, r);
+      g.addColorStop(0, hexA(colors.red, 0.4 * k + 0.1)); g.addColorStop(0.6, hexA(colors.red, 0.2 * k)); g.addColorStop(1, hexA(colors.red, 0));
+      c.fillStyle = g; ring(m.x, m.y, r); c.fill();
+      c.globalAlpha = 0.35 + 0.65 * k;
+      c.fillStyle = colors.red; ring(m.x, m.y, 11); c.fill(); c.lineWidth = 1.5; c.strokeStyle = '#fff'; c.stroke();
+      glyph(c, m.type, m.x, m.y, m.type === 'air' ? 8 : 6, '#fff', null, Math.PI, m.type === 'aa' ? -Math.PI / 2 : Math.PI);
+      // rough size: 1-3 dots from how many were seen
+      const dots = m.n <= 2 ? 1 : m.n <= 4 ? 2 : 3; c.fillStyle = colors.red;
+      for (let i = 0; i < dots; i++) { ring(m.x - (dots - 1) * 4 + i * 8, m.y + 17, 2.5); c.fill(); }
+      if (age > UNSURE) label('?', m.x + 15, m.y - 8, colors.red);
+      c.globalAlpha = 1;
+    }
+  }
+  // event reports appear where they happened, pop in and fade out
+  const MARK = { contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳' };
+  function drawMarks(c) {
+    for (const k of s.marks) {
+      const a = (s.t - k.t) / Sim.MARK_LIFE, sc = a < 0.15 ? 0.6 + a / 0.15 * 0.6 : 1.2 - Math.min(0.2, a);
+      c.globalAlpha = Math.max(0, 1 - a); c.font = `${Math.round(18 * sc)}px sans-serif`;
+      c.lineWidth = 3; c.strokeStyle = colors.halo; c.strokeText(MARK[k.kind], k.x, k.y - 44);
+      c.fillStyle = k.kind === 'lost' || k.kind === 'flagLost' ? colors.red : colors.ink; c.fillText(MARK[k.kind], k.x, k.y - 44);
+    }
+    c.globalAlpha = 1;
   }
 
   function draw() {
@@ -999,9 +1058,11 @@ const Sim = (() => {
     const labelSpots = [];
     for (const q of s.squads) {
       if (q.side !== 'blue' || q.dead) continue;
-      const o = q.retreating ? { ...s.bases.blue.fac[q.type], r: 30, type: 'retreat' } : Sim.effOrder(s, q), on = sel === 'all' || q.id === sel;
+      let o = q.retreating ? { ...s.bases.blue.fac[q.type], r: 30, type: 'retreat' } : Sim.effOrder(s, q);
+      if (o.target) o = { ...o, x: pos(o.target).x, y: pos(o.target).y };
+      const on = sel === 'all' || q.id === sel, p = pos(q);
       c.strokeStyle = colors.blue; c.globalAlpha = on ? 0.9 : 0.35; c.lineWidth = on ? 2 : 1.2;
-      c.setLineDash(o.type === 'support' ? [2, 4] : [7, 5]); c.beginPath(); c.moveTo(q.cx, q.cy); c.lineTo(o.x, o.y); c.stroke();
+      c.setLineDash(o.type === 'support' ? [2, 4] : [7, 5]); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(o.x, o.y); c.stroke();
       ring(o.x, o.y, o.r); c.stroke(); c.setLineDash([]);
       const stack = labelSpots.filter(p => Math.hypot(p.x - o.x, p.y - o.y) < 30).length; labelSpots.push(o);
       label(Sim.ORDER_NAME[o.type], o.x, o.y + o.r + 14 + stack * 15, tcol(q.type));
@@ -1018,7 +1079,7 @@ const Sim = (() => {
     c.restore();
     // units: ground first, aircraft (with drop shadows) on top
     for (const pass of [false, true]) for (const u of s.units) {
-      const T = Sim.TYPES[u.type]; if (!!T.air !== pass || !Sim.seen(s, 'blue', u)) continue;
+      const T = Sim.TYPES[u.type]; if (!!T.air !== pass || s.fog) continue;
       const k = SIZE[u.type], recent = s.t - u.lastFire < 3;
       const aim = recent ? u.aim : (u.type === 'aa' ? idleAim('aa', u.side) : u.hd);
       if (T.air) { c.globalAlpha = 0.22; glyph(c, 'air', u.x + 7, u.y + 10, k, '#000', null, u.hd); c.globalAlpha = 1; }
@@ -1050,18 +1111,27 @@ const Sim = (() => {
         }
       }
     }
-    if (s.fog) drawFog();
-    // squad badges: tap to select; type icon, strength bar, posture
+    if (s.fog) { drawFog(); drawEnemyIntel(c); drawMarks(c); }
+    // squad badges: tap to select; type icon, strength bar, posture. Under fog: at the last report.
+    const pulse = 0.55 + 0.25 * Math.sin(performance.now() / 180);
     for (const q of s.squads) {
       if (q.side !== 'blue' || q.dead) continue;
-      const x = q.cx, y = q.cy - 26, on = sel === 'all' || q.id === sel;
+      const p = pos(q), age = s.t - p.t, stale = s.fog && age > STALE;
+      if (s.fog && p.prev && age < TRAIL) {
+        c.globalAlpha = 0.5 * (1 - age / TRAIL); c.strokeStyle = tcol(q.type); c.lineWidth = 2; c.setLineDash([2, 3]);
+        c.beginPath(); c.moveTo(p.prev.x, p.prev.y - 26); c.lineTo(p.x, p.y - 26); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+      }
+      if (stale) c.globalAlpha = pulse;
+      const x = p.x, y = p.y - 26, on = sel === 'all' || q.id === sel;
       c.fillStyle = colors.shadow; ring(x + 1.5, y + 2.5, 12); c.fill();
       c.fillStyle = tcol(q.type); ring(x, y, 12); c.fill();
       c.lineWidth = on ? 3 : 1.5; c.strokeStyle = on ? colors.ink : '#fff'; c.stroke();
       glyph(c, q.type, x - (q.type === 'tank' ? 1.5 : 0), y, q.type === 'air' ? 8.5 : 6.5, '#fff', null, 0, q.type === 'aa' ? -Math.PI / 2 : 0);
       c.fillStyle = colors.shadow; c.fillRect(x - 12, y + 15, 24, 3);
-      c.fillStyle = tcol(q.type); c.fillRect(x - 12, y + 15, 24 * Math.min(1, q.strength), 3);
+      c.fillStyle = tcol(q.type); c.fillRect(x - 12, y + 15, 24 * Math.min(1, p.strength), 3);
       c.font = '11px sans-serif'; c.fillText(POSTURE[q.trait], x + 20, y + 4);
+      if (stale) label('?', x - 17, y - 6, colors.ink);
+      c.globalAlpha = 1;
     }
   }
 
