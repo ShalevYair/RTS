@@ -67,6 +67,25 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .legend{margin:0;font-size:13px;color:var(--muted);line-height:1.5}
 .banner{position:absolute;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 24px);border-radius:10px;padding:8px 14px;font-size:14px;text-align:center;pointer-events:none}
 .banner[hidden]{display:none}
+.sqb{position:relative;min-width:44px;padding:4px 6px}
+.sqb canvas{position:static;width:26px;height:26px;display:block;margin:auto;cursor:inherit}
+.sqb kbd{position:absolute;top:1px;inset-inline-end:3px;font:700 10px Assistant,sans-serif;color:var(--muted)}
+.sqb i{position:absolute;left:5px;right:5px;bottom:3px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--c-blue) calc(var(--st,1)*100%),var(--border) 0)}
+.sqb.dead{opacity:.4}
+@media (max-width:560px){.bar .sep{display:none}}
+@media (pointer:coarse){.sqb kbd{display:none}}
+.intro{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:16px;background:rgb(0 0 0 / .35)}
+.intro[hidden]{display:none}
+.card{width:min(460px,100%);max-height:100%;overflow:auto;border-radius:14px;padding:16px 18px;background:var(--panel)}
+.card h1{margin:0 0 4px;font:28px/1.2 "Secular One",sans-serif}
+.card .sub{margin:0 0 12px;color:var(--muted)}
+.card ol{margin:0 0 14px;padding-inline-start:0;list-style:none;display:grid;gap:8px;font-size:15px}
+.card li{display:flex;gap:10px;align-items:baseline}
+.card li>span:first-child{flex:0 0 26px;text-align:center;font-size:18px}
+.card kbd{font:700 13px Assistant,sans-serif;border:1px solid var(--border);border-radius:4px;padding:0 4px}
+.card .mrow{margin-bottom:12px}
+.intro.short .card ol,.intro.short .sub{display:none}
+#go{width:100%;font-size:18px;background:var(--accent);color:#fff;border-color:var(--accent)}
 .banner.big{top:50%;bottom:auto!important;transform:translate(-50%,-50%);font:22px/1.3 "Secular One",sans-serif;padding:18px 24px}
 @media (prefers-reduced-motion: reduce){.log li{transition:none}}
 </style>
@@ -82,14 +101,37 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
     <div class="mrow"><span>מהירות</span><button data-rate="0.5">איטי</button><button data-rate="1">רגיל</button><button data-rate="2">מהיר</button></div>
     <div class="mrow"><span>מוזיקה</span><button id="music" class="icon" aria-pressed="true" aria-label="מוזיקה">♪</button><input id="vol" type="range" min="0" max="100" value="35" aria-label="עוצמת מוזיקה"></div>
     <div class="mrow"><span>פיצוצים</span><button id="sfx" class="icon" aria-pressed="true" aria-label="קולות פיצוצים">💥</button><input id="sfxvol" type="range" min="0" max="100" value="60" aria-label="עוצמת פיצוצים"></div>
+    <button id="help">❔ הסבר</button>
     <button id="restart">משחק חדש</button>
-    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, רווח עצירה.</p>
+    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
+  </div>
+  <div class="intro" id="intro">
+    <div class="card glass" role="dialog" aria-labelledby="introT">
+      <h1 id="introT">פיקוד על כוונה</h1>
+      <p class="sub">אתה לא מזיז חיילים. אתה נותן למפקדים כוונה, והם מחליטים איך לבצע.</p>
+      <ol>
+        <li><span>🚩</span><span>החזק נקודות. כל נקודה = שנייה של ניקוד. הראשון ל-300 מנצח.</span></li>
+        <li><span>👆</span><span>בחר כוח: בכפתורים למטה, לחיצה עליו במפה, או מקשים <kbd>1</kbd> עד <kbd>4</kbd>. מקש <kbd>0</kbd> בוחר את כולם.</span></li>
+        <li><span>📍</span><span>בחר <b>החזק</b> או <b>תקוף</b> ולחץ על היעד במפה. <b>סגת</b> מחזיר לבסיס.</span></li>
+        <li><span>⚖</span><span>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: מתי המפקד נסוג (50%, 30%, 15%).</span></li>
+        <li><span>✂</span><span>נ"מ מנצח מטוסים, מטוסים מנצחים טנקים, טנקים מנצחים חי"ר ונ"מ.</span></li>
+        <li><span>⏸</span><span>עצירה בכל רגע: <kbd>רווח</kbd> או ⏸. אפשר לתת פקודות גם בעצירה.</span></li>
+      </ol>
+      <div class="mrow"><span>קושי</span><button data-diff="easy">קל</button><button data-diff="normal">רגיל</button><button data-diff="hard">קשה</button></div>
+      <button id="go">התחל ▶</button>
+    </div>
   </div>
   <div class="bar glass" id="bar" role="toolbar" aria-label="פקודות">
     <button id="play" class="icon" aria-label="התחל">▶</button>
     <button id="gear" class="icon" aria-label="הגדרות" aria-expanded="false">⚙</button>
     <span class="sep"></span>
-    <button id="all" class="icon" aria-label="כל הכוחות" aria-pressed="false">★</button>
+    <div class="seg" role="group" aria-label="בחירת כוח">
+      <button id="all" class="icon" aria-label="כל הכוחות (0)" aria-pressed="false">★</button>
+      <button class="sqb" data-sq="blue0"><canvas width="52" height="52"></canvas><kbd>1</kbd><i></i></button>
+      <button class="sqb" data-sq="blue1"><canvas width="52" height="52"></canvas><kbd>2</kbd><i></i></button>
+      <button class="sqb" data-sq="blue2"><canvas width="52" height="52"></canvas><kbd>3</kbd><i></i></button>
+      <button class="sqb" data-sq="blue3"><canvas width="52" height="52"></canvas><kbd>4</kbd><i></i></button>
+    </div>
     <span class="sep"></span>
     <button data-mode="hold" aria-pressed="true">החזק</button>
     <button data-mode="attack" aria-pressed="false">תקוף</button>
@@ -128,7 +170,7 @@ const Sim = (() => {
   };
   const ORDER_R = { hold: 60, attack: 100, retreat: 40 };
   const ORDER_NAME = { hold: 'מחזיק', attack: 'תוקף', retreat: 'נסוג', support: 'מסייע' };
-  const AI_EVERY = 10, BASE_HEAL = 10, CAPTURE_RATE = 0.05, REARM_TIME = 2.5;
+  const BASE_HEAL = 10, CAPTURE_RATE = 0.05, REARM_TIME = 2.5;
   // reinforcement speed: +30% per held point, +100% more if the point matches the unit type
   const REIN_PER_POINT = 0.3, REIN_PER_MATCH = 1.0;
   const FAC_Y = { inf: 80, aa: 240, tank: 400, air: 560 };
@@ -165,7 +207,7 @@ const Sim = (() => {
     return { x, y: H / 2, x0, x1, fac };
   }
 
-  function create(seed = 1, W = 1000) {
+  function create(seed = 1, W = 1000, diff = 'normal') {
     W = Math.max(700, Math.min(1500, Math.round(W) || 1000));
     const cx = W / 2, off = 0.17 * W;
     const s = { W, H, WIN, t: 0, over: null, score: { blue: 0, red: 0 }, nextId: 1, rand: rng(seed),
@@ -174,7 +216,7 @@ const Sim = (() => {
                { name: 'מוסך', type: 'tank', x: cx, y: 400 }, { name: 'מכ"ם', type: 'aa', x: cx, y: 555 }]
         .map(p => ({ ...p, r: 40, owner: null, prog: 0, contested: false })),
       bases: { blue: makeBase(30, 0, 60), red: makeBase(W - 30, W - 60, W) },
-      squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false };
+      squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, diff: diff in DIFFS ? diff : 'normal' };
     const comp = [['א', 'inf', 6], ['ב', 'aa', 4], ['ג', 'tank', 3], ['ד', 'air', 2]];
     const blueTraits = ['aggressive', 'cautious', 'balanced', 'balanced'];
     for (const side of ['blue', 'red']) {
@@ -399,38 +441,81 @@ const Sim = (() => {
     }
   }
 
-  function enemyAI(s) {
-    const taken = new Set();
-    const red = s.squads.filter(q => q.side === 'red' && !q.dead && !q.retreating);
-    for (const sq of red.filter(q => q.type !== 'air')) {
-      let best = null, bs = Infinity;
-      for (const p of s.points) {
-        let sc = dist({ x: sq.cx, y: sq.cy }, p);
-        if (p.owner === 'red' && !p.contested) sc += 350;
-        if (taken.has(p)) sc += 200;
-        if (sc < bs) { bs = sc; best = p; }
-      }
-      if (!best) continue;
-      taken.add(best);
-      const type = best.owner === 'red' && !best.contested ? 'hold' : 'attack';
-      if (sq.order.x !== best.x || sq.order.y !== best.y || sq.order.type !== type) {
-        sq.order = { type, x: best.x, y: best.y, r: ORDER_R[type] }; sq.arrived = false;
-      }
+  // difficulty: how often the enemy re-plans and how much it thinks about matchups
+  const DIFFS = {
+    easy:   { name: 'קל',   every: 12, smart: false, traits: false },
+    normal: { name: 'רגיל', every: 8,  smart: true,  traits: false },
+    hard:   { name: 'קשה',  every: 5,  smart: true,  traits: true },
+  };
+  const AI_NEAR = 170, AI_KEEP = 60;
+
+  // how much blue force sits near p, weighed by how the red squad fares against it.
+  // > 0: the red squad has the upper hand there; < 0: it would be countered.
+  function edgeAt(s, sq, p) {
+    let e = 0;
+    for (const q of s.squads) {
+      if (q.side !== 'blue' || q.dead || Math.hypot(q.cx - p.x, q.cy - p.y) > AI_NEAR) continue;
+      e += (MULT[sq.type][q.type] - MULT[q.type][sq.type]) * q.strength * q.size;
     }
-    // air hunts enemy tanks; otherwise supports the nearest point not held
+    return e;
+  }
+
+  function enemyAI(s) {
+    const D = DIFFS[s.diff] || DIFFS.normal, taken = new Map();
+    const red = s.squads.filter(q => q.side === 'red' && !q.dead && !q.retreating);
+    const setOrder = (sq, type, x, y) => {
+      if (sq.order.x !== x || sq.order.y !== y || sq.order.type !== type) { sq.order = { type, x, y, r: ORDER_R[type] }; sq.arrived = false; }
+    };
+    for (const sq of red.filter(q => q.type !== 'air')) {
+      const score = p => {
+        let sc = dist({ x: sq.cx, y: sq.cy }, p);
+        const held = p.owner === 'red' && !p.contested;
+        if (held) sc += 350;
+        sc += 200 * (taken.get(p) || 0);
+        if (D.smart) {
+          // go where this force counters what's there; hold a point the enemy is about to hit
+          sc -= 60 * edgeAt(s, sq, p);
+          if (held && threatAt(s, 'red', p, AI_NEAR)) sc -= 250;
+          if (p.type === sq.type && !held) sc -= 60; // a matching point speeds up its own reinforcements
+        }
+        return sc;
+      };
+      let best = null, bs = Infinity;
+      for (const p of s.points) { const sc = score(p); if (sc < bs) { bs = sc; best = p; } }
+      if (!best) continue;
+      // don't flip-flop between two points that score about the same
+      const cur = D.smart && s.points.find(p => p.x === sq.order.x && p.y === sq.order.y);
+      if (cur && cur !== best && score(cur) < bs + AI_KEEP) best = cur;
+      taken.set(best, (taken.get(best) || 0) + 1);
+      setOrder(sq, best.owner === 'red' && !best.contested ? 'hold' : 'attack', best.x, best.y);
+    }
+    // aircraft: hunt what they beat (tanks first), keep away from enemy AA
     for (const sq of red.filter(q => q.type === 'air')) {
-      const prey = s.squads.find(q => q.side === 'blue' && !q.dead && q.type === 'tank');
-      let tgt = prey ? { x: prey.cx, y: prey.cy } : null;
-      if (!tgt) {
-        let bs = Infinity;
+      let tgt = null, bs = Infinity;
+      for (const q of s.squads) {
+        if (q.side !== 'blue' || q.dead || q.type === 'air') continue;
+        if (!D.smart && q.type !== 'tank') continue;
+        let sc = Math.hypot(q.cx - sq.cx, q.cy - sq.cy) - 250 * MULT.air[q.type];
+        if (D.smart) for (const a of s.squads) if (a.side === 'blue' && a.type === 'aa' && !a.dead && Math.hypot(a.cx - q.cx, a.cy - q.cy) < 150) sc += 300 * a.strength;
+        if (sc < bs) { bs = sc; tgt = { x: q.cx, y: q.cy }; }
+      }
+      if (!tgt || (D.smart && bs > 450)) {
+        bs = Infinity;
         for (const p of s.points) {
           if (p.owner === 'red' && !p.contested) continue;
-          const d = dist({ x: sq.cx, y: sq.cy }, p);
+          const d = dist({ x: sq.cx, y: sq.cy }, p) + (D.smart ? 300 * Math.max(0, -edgeAt(s, sq, p)) : 0);
           if (d < bs) { bs = d; tgt = p; }
         }
       }
-      if (tgt) { sq.order = { type: 'attack', x: tgt.x, y: tgt.y, r: ORDER_R.attack }; sq.arrived = false; }
+      if (tgt) setOrder(sq, 'attack', tgt.x, tgt.y);
     }
+    // posture: press when behind, play safe when ahead
+    if (D.traits) {
+      const lead = s.score.red - s.score.blue;
+      const tr = lead > 30 ? 'cautious' : lead < -30 ? 'aggressive' : 'balanced';
+      for (const sq of s.squads) if (sq.side === 'red') sq.trait = tr;
+    }
+    return D.every;
   }
 
   function step(s, dt) {
@@ -454,11 +539,11 @@ const Sim = (() => {
     capture(s, dt);
     reinforce(s, dt);
     s.aiIn -= dt;
-    if (s.aiIn <= 0) { enemyAI(s); s.aiIn = AI_EVERY; }
+    if (s.aiIn <= 0) s.aiIn = enemyAI(s);
     if (s.score.blue >= WIN) s.over = 'blue'; else if (s.score.red >= WIN) s.over = 'red';
   }
 
-  return { create, step, order, setTrait, reinRate, note, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H };
+  return { create, step, order, setTrait, reinRate, note, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
 })();
 </script>
 
@@ -466,7 +551,8 @@ const Sim = (() => {
 (() => {
   const $ = id => document.getElementById(id);
   const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage'), bar = $('bar'), menu = $('menu');
-  let s, decor, sel = 'blue0', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0;
+  let s, decor, sel = 'blue0', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0, diff = 'normal';
+  try { const d = localStorage.getItem('irts-diff'); if (d in Sim.DIFFS) diff = d; } catch (e) { /* storage unavailable */ }
   const colors = {};
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
@@ -539,6 +625,8 @@ const Sim = (() => {
 
   function syncButtons() {
     $('all').setAttribute('aria-pressed', String(sel === 'all'));
+    document.querySelectorAll('[data-sq]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sq === sel)));
+    document.querySelectorAll('[data-diff]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.diff === diff)));
     document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     const traits = new Set(selIds().map(id => s.squads.find(q => q.id === id).trait));
     document.querySelectorAll('[data-trait]').forEach(b => b.setAttribute('aria-pressed', String(traits.size === 1 && traits.has(b.dataset.trait))));
@@ -564,6 +652,10 @@ const Sim = (() => {
         ol.appendChild(li);
       }
     }
+    for (const b of document.querySelectorAll('[data-sq]')) {
+      const q = s.squads.find(x => x.id === b.dataset.sq);
+      b.style.setProperty('--st', Math.min(1, q.strength).toFixed(2)); b.classList.toggle('dead', q.dead);
+    }
     if (s.over && playing) setPlaying(false);
     else if (s.over && $('banner').hidden) updateBanner();
   }
@@ -576,7 +668,29 @@ const Sim = (() => {
     if (ok && all) Sim.note(s, `כל הכוחות: מצב ${Sim.TRAITS[b.dataset.trait].name}`);
     syncButtons(); updateHud();
   }));
+  const SQ_TYPE = { blue0: 'inf', blue1: 'aa', blue2: 'tank', blue3: 'air' };
   $('all').addEventListener('click', () => select('all'));
+  // squad buttons: icon drawn with the map glyphs (called once the render helpers exist)
+  const initSquadButtons = () => document.querySelectorAll('[data-sq]').forEach(b => {
+    const q = { type: SQ_TYPE[b.dataset.sq] }; q.name = Sim.TYPES[q.type].name;
+    b.setAttribute('aria-label', q.name + ' (' + b.querySelector('kbd').textContent + ')'); b.title = b.getAttribute('aria-label');
+    const c = b.querySelector('canvas').getContext('2d');
+    c.fillStyle = tcol(q.type); c.beginPath(); c.arc(26, 26, 24, 0, Math.PI * 2); c.fill();
+    glyph(c, q.type, 26 - (q.type === 'tank' ? 3 : 0), 26, q.type === 'air' ? 17 : 13, '#fff', null, 0, q.type === 'aa' ? -Math.PI / 2 : 0);
+    b.addEventListener('click', () => select(b.dataset.sq));
+  });
+  document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => {
+    diff = b.dataset.diff; s.diff = diff; try { localStorage.setItem('irts-diff', diff); } catch (e) { /* ignore */ }
+    syncButtons();
+  }));
+  // full rules the first time and from ❔; afterwards a new game only asks for difficulty
+  const showIntro = (on, full) => {
+    $('intro').hidden = !on; if (!on) return;
+    let seen = false; try { seen = !!localStorage.getItem('irts-seen'); } catch (e) { /* ignore */ }
+    $('intro').classList.toggle('short', seen && !full); setPlaying(false); $('go').focus();
+  };
+  $('go').addEventListener('click', () => { showIntro(false); try { localStorage.setItem('irts-seen', '1'); } catch (e) { /* ignore */ } setPlaying(true); });
+  $('help').addEventListener('click', () => { menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false'); showIntro(true, true); });
   $('retreat').addEventListener('click', () => issue('retreat'));
   $('play').addEventListener('click', () => setPlaying(!playing));
   $('gear').addEventListener('click', () => {
@@ -608,14 +722,18 @@ const Sim = (() => {
     if (hit) { select(hit); return; }
     issue(mode, x, y);
   });
+  const TRAIT_KEY = { q: 'cautious', w: 'balanced', e: 'aggressive' };
   document.addEventListener('keydown', e => {
     if (e.target.closest('input,textarea')) return;
-    const k = e.key.toLowerCase();
+    if (!$('intro').hidden) { if (e.key === 'Escape') $('go').click(); return; }
+    // physical key codes, so the shortcuts also work on a Hebrew keyboard layout
+    const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : /^(Digit|Numpad)\d$/.test(e.code) ? e.code.slice(-1) : e.key.toLowerCase();
     if (['1', '2', '3', '4'].includes(k)) select('blue' + (+k - 1));
     else if (k === '0') select('all');
     else if (k === 'h') { mode = 'hold'; syncButtons(); }
     else if (k === 'a') { mode = 'attack'; syncButtons(); }
     else if (k === 'r') issue('retreat');
+    else if (k in TRAIT_KEY) document.querySelector(`[data-trait="${TRAIT_KEY[k]}"]`).click();
     else if (k === ' ') { e.preventDefault(); setPlaying(!playing); }
     else if (k === 'escape') { menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false'); }
   });
@@ -1036,10 +1154,10 @@ const Sim = (() => {
   syncMusic(false);
 
   function newGame() {
-    s = Sim.create((Date.now() % 1e6) | 0, worldWidth());
+    s = Sim.create((Date.now() % 1e6) | 0, worldWidth(), diff);
     decor = makeDecor(s.W); sel = 'blue0'; mode = 'hold'; playing = false; logKey = '';
     document.querySelectorAll('.goal').forEach(g => g.textContent = '/' + Sim.WIN);
-    resize(); syncButtons(); updateHud();
+    resize(); syncButtons(); updateHud(); showIntro(true);
   }
 
   const DT = 1 / 30; let last = performance.now(), acc = 0;
@@ -1052,7 +1170,7 @@ const Sim = (() => {
     if (now - hudAt > 200) { hudAt = now; updateHud(); }
     requestAnimationFrame(frame);
   }
-  newGame(); requestAnimationFrame(frame);
+  initSquadButtons(); newGame(); requestAnimationFrame(frame);
 })();
 </script>
 </body>
