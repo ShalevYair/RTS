@@ -7,43 +7,51 @@ function spawn(s, sq, x, y) {
 }
 
 function makeBase(x, x0, x1) {
-  const fac = {}; for (const t in FAC_Y) fac[t] = { x, y: FAC_Y[t] };
-  return { x, y: H / 2, x0, x1, fac };
+  return { x, y: H / 2, x0, x1 };
 }
 
-function create(seed = 1, W = 1000, diff = 'normal', win = WIN) {
+// a squad with its commander; `home` is the building that raises and refills it (null: no refills)
+function makeSquad(s, side, type, home, x, y, trait = 'balanced') {
+  const temper = side === 'blue' ? Object.keys(TEMPERS)[Math.floor(s.rand() * 3)] : 'steady';
+  if (!s.names[side].length) s.names[side] = SURNAMES.slice();
+  const boss = s.names[side].splice(Math.floor(s.rand() * s.names[side].length), 1)[0];
+  const size = home ? STRUCTS[s.nodes.find(n => n.id === home).kind].size : 4;
+  const sq = { id: side + s.nextSq++, side, name: TYPES[type].name, type, size, trait, home,
+    order: { type: 'hold', x, y, r: ORDER_R.hold }, prodProg: 0,
+    retreating: false, arrived: true, contactCd: 0, wasContact: false, dead: false,
+    strength: 1, count: 0, cx: x, cy: y, support: null, supportSince: 0, lastContact: -99, checkIn: 0,
+    temper, boss, firmUntil: -99, lastCall: -99 };
+  s.squads.push(sq);
+  return sq;
+}
+const fillSquad = (s, sq, x, y) => {
+  for (let k = 0; k < sq.size; k++) spawn(s, sq, x, y);
+  const c0 = bodyCenter(s.units.filter(u => u.squad === sq.id)); sq.cx = c0.x; sq.cy = c0.y; sq.count = sq.size; sq.born = true;
+};
+
+// Opening (DESIGN.md §3): HQ, a tent with its infantry, and one jeep squad without a building
+function create(seed = 1, W = 1000, diff = 'normal') {
   W = Math.max(700, Math.min(1500, Math.round(W) || 1000));
   const cx = W / 2, off = 0.17 * W;
-  const s = { W, H, WIN: clamp(Math.round(win) || WIN, 30, 1000), t: 0, over: null, score: { blue: 0, red: 0 }, nextId: 1, rand: rng(seed),
-    hills: [{ x: cx, y: 555, r: 75 }, { x: cx - off, y: 165, r: 60 }, { x: cx + off, y: 165, r: 60 }, { x: cx - off, y: 470, r: 55 }, { x: cx + off, y: 470, r: 55 }],
-    points: [{ name: 'שדה קדמי', type: 'air', x: cx, y: 85 }, { name: 'מחנה', type: 'inf', x: cx, y: 240 },
-             { name: 'מוסך', type: 'tank', x: cx, y: 400 }, { name: 'מכ"ם', type: 'aa', x: cx, y: 555 }]
-      .map(p => ({ ...p, r: 40, owner: null, prog: 0, contested: false })),
+  const s = { W, H, t: 0, over: null, nextId: 1, nextSq: 0, rand: rng(seed),
+    hills: [{ x: cx, y: 555, r: 75 }, { x: cx - off, y: 165, r: 60 }, { x: cx + off, y: 165, r: 60 }, { x: cx - off, y: 470, r: 55 }, { x: cx + off, y: 470, r: 55 }, { x: cx, y: 90, r: 55 }],
     bases: { blue: makeBase(30, 0, 60), red: makeBase(W - 30, W - 60, W) },
-    squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true, vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} }, rep: {}, marks: [], outbox: [], calls: [], nextCall: 1, hist: [], histIn: 0,
-    log2: { orders: 0, delay: 0, answered: 0, missed: 0 },
+    squads: [], units: [], shots: [], fx: [], log: [], aiIn: { blue: 0, red: 0 }, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true,
+    vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} }, memNodes: { blue: {}, red: {} },
+    rep: {}, marks: [], outbox: [], calls: [], nextCall: 1, hist: [], histIn: 0, names: { blue: SURNAMES.slice(), red: SURNAMES.slice() }, lastBuild: {},
+    log2: { orders: 0, delay: 0, answered: 0, missed: 0 }, power: { blue: 0, red: 0 }, peak: { blue: 0, red: 0 }, plan: { blue: 0, red: 0 },
     nodes: [], nextNode: 1, visNodes: { blue: new Set(), red: new Set() }, cd: { blue: { drone: 0, fhq: 0 }, red: { drone: 0, fhq: 0 } },
-    reserve: { blue: RESERVE_START, red: RESERVE_START },
-    tune: { resEvery: RESERVE_EVERY, resMax: RESERVE_MAX, point: REIN_PER_POINT, match: REIN_PER_MATCH, catchup: CATCHUP_MAX, capture: CATCHUP_CAPTURE }, diff: diff in DIFFS ? diff : 'normal' };
-  const comp = [['א', 'inf', 6], ['ב', 'aa', 4], ['ג', 'tank', 3], ['ד', 'air', 2]];
-  const blueTraits = ['aggressive', 'cautious', 'balanced', 'balanced'];
-  const names = SURNAMES.slice();
+    diff: diff in DIFFS ? diff : 'normal', bots: ['red'], botDiff: 'normal' };
   for (const side of ['blue', 'red']) {
-    comp.forEach(([name, type, size], i) => {
-      const temper = side === 'blue' ? Object.keys(TEMPERS)[Math.floor(s.rand() * 3)] : 'steady';
-      const boss = names.splice(Math.floor(s.rand() * names.length), 1)[0];
-      const b = s.bases[side];
-      const sq = { id: side + i, side, name: TYPES[type].name, type, size, trait: side === 'blue' ? blueTraits[i] : 'balanced',
-        order: { type: 'hold', x: b.x + (side === 'blue' ? 75 : -75), y: FAC_Y[type], r: ORDER_R.hold }, reinProg: 0,
-        retreating: false, arrived: true, contactCd: 0, wasContact: false, dead: false,
-        strength: 1, count: size, cx: b.x, cy: b.y, support: null, supportSince: 0, lastContact: -99, checkIn: 0,
-        temper, boss, firmUntil: -99, lastCall: -99 };
-      s.squads.push(sq);
-      for (let k = 0; k < size; k++) spawn(s, sq, sq.order.x, sq.order.y);
-      // real position from the start, so markers and order lines are right before the first step
-      const c0 = bodyCenter(s.units.filter(u => u.squad === sq.id)); sq.cx = c0.x; sq.cy = c0.y;
-    });
+    const b = s.bases[side], dir = side === 'blue' ? 1 : -1;
+    addStruct(s, side, 'hq', b.x, H / 2, true);
+    const tent = addStruct(s, side, 'tent', b.x + dir * 75, H / 2 - 130, true);
+    const inf = makeSquad(s, side, 'inf', tent.id, b.x + dir * 150, H / 2 - 130, side === 'blue' ? 'aggressive' : 'balanced');
+    tent.squad = inf.id; fillSquad(s, inf, inf.order.x, inf.order.y);
+    const jeep = makeSquad(s, side, 'jeep', null, b.x + dir * 150, H / 2 + 130);
+    fillSquad(s, jeep, jeep.order.x, jeep.order.y);
   }
+  updatePower(s);
   visibility(s);
   for (const q of s.squads) sendReport(s, q);
   return s;

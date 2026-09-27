@@ -11,8 +11,8 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.goto(URL); await p.waitForTimeout(800);
     await p.screenshot({ path: `${OUT}/${name}-intro.png` });
     await p.click('[data-diff="hard"]'); await p.click('#go'); await p.waitForTimeout(300);
-    if (!touch) { await p.keyboard.press('3'); await p.keyboard.press('KeyE'); }
-    else await p.click('[data-sq="blue2"]');
+    if (!touch) { await p.keyboard.press('2'); await p.keyboard.press('KeyE'); }
+    else await p.click('[data-sq="blue1"]');
     await p.waitForTimeout(4000);
     const st = await p.evaluate(() => ({ intro: document.getElementById('intro').hidden, sel: [...document.querySelectorAll('[data-sq]')].map(b => b.getAttribute('aria-pressed')).join(','), diff: localStorage.getItem('irts-diff'), traits: [...document.querySelectorAll('[data-trait]')].map(b => b.getAttribute('aria-pressed')).join(','), play: document.getElementById('play').textContent }));
     console.log(name, JSON.stringify(st), 'errors:', errs);

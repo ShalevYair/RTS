@@ -7,8 +7,6 @@ function rng(seed) {
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const inHill = (s, p) => s.hills.some(h => dist(h, p) < h.r);
-// bases are full-height strips at the map edges
-const inBase = (s, side, p) => { const b = s.bases[side]; return p.x >= b.x0 - 5 && p.x <= b.x1 + 5; };
 
 function report(s, sq, msg) {
   if (sq && sq.side !== 'blue') return;

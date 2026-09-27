@@ -1,21 +1,20 @@
 // UI: DOM handles, game/UI state, theme colors, viewport and helpers shared by the UI files
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage'), bar = $('bar'), menu = $('menu');
-let s, decor, sel = 'blue0', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0, diff = 'normal', win = Sim.WIN, endShown = false, fog = true;
+let s, decor, sel = 'all', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0, diff = 'normal', endShown = false, fog = true, buildArmed = null;
 try { fog = localStorage.getItem('irts-fog') !== '0'; } catch (e) { /* storage unavailable */ }
-try { const w = +localStorage.getItem('irts-win'); if (w === 150 || w === 300) win = w; } catch (e) { /* storage unavailable */ }
 try { const d = localStorage.getItem('irts-diff'); if (d in Sim.DIFFS) diff = d; } catch (e) { /* storage unavailable */ }
 const colors = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  for (const k of ['ground', 'grass2', 'field', 'field2', 'hill', 'hillHi', 'hillLine', 'tree', 'treeHi', 'road', 'roadEdge', 'water', 'waterEdge', 'rock', 'shadow', 'halo', 'outline', 'blue', 'red', 'ink', 'point', 'line', 'tInf', 'tAa', 'tTank', 'tAir', 'fog'])
+  for (const k of ['ground', 'grass2', 'field', 'field2', 'hill', 'hillHi', 'hillLine', 'tree', 'treeHi', 'road', 'roadEdge', 'water', 'waterEdge', 'rock', 'shadow', 'halo', 'outline', 'blue', 'red', 'ink', 'point', 'line', 'tInf', 'tAa', 'tTank', 'tAir', 'tJeep', 'fog'])
     colors[k] = cs.getPropertyValue('--c-' + k).trim();
 }
 readColors();
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) { /* old browsers */ }
 new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-const TC = { inf: 'tInf', aa: 'tAa', tank: 'tTank', air: 'tAir' }, tcol = t => colors[TC[t]];
-const SIZE = { inf: 9, aa: 10, tank: 9, air: 13 };
+const TC = { inf: 'tInf', aa: 'tAa', tank: 'tTank', air: 'tAir', jeep: 'tJeep' }, tcol = t => colors[TC[t]];
+const SIZE = { inf: 9, aa: 10, tank: 9, air: 13, jeep: 8 };
 const POSTURE = { cautious: '🛡', balanced: '⚖', aggressive: '🔥' };
 
 // ---- viewport: world is sized to the screen's aspect at game start ----
@@ -38,10 +37,12 @@ function worldWidth() {
 }
 function placeFloating() {
   const b = bar.offsetHeight + 16;
-  menu.style.bottom = b + 'px'; $('call').style.bottom = b + 'px';
+  menu.style.bottom = b + 'px'; $('call').style.bottom = b + 'px'; $('buildm').style.bottom = b + 'px';
 }
 
 // what the player sees of a blue squad: its last report under fog, the truth otherwise
 const pos = q => s.fog ? s.rep[q.id] : { x: q.cx, y: q.cy, strength: q.strength, t: s.t, prev: null };
 
+// blue squads in button / hotkey order (oldest first)
+const blueSquads = () => s.squads.filter(q => q.side === 'blue');
 const fmtTime = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');

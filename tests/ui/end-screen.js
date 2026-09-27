@@ -9,20 +9,19 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const p = await ctx.newPage(); const errs = [];
     p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(600);
-    await p.click('[data-win="150"]');
-    const goal = await p.textContent('.goal');
+    const goal = await p.textContent('#slotN');
     await p.click('#go'); await p.waitForTimeout(1500);
     const barH = await p.evaluate(() => document.getElementById('bar').offsetHeight);
     await p.screenshot({ path: `${OUT}/${name}-bar.png` });
     // force a win on the next step
-    await p.evaluate(() => { const o = Sim.step; Sim.step = (s, dt) => { s.score.blue = s.WIN; o(s, dt); }; });
+    await p.evaluate(() => { const o = Sim.step; Sim.step = (s, dt) => { o(s, dt); s.over = 'blue'; }; });
     await p.waitForTimeout(800);
     const end = await p.evaluate(() => ({ hidden: document.getElementById('end').hidden, t: document.getElementById('endT').textContent, info: document.querySelector('.stats').textContent }));
     await p.screenshot({ path: `${OUT}/${name}-end.png` });
     if (!touch) { await p.click('#share'); await p.waitForTimeout(200); }
     const share = await p.textContent('#share');
     await p.evaluate(() => { delete Sim.step; }).catch(()=>{});
-    console.log(name, 'goal', goal, 'barH', barH, JSON.stringify(end), 'share:', share, 'errors', errs);
+    console.log(name, 'slots', goal, 'barH', barH, JSON.stringify(end), 'share:', share, 'errors', errs);
     await ctx.close();
   }
   await b.close();

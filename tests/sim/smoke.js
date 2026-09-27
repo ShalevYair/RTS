@@ -1,21 +1,39 @@
-const Sim=require('../load-sim.js')();
-// blue bot = old naive AI (nearest point, air hunts first tank)
-function blueBot(s){const taken=new Set();const bl=s.squads.filter(q=>q.side==='blue'&&!q.dead&&!q.retreating);
- for(const sq of bl.filter(q=>q.type!=='air')){let best=null,bs=1e9;for(const p of s.points){let sc=Math.hypot(sq.cx-p.x,sq.cy-p.y);if(p.owner==='blue'&&!p.contested)sc+=350;if(taken.has(p))sc+=200;if(sc<bs){bs=sc;best=p;}}
-  taken.add(best);const t=best.owner==='blue'&&!best.contested?'hold':'attack';if(sq.order.x!==best.x||sq.order.y!==best.y||sq.order.type!==t)Sim.order(s,sq.id,t,best.x,best.y,true);}
- for(const sq of bl.filter(q=>q.type==='air')){const prey=s.squads.find(q=>q.side==='red'&&!q.dead&&q.type==='tank');let tgt=prey?{x:prey.cx,y:prey.cy}:null;
-  if(!tgt){let bs=1e9;for(const p of s.points){if(p.owner==='blue'&&!p.contested)continue;const d=Math.hypot(sq.cx-p.x,sq.cy-p.y);if(d<bs){bs=d;tgt=p;}}}
-  if(tgt)Sim.order(s,sq.id,'attack',tgt.x,tgt.y,true);}}
-const N=+process.argv[2]||20;
-for(const diff of ['easy','normal','hard']){let w={blue:0,red:0,none:0},T=0,t0=Date.now();
- for(let i=0;i<N;i++){const s=Sim.create(1000+i,[800,1100,1400][i%3],diff);let bi=0;
-  while(!s.over&&s.t<1500){Sim.step(s,1/30);if((bi-=1/30)<=0){blueBot(s);bi=10;}}
-  w[s.over||'none']++;T+=s.t;}
- console.log(diff.padEnd(7),'red(AI) wins',w.red,'/',N,' blue',w.blue,' draw',w.none,' avg len',Math.round(T/N)+'s',(Date.now()-t0)+'ms');}
-// edge cases
-const s=Sim.create(1,1000,'bogus');console.log('bad diff ->',s.diff);
-Sim.step(s,0);Sim.step(s,-1);Sim.step(s,NaN);console.log('t after bad dt',s.t);
-for(const sq of s.squads)if(sq.side==='red')s.units=s.units.filter(u=>u.squad!==sq.id);s.noReinforce=true;
-for(let i=0;i<400;i++)Sim.step(s,1/30);console.log('no red units ok, t=',s.t.toFixed(1),'ai ran',s.aiIn>0);
-const s2=Sim.create(2,1000,'hard');for(const sq of s2.squads)if(sq.side==='blue')s2.units=s2.units.filter(u=>u.squad!==sq.id);s2.noReinforce=true;
-for(let i=0;i<30*60;i++)Sim.step(s2,1/30);console.log('no blue units: red score',Math.round(s2.score.red));
+// Edge cases and a couple of quick full games (stage 2: structures, production, collapse)
+const { Sim, play } = require('./bench.js');
+const ok = (c, m) => { console.log((c ? 'ok  ' : 'FAIL') + ' ' + m); if (!c) process.exitCode = 1; };
+let s = Sim.create(1, 1000, 'bogus');
+ok(s.diff === 'normal', 'unknown difficulty falls back to normal');
+ok(s.nodes.filter(n => n.side === 'blue').map(n => n.kind).join() === 'hq,tent', 'blue opens with HQ + tent');
+ok(s.squads.filter(q => q.side === 'blue').map(q => q.type).join() === 'inf,jeep', 'blue opens with infantry + jeeps');
+Sim.step(s, 0); Sim.step(s, -1); Sim.step(s, NaN); ok(s.t === 0, 'zero / negative / NaN dt ignored');
+ok(!Sim.order(s, 'nope', 'attack', 1, 1) && !Sim.order(s, 'blue0', 'dance', 1, 1) && !Sim.order(s, 'blue0', 'attack', NaN, 1), 'bad orders refused');
+// building rules
+ok(Sim.buildLimit(s, 'blue') === 4 && Sim.buildCount(s, 'blue') === 1, 'limit 2+2 with the HQ, one building (the tent)');
+ok(Sim.buildCheck(s, 'blue', 900, 320) === 'q', 'no building where control is weak');
+ok(Sim.buildCheck(s, 'blue', 105, 190) === 'gap', 'no building on top of another');
+ok(!Sim.build(s, 'blue', 'hq', 150, 320) && !Sim.build(s, 'blue', 'fhq', 150, 320), 'only production buildings can be built');
+ok(Sim.build(s, 'blue', 'tankshop', 150, 320), 'tank workshop placed');
+for (let i = 0; i < 30 * 44; i++) Sim.step(s, 1 / 30);
+ok(!s.squads.some(q => q.side === 'blue' && q.type === 'tank'), 'no tank squad before the 45s build');
+for (let i = 0; i < 30 * 2; i++) Sim.step(s, 1 / 30);
+const tk = s.squads.find(q => q.side === 'blue' && q.type === 'tank');
+ok(!!tk && tk.home, 'workshop raised a tank squad with a home');
+ok(Sim.build(s, 'blue', 'aapost', 150, 420) && Sim.build(s, 'blue', 'jeepshop', 200, 250), 'fill the slots');
+ok(Sim.buildCheck(s, 'blue', 120, 560) === 'limit', 'then the limit stops more');
+// only AA hits aircraft
+ok(Sim.MULT.inf.air === 0 && Sim.MULT.tank.air === 0 && Sim.MULT.jeep.air === 0 && Sim.MULT.aa.air > 0, 'only AA can hit aircraft');
+// destroying a building leaves its squad without refills
+const shop = s.nodes.find(n => n.kind === 'tankshop'); shop.hp = 0; Sim.step(s, 1 / 30);
+ok(!s.nodes.includes(shop) && tk.home === null, 'destroyed workshop: squad keeps fighting without a home');
+// collapse
+s = Sim.create(2, 1000, 'normal'); s.bots = [];
+s.units = s.units.filter(u => u.side === 'blue'); s.nodes = s.nodes.filter(n => n.side === 'blue' || n.kind === 'hq');
+for (let i = 0; i < 30 * 61; i++) Sim.step(s, 1 / 30);
+ok(!s.over, 'a lone HQ (10) is still above 15% of blue\'s opening power (~25): no collapse yet');
+s.nodes.find(n => n.side === 'red').hp = 0; Sim.step(s, 1 / 30); Sim.step(s, 1 / 30);
+ok(s.over === 'blue', 'with the HQ gone too, red collapses');
+const s2 = Sim.create(3, 1000); s2.bots = []; s2.units = s2.units.filter(u => u.side === 'blue'); s2.nodes = s2.nodes.filter(n => n.side === 'blue');
+for (let i = 0; i < 30 * 59; i++) Sim.step(s2, 1 / 30);
+ok(!s2.over, 'no collapse before the first minute');
+// full games run to the end without throwing
+for (const fog of [true, false]) { const { s: g } = play(7, 1100, 'normal', { fog }); ok(g.t > 60, `full game (fog ${fog}) ran ${Math.round(g.t)}s, result ${g.over || 'none'}`); }

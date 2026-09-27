@@ -12,9 +12,10 @@
 <body>
 <div class="stage" id="stage">
   <canvas id="cv" aria-label="מפת הקרב"></canvas>
-  <div class="score blue glass" title="הניקוד שלך"><b id="sb">0</b><small class="goal"></small><small class="res" id="res" title="מילואים: כל יחידת תגבורת עולה 1 (טנק ומטוס 2)"></small><i class="boost" id="bb" title="מפגרים: תגבורת וכיבוש מהירים יותר" hidden>⚡</i></div>
+  <div class="score blue glass" title="עוצמה: החלק שלך מהכוח של שני הצדדים (בערפל: לפי הערכה). מתחת ל-15% — קריסה והפסד"><b id="pwN">50%</b><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="bb" title="החלש מבין הצדדים: ייצור מהיר יותר" hidden>⚡</i></div>
   <ol class="log" id="log" aria-live="polite"></ol>
-  <div class="score red glass" title="ניקוד האויב"><b id="sr">0</b><small class="goal"></small><i class="boost" id="rb" title="האויב מפגר: תגבורת וכיבוש מהירים יותר" hidden>⚡</i></div>
+  <div class="score right glass" title="מבנים: בנויים / מכסה (2 + 2 לכל מפקדה ופיקוד קדמי פעילים)">🏗 <b id="slotN">1/4</b></div>
+  <div class="buildm glass" id="buildm" hidden role="menu" aria-label="בנייה"></div>
   <div class="call glass" id="call" hidden role="alertdialog" aria-live="assertive">
     <span id="callTxt"></span>
     <button id="callHold">⚓ להחזיק</button><button id="callBack">↩ לסגת</button><b id="callT"></b>
@@ -26,26 +27,25 @@
     <div class="mrow"><span>פיצוצים</span><button id="sfx" class="icon" aria-pressed="true" aria-label="קולות פיצוצים">💥</button><input id="sfxvol" type="range" min="0" max="100" value="60" aria-label="עוצמת פיצוצים"></div>
     <button id="help">❔ הסבר</button>
     <button id="restart">משחק חדש</button>
-    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>👥 מילואים: תגבורת עולה 1 (טנק ומטוס 2), מתמלאים לאט; נסיגה לבסיס מרפאת בחינם.<br>🗺 בערפל: כוחות לפי הדיווח האחרון, אויב ככתם שגדל ככל שהתצפית ישנה; ⚔ 💥 ✓ 🚩 = דיווחים על המפה.<br>🔷 איכות שליטה (הכחול): קובעת כמה מהר מגיעה פקודה (1–8 שניות) ואת קצב ודיוק הדיווחים. 🛸 רחפן (D): שליטה ותצפית מלאות באזור, עובד אחרי 10 ש׳, טס דקה, אחד כל 30 ש׳, נ"מ מפיל. 🏕 פיקוד קדמי (B, טנקים): עובד אחרי 30 ש׳, אחד כל דקה, אפשר להשמיד. 📻 דיווחים בקול (בתפריט).<br>✉ בערפל פקודות מגיעות באיחור לפי איכות השליטה. 📞 שיחה: מפקד בלחץ שואל להחזיק או לסגת; בלי תשובה מחליט לפי האופי (🦁 נועז: מחזיק, ממעיט באבדות; 🦉 שקול; 🐇 חרד: נסוג, מגזים באבדות ומדווח יותר).<br>⚡ הצד שמפגר בניקוד מקבל תגבורת וכיבוש מהירים יותר.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
+    <p class="legend">לחץ על כוח במפה או על המבנה שלו כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>רק נ"מ פוגע במטוסים ורחפנים; מטוסים חזקים מול טנקים וג'יפים, טנקים מול חי"ר, נ"מ וג'יפים. מטוסים חוזרים לחימוש לשדה תעופה או למפקדה.<br>💪 ניצחון בקריסה: פחות מ-15% מהעוצמה המשותפת. 🏗 מבנים: ⛺ חי"ר (20 ש׳), 🎯 נ"מ (30), 🔧 ג'יפים (25), 🏭 טנקים (45), 🛫 מטוסים (60, מטוס כל 2 דק׳). כל מבנה = כוח עם מפקד שהוא ממלא; ליד מבנים מתרפאים.<br>🗺 בערפל: כוחות לפי הדיווח האחרון, אויב ככתם שגדל ככל שהתצפית ישנה; ⚔ 💥 ✓ 🚩 = דיווחים על המפה.<br>🔷 איכות שליטה (הכחול): קובעת כמה מהר מגיעה פקודה (1–8 שניות) ואת קצב ודיוק הדיווחים. 🛸 רחפן (D): שליטה ותצפית מלאות באזור, עובד אחרי 10 ש׳, טס דקה, אחד כל 30 ש׳, נ"מ מפיל. 🏕 פיקוד קדמי (B, ג'יפים/טנקים): עובד אחרי 30 ש׳, אחד כל דקה, אפשר להשמיד. 📻 דיווחים בקול (בתפריט).<br>✉ בערפל פקודות מגיעות באיחור לפי איכות השליטה. 📞 שיחה: מפקד בלחץ שואל להחזיק או לסגת; בלי תשובה מחליט לפי האופי (🦁 נועז: מחזיק, ממעיט באבדות; 🦉 שקול; 🐇 חרד: נסוג, מגזים באבדות ומדווח יותר).<br>⚡ הצד החלש מייצר מהר יותר (עד 30%).<br>מקלדת: 1–9 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
   </div>
   <div class="intro" id="intro">
     <div class="card glass" role="dialog" aria-labelledby="introT">
       <h1 id="introT">פיקוד על כוונה</h1>
       <p class="sub">אתה לא מזיז חיילים. אתה נותן למפקדים כוונה, והם מחליטים איך לבצע.</p>
       <ol>
-        <li><span>🚩</span><span>החזק נקודות. כל נקודה = שנייה של ניקוד. הראשון ל-300 מנצח.</span></li>
-        <li><span>👆</span><span>בחר כוח: בכפתורים למטה, לחיצה עליו במפה, או מקשים <kbd>1</kbd> עד <kbd>4</kbd>. מקש <kbd>0</kbd> בוחר את כולם.</span></li>
-        <li><span>📍</span><span>בחר <b>⚓ החזק</b> או <b>⚔ תקוף</b> ולחץ על היעד במפה. <b>↩ סגת</b> מחזיר לבסיס.</span></li>
+        <li><span>💪</span><span>המטרה: קריסת האויב. מי שנשאר עם פחות מ-15% מהכוח של שני הצדדים (יחידות ומבנים) מפסיד.</span></li>
+        <li><span>🏗</span><span>בנה מבנים (🏗): כל מבנה מקים כוח עם מפקד וממלא אותו — ⛺ חי"ר, 🎯 נ"מ, 🔧 ג'יפים, 🏭 טנקים, 🛫 מטוסים. בונים רק איפה שהשליטה חזקה, ועד מכסה שגדלה עם כל פיקוד.</span></li>
+        <li><span>👆</span><span>בחר כוח: בכפתורים למטה, לחיצה עליו במפה, או מקשים <kbd>1</kbd> עד <kbd>9</kbd>. מקש <kbd>0</kbd> בוחר את כולם.</span></li>
+        <li><span>📍</span><span>בחר <b>⚓ החזק</b> או <b>⚔ תקוף</b> ולחץ על היעד במפה. <b>↩ סגת</b> מחזיר הביתה, למבנה של הכוח.</span></li>
         <li><span>⚖</span><span>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: מתי המפקד נסוג (50%, 30%, 15%).</span></li>
-        <li><span>👥</span><span>מילואים: כל תגבורת עולה 1 (טנק ומטוס 2) ומתמלאת לאט. כוח שנסוג לבסיס מתרפא בחינם.</span></li>
         <li><span>🗺</span><span>ערפל: אתה רואה דיווחים, לא את השטח. הכוחות שלך מופיעים לפי הדיווח האחרון (❓ = לא דיווח מזמן), האויב ככתמים שמתפשטים עם הזמן.</span></li>
-        <li><span>🔷</span><span>שליטה: הכחול על המפה. איפה שהוא עמוק, פקודות מגיעות מהר ודיווחים מדויקים. 🛸 רחפן (D) ו-🏕 פיקוד קדמי (B, טנקים) מרחיבים אותה.</span></li>
+        <li><span>🔷</span><span>שליטה: הכחול על המפה. איפה שהוא עמוק, פקודות מגיעות מהר ודיווחים מדויקים. 🛸 רחפן (D) ו-🏕 פיקוד קדמי (B, ג'יפים או טנקים) מרחיבים אותה.</span></li>
         <li><span>✉</span><span>פקודה היא הודעה: היא מגיעה באיחור, יותר ככל שהשליטה במקום של הכוח חלשה. 📞 מפקד בלחץ מתקשר לשאול; בלי תשובה הוא מחליט לפי האופי שלו (🦁 נועז, 🦉 שקול, 🐇 חרד).</span></li>
-        <li><span>⚡</span><span>מפגרים? התגבורת והכיבוש שלך מהירים יותר. אף משחק לא אבוד מוקדם.</span></li>
-        <li><span>✂</span><span>נ"מ מנצח מטוסים, מטוסים מנצחים טנקים, טנקים מנצחים חי"ר ונ"מ.</span></li>
+        <li><span>⚡</span><span>החלש מבין הצדדים מייצר מהר יותר. אף משחק לא אבוד מוקדם.</span></li>
+        <li><span>✂</span><span>רק נ"מ פוגע במטוסים ורחפנים. מטוסים מנצחים טנקים וג'יפים, טנקים מנצחים חי"ר, נ"מ וג'יפים, ג'יפים מנצחים חי"ר.</span></li>
         <li><span>⏸</span><span>עצירה בכל רגע: <kbd>רווח</kbd> או ⏸. אפשר לתת פקודות גם בעצירה.</span></li>
       </ol>
-      <div class="mrow"><span>אורך</span><button data-win="150">קצר (150)</button><button data-win="300">רגיל (300)</button></div>
       <div class="mrow"><span>ערפל</span><button data-fog="1">פעיל</button><button data-fog="0">כבוי</button></div>
       <div class="mrow"><span>קושי</span><button data-diff="easy">קל</button><button data-diff="normal">רגיל</button><button data-diff="hard">קשה</button></div>
       <button id="go">התחל ▶</button>
@@ -69,10 +69,7 @@
     <span class="sep"></span>
     <div class="seg" role="group" aria-label="בחירת כוח">
       <button id="all" class="icon" aria-label="כל הכוחות (0)" aria-pressed="false">★</button>
-      <button class="sqb" data-sq="blue0"><canvas width="52" height="52"></canvas><kbd>1</kbd><i></i></button>
-      <button class="sqb" data-sq="blue1"><canvas width="52" height="52"></canvas><kbd>2</kbd><i></i></button>
-      <button class="sqb" data-sq="blue2"><canvas width="52" height="52"></canvas><kbd>3</kbd><i></i></button>
-      <button class="sqb" data-sq="blue3"><canvas width="52" height="52"></canvas><kbd>4</kbd><i></i></button>
+      <span id="sqs" class="seg"></span>
     </div>
     <span class="sep"></span>
     <div class="grp" role="group" aria-label="פקודה">
@@ -81,7 +78,8 @@
     <button class="ord" id="retreat" aria-label="סגת"><span class="lg">סגת</span><span class="sm" aria-hidden="true">↩</span></button>
     </div>
     <button id="eye" class="icon node" aria-pressed="false" title="רחפן: לחץ ואז בחר מקום במפה (D). שליטה ותצפית מלאות באזור, מתחיל לעבוד אחרי 10 שניות, טס דקה; נ&quot;מ יכול להפיל" aria-label="רחפן">🛸<b id="eyeN"></b><i></i></button>
-    <button id="fhq" class="icon node" title="פיקוד קדמי (B): הכוח הנבחר (טנקים) מקים אותו במקומו. משפר שליטה סביבו, מתחיל לעבוד אחרי 30 שניות" aria-label="פיקוד קדמי">🏕<b id="fhqN"></b><i></i></button>
+    <button id="bld" class="icon" aria-expanded="false" title="בנייה (G): בחר מבנה ואז מקום במפה, איפה שהשליטה חזקה" aria-label="בנייה">🏗</button>
+    <button id="fhq" class="icon node" title="פיקוד קדמי (B): הכוח הנבחר (ג'יפים או טנקים) מקים אותו במקומו. משפר שליטה סביבו, מתחיל לעבוד אחרי 30 שניות" aria-label="פיקוד קדמי">🏕<b id="fhqN"></b><i></i></button>
     <span class="sep"></span>
     <div class="seg" role="group" aria-label="מתי המפקד נסוג">
       <button data-trait="cautious" title="זהיר: נסוג ב-50%">🛡</button>
@@ -98,7 +96,7 @@
 <script src="js/sim/command.js"></script>
 <script src="js/sim/squad.js"></script>
 <script src="js/sim/intel.js"></script>
-<script src="js/sim/economy.js"></script>
+<script src="js/sim/structures.js"></script>
 <script src="js/sim/ai.js"></script>
 <script src="js/sim/step.js"></script>
 <script src="js/ui/core.js"></script>

@@ -1,86 +1,92 @@
-// Sim: the enemy AI (plays by the same fog and message rules)
-// how much blue force sits near p, weighed by how the red squad fares against it.
-// > 0: the red squad has the upper hand there; < 0: it would be countered.
+// Sim: the AI (plays by the same fog, message and building rules). think(s, side, level) drives one side;
+// the enemy uses it, and the Node tests also let it play blue.
+
+const foeOf = side => side === 'blue' ? 'red' : 'blue';
+// how much enemy force sits near p, weighed by how this squad fares against it.
+// > 0: the squad has the upper hand there; < 0: it would be countered.
 function edgeAt(s, sq, p) {
   let e = 0;
   for (const q of s.squads) {
-    const k = q.side === 'blue' && intel(s, 'red', q);
+    const k = q.side !== sq.side && intel(s, sq.side, q);
     if (!k || Math.hypot(k.x - p.x, k.y - p.y) > AI_NEAR) continue;
     e += (MULT[sq.type][q.type] - MULT[q.type][sq.type]) * k.strength * q.size;
   }
   return e;
 }
+// enemy structures this side knows about: seen ones stay remembered (they don't move); the enemy HQ's
+// place is known from the start
+function knownStructs(s, side) {
+  const foe = foeOf(side);
+  const list = s.fog ? Object.values(s.memNodes[side]) : s.nodes.filter(n => n.side === foe && n.hp > 0);
+  const out = list.filter(n => n.kind !== 'drone');
+  if (!out.some(n => n.kind === 'hq') && hqOf(s, foe)) out.push({ id: 'hq?', kind: 'hq', x: s.bases[foe].x, y: H / 2 });
+  return out;
+}
 
-function enemyAI(s) {
-  const D = DIFFS[s.diff] || DIFFS.normal, taken = new Map();
-  const red = s.squads.filter(q => q.side === 'red' && !q.dead && !q.retreating);
+// put a building of the next planned kind near the most forward control node, toward the enemy
+function aiBuild(s, side, D) {
+  if (buildCount(s, side) >= buildLimit(s, side)) return;
+  if (!D.smart && s.t - (s.lastBuild[side] || -99) < 30) return; // easy builds slowly
+  const foe = foeOf(side), goal = { x: s.bases[foe].x, y: H / 2 }, kind = AI_PLAN[s.plan[side] % AI_PLAN.length];
+  const anchors = controlNodes(s, side).filter(n => n.kind !== 'drone').sort((a, b) => dist(a, goal) - dist(b, goal));
+  for (const a of anchors) for (let i = 0; i < 12; i++) {
+    const ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * 2.4, r = 55 + s.rand() * 110;
+    const x = a.x + Math.cos(ang) * r, y = a.y + Math.sin(ang) * r;
+    if (build(s, side, kind, x, y)) { s.plan[side]++; s.lastBuild[side] = s.t; return; }
+  }
+}
+
+function think(s, side, level) {
+  const D = DIFFS[level] || DIFFS.normal, foe = foeOf(side), taken = new Map();
+  const mine = s.squads.filter(q => q.side === side && !q.dead && !q.retreating);
   const setOrder = (sq, type, x, y) => {
     const p = pending(s, sq.id, 'order'), cur = p || sq.order;
     if (cur.x === x && cur.y === y && cur.type === type) return;
-    if (s.fog) send(s, sq, { kind: 'order', type, x, y, quiet: true });
-    else { sq.order = { type, x, y, r: ORDER_R[type] }; sq.arrived = false; }
+    order(s, sq.id, type, x, y, true);
   };
-  for (const sq of red.filter(q => q.type !== 'air')) {
+  aiBuild(s, side, D);
+  const structs = knownStructs(s, side);
+  const foes = s.squads.filter(q => q.side === foe).map(q => ({ q, k: intel(s, side, q) })).filter(o => o.k);
+  for (const sq of mine) {
+    const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
+    // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
+    if (D.smart && sq.strength < AI_READY && !fighting) { const h = homeOf(s, sq); setOrder(sq, 'hold', h.x, h.y); continue; }
+    const cands = [];
+    for (const { q, k } of foes) {
+      if (!MULT[sq.type][q.type]) continue; // can't hurt it (aircraft for everyone but AA)
+      cands.push({ x: k.x, y: k.y, w: 0, edge: true });
+    }
+    // structures: production and forward HQs matter most; aircraft go for them when there's nothing better
+    if (sq.type !== 'aa') for (const n of structs) cands.push({ x: n.x, y: n.y, w: n.kind === 'hq' ? 120 : n.kind === 'fhq' ? -60 : -30 });
+    if (!cands.length) continue;
     const score = p => {
-      let sc = dist({ x: sq.cx, y: sq.cy }, p);
-      const held = p.owner === 'red' && !p.contested;
-      if (held) sc += 350;
-      sc += 200 * (taken.get(p) || 0);
-      if (D.smart) {
-        // go where this force counters what's there; hold a point the enemy is about to hit
-        sc -= 60 * edgeAt(s, sq, p);
-        if (held && threatAt(s, 'red', p, AI_NEAR)) sc -= 250;
-        if (p.type === sq.type && !held) sc -= 60; // a matching point speeds up its own reinforcements
-      }
+      let sc = dist(c, p) + p.w + (D.mass ? -150 : 200) * (taken.get(p.x + ',' + p.y) || 0);
+      if (D.smart && p.edge) sc -= 60 * edgeAt(s, sq, p);
+      if (D.smart && sq.type === 'air') for (const { q, k } of foes) if (q.type === 'aa' && Math.hypot(k.x - p.x, k.y - p.y) < 150) sc += 300 * k.strength;
       return sc;
     };
     let best = null, bs = Infinity;
-    for (const p of s.points) { const sc = score(p); if (sc < bs) { bs = sc; best = p; } }
-    if (!best) continue;
-    // don't flip-flop between two points that score about the same
-    const cur = D.smart && s.points.find(p => p.x === sq.order.x && p.y === sq.order.y);
+    for (const p of cands) { const sc = score(p); if (sc < bs) { bs = sc; best = p; } }
+    // don't flip-flop between two targets that score about the same
+    const cur = D.smart && cands.find(p => Math.hypot(p.x - sq.order.x, p.y - sq.order.y) < 40);
     if (cur && cur !== best && score(cur) < bs + AI_KEEP) best = cur;
-    taken.set(best, (taken.get(best) || 0) + 1);
-    setOrder(sq, best.owner === 'red' && !best.contested ? 'hold' : 'attack', best.x, best.y);
+    taken.set(best.x + ',' + best.y, (taken.get(best.x + ',' + best.y) || 0) + 1);
+    setOrder(sq, 'attack', best.x, best.y);
   }
-  // aircraft: hunt what they beat (tanks first), keep away from enemy AA
-  for (const sq of red.filter(q => q.type === 'air')) {
-    let tgt = null, bs = Infinity;
-    for (const q of s.squads) {
-      const k = q.side === 'blue' && q.type !== 'air' && intel(s, 'red', q);
-      if (!k || (!D.smart && q.type !== 'tank')) continue;
-      let sc = Math.hypot(k.x - sq.cx, k.y - sq.cy) - 250 * MULT.air[q.type];
-      if (D.smart) for (const a of s.squads) {
-        const ka = a.side === 'blue' && a.type === 'aa' && intel(s, 'red', a);
-        if (ka && Math.hypot(ka.x - k.x, ka.y - k.y) < 150) sc += 300 * ka.strength;
-      }
-      if (sc < bs) { bs = sc; tgt = { x: k.x, y: k.y }; }
-    }
-    if (!tgt || (D.smart && bs > 450)) {
-      bs = Infinity;
-      for (const p of s.points) {
-        if (p.owner === 'red' && !p.contested) continue;
-        const d = dist({ x: sq.cx, y: sq.cy }, p) + (D.smart ? 300 * Math.max(0, -edgeAt(s, sq, p)) : 0);
-        if (d < bs) { bs = d; tgt = p; }
-      }
-    }
-    if (tgt) setOrder(sq, 'attack', tgt.x, tgt.y);
-  }
-  // posture: press when behind, play safe when ahead
+  // posture (hard): press when losing, play safe when winning
   if (D.traits) {
-    const lead = s.score.red - s.score.blue;
-    const tr = lead > 30 ? 'cautious' : lead < -30 ? 'aggressive' : 'balanced';
-    for (const sq of s.squads) if (sq.side === 'red') sq.trait = tr;
+    const sh = share(s, side), tr = sh < 0.4 ? 'aggressive' : sh > 0.6 ? 'cautious' : 'balanced';
+    for (const sq of s.squads) if (sq.side === side && sq.trait !== tr) setTrait(s, sq.id, tr, true);
   }
-  if (D.smart && s.fog && s.cd.red.drone <= 0) {
-    const known = p => s.squads.some(q => { const k = q.side === 'blue' && intel(s, 'red', q); return k && Math.hypot(k.x - p.x, k.y - p.y) < AI_NEAR; });
-    const p = s.points.filter(p => p.owner !== 'red' || p.contested).find(p => !known(p));
-    if (p) drone(s, 'red', p.x, p.y);
+  // drones: look where we know least — an unexplored spot on the enemy's side of the map
+  if (D.smart && s.fog && s.cd[side].drone <= 0) {
+    const x = s.bases[foe].x + (s.bases[side].x - s.bases[foe].x) * (0.2 + 0.4 * s.rand()), y = 60 + s.rand() * (H - 120);
+    if (!structs.some(n => n.id !== 'hq?' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0)) drone(s, side, x, y);
   }
-  // forward HQ: a builder that reached its point, far from any red node, sets one up there
-  if (D.smart && s.fog && s.cd.red.fhq <= 0) {
-    const b = red.find(q => FHQ_BUILDERS.includes(q.type) && q.arrived && !pending(s, q.id, 'order') &&
-      controlNodes(s, 'red').every(n => dist(n, { x: q.cx, y: q.cy }) > NODES.fhq.r1));
+  // forward HQ: a builder that reached its target, far from our other control nodes, sets one up there
+  if (D.smart && s.fog && s.cd[side].fhq <= 0) {
+    const b = mine.find(q => FHQ_BUILDERS.includes(q.type) && q.arrived && !pending(s, q.id, 'order') &&
+      controlNodes(s, side).every(n => dist(n, { x: q.cx, y: q.cy }) > NODES.fhq.r1));
     if (b) buildFhq(s, b.id);
   }
   return D.every;
