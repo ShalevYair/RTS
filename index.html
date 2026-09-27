@@ -42,6 +42,8 @@ body{margin:0;height:100%;overflow:hidden;background:var(--c-ground);color:var(-
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
 .glass{background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--border);box-shadow:0 2px 12px rgb(0 0 0 / .18)}
 .score{position:absolute;top:8px;padding:3px 12px;border-radius:999px;font:24px/1.2 "Secular One",Assistant,sans-serif;font-variant-numeric:tabular-nums;pointer-events:none}
+.res{display:inline-block;margin-inline-start:8px;padding-inline-start:8px;border-inline-start:1px solid var(--border)}
+.res.low{color:var(--c-red)}
 .boost{font-style:normal;font-size:16px;margin-inline-start:4px}
 .score small{font:600 12px Assistant,sans-serif;color:var(--muted);margin-inline-start:3px}
 .score.blue{left:8px;color:var(--c-blue)} .score.red{right:8px;color:var(--c-red)}
@@ -94,12 +96,13 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .intro.short .card ol,.intro.short .sub{display:none}
 #go{width:100%;font-size:18px;background:var(--accent);color:#fff;border-color:var(--accent)}
 @media (prefers-reduced-motion: reduce){.log li{transition:none}}
+@media (max-width:560px){.log{top:50px;width:calc(100% - 24px)}}
 </style>
 </head>
 <body>
 <div class="stage" id="stage">
   <canvas id="cv" aria-label="מפת הקרב"></canvas>
-  <div class="score blue glass" title="הניקוד שלך"><b id="sb">0</b><small class="goal"></small><i class="boost" id="bb" title="מפגרים: תגבורת וכיבוש מהירים יותר" hidden>⚡</i></div>
+  <div class="score blue glass" title="הניקוד שלך"><b id="sb">0</b><small class="goal"></small><small class="res" id="res" title="מילואים: כל יחידת תגבורת עולה 1 (טנק ומטוס 2)"></small><i class="boost" id="bb" title="מפגרים: תגבורת וכיבוש מהירים יותר" hidden>⚡</i></div>
   <ol class="log" id="log" aria-live="polite"></ol>
   <div class="score red glass" title="ניקוד האויב"><b id="sr">0</b><small class="goal"></small><i class="boost" id="rb" title="האויב מפגר: תגבורת וכיבוש מהירים יותר" hidden>⚡</i></div>
   <div class="menu glass" id="menu" hidden>
@@ -108,7 +111,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
     <div class="mrow"><span>פיצוצים</span><button id="sfx" class="icon" aria-pressed="true" aria-label="קולות פיצוצים">💥</button><input id="sfxvol" type="range" min="0" max="100" value="60" aria-label="עוצמת פיצוצים"></div>
     <button id="help">❔ הסבר</button>
     <button id="restart">משחק חדש</button>
-    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>⚡ הצד שמפגר בניקוד מקבל תגבורת וכיבוש מהירים יותר.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
+    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>👥 מילואים: תגבורת עולה 1 (טנק ומטוס 2), מתמלאים לאט; נסיגה לבסיס מרפאת בחינם.<br>⚡ הצד שמפגר בניקוד מקבל תגבורת וכיבוש מהירים יותר.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
   </div>
   <div class="intro" id="intro">
     <div class="card glass" role="dialog" aria-labelledby="introT">
@@ -119,6 +122,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
         <li><span>👆</span><span>בחר כוח: בכפתורים למטה, לחיצה עליו במפה, או מקשים <kbd>1</kbd> עד <kbd>4</kbd>. מקש <kbd>0</kbd> בוחר את כולם.</span></li>
         <li><span>📍</span><span>בחר <b>⚓ החזק</b> או <b>⚔ תקוף</b> ולחץ על היעד במפה. <b>↩ סגת</b> מחזיר לבסיס.</span></li>
         <li><span>⚖</span><span>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: מתי המפקד נסוג (50%, 30%, 15%).</span></li>
+        <li><span>👥</span><span>מילואים: כל תגבורת עולה 1 (טנק ומטוס 2) ומתמלאת לאט. כוח שנסוג לבסיס מתרפא בחינם.</span></li>
         <li><span>🌫</span><span>ערפל: רואים את האויב רק ליד הכוחות שלך, בבסיס ובנקודות שלך. כוח שיורה נחשף.</span></li>
         <li><span>⚡</span><span>מפגרים? התגבורת והכיבוש שלך מהירים יותר. אף משחק לא אבוד מוקדם.</span></li>
         <li><span>✂</span><span>נ"מ מנצח מטוסים, מטוסים מנצחים טנקים, טנקים מנצחים חי"ר ונ"מ.</span></li>
@@ -167,10 +171,10 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 const Sim = (() => {
   const H = 640, WIN = 300;
   const TYPES = {
-    inf:  { name: 'חי"ר',  hp: 60,  speed: 30, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 5, rein: 7 },
-    tank: { name: 'טנקים', hp: 150, speed: 44, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 8, rein: 12 },
-    air:  { name: 'מטוסים', hp: 90, speed: 95, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 7, rein: 15, air: true, ammo: 10 },
-    aa:   { name: 'נ"מ',   hp: 70,  speed: 34, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 6, rein: 9 },
+    inf:  { name: 'חי"ר',  hp: 60,  speed: 30, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 5, rein: 7, cost: 1 },
+    tank: { name: 'טנקים', hp: 150, speed: 44, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 8, rein: 12, cost: 2 },
+    air:  { name: 'מטוסים', hp: 90, speed: 95, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 7, rein: 15, air: true, ammo: 10, cost: 2 },
+    aa:   { name: 'נ"מ',   hp: 70,  speed: 34, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 6, rein: 9, cost: 1 },
   };
   // Damage multiplier MULT[attacker][target]. Range order: aa > air > tank > inf
   // impact explosion per attacker: big for tanks/aircraft, smaller for AA, tiny for infantry
@@ -192,6 +196,8 @@ const Sim = (() => {
   // reinforcement speed: +15% per held point, +50% more if the point matches the unit type
   // tuned in Node (bot vs bot): the early leader still wins ~2/3 of even games instead of ~95%
   const REIN_PER_POINT = 0.15, REIN_PER_MATCH = 0.5, CATCHUP_MAX = 0.6, CATCHUP_GAP = 0.2, CATCHUP_CAPTURE = 0.5;
+  // reserves: every reinforcement is paid for; the pool refills 1 per RESERVE_EVERY seconds
+  const RESERVE_START = 20, RESERVE_EVERY = 6, RESERVE_MAX = 30;
   const FAC_Y = { inf: 80, aa: 240, tank: 400, air: 560 };
   const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
@@ -236,7 +242,8 @@ const Sim = (() => {
         .map(p => ({ ...p, r: 40, owner: null, prog: 0, contested: false })),
       bases: { blue: makeBase(30, 0, 60), red: makeBase(W - 30, W - 60, W) },
       squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true, vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} },
-      tune: { point: REIN_PER_POINT, match: REIN_PER_MATCH, catchup: CATCHUP_MAX, capture: CATCHUP_CAPTURE }, diff: diff in DIFFS ? diff : 'normal' };
+      reserve: { blue: RESERVE_START, red: RESERVE_START },
+      tune: { resEvery: RESERVE_EVERY, resMax: RESERVE_MAX, point: REIN_PER_POINT, match: REIN_PER_MATCH, catchup: CATCHUP_MAX, capture: CATCHUP_CAPTURE }, diff: diff in DIFFS ? diff : 'normal' };
     const comp = [['א', 'inf', 6], ['ב', 'aa', 4], ['ג', 'tank', 3], ['ד', 'air', 2]];
     const blueTraits = ['aggressive', 'cautious', 'balanced', 'balanced'];
     for (const side of ['blue', 'red']) {
@@ -478,12 +485,17 @@ const Sim = (() => {
   // each squad refills one unit at a time from its own facility
   function reinforce(s, dt) {
     if (s.noReinforce) return;
+    for (const side of ['blue', 'red']) s.reserve[side] = Math.min(s.tune.resMax, s.reserve[side] + dt / s.tune.resEvery);
     for (const sq of s.squads) {
       const n = s.units.filter(u => u.squad === sq.id).length;
       if (n >= sq.size) { sq.reinProg = 0; continue; }
-      sq.reinProg += dt * reinRate(s, sq) / TYPES[sq.type].rein;
+      sq.reinProg = Math.min(1, sq.reinProg + dt * reinRate(s, sq) / TYPES[sq.type].rein);
       if (sq.reinProg >= 1) {
-        sq.reinProg -= 1;
+        // each new unit is paid for from the side's reserves; an empty pool stalls the refill
+        const cost = TYPES[sq.type].cost;
+        if (s.reserve[sq.side] < cost) continue;
+        s.reserve[sq.side] -= cost; sq.reinProg = 0;
+        if (sq.side === 'blue' && s.reserve.blue < 1) note(s, 'המילואים נגמרו, התגבורת תחכה');
         const f = s.bases[sq.side].fac[sq.type];
         spawn(s, sq, f.x, f.y); s.stats.rein[sq.side]++;
         if (n + 1 === sq.size) report(s, sq, 'הכוח מאויש במלואו');
@@ -701,6 +713,7 @@ const Sim = (() => {
   }
   function updateHud() {
     $('sb').textContent = Math.floor(s.score.blue); $('sr').textContent = Math.floor(s.score.red);
+    const res = Math.floor(s.reserve.blue); $('res').textContent = '👥' + res; $('res').classList.toggle('low', res < 2);
     $('bb').hidden = Sim.catchup(s, 'blue') < 0.15; $('rb').hidden = Sim.catchup(s, 'red') < 0.15;
     const key = s.log.length + ':' + (s.log.at(-1)?.t ?? '') + ':' + Math.floor(s.t / 2);
     if (key !== logKey) {
