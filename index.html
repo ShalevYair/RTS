@@ -73,6 +73,10 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .sqb kbd{position:absolute;top:1px;inset-inline-end:3px;font:700 10px Assistant,sans-serif;color:var(--muted)}
 .sqb i{position:absolute;left:5px;right:5px;bottom:3px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--c-blue) calc(var(--st,1)*100%),var(--border) 0)}
 .sqb.dead{opacity:.4}
+#eye{position:relative}#eye[hidden]{display:none}
+#eye b{position:absolute;top:1px;inset-inline-end:3px;font:700 11px Assistant,sans-serif;color:var(--accent)}
+#eye i{position:absolute;left:5px;right:5px;bottom:3px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--accent) calc(var(--p,0)*100%),var(--border) 0)}
+#eye:disabled{opacity:.45;cursor:default}
 @media (max-width:560px){.bar .sep{display:none}.bar{gap:4px;padding:5px}.sqb{min-width:40px}}
 .grp{display:flex;gap:6px}
 .sm{display:none}
@@ -108,10 +112,11 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
   <div class="menu glass" id="menu" hidden>
     <div class="mrow"><span>מהירות</span><button data-rate="0.5">איטי</button><button data-rate="1">רגיל</button><button data-rate="2">מהיר</button></div>
     <div class="mrow"><span>מוזיקה</span><button id="music" class="icon" aria-pressed="true" aria-label="מוזיקה">♪</button><input id="vol" type="range" min="0" max="100" value="35" aria-label="עוצמת מוזיקה"></div>
+    <div class="mrow"><span>קשר</span><button id="radio" class="icon" aria-pressed="true" aria-label="דיווחי קשר בקול">📻</button><small id="radioNote" class="legend"></small></div>
     <div class="mrow"><span>פיצוצים</span><button id="sfx" class="icon" aria-pressed="true" aria-label="קולות פיצוצים">💥</button><input id="sfxvol" type="range" min="0" max="100" value="60" aria-label="עוצמת פיצוצים"></div>
     <button id="help">❔ הסבר</button>
     <button id="restart">משחק חדש</button>
-    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>👥 מילואים: תגבורת עולה 1 (טנק ומטוס 2), מתמלאים לאט; נסיגה לבסיס מרפאת בחינם.<br>🗺 בערפל: כוחות לפי הדיווח האחרון, אויב ככתם שגדל ככל שהתצפית ישנה; ⚔ 💥 ✓ 🚩 = דיווחים על המפה.<br>⚡ הצד שמפגר בניקוד מקבל תגבורת וכיבוש מהירים יותר.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
+    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>👥 מילואים: תגבורת עולה 1 (טנק ומטוס 2), מתמלאים לאט; נסיגה לבסיס מרפאת בחינם.<br>🗺 בערפל: כוחות לפי הדיווח האחרון, אויב ככתם שגדל ככל שהתצפית ישנה; ⚔ 💥 ✓ 🚩 = דיווחים על המפה.<br>🛸 רחפן (D): תצפית אמיתית לכמה שניות באזור שבוחרים. 📻 דיווחים בקול (בתפריט).<br>⚡ הצד שמפגר בניקוד מקבל תגבורת וכיבוש מהירים יותר.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
   </div>
   <div class="intro" id="intro">
     <div class="card glass" role="dialog" aria-labelledby="introT">
@@ -124,6 +129,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
         <li><span>⚖</span><span>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: מתי המפקד נסוג (50%, 30%, 15%).</span></li>
         <li><span>👥</span><span>מילואים: כל תגבורת עולה 1 (טנק ומטוס 2) ומתמלאת לאט. כוח שנסוג לבסיס מתרפא בחינם.</span></li>
         <li><span>🗺</span><span>ערפל: אתה רואה דיווחים, לא את השטח. הכוחות שלך מופיעים לפי הדיווח האחרון (❓ = לא דיווח מזמן), האויב ככתמים שמתפשטים עם הזמן.</span></li>
+        <li><span>🛸</span><span>רחפן: לחץ 🛸 ואז על המפה, ותראה את השטח האמיתי שם לכמה שניות. מתמלא לאט.</span></li>
         <li><span>⚡</span><span>מפגרים? התגבורת והכיבוש שלך מהירים יותר. אף משחק לא אבוד מוקדם.</span></li>
         <li><span>✂</span><span>נ"מ מנצח מטוסים, מטוסים מנצחים טנקים, טנקים מנצחים חי"ר ונ"מ.</span></li>
         <li><span>⏸</span><span>עצירה בכל רגע: <kbd>רווח</kbd> או ⏸. אפשר לתת פקודות גם בעצירה.</span></li>
@@ -158,6 +164,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
     <button class="ord" data-mode="attack" aria-pressed="false" aria-label="תקוף"><span class="lg">תקוף</span><span class="sm" aria-hidden="true">⚔</span></button>
     <button class="ord" id="retreat" aria-label="סגת"><span class="lg">סגת</span><span class="sm" aria-hidden="true">↩</span></button>
     </div>
+    <button id="eye" class="icon" aria-pressed="false" title="רחפן: לחץ ואז בחר מקום במפה (D)" aria-label="רחפן">🛸<b id="eyeN"></b><i></i></button>
     <span class="sep"></span>
     <div class="seg" role="group" aria-label="מתי המפקד נסוג">
       <button data-trait="cautious" title="זהיר: נסוג ב-50%">🛡</button>
@@ -200,6 +207,7 @@ const Sim = (() => {
   const RESERVE_START = 20, RESERVE_EVERY = 6, RESERVE_MAX = 30;
   const FAC_Y = { inf: 80, aa: 240, tank: 400, air: 560 };
   const REPORT_EVERY = 6, MARK_LIFE = 4;
+  const EYE_R = 110, EYE_TIME = 8, EYE_EVERY = 25, EYE_START = 1, EYE_MAX = 2;
   const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
   function rng(seed) {
@@ -243,6 +251,7 @@ const Sim = (() => {
         .map(p => ({ ...p, r: 40, owner: null, prog: 0, contested: false })),
       bases: { blue: makeBase(30, 0, 60), red: makeBase(W - 30, W - 60, W) },
       squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true, vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} }, rep: {}, marks: [],
+      eyes: { blue: { charges: EYE_START, prog: 0, active: [] }, red: { charges: EYE_START, prog: 0, active: [] } },
       reserve: { blue: RESERVE_START, red: RESERVE_START },
       tune: { resEvery: RESERVE_EVERY, resMax: RESERVE_MAX, point: REIN_PER_POINT, match: REIN_PER_MATCH, catchup: CATCHUP_MAX, capture: CATCHUP_CAPTURE }, diff: diff in DIFFS ? diff : 'normal' };
     const comp = [['א', 'inf', 6], ['ב', 'aa', 4], ['ג', 'tank', 3], ['ד', 'air', 2]];
@@ -304,11 +313,29 @@ const Sim = (() => {
 
   // Situation picture: blue sees its own squads only as their commanders report them.
   // A report snapshots the squad (position, strength); an event report also drops a mark on the map.
+  // "eyes": a drone gives a live look at a small area for a few seconds; charges refill slowly
+  function eye(s, side, x, y) {
+    const E = s.eyes[side];
+    if (!E || s.over || E.charges < 1 || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+    E.charges--; E.active.push({ x: clamp(x, 0, s.W), y: clamp(y, 0, H), r: EYE_R, until: s.t + EYE_TIME });
+    if (side === 'blue') note(s, 'רחפן באוויר');
+    return true;
+  }
+  function updateEyes(s, dt) {
+    for (const side of ['blue', 'red']) {
+      const E = s.eyes[side];
+      E.active = E.active.filter(d => d.until > s.t);
+      if (E.charges >= EYE_MAX) { E.prog = 0; continue; }
+      E.prog += dt / EYE_EVERY;
+      if (E.prog >= 1) { E.prog -= 1; E.charges++; }
+    }
+  }
+
   function sendReport(s, sq, kind) {
     if (sq.side !== 'blue') return;
     const r = s.rep[sq.id];
     s.rep[sq.id] = { x: sq.cx, y: sq.cy, strength: sq.strength, t: s.t, prev: r ? { x: r.x, y: r.y } : null };
-    if (kind) s.marks.push({ x: sq.cx, y: sq.cy, kind, t: s.t });
+    if (kind) s.marks.push({ x: sq.cx, y: sq.cy, kind, t: s.t, who: sq.name });
   }
 
   function updateSquad(s, sq, dt) {
@@ -362,7 +389,7 @@ const Sim = (() => {
       const v = new Set(), vq = new Set();
       for (const e of s.units) {
         if (e.side === side) continue;
-        if (s.t - e.lastFire < FIRE_REVEAL || inBase(s, side, e) || held.some(p => dist(p, e) < p.r * POINT_SIGHT) ||
+        if (s.t - e.lastFire < FIRE_REVEAL || inBase(s, side, e) || s.eyes[side].active.some(d => dist(d, e) <= d.r) || held.some(p => dist(p, e) < p.r * POINT_SIGHT) ||
             eyes.some(u => dist(u, e) <= TYPES[u.type].sight)) { v.add(e.id); vq.add(e.squad); }
       }
       s.vis[side] = v; s.visSq[side] = vq;
@@ -489,7 +516,7 @@ const Sim = (() => {
       else if (p.prog <= -1) p.owner = 'red';
       else if (p.owner === 'blue' && p.prog <= 0) p.owner = null;
       else if (p.owner === 'red' && p.prog >= 0) p.owner = null;
-      if (prev !== p.owner) s.marks.push({ x: p.x, y: p.y - p.r, kind: p.owner === 'blue' ? 'flag' : 'flagLost', t: s.t });
+      if (prev !== p.owner && (prev === 'blue' || p.owner === 'blue')) s.marks.push({ x: p.x, y: p.y - p.r, kind: p.owner === 'blue' ? 'flag' : 'flagLost', t: s.t, who: p.name });
       if (prev !== p.owner) report(s, null, p.owner === 'blue' ? `כבשנו את ${p.name}` : p.owner === 'red' ? `האויב כבש את ${p.name}` : `${p.name} ניטרלית`);
       if (p.owner) s.score[p.owner] += dt;
     }
@@ -604,6 +631,11 @@ const Sim = (() => {
       const tr = lead > 30 ? 'cautious' : lead < -30 ? 'aggressive' : 'balanced';
       for (const sq of s.squads) if (sq.side === 'red') sq.trait = tr;
     }
+    if (D.smart && s.fog && s.eyes.red.charges >= 1) {
+      const known = p => s.squads.some(q => { const k = q.side === 'blue' && intel(s, 'red', q); return k && Math.hypot(k.x - p.x, k.y - p.y) < AI_NEAR; });
+      const p = s.points.filter(p => p.owner !== 'red' || p.contested).find(p => !known(p));
+      if (p) eye(s, 'red', p.x, p.y);
+    }
     return D.every;
   }
 
@@ -624,6 +656,7 @@ const Sim = (() => {
     for (const f of s.fx) f.life -= dt;
     s.fx = s.fx.filter(f => f.life > 0);
     s.marks = s.marks.filter(k => s.t - k.t < MARK_LIFE);
+    updateEyes(s, dt);
     for (const sh of s.shots) sh.life -= dt;
     s.shots = s.shots.filter(sh => sh.life > 0);
     capture(s, dt);
@@ -634,7 +667,7 @@ const Sim = (() => {
     if (s.score.blue >= s.WIN) s.over = 'blue'; else if (s.score.red >= s.WIN) s.over = 'red';
   }
 
-  return { create, step, order, setTrait, reinRate, catchup, seen, note, MARK_LIFE, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+  return { create, step, order, eye, EYE_TIME, setTrait, reinRate, catchup, seen, note, MARK_LIFE, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
 })();
 </script>
 
@@ -727,6 +760,7 @@ const Sim = (() => {
     const pb = $('play'); pb.textContent = playing ? '⏸' : '▶'; pb.setAttribute('aria-label', playing ? 'עצור' : 'התחל');
     document.querySelectorAll('[data-win]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.win === win)));
     document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
+    $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('eye').hidden = !s.fog; cv.style.cursor = eyeArmed ? 'zoom-in' : '';
   }
   const fmtTime = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
   function showEnd() {
@@ -738,6 +772,8 @@ const Sim = (() => {
   function updateHud() {
     $('sb').textContent = Math.floor(s.score.blue); $('sr').textContent = Math.floor(s.score.red);
     const res = Math.floor(s.reserve.blue); $('res').textContent = '👥' + res; $('res').classList.toggle('low', res < 2);
+    const E = s.eyes.blue; $('eyeN').textContent = E.charges || ''; $('eye').disabled = E.charges < 1 && !eyeArmed;
+    $('eye').style.setProperty('--p', E.charges >= 2 ? 1 : E.prog.toFixed(2));
     $('bb').hidden = Sim.catchup(s, 'blue') < 0.15; $('rb').hidden = Sim.catchup(s, 'red') < 0.15;
     const key = s.log.length + ':' + (s.log.at(-1)?.t ?? '') + ':' + Math.floor(s.t / 2);
     if (key !== logKey) {
@@ -795,6 +831,9 @@ const Sim = (() => {
     fog = b.dataset.fog === '1'; s.fog = fog; try { localStorage.setItem('irts-fog', fog ? '1' : '0'); } catch (e) { /* ignore */ }
     syncButtons();
   }));
+  let eyeArmed = false;
+  function toggleEye() { eyeArmed = !eyeArmed && s.fog && s.eyes.blue.charges >= 1; syncButtons(); }
+  $('eye').addEventListener('click', toggleEye);
   $('again').addEventListener('click', () => { newGame(true); setPlaying(true); });
   $('settings').addEventListener('click', () => newGame());
   $('share').addEventListener('click', async () => {
@@ -832,6 +871,7 @@ const Sim = (() => {
     if (s.over) return;
     const { x, y } = toWorld(e);
     if (x < 0 || y < 0 || x > s.W || y > s.H) return;
+    if (eyeArmed) { Sim.eye(s, 'blue', x, y); eyeArmed = false; syncButtons(); updateHud(); return; }
     // tapping a facility in the base selects that force
     for (const t in s.bases.blue.fac) {
       const f = s.bases.blue.fac[t];
@@ -855,7 +895,8 @@ const Sim = (() => {
     else if (k === 'r') issue('retreat');
     else if (k in TRAIT_KEY) document.querySelector(`[data-trait="${TRAIT_KEY[k]}"]`).click();
     else if (k === ' ') { e.preventDefault(); setPlaying(!playing); }
-    else if (k === 'escape') { menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false'); }
+    else if (k === 'd') toggleEye();
+    else if (k === 'escape') { eyeArmed = false; syncButtons(); menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false'); }
   });
 
   // ---- render ----
@@ -1011,6 +1052,7 @@ const Sim = (() => {
     const b = s.bases.blue; f.fillRect(b.x0, 0, b.x1 - b.x0 + 5, s.H);
     for (const p of s.points) if (p.owner === 'blue') hole(p.x, p.y, p.r * 2.5);
     for (const q of s.squads) if (q.side === 'blue' && !q.dead) { const p = pos(q); hole(p.x, p.y, Sim.TYPES[q.type].sight + 30); }
+    for (const d of s.eyes.blue.active) hole(d.x, d.y, d.r + 15);
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(fogCv, 0, 0); ctx.restore();
   }
 
@@ -1034,6 +1076,15 @@ const Sim = (() => {
       c.globalAlpha = 1;
     }
   }
+  // active drones: dashed ring, drone icon and the time it has left
+  function drawEyes(c) {
+    for (const d of s.eyes.blue.active) {
+      const left = Math.max(0, (d.until - s.t) / Sim.EYE_TIME);
+      c.strokeStyle = colors.blue; c.lineWidth = 2; c.setLineDash([6, 4]); ring(d.x, d.y, d.r); c.stroke(); c.setLineDash([]);
+      c.lineWidth = 3; c.beginPath(); c.arc(d.x, d.y, d.r + 5, -Math.PI / 2, -Math.PI / 2 + Math.min(1, left) * Math.PI * 2); c.stroke();
+      c.font = '18px sans-serif'; c.fillText('🛸', d.x, d.y - d.r - 10);
+    }
+  }
   // event reports appear where they happened, pop in and fade out
   const MARK = { contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳' };
   function drawMarks(c) {
@@ -1044,6 +1095,27 @@ const Sim = (() => {
       c.fillStyle = k.kind === 'lost' || k.kind === 'flagLost' ? colors.red : colors.ink; c.fillText(MARK[k.kind], k.x, k.y - 44);
     }
     c.globalAlpha = 1;
+  }
+
+  // units: ground first, aircraft (with drop shadows) on top
+  function drawUnits(c, show) {
+    for (const pass of [false, true]) for (const u of s.units) {
+      const T = Sim.TYPES[u.type]; if (!!T.air !== pass || !show(u)) continue;
+      const k = SIZE[u.type], recent = s.t - u.lastFire < 3;
+      const aim = recent ? u.aim : (u.type === 'aa' ? idleAim('aa', u.side) : u.hd);
+      if (T.air) { c.globalAlpha = 0.22; glyph(c, 'air', u.x + 7, u.y + 10, k, '#000', null, u.hd); c.globalAlpha = 1; }
+      else { c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(u.x + 2, u.y + 4, k * 0.75, k * 0.35, 0, 0, Math.PI * 2); c.fill(); }
+      glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim);
+      if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
+      if (u.side === 'blue' && (sel === 'all' || u.squad === sel)) {
+        c.strokeStyle = colors.ink; c.lineWidth = 1.2; ring(u.x, u.y, k + 3); c.stroke();
+        if (sel !== 'all') { c.globalAlpha = 0.16; c.strokeStyle = colors.blue; ring(u.x, u.y, T.range); c.stroke(); c.globalAlpha = 1; }
+      }
+      if (u.hp < T.hp) {
+        c.fillStyle = colors.shadow; c.fillRect(u.x - 8, u.y - k - 7, 16, 3);
+        c.fillStyle = colors[u.side]; c.fillRect(u.x - 8, u.y - k - 7, 16 * Math.max(0, u.hp / T.hp), 3);
+      }
+    }
   }
 
   function draw() {
@@ -1077,23 +1149,12 @@ const Sim = (() => {
       c.beginPath(); c.moveTo(sh.x1, sh.y1); c.lineTo(sh.x2, sh.y2); c.stroke();
     }
     c.restore();
-    // units: ground first, aircraft (with drop shadows) on top
-    for (const pass of [false, true]) for (const u of s.units) {
-      const T = Sim.TYPES[u.type]; if (!!T.air !== pass || s.fog) continue;
-      const k = SIZE[u.type], recent = s.t - u.lastFire < 3;
-      const aim = recent ? u.aim : (u.type === 'aa' ? idleAim('aa', u.side) : u.hd);
-      if (T.air) { c.globalAlpha = 0.22; glyph(c, 'air', u.x + 7, u.y + 10, k, '#000', null, u.hd); c.globalAlpha = 1; }
-      else { c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(u.x + 2, u.y + 4, k * 0.75, k * 0.35, 0, 0, Math.PI * 2); c.fill(); }
-      glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim);
-      if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
-      if (u.side === 'blue' && (sel === 'all' || u.squad === sel)) {
-        c.strokeStyle = colors.ink; c.lineWidth = 1.2; ring(u.x, u.y, k + 3); c.stroke();
-        if (sel !== 'all') { c.globalAlpha = 0.16; c.strokeStyle = colors.blue; ring(u.x, u.y, T.range); c.stroke(); c.globalAlpha = 1; }
-      }
-      if (u.hp < T.hp) {
-        c.fillStyle = colors.shadow; c.fillRect(u.x - 8, u.y - k - 7, 16, 3);
-        c.fillStyle = colors[u.side]; c.fillRect(u.x - 8, u.y - k - 7, 16 * Math.max(0, u.hp / T.hp), 3);
-      }
+    // units: exact picture without fog; under fog only what a drone is looking at right now
+    const eyes = s.eyes.blue.active;
+    if (!s.fog) drawUnits(c, () => true);
+    else if (eyes.length) {
+      c.save(); c.beginPath(); for (const d of eyes) { c.moveTo(d.x + d.r, d.y); c.arc(d.x, d.y, d.r, 0, Math.PI * 2); } c.clip();
+      drawUnits(c, u => eyes.some(d => Math.hypot(u.x - d.x, u.y - d.y) <= d.r + 10)); c.restore();
     }
     // explosions: fireball, smoke ring for medium+, sparks for big
     for (const f of s.fx) {
@@ -1111,7 +1172,7 @@ const Sim = (() => {
         }
       }
     }
-    if (s.fog) { drawFog(); drawEnemyIntel(c); drawMarks(c); }
+    if (s.fog) { drawFog(); drawEnemyIntel(c); drawMarks(c); drawEyes(c); }
     // squad badges: tap to select; type icon, strength bar, posture. Under fog: at the last report.
     const pulse = 0.55 + 0.25 * Math.sin(performance.now() / 180);
     for (const q of s.squads) {
@@ -1314,7 +1375,15 @@ const Sim = (() => {
         o.connect(g).connect(out); o.start(t); o.stop(t + P.dur);
       }
     }
-    return { start, stop, unlock, setVolume, setSfxVolume, boom, _debug: { BARS, barAt, playStep, tones, voices: () => voices } };
+    // radio "click" before a voice report: a short band-passed noise burst on the effects bus
+    function squelch() {
+      if (!ac || ac.state !== 'running') return;
+      const t = ac.currentTime, src = ac.createBufferSource(), f = ac.createBiquadFilter(), e = ac.createGain();
+      src.buffer = noise; f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 1.5;
+      e.gain.setValueAtTime(0.0001, t); e.gain.linearRampToValueAtTime(0.25, t + 0.01); e.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      src.connect(f).connect(e).connect(sfxBus); src.start(t, Math.random()); src.stop(t + 0.2);
+    }
+    return { start, stop, unlock, setVolume, setSfxVolume, boom, squelch, _debug: { BARS, barAt, playStep, tones, voices: () => voices } };
   })();
   let musicOn = true, vol = 35, sfxOn = true, sfxVol = 60;
   try { const m = JSON.parse(localStorage.getItem('irts-audio') || 'null'); if (m) { musicOn = !!m.on; vol = Math.max(0, Math.min(100, +m.vol || 0)); if ('sfxOn' in m) { sfxOn = !!m.sfxOn; sfxVol = Math.max(0, Math.min(100, +m.sfxVol || 0)); } } } catch (e) { /* storage unavailable */ }
@@ -1338,9 +1407,46 @@ const Sim = (() => {
   for (const ev of ['pointerdown', 'keydown', 'touchend']) document.addEventListener(ev, () => { Music.unlock(); if (musicOn && vol > 0) Music.start(); });
   syncMusic(false);
 
+  // ---- radio: event reports read aloud (Web Speech), most urgent first, never a backlog ----
+  const Radio = (() => {
+    const synth = window.speechSynthesis, SAY = { 'חי"ר': 'חיל רגלים', 'נ"מ': 'נגד מטוסים', 'מכ"ם': 'מכם' };
+    const PRI = { lost: 3, hit: 3, flagLost: 3, contact: 2, flag: 2, ok: 1 };
+    const TEXT = { contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`,
+      ok: w => `${w}, הגענו`, flag: w => `כבשנו את ${w}`, flagLost: w => `איבדנו את ${w}` };
+    let on = true, voice = null, pending = null;
+    const pickVoice = () => { try { voice = synth.getVoices().find(v => /^he/i.test(v.lang)) || null; } catch (e) { voice = null; } };
+    if (synth) { pickVoice(); try { synth.addEventListener('voiceschanged', pickVoice); } catch (e) { /* old browsers */ } }
+    function hear(k) {
+      if (!on || !TEXT[k.kind]) return;
+      if (!pending || PRI[k.kind] >= pending.pri) pending = { pri: PRI[k.kind], text: TEXT[k.kind](SAY[k.who] || k.who || ''), at: performance.now() };
+    }
+    // called every frame: say the pending report when the channel is free; stale ones are dropped
+    function tick() {
+      if (!pending || !on) return;
+      if (performance.now() - pending.at > 4000) { pending = null; return; }
+      if (synth && synth.speaking) return;
+      Music.squelch();
+      if (synth && voice) {
+        const u = new SpeechSynthesisUtterance(pending.text); u.voice = voice; u.lang = voice.lang; u.rate = 1.15;
+        try { synth.speak(u); } catch (e) { /* speech unavailable */ }
+      }
+      pending = null;
+    }
+    const reset = () => { pending = null; try { synth && synth.cancel(); } catch (e) { /* ignore */ } };
+    return { hear, tick, reset, set: v => { on = v; if (!v) reset(); }, hasVoice: () => !!voice };
+  })();
+  let radioOn = true;
+  try { radioOn = localStorage.getItem('irts-radio') !== '0'; } catch (e) { /* storage unavailable */ }
+  function syncRadio() {
+    Radio.set(radioOn); $('radio').setAttribute('aria-pressed', String(radioOn));
+    $('radioNote').textContent = Radio.hasVoice() ? '' : 'אין קול עברי במכשיר, רק צליל קשר';
+  }
+  $('radio').addEventListener('click', () => { radioOn = !radioOn; try { localStorage.setItem('irts-radio', radioOn ? '1' : '0'); } catch (e) { /* ignore */ } syncRadio(); });
+  syncRadio(); try { speechSynthesis.addEventListener('voiceschanged', syncRadio); } catch (e) { /* no speech */ }
+
   function newGame(skipIntro) {
     s = Sim.create((Date.now() % 1e6) | 0, worldWidth(), diff, win); s.fog = fog;
-    decor = makeDecor(s.W); sel = 'blue0'; mode = 'hold'; playing = false; logKey = ''; endShown = false;
+    decor = makeDecor(s.W); sel = 'blue0'; mode = 'hold'; playing = false; logKey = ''; endShown = false; eyeArmed = false; Radio.reset();
     $('end').hidden = true; $('share').textContent = 'שתף 🔗';
     document.querySelectorAll('.goal').forEach(g => g.textContent = '/' + s.WIN);
     resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
@@ -1352,6 +1458,8 @@ const Sim = (() => {
     if (playing) { acc += dt * rate; while (acc >= DT) { Sim.step(s, DT); acc -= DT; } } else acc = 0;
     // one sound per new explosion (the audio side rate-limits bursts)
     for (const f of s.fx) if (!f.heard) { f.heard = true; if (sfxOn) Music.boom(f.size, f.x / s.W); }
+    for (const k of s.marks) if (!k.heard) { k.heard = true; if (playing) Radio.hear(k); }
+    Radio.tick();
     draw();
     if (now - hudAt > 200) { hudAt = now; updateHud(); }
     requestAnimationFrame(frame);
