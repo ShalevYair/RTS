@@ -19,11 +19,15 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     if (touch) await p.click('#eye'); else await p.keyboard.press('KeyD');
     const armed = await p.getAttribute('#eye', 'aria-pressed');
     await p.mouse.click(box.x + box.width * 0.72, box.y + box.height * 0.5);
-    await p.waitForTimeout(1500);
+    await p.waitForTimeout(12000);
     const after = await p.evaluate(() => document.getElementById('eyeN').textContent);
+    // forward HQ: select the tanks and build where they stand
+    await p.click('[data-sq="blue2"]'); const fhqEnabled = await p.isEnabled('#fhq'); await p.click('#fhq');
+    await p.waitForTimeout(400); const fhqCd = await p.textContent('#fhqN');
+    await p.click('[data-sq="blue0"]'); const fhqInf = await p.isEnabled('#fhq');
     await p.screenshot({ path: `${OUT}/${name}-eye.png` });
     // fog off hides the drone button
-    console.log(name, 'charges', JSON.stringify(before), '->', JSON.stringify(after), 'armed', armed, 'radioNote', JSON.stringify(note), 'errors', errs);
+    console.log(name, 'charges', JSON.stringify(before), '->', JSON.stringify(after), 'armed', armed, 'radioNote', JSON.stringify(note), 'fhq enabled for tanks', fhqEnabled, 'cooldown', JSON.stringify(fhqCd), 'enabled for infantry', fhqInf, 'errors', errs);
     await ctx.close();
   }
   await b.close();

@@ -213,8 +213,8 @@ syncMusic(false);
 // ---- radio: event reports read aloud (Web Speech), most urgent first, never a backlog ----
 const Radio = (() => {
   const synth = window.speechSynthesis, SAY = { 'חי"ר': 'חיל רגלים', 'נ"מ': 'נגד מטוסים', 'מכ"ם': 'מכם' };
-  const PRI = { lost: 3, hit: 3, flagLost: 3, call: 3, contact: 2, flag: 2, ok: 1 };
-  const TEXT = { call: w => `${w}, לחץ כבד. להחזיק או לסגת?`, contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`,
+  const PRI = { lost: 3, hit: 3, flagLost: 3, call: 3, nodeLost: 3, contact: 2, flag: 2, fhq: 1, ok: 1 };
+  const TEXT = { fhq: w => `${w}, מקימים פיקוד קדמי`, nodeLost: w => w === 'fhq' ? 'הפיקוד הקדמי נפל' : 'הרחפן הופל', call: w => `${w}, לחץ כבד. להחזיק או לסגת?`, contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`,
     ok: w => `${w}, הגענו`, flag: w => `כבשנו את ${w}`, flagLost: w => `איבדנו את ${w}` };
   let on = true, voice = null, pending = null;
   const pickVoice = () => { try { voice = synth.getVoices().find(v => /^he/i.test(v.lang)) || null; } catch (e) { voice = null; } };

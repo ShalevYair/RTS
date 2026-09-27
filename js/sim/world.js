@@ -22,7 +22,7 @@ function create(seed = 1, W = 1000, diff = 'normal', win = WIN) {
     bases: { blue: makeBase(30, 0, 60), red: makeBase(W - 30, W - 60, W) },
     squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true, vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} }, rep: {}, marks: [], outbox: [], calls: [], nextCall: 1, hist: [], histIn: 0,
     log2: { orders: 0, delay: 0, answered: 0, missed: 0 },
-    eyes: { blue: { charges: EYE_START, prog: 0, active: [] }, red: { charges: EYE_START, prog: 0, active: [] } },
+    nodes: [], nextNode: 1, visNodes: { blue: new Set(), red: new Set() }, cd: { blue: { drone: 0, fhq: 0 }, red: { drone: 0, fhq: 0 } },
     reserve: { blue: RESERVE_START, red: RESERVE_START },
     tune: { resEvery: RESERVE_EVERY, resMax: RESERVE_MAX, point: REIN_PER_POINT, match: REIN_PER_MATCH, catchup: CATCHUP_MAX, capture: CATCHUP_CAPTURE }, diff: diff in DIFFS ? diff : 'normal' };
   const comp = [['א', 'inf', 6], ['ב', 'aa', 4], ['ג', 'tank', 3], ['ד', 'air', 2]];

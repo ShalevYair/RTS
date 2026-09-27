@@ -16,10 +16,13 @@ function visibility(s) {
     const v = new Set(), vq = new Set();
     for (const e of s.units) {
       if (e.side === side) continue;
-      if (s.t - e.lastFire < FIRE_REVEAL || inBase(s, side, e) || s.eyes[side].active.some(d => dist(d, e) <= d.r) || held.some(p => dist(p, e) < p.r * POINT_SIGHT) ||
+      if (s.t - e.lastFire < FIRE_REVEAL || inBase(s, side, e) || nodeSees(s, side, e) || held.some(p => dist(p, e) < p.r * POINT_SIGHT) ||
           eyes.some(u => dist(u, e) <= TYPES[u.type].sight)) { v.add(e.id); vq.add(e.squad); }
     }
     s.vis[side] = v; s.visSq[side] = vq;
+    // enemy forward HQs / drones: seen when a unit or a working node of ours has them in sight
+    s.visNodes[side] = new Set(s.nodes.filter(n => n.side !== side &&
+      (!s.fog || nodeSees(s, side, n) || eyes.some(u => dist(u, n) <= TYPES[u.type].sight))).map(n => n.id));
     // remember where the seen part of each enemy squad is, not the whole squad (that would leak)
     const acc = {};
     for (const e of s.units) if (v.has(e.id)) { const a = acc[e.squad] || (acc[e.squad] = { x: 0, y: 0, n: 0 }); a.x += e.x; a.y += e.y; a.n++; }
