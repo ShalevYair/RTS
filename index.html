@@ -73,6 +73,10 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .sqb kbd{position:absolute;top:1px;inset-inline-end:3px;font:700 10px Assistant,sans-serif;color:var(--muted)}
 .sqb i{position:absolute;left:5px;right:5px;bottom:3px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--c-blue) calc(var(--st,1)*100%),var(--border) 0)}
 .sqb.dead{opacity:.4}
+.call{position:absolute;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 16px);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;padding:8px 12px;border-radius:12px;border-color:var(--c-red);font-size:15px}
+.call[hidden]{display:none}.call b{font-variant-numeric:tabular-nums;color:var(--c-red);min-width:1.5em;text-align:center}
+#replay{position:static;width:100%;height:auto;aspect-ratio:var(--ar,1.6);border-radius:8px;cursor:default;touch-action:auto;margin-bottom:6px}
+#replayBox[hidden]{display:none}#replayBox .mrow{margin-bottom:4px}
 #eye{position:relative}#eye[hidden]{display:none}
 #eye b{position:absolute;top:1px;inset-inline-end:3px;font:700 11px Assistant,sans-serif;color:var(--accent)}
 #eye i{position:absolute;left:5px;right:5px;bottom:3px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--accent) calc(var(--p,0)*100%),var(--border) 0)}
@@ -109,6 +113,10 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
   <div class="score blue glass" title="הניקוד שלך"><b id="sb">0</b><small class="goal"></small><small class="res" id="res" title="מילואים: כל יחידת תגבורת עולה 1 (טנק ומטוס 2)"></small><i class="boost" id="bb" title="מפגרים: תגבורת וכיבוש מהירים יותר" hidden>⚡</i></div>
   <ol class="log" id="log" aria-live="polite"></ol>
   <div class="score red glass" title="ניקוד האויב"><b id="sr">0</b><small class="goal"></small><i class="boost" id="rb" title="האויב מפגר: תגבורת וכיבוש מהירים יותר" hidden>⚡</i></div>
+  <div class="call glass" id="call" hidden role="alertdialog" aria-live="assertive">
+    <span id="callTxt"></span>
+    <button id="callHold">⚓ להחזיק</button><button id="callBack">↩ לסגת</button><b id="callT"></b>
+  </div>
   <div class="menu glass" id="menu" hidden>
     <div class="mrow"><span>מהירות</span><button data-rate="0.5">איטי</button><button data-rate="1">רגיל</button><button data-rate="2">מהיר</button></div>
     <div class="mrow"><span>מוזיקה</span><button id="music" class="icon" aria-pressed="true" aria-label="מוזיקה">♪</button><input id="vol" type="range" min="0" max="100" value="35" aria-label="עוצמת מוזיקה"></div>
@@ -116,7 +124,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
     <div class="mrow"><span>פיצוצים</span><button id="sfx" class="icon" aria-pressed="true" aria-label="קולות פיצוצים">💥</button><input id="sfxvol" type="range" min="0" max="100" value="60" aria-label="עוצמת פיצוצים"></div>
     <button id="help">❔ הסבר</button>
     <button id="restart">משחק חדש</button>
-    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>👥 מילואים: תגבורת עולה 1 (טנק ומטוס 2), מתמלאים לאט; נסיגה לבסיס מרפאת בחינם.<br>🗺 בערפל: כוחות לפי הדיווח האחרון, אויב ככתם שגדל ככל שהתצפית ישנה; ⚔ 💥 ✓ 🚩 = דיווחים על המפה.<br>🛸 רחפן (D): תצפית אמיתית לכמה שניות באזור שבוחרים. 📻 דיווחים בקול (בתפריט).<br>⚡ הצד שמפגר בניקוד מקבל תגבורת וכיבוש מהירים יותר.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
+    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>👥 מילואים: תגבורת עולה 1 (טנק ומטוס 2), מתמלאים לאט; נסיגה לבסיס מרפאת בחינם.<br>🗺 בערפל: כוחות לפי הדיווח האחרון, אויב ככתם שגדל ככל שהתצפית ישנה; ⚔ 💥 ✓ 🚩 = דיווחים על המפה.<br>🛸 רחפן (D): תצפית אמיתית לכמה שניות באזור שבוחרים. 📻 דיווחים בקול (בתפריט).<br>✉ בערפל פקודות מגיעות באיחור לפי המרחק מהמפקדה. 📞 שיחה: מפקד בלחץ שואל להחזיק או לסגת; בלי תשובה מחליט לפי האופי (🦁 נועז: מחזיק, ממעיט באבדות; 🦉 שקול; 🐇 חרד: נסוג, מגזים באבדות ומדווח יותר).<br>⚡ הצד שמפגר בניקוד מקבל תגבורת וכיבוש מהירים יותר.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
   </div>
   <div class="intro" id="intro">
     <div class="card glass" role="dialog" aria-labelledby="introT">
@@ -130,6 +138,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
         <li><span>👥</span><span>מילואים: כל תגבורת עולה 1 (טנק ומטוס 2) ומתמלאת לאט. כוח שנסוג לבסיס מתרפא בחינם.</span></li>
         <li><span>🗺</span><span>ערפל: אתה רואה דיווחים, לא את השטח. הכוחות שלך מופיעים לפי הדיווח האחרון (❓ = לא דיווח מזמן), האויב ככתמים שמתפשטים עם הזמן.</span></li>
         <li><span>🛸</span><span>רחפן: לחץ 🛸 ואז על המפה, ותראה את השטח האמיתי שם לכמה שניות. מתמלא לאט.</span></li>
+        <li><span>✉</span><span>פקודה היא הודעה: היא מגיעה באיחור, יותר ככל שהכוח רחוק מהמפקדה. 📞 מפקד בלחץ מתקשר לשאול; בלי תשובה הוא מחליט לפי האופי שלו (🦁 נועז, 🦉 שקול, 🐇 חרד).</span></li>
         <li><span>⚡</span><span>מפגרים? התגבורת והכיבוש שלך מהירים יותר. אף משחק לא אבוד מוקדם.</span></li>
         <li><span>✂</span><span>נ"מ מנצח מטוסים, מטוסים מנצחים טנקים, טנקים מנצחים חי"ר ונ"מ.</span></li>
         <li><span>⏸</span><span>עצירה בכל רגע: <kbd>רווח</kbd> או ⏸. אפשר לתת פקודות גם בעצירה.</span></li>
@@ -144,6 +153,11 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
     <div class="card glass" role="dialog" aria-labelledby="endT">
       <h1 id="endT"></h1>
       <p class="stats"><b class="me" id="endMe"></b> : <b class="foe" id="endFoe"></b> · <span id="endInfo"></span></p>
+      <div id="replayBox" hidden>
+        <canvas id="replay" aria-label="שחזור: מה ידעת מול מה קרה"></canvas>
+        <div class="mrow"><span id="replayT">0:00</span><input id="scrub" type="range" min="0" max="0" value="0" aria-label="זמן בשחזור"></div>
+        <p class="legend">● מה קרה באמת · ○ מה ידעת · <span id="endStats"></span></p>
+      </div>
       <div class="btns"><button id="again">שוב ▶</button><button id="share">שתף 🔗</button><button id="settings">הגדרות</button></div>
     </div>
   </div>
@@ -207,6 +221,16 @@ const Sim = (() => {
   const RESERVE_START = 20, RESERVE_EVERY = 6, RESERVE_MAX = 30;
   const FAC_Y = { inf: 80, aa: 240, tank: 400, air: 560 };
   const REPORT_EVERY = 6, MARK_LIFE = 4;
+  // orders travel from HQ: BASE seconds + distance / SPEED, capped
+  const ORDER_DELAY_BASE = 1, ORDER_SPEED = 150, ORDER_DELAY_MAX = 8;
+  // a squad under pressure calls HQ for a decision; unanswered calls are decided by its commander's temper
+  const CALL_TIME = 10, CALL_COOLDOWN = 45, CALL_BAND = 0.15, FIRM_TIME = 20, FIRM_BONUS = 0.15, HIST_EVERY = 3;
+  const TEMPERS = {
+    bold:    { name: 'נועז', icon: '🦁', report: 1.4,  rosy: 0.15,  retreat: -0.05 },
+    steady:  { name: 'שקול', icon: '🦉', report: 1,    rosy: 0,     retreat: 0 },
+    anxious: { name: 'חרד',  icon: '🐇', report: 0.75, rosy: -0.1,  retreat: 0.05 },
+  };
+  const SURNAMES = ['כהן', 'לוי', 'מזרחי', 'פרץ', 'ביטון', 'אברהם', 'פרידמן', 'אזולאי', 'דהן', 'שפירא'];
   const EYE_R = 110, EYE_TIME = 8, EYE_EVERY = 25, EYE_START = 1, EYE_MAX = 2;
   const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
@@ -250,19 +274,24 @@ const Sim = (() => {
                { name: 'מוסך', type: 'tank', x: cx, y: 400 }, { name: 'מכ"ם', type: 'aa', x: cx, y: 555 }]
         .map(p => ({ ...p, r: 40, owner: null, prog: 0, contested: false })),
       bases: { blue: makeBase(30, 0, 60), red: makeBase(W - 30, W - 60, W) },
-      squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true, vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} }, rep: {}, marks: [],
+      squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true, vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} }, rep: {}, marks: [], outbox: [], calls: [], nextCall: 1, hist: [], histIn: 0,
+      log2: { orders: 0, delay: 0, answered: 0, missed: 0 },
       eyes: { blue: { charges: EYE_START, prog: 0, active: [] }, red: { charges: EYE_START, prog: 0, active: [] } },
       reserve: { blue: RESERVE_START, red: RESERVE_START },
       tune: { resEvery: RESERVE_EVERY, resMax: RESERVE_MAX, point: REIN_PER_POINT, match: REIN_PER_MATCH, catchup: CATCHUP_MAX, capture: CATCHUP_CAPTURE }, diff: diff in DIFFS ? diff : 'normal' };
     const comp = [['א', 'inf', 6], ['ב', 'aa', 4], ['ג', 'tank', 3], ['ד', 'air', 2]];
     const blueTraits = ['aggressive', 'cautious', 'balanced', 'balanced'];
+    const names = SURNAMES.slice();
     for (const side of ['blue', 'red']) {
       comp.forEach(([name, type, size], i) => {
+        const temper = side === 'blue' ? Object.keys(TEMPERS)[Math.floor(s.rand() * 3)] : 'steady';
+        const boss = names.splice(Math.floor(s.rand() * names.length), 1)[0];
         const b = s.bases[side];
         const sq = { id: side + i, side, name: TYPES[type].name, type, size, trait: side === 'blue' ? blueTraits[i] : 'balanced',
           order: { type: 'hold', x: b.x + (side === 'blue' ? 75 : -75), y: FAC_Y[type], r: ORDER_R.hold }, reinProg: 0,
           retreating: false, arrived: true, contactCd: 0, wasContact: false, dead: false,
-          strength: 1, count: size, cx: b.x, cy: b.y, support: null, supportSince: 0, lastContact: -99, checkIn: 0 };
+          strength: 1, count: size, cx: b.x, cy: b.y, support: null, supportSince: 0, lastContact: -99, checkIn: 0,
+          temper, boss, firmUntil: -99, lastCall: -99 };
         s.squads.push(sq);
         for (let k = 0; k < size; k++) spawn(s, sq, sq.order.x, sq.order.y);
         // real position from the start, so markers and order lines are right before the first step
@@ -274,12 +303,40 @@ const Sim = (() => {
     return s;
   }
 
+  // Under fog an order is a message: it reaches the squad after orderDelay seconds. A newer message of
+  // the same kind replaces one still on its way, so orders can't arrive out of sequence.
+  const hq = (s, side) => ({ x: s.bases[side].x, y: H / 2 });
+  const orderDelay = (s, sq) => Math.min(ORDER_DELAY_MAX, ORDER_DELAY_BASE + dist({ x: sq.cx, y: sq.cy }, hq(s, sq.side)) / ORDER_SPEED);
+  function send(s, sq, msg) {
+    s.outbox = s.outbox.filter(m => !(m.id === sq.id && m.kind === msg.kind));
+    const d = orderDelay(s, sq);
+    s.outbox.push({ ...msg, id: sq.id, side: sq.side, sent: s.t, at: s.t + d });
+    if (sq.side === 'blue' && msg.kind === 'order') { s.log2.orders++; s.log2.delay += d; }
+  }
+  const pending = (s, id, kind) => s.outbox.find(m => m.id === id && m.kind === kind);
+  function deliver(s) {
+    const due = s.outbox.filter(m => m.at <= s.t);
+    if (!due.length) return;
+    s.outbox = s.outbox.filter(m => m.at > s.t);
+    for (const m of due) {
+      const sq = s.squads.find(q => q.id === m.id);
+      if (!sq || sq.dead) continue; // the squad is gone; the message is lost
+      if (m.kind === 'order') applyOrder(s, sq, m.type, m.x, m.y, m.quiet);
+      else applyTrait(s, sq, m.trait, m.quiet);
+    }
+  }
+
   function order(s, squadId, type, x, y, quiet) {
     const sq = s.squads.find(q => q.id === squadId);
     if (!sq || sq.dead || s.over || !(type in ORDER_R)) return false;
     if (type === 'retreat') { const f = s.bases[sq.side].fac[sq.type]; x = f.x; y = f.y; }
     if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
-    sq.order = { type, x: clamp(x, 0, s.W), y: clamp(y, 0, H), r: ORDER_R[type] };
+    x = clamp(x, 0, s.W); y = clamp(y, 0, H);
+    if (s.fog) send(s, sq, { kind: 'order', type, x, y, quiet }); else applyOrder(s, sq, type, x, y, quiet);
+    return true;
+  }
+  function applyOrder(s, sq, type, x, y, quiet) {
+    sq.order = { type, x, y, r: ORDER_R[type] };
     sq.retreating = false; sq.arrived = false; sq.support = null;
     if (!quiet) report(s, sq, 'קיבלתי: ' + (type === 'hold' ? 'מחזיק עמדה' : type === 'attack' ? 'תוקף את האזור' : 'נסוג לבסיס'));
     return true;
@@ -287,15 +344,58 @@ const Sim = (() => {
 
   function setTrait(s, squadId, trait, quiet) {
     const sq = s.squads.find(q => q.id === squadId);
-    if (!sq || s.over || !(trait in TRAITS) || sq.trait === trait) return false;
+    if (!sq || s.over || !(trait in TRAITS)) return false;
+    const p = pending(s, sq.id, 'trait');
+    if (p ? p.trait === trait : sq.trait === trait) return false;
+    if (s.fog) send(s, sq, { kind: 'trait', trait, quiet }); else applyTrait(s, sq, trait, quiet);
+    return true;
+  }
+  function applyTrait(s, sq, trait, quiet) {
+    if (sq.trait === trait) return;
     sq.trait = trait;
     if (!quiet) report(s, sq, `עובר למצב ${TRAITS[trait].name} (נסוג ב-${Math.round(TRAITS[trait].retreatAt * 100)}%)`);
     // a bolder posture can cancel an ongoing retreat
-    if (sq.retreating && sq.order.type !== 'retreat' && sq.strength >= TRAITS[trait].retreatAt + 0.05) {
+    if (sq.retreating && sq.order.type !== 'retreat' && sq.strength >= retreatAt(s, sq) + 0.05) {
       sq.retreating = false; sq.arrived = false;
       if (!quiet) report(s, sq, 'מבטל נסיגה, חוזר למשימה');
     }
+  }
+  // the strength at which a squad falls back: posture, the commander's temper, and a "hold on" from HQ
+  const retreatAt = (s, sq) => Math.max(0.05, TRAITS[sq.trait].retreatAt + TEMPERS[sq.temper].retreat - (s.t < sq.firmUntil ? FIRM_BONUS : 0));
+
+  // HQ's answer to a call: 'hold' stiffens the squad for FIRM_TIME, 'retreat' pulls it back at once (direct line)
+  function answer(s, callId, choice, auto) {
+    const c = s.calls.find(k => k.id === callId), sq = c && s.squads.find(q => q.id === c.sq);
+    if (!c || !sq || !(choice === 'hold' || choice === 'retreat')) return false;
+    s.calls = s.calls.filter(k => k !== c); sq.callOpen = false;
+    if (auto) s.log2.missed++; else s.log2.answered++;
+    if (sq.dead) return true;
+    const pre = auto ? `אין תשובה, ${TEMPERS[sq.temper].name}: ` : '';
+    if (choice === 'hold') { sq.firmUntil = s.t + FIRM_TIME; report(s, sq, pre + 'מחזיקים!'); }
+    else { const f = s.bases[sq.side].fac[sq.type]; applyOrder(s, sq, 'retreat', f.x, f.y, true); report(s, sq, pre + 'נסוגים'); }
     return true;
+  }
+  function calls(s) {
+    for (const c of s.calls.slice()) {
+      const sq = s.squads.find(q => q.id === c.sq);
+      // the squad already broke off or is gone: the question is moot
+      if (!sq || sq.dead || sq.retreating || sq.order.type === 'retreat') { s.calls = s.calls.filter(k => k !== c); if (sq) sq.callOpen = false; continue; }
+      if (s.t >= c.until) {
+        const T = sq.temper, decide = T === 'bold' ? 'hold' : T === 'anxious' ? 'retreat' : sq.strength > retreatAt(s, sq) + 0.1 ? 'hold' : 'retreat';
+        answer(s, c.id, decide, true);
+      }
+    }
+  }
+  // history for the end-of-game comparison: truth vs what blue believed
+  function record(s, dt) {
+    s.histIn -= dt;
+    if (s.histIn > 0) return;
+    s.histIn = HIST_EVERY;
+    s.hist.push({ t: s.t, sq: s.squads.map(q => {
+      const r = s.rep[q.id], m = s.mem.blue[q.id];
+      const belief = q.side === 'blue' ? (r && [r.x, r.y]) : (m && s.t - m.t <= 40 ? [m.x, m.y] : null);
+      return { id: q.id, side: q.side, type: q.type, truth: q.dead ? null : [q.cx, q.cy], belief };
+    }) });
   }
 
   // Position of the squad's main body: the densest cluster, ignoring aircraft flying back
@@ -334,7 +434,8 @@ const Sim = (() => {
   function sendReport(s, sq, kind) {
     if (sq.side !== 'blue') return;
     const r = s.rep[sq.id];
-    s.rep[sq.id] = { x: sq.cx, y: sq.cy, strength: sq.strength, t: s.t, prev: r ? { x: r.x, y: r.y } : null };
+    const said = sq.strength < 1 ? clamp(sq.strength + TEMPERS[sq.temper].rosy, 0.05, 1) : 1; // bold ones play losses down
+    s.rep[sq.id] = { x: sq.cx, y: sq.cy, strength: said, t: s.t, prev: r ? { x: r.x, y: r.y } : null };
     if (kind) s.marks.push({ x: sq.cx, y: sq.cy, kind, t: s.t, who: sq.name });
   }
 
@@ -349,7 +450,7 @@ const Sim = (() => {
     const body = bodyCenter(m); sq.cx = body.x; sq.cy = body.y;
     const c = { x: sq.cx, y: sq.cy };
     if (fresh) sendReport(s, sq);
-    if (!sq.retreating && sq.order.type !== 'retreat' && sq.strength < tr.retreatAt) {
+    if (!sq.retreating && sq.order.type !== 'retreat' && sq.strength < retreatAt(s, sq)) {
       sq.retreating = true;
       report(s, sq, `אבדות כבדות (${Math.round(sq.strength * 100)}%), נסוג להתארגנות`); sendReport(s, sq, 'hit');
     }
@@ -369,7 +470,16 @@ const Sim = (() => {
     sq.wasRearm = rearming;
     // routine check-in; a squad in a fight is busy and reports half as often
     const r = s.rep[sq.id];
-    if (sq.side === 'blue' && (!r || s.t - r.t >= REPORT_EVERY * (s.t - sq.lastContact < CONTACT_MEMORY ? 2 : 1))) sendReport(s, sq);
+    if (sq.side === 'blue' && (!r || s.t - r.t >= REPORT_EVERY * TEMPERS[sq.temper].report * (s.t - sq.lastContact < CONTACT_MEMORY ? 2 : 1))) sendReport(s, sq);
+    // under pressure but not yet breaking: ask HQ
+    const thr = retreatAt(s, sq);
+    if (sq.side === 'blue' && s.fog && contact && !sq.retreating && !s.calls.length && sq.order.type !== 'retreat' &&
+        s.t - sq.lastCall > CALL_COOLDOWN && sq.strength < thr + CALL_BAND && sq.strength >= thr) {
+      sq.callOpen = true; sq.lastCall = s.t;
+      s.calls.push({ id: s.nextCall++, sq: sq.id, t: s.t, until: s.t + CALL_TIME });
+      sendReport(s, sq, 'call');
+      report(s, sq, 'לחץ כבד. להחזיק או לסגת?');
+    }
   }
 
   // fog of war: a side only knows about enemy units it can currently see
@@ -577,7 +687,10 @@ const Sim = (() => {
     const D = DIFFS[s.diff] || DIFFS.normal, taken = new Map();
     const red = s.squads.filter(q => q.side === 'red' && !q.dead && !q.retreating);
     const setOrder = (sq, type, x, y) => {
-      if (sq.order.x !== x || sq.order.y !== y || sq.order.type !== type) { sq.order = { type, x, y, r: ORDER_R[type] }; sq.arrived = false; }
+      const p = pending(s, sq.id, 'order'), cur = p || sq.order;
+      if (cur.x === x && cur.y === y && cur.type === type) return;
+      if (s.fog) send(s, sq, { kind: 'order', type, x, y, quiet: true });
+      else { sq.order = { type, x, y, r: ORDER_R[type] }; sq.arrived = false; }
     };
     for (const sq of red.filter(q => q.type !== 'air')) {
       const score = p => {
@@ -657,6 +770,9 @@ const Sim = (() => {
     s.fx = s.fx.filter(f => f.life > 0);
     s.marks = s.marks.filter(k => s.t - k.t < MARK_LIFE);
     updateEyes(s, dt);
+    deliver(s);
+    calls(s);
+    record(s, dt);
     for (const sh of s.shots) sh.life -= dt;
     s.shots = s.shots.filter(sh => sh.life > 0);
     capture(s, dt);
@@ -667,7 +783,7 @@ const Sim = (() => {
     if (s.score.blue >= s.WIN) s.over = 'blue'; else if (s.score.red >= s.WIN) s.over = 'red';
   }
 
-  return { create, step, order, eye, EYE_TIME, setTrait, reinRate, catchup, seen, note, MARK_LIFE, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+  return { create, step, order, answer, orderDelay, TEMPERS, eye, EYE_TIME, setTrait, reinRate, catchup, seen, note, MARK_LIFE, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
 })();
 </script>
 
@@ -732,7 +848,7 @@ const Sim = (() => {
   }
   function placeFloating() {
     const b = bar.offsetHeight + 16;
-    menu.style.bottom = b + 'px';
+    menu.style.bottom = b + 'px'; $('call').style.bottom = b + 'px';
   }
 
   // ---- selection & commands ----
@@ -754,7 +870,8 @@ const Sim = (() => {
     document.querySelectorAll('[data-sq]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sq === sel)));
     document.querySelectorAll('[data-diff]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.diff === diff)));
     document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
-    const traits = new Set(selIds().map(id => s.squads.find(q => q.id === id).trait));
+    const traitOf = id => (s.outbox.find(m => m.id === id && m.kind === 'trait') || s.squads.find(q => q.id === id)).trait;
+    const traits = new Set(selIds().map(traitOf));
     document.querySelectorAll('[data-trait]').forEach(b => b.setAttribute('aria-pressed', String(traits.size === 1 && traits.has(b.dataset.trait))));
     document.querySelectorAll('[data-rate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.rate === rate)));
     const pb = $('play'); pb.textContent = playing ? '⏸' : '▶'; pb.setAttribute('aria-label', playing ? 'עצור' : 'התחל');
@@ -763,11 +880,41 @@ const Sim = (() => {
     $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('eye').hidden = !s.fog; cv.style.cursor = eyeArmed ? 'zoom-in' : '';
   }
   const fmtTime = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+  let replayAuto = false, replayAt = 0;
+  function drawReplay(i) {
+    const cvR = $('replay'), h = s.hist[i]; if (!h) return;
+    const w = cvR.clientWidth || 300, dpr = window.devicePixelRatio || 1, k = w / s.W;
+    cvR.width = Math.round(w * dpr); cvR.height = Math.round(s.H * k * dpr);
+    const c = cvR.getContext('2d'); c.setTransform(k * dpr, 0, 0, k * dpr, 0, 0);
+    c.fillStyle = colors.ground; c.fillRect(0, 0, s.W, s.H);
+    for (const side of ['blue', 'red']) { const b = s.bases[side]; c.fillStyle = hexA(colors[side], 0.2); c.fillRect(b.x0, 0, b.x1 - b.x0, s.H); }
+    for (const p of s.points) { c.strokeStyle = tcol(p.type); c.lineWidth = 3; c.beginPath(); c.arc(p.x, p.y, p.r, 0, Math.PI * 2); c.stroke(); }
+    for (const q of h.sq) {
+      const col = colors[q.side];
+      if (q.truth && q.belief) { c.strokeStyle = hexA(col, 0.6); c.lineWidth = 2; c.setLineDash([6, 6]); c.beginPath(); c.moveTo(q.truth[0], q.truth[1]); c.lineTo(q.belief[0], q.belief[1]); c.stroke(); c.setLineDash([]); }
+      if (q.belief) { c.strokeStyle = col; c.lineWidth = 4; c.beginPath(); c.arc(q.belief[0], q.belief[1], 16, 0, Math.PI * 2); c.stroke(); }
+      if (q.truth) { c.fillStyle = col; c.beginPath(); c.arc(q.truth[0], q.truth[1], 11, 0, Math.PI * 2); c.fill(); }
+    }
+    $('replayT').textContent = fmtTime(h.t);
+  }
+  $('scrub').addEventListener('input', () => { replayAuto = false; drawReplay(+$('scrub').value); });
   function showEnd() {
     $('endT').textContent = s.over === 'blue' ? 'ניצחת! 🏆' : 'הפסדת';
     $('endMe').textContent = Math.floor(s.score.blue); $('endFoe').textContent = Math.floor(s.score.red);
     $('endInfo').textContent = `${fmtTime(s.t)} · ${Sim.DIFFS[s.diff].name}`;
     $('end').hidden = false; $('again').focus();
+    const H = s.hist, show = s.fog && H.length > 1;
+    $('replayBox').hidden = !show;
+    if (show) {
+      $('scrub').max = H.length - 1; $('scrub').value = 0; replayAuto = true; replayAt = 0;
+      $('replay').style.setProperty('--ar', (s.W / s.H).toFixed(3));
+      // how far off the picture was, on average, over the whole game
+      let err = 0, n = 0;
+      for (const h of H) for (const q of h.sq) if (q.truth && q.belief) { err += Math.hypot(q.truth[0] - q.belief[0], q.truth[1] - q.belief[1]); n++; }
+      const L = s.log2;
+      $('endStats').textContent = `טעות ממוצעת בתמונה: ${n ? Math.round(err / n) : 0} · פקודות: ${L.orders}, בדרך בממוצע ${L.orders ? (L.delay / L.orders).toFixed(1) : 0} ש׳ · שיחות: ענית ${L.answered}, החליטו לבד ${L.missed}`;
+      drawReplay(0);
+    }
   }
   function updateHud() {
     $('sb').textContent = Math.floor(s.score.blue); $('sr').textContent = Math.floor(s.score.red);
@@ -790,6 +937,17 @@ const Sim = (() => {
       const q = s.squads.find(x => x.id === b.dataset.sq);
       b.style.setProperty('--st', Math.min(1, pos(q).strength).toFixed(2)); b.classList.toggle('dead', q.dead);
     }
+    const call = s.calls[0], cq = call && s.squads.find(q => q.id === call.sq);
+    $('call').hidden = !cq || s.over;
+    if (cq) {
+      const T = Sim.TEMPERS[cq.temper];
+      $('callTxt').textContent = `📞 סרן ${cq.boss} (${cq.name}, ${T.icon} ${T.name}): לחץ כבד. להחזיק או לסגת?`;
+      $('callT').textContent = Math.ceil(call.until - s.t); $('call').dataset.id = call.id;
+    }
+    for (const b of document.querySelectorAll('[data-sq]')) {
+      const q = s.squads.find(x => x.id === b.dataset.sq), T = Sim.TEMPERS[q.temper];
+      b.title = `${q.name} · סרן ${q.boss} ${T.icon} ${T.name} (${b.querySelector('kbd').textContent})`;
+    }
     if (s.over && !endShown) { endShown = true; setPlaying(false); showEnd(); }
   }
 
@@ -806,7 +964,7 @@ const Sim = (() => {
   // squad buttons: icon drawn with the map glyphs (called once the render helpers exist)
   const initSquadButtons = () => document.querySelectorAll('[data-sq]').forEach(b => {
     const q = { type: SQ_TYPE[b.dataset.sq] }; q.name = Sim.TYPES[q.type].name;
-    b.setAttribute('aria-label', q.name + ' (' + b.querySelector('kbd').textContent + ')'); b.title = b.getAttribute('aria-label');
+    b.setAttribute('aria-label', q.name + ' (' + b.querySelector('kbd').textContent + ')');
     const c = b.querySelector('canvas').getContext('2d');
     c.fillStyle = tcol(q.type); c.beginPath(); c.arc(26, 26, 24, 0, Math.PI * 2); c.fill();
     glyph(c, q.type, 26 - (q.type === 'tank' ? 3 : 0), 26, q.type === 'air' ? 17 : 13, '#fff', null, 0, q.type === 'aa' ? -Math.PI / 2 : 0);
@@ -834,6 +992,9 @@ const Sim = (() => {
   let eyeArmed = false;
   function toggleEye() { eyeArmed = !eyeArmed && s.fog && s.eyes.blue.charges >= 1; syncButtons(); }
   $('eye').addEventListener('click', toggleEye);
+  const answerCall = choice => { if (Sim.answer(s, +$('call').dataset.id, choice)) updateHud(); };
+  $('callHold').addEventListener('click', () => answerCall('hold'));
+  $('callBack').addEventListener('click', () => answerCall('retreat'));
   $('again').addEventListener('click', () => { newGame(true); setPlaying(true); });
   $('settings').addEventListener('click', () => newGame());
   $('share').addEventListener('click', async () => {
@@ -1086,7 +1247,24 @@ const Sim = (() => {
     }
   }
   // event reports appear where they happened, pop in and fade out
-  const MARK = { contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳' };
+  const MARK = { contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳', call: '📞' };
+  // orders still on their way: a courier dot runs from HQ toward the squad, the new target is a ghost ring
+  function drawMail(c) {
+    const hq = { x: s.bases.blue.x, y: s.H / 2 };
+    for (const m of s.outbox) {
+      const q = m.side === 'blue' && s.squads.find(x => x.id === m.id);
+      if (!q || q.dead) continue;
+      const p = pos(q), k = Math.min(1, (s.t - m.sent) / Math.max(0.01, m.at - m.sent));
+      c.globalAlpha = 0.55; c.strokeStyle = colors.blue; c.lineWidth = 1; c.setLineDash([2, 5]);
+      c.beginPath(); c.moveTo(hq.x, hq.y); c.lineTo(p.x, p.y - 26); c.stroke(); c.setLineDash([]);
+      c.globalAlpha = 1; c.font = '13px sans-serif';
+      c.fillText('✉', hq.x + (p.x - hq.x) * k, hq.y + (p.y - 26 - hq.y) * k + 4);
+      if (m.kind === 'order') {
+        c.globalAlpha = 0.45; c.setLineDash([3, 5]); c.lineWidth = 1.5; ring(m.x, m.y, 30); c.stroke(); c.setLineDash([]);
+        c.globalAlpha = 0.8; c.fillText('⏳', m.x, m.y + 5); c.globalAlpha = 1;
+      }
+    }
+  }
   function drawMarks(c) {
     for (const k of s.marks) {
       const a = (s.t - k.t) / Sim.MARK_LIFE, sc = a < 0.15 ? 0.6 + a / 0.15 * 0.6 : 1.2 - Math.min(0.2, a);
@@ -1172,7 +1350,7 @@ const Sim = (() => {
         }
       }
     }
-    if (s.fog) { drawFog(); drawEnemyIntel(c); drawMarks(c); drawEyes(c); }
+    if (s.fog) { drawFog(); drawEnemyIntel(c); drawMarks(c); drawEyes(c); drawMail(c); }
     // squad badges: tap to select; type icon, strength bar, posture. Under fog: at the last report.
     const pulse = 0.55 + 0.25 * Math.sin(performance.now() / 180);
     for (const q of s.squads) {
@@ -1191,6 +1369,7 @@ const Sim = (() => {
       c.fillStyle = colors.shadow; c.fillRect(x - 12, y + 15, 24, 3);
       c.fillStyle = tcol(q.type); c.fillRect(x - 12, y + 15, 24 * Math.min(1, p.strength), 3);
       c.font = '11px sans-serif'; c.fillText(POSTURE[q.trait], x + 20, y + 4);
+      if (s.fog) c.fillText(Sim.TEMPERS[q.temper].icon, x - 20, y + 4);
       if (stale) label('?', x - 17, y - 6, colors.ink);
       c.globalAlpha = 1;
     }
@@ -1410,8 +1589,8 @@ const Sim = (() => {
   // ---- radio: event reports read aloud (Web Speech), most urgent first, never a backlog ----
   const Radio = (() => {
     const synth = window.speechSynthesis, SAY = { 'חי"ר': 'חיל רגלים', 'נ"מ': 'נגד מטוסים', 'מכ"ם': 'מכם' };
-    const PRI = { lost: 3, hit: 3, flagLost: 3, contact: 2, flag: 2, ok: 1 };
-    const TEXT = { contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`,
+    const PRI = { lost: 3, hit: 3, flagLost: 3, call: 3, contact: 2, flag: 2, ok: 1 };
+    const TEXT = { call: w => `${w}, לחץ כבד. להחזיק או לסגת?`, contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`,
       ok: w => `${w}, הגענו`, flag: w => `כבשנו את ${w}`, flagLost: w => `איבדנו את ${w}` };
     let on = true, voice = null, pending = null;
     const pickVoice = () => { try { voice = synth.getVoices().find(v => /^he/i.test(v.lang)) || null; } catch (e) { voice = null; } };
@@ -1460,6 +1639,9 @@ const Sim = (() => {
     for (const f of s.fx) if (!f.heard) { f.heard = true; if (sfxOn) Music.boom(f.size, f.x / s.W); }
     for (const k of s.marks) if (!k.heard) { k.heard = true; if (playing) Radio.hear(k); }
     Radio.tick();
+    if (replayAuto && !$('end').hidden && !$('replayBox').hidden && now - replayAt > 180) {
+      replayAt = now; const sc = $('scrub'), i = (+sc.value + 1) % (+sc.max + 1); sc.value = i; drawReplay(i);
+    }
     draw();
     if (now - hudAt > 200) { hudAt = now; updateHud(); }
     requestAnimationFrame(frame);
