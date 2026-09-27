@@ -4,7 +4,7 @@ function updateSquad(s, sq, dt) {
   sq.count = m.length;
   if (!m.length) { if (!sq.dead) { sq.dead = true; sq.strength = 0; report(s, sq, 'הכוח הושמד'); sendReport(s, sq, 'lost'); } return; }
   let fresh = false;
-  if (sq.dead) { sq.dead = false; fresh = true; report(s, sq, 'הכוח הוקם מחדש מהתגבורת'); }
+  if (sq.dead) { sq.dead = false; fresh = true; report(s, sq, sq.born ? 'הכוח הוקם מחדש מהתגבורת' : 'יצאנו לדרך'); sq.born = true; }
   const T = TYPES[sq.type], tr = TRAITS[sq.trait];
   sq.strength = m.reduce((a, u) => a + u.hp, 0) / (sq.size * T.hp);
   const body = bodyCenter(m); sq.cx = body.x; sq.cy = body.y;
@@ -14,10 +14,11 @@ function updateSquad(s, sq, dt) {
     sq.retreating = true;
     report(s, sq, `אבדות כבדות (${Math.round(sq.strength * 100)}%), נסוג להתארגנות`); sendReport(s, sq, 'hit');
   }
-  if (sq.retreating && sq.strength >= 0.8 && inBase(s, sq.side, c)) {
+  const atHome = dist(c, homeOf(s, sq)) <= HEAL_R + 20;
+  if (sq.retreating && sq.strength >= 0.8 && atHome) {
     sq.retreating = false; sq.arrived = false; report(s, sq, 'התארגנו, חוזרים למשימה');
   }
-  if (!sq.arrived && !sq.retreating && !sq.support && (sq.order.type === 'retreat' ? inBase(s, sq.side, c) : dist(c, sq.order) < sq.order.r)) {
+  if (!sq.arrived && !sq.retreating && !sq.support && (sq.order.type === 'retreat' ? atHome : dist(c, sq.order) < sq.order.r)) {
     sq.arrived = true; report(s, sq, sq.order.type === 'retreat' ? 'הגענו לבסיס' : 'הגענו ליעד'); sendReport(s, sq, 'ok');
   }
   sq.contactCd = Math.max(0, sq.contactCd - dt);
@@ -86,19 +87,19 @@ function updateUnit(s, u, sq, dt) {
     // aircraft fly sorties: out of ammo -> back to the airfield, rearm, then return
     if (u.ammo <= 0) u.rearm = true;
     if (u.rearm) {
-      const f = s.bases[u.side].fac.air, d = dist(u, f);
+      const f = rearmSpot(s, u), d = dist(u, f);
       if (d < 20) { u.rearmT += dt; if (u.rearmT >= REARM_TIME) { u.ammo = T.ammo; u.rearm = false; u.rearmT = 0; } }
       else { const k = Math.min(1, T.speed * dt / d); u.hd = Math.atan2(f.y - u.y, f.x - u.x); u.x += (f.x - u.x) * k; u.y += (f.y - u.y) * k; }
       return;
     }
   }
   const o = effOrder(s, sq), retreat = sq.retreating || o.type === 'retreat';
-  const anchor = retreat ? s.bases[u.side].fac[u.type] : o;
+  const anchor = retreat ? homeOf(s, sq) : o;
   const onHill = !T.air && inHill(s, u), range = T.range * (onHill ? 1.2 : 1);
   const leash = o.r * TRAITS[sq.trait].leash;
   let best = null, bd = Infinity, bw = Infinity, near = null, nd = Infinity;
   for (const e of s.units) {
-    if (e.side === u.side || e.hp <= 0) continue;
+    if (e.side === u.side || e.hp <= 0 || !MULT[u.type][e.type]) continue; // 0 = can't hit it (only AA hits aircraft)
     // prefer targets this unit type is effective against
     const d = dist(u, e), w = d / (MULT[u.type][e.type] + 0.2);
     if (d <= range && w < nd) { nd = w; near = e; }

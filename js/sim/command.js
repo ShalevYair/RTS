@@ -2,7 +2,7 @@
 // Under fog an order is a message: it reaches the squad after orderDelay seconds, longer where control is
 // poor (see control.js). A newer message of the same kind replaces one still on its way, so orders can't
 // arrive out of sequence.
-const hq = (s, side) => ({ x: s.bases[side].x, y: H / 2 });
+const hq = (s, side) => hqOf(s, side) || { x: s.bases[side].x, y: H / 2 };
 const orderDelay = (s, sq) => DELAY_MIN + DELAY_SPAN * (1 - qualityAt(s, sq));
 function send(s, sq, msg) {
   s.outbox = s.outbox.filter(m => !(m.id === sq.id && m.kind === msg.kind));
@@ -27,7 +27,7 @@ function deliver(s) {
 function order(s, squadId, type, x, y, quiet) {
   const sq = s.squads.find(q => q.id === squadId);
   if (!sq || sq.dead || s.over || !(type in ORDER_R)) return false;
-  if (type === 'retreat') { const f = s.bases[sq.side].fac[sq.type]; x = f.x; y = f.y; }
+  if (type === 'retreat') { const f = homeOf(s, sq); x = f.x; y = f.y; }
   if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
   x = clamp(x, 0, s.W); y = clamp(y, 0, H);
   if (s.fog) send(s, sq, { kind: 'order', type, x, y, quiet }); else applyOrder(s, sq, type, x, y, quiet);
@@ -70,7 +70,7 @@ function answer(s, callId, choice, auto) {
   if (sq.dead) return true;
   const pre = auto ? `אין תשובה, ${TEMPERS[sq.temper].name}: ` : '';
   if (choice === 'hold') { sq.firmUntil = s.t + FIRM_TIME; report(s, sq, pre + 'מחזיקים!'); }
-  else { const f = s.bases[sq.side].fac[sq.type]; applyOrder(s, sq, 'retreat', f.x, f.y, true); report(s, sq, pre + 'נסוגים'); }
+  else { const f = homeOf(s, sq); applyOrder(s, sq, 'retreat', f.x, f.y, true); report(s, sq, pre + 'נסוגים'); }
   return true;
 }
 function calls(s) {

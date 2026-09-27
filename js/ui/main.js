@@ -1,9 +1,9 @@
 // UI: new game and the main loop
 function newGame(skipIntro) {
-  s = Sim.create((Date.now() % 1e6) | 0, worldWidth(), diff, win); s.fog = fog;
-  decor = makeDecor(s.W); sel = 'blue0'; mode = 'hold'; playing = false; logKey = ''; endShown = false; eyeArmed = false; Radio.reset();
+  s = Sim.create((Date.now() % 1e6) | 0, worldWidth(), diff); s.fog = fog;
+  decor = makeDecor(s.W); sel = 'all'; mode = 'hold'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; sqKey = ''; Radio.reset();
+  $('buildm').hidden = true;
   $('end').hidden = true; $('share').textContent = 'שתף 🔗';
-  document.querySelectorAll('.goal').forEach(g => g.textContent = '/' + s.WIN);
   resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
 }
 
@@ -22,4 +22,4 @@ function frame(now) {
   if (now - hudAt > 200) { hudAt = now; updateHud(); }
   requestAnimationFrame(frame);
 }
-initSquadButtons(); newGame(); requestAnimationFrame(frame);
+initBuildMenu(); newGame(); requestAnimationFrame(frame);

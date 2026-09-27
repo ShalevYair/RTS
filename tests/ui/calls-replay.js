@@ -16,14 +16,14 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.waitForTimeout(700);
     await p.screenshot({ path: `${OUT}/${name}-mail.png` });
     // inject a call through the real sim state
-    await p.evaluate(() => { const o = Sim.step; let done = false; Sim.step = (s, dt) => { if (!done) { done = true; s.calls.push({ id: 999, sq: 'blue2', t: s.t, until: s.t + 10 }); } o(s, dt); }; });
+    await p.evaluate(() => { const o = Sim.step; let done = false; Sim.step = (s, dt) => { if (!done) { done = true; s.calls.push({ id: 999, sq: 'blue1', t: s.t, until: s.t + 10 }); } o(s, dt); }; });
     await p.waitForTimeout(600);
     const callVisible = await p.isVisible('#call'); const callTxt = await p.textContent('#callTxt');
     await p.screenshot({ path: `${OUT}/${name}-call.png` });
     await p.click('#callHold'); await p.waitForTimeout(400);
     const callGone = await p.isHidden('#call');
     await p.waitForTimeout(12000);
-    await p.evaluate(() => { const o = Sim.step; Sim.step = (s, dt) => { s.score.blue = s.WIN; o(s, dt); }; });
+    await p.evaluate(() => { const o = Sim.step; Sim.step = (s, dt) => { o(s, dt); s.over = 'blue'; }; });
     await p.waitForTimeout(1500);
     const rep = await p.evaluate(() => ({ box: !document.getElementById('replayBox').hidden, max: document.getElementById('scrub').max, stats: document.getElementById('endStats').textContent }));
     await p.screenshot({ path: `${OUT}/${name}-replay.png` });

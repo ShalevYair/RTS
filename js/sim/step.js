@@ -9,25 +9,24 @@ function step(s, dt) {
   separate(s);
   for (const u of s.units) if (u.hp <= 0) s.fx.push({ x: u.x, y: u.y, life: 0.7, max: 0.7, size: 26 });
   s.units = s.units.filter(u => u.hp > 0);
-  for (const u of s.units) if (inBase(s, u.side, u)) {
-    u.hp = Math.min(TYPES[u.type].hp, u.hp + BASE_HEAL * dt);
-    if (TYPES[u.type].ammo && !u.rearm && dist(u, s.bases[u.side].fac.air) < 25) u.ammo = TYPES[u.type].ammo;
-  }
+  for (const u of s.units) if (!TYPES[u.type].air && healSpot(s, u)) u.hp = Math.min(TYPES[u.type].hp, u.hp + BASE_HEAL * dt);
   for (const f of s.fx) f.life -= dt;
   s.fx = s.fx.filter(f => f.life > 0);
   s.marks = s.marks.filter(k => s.t - k.t < MARK_LIFE);
-  updateNodes(s, dt);
+  updateStructs(s, dt);
   deliver(s);
   calls(s);
   record(s, dt);
   for (const sh of s.shots) sh.life -= dt;
   s.shots = s.shots.filter(sh => sh.life > 0);
-  capture(s, dt);
-  reinforce(s, dt);
   visibility(s);
-  s.aiIn -= dt;
-  if (s.aiIn <= 0) s.aiIn = enemyAI(s);
-  if (s.score.blue >= s.WIN) s.over = 'blue'; else if (s.score.red >= s.WIN) s.over = 'red';
+  for (const side of s.bots) { s.aiIn[side] -= dt; if (s.aiIn[side] <= 0) s.aiIn[side] = think(s, side, side === 'red' ? s.diff : s.botDiff); }
+  // collapse (DESIGN.md §4): below COLLAPSE of the total power, a side is beaten
+  updatePower(s);
+  if (s.t >= COLLAPSE_AFTER) {
+    const b = share(s, 'blue');
+    if (b < COLLAPSE) s.over = 'red'; else if (1 - b < COLLAPSE) s.over = 'blue';
+  }
 }
 
-const Sim = { create, step, order, answer, orderDelay, quality, drone, buildFhq, canBuildFhq, NODES, TEMPERS, setTrait, reinRate, catchup, seen, note, MARK_LIFE, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+const Sim = { create, step, order, answer, orderDelay, quality, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
