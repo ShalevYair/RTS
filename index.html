@@ -42,6 +42,7 @@ body{margin:0;height:100%;overflow:hidden;background:var(--c-ground);color:var(-
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
 .glass{background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--border);box-shadow:0 2px 12px rgb(0 0 0 / .18)}
 .score{position:absolute;top:8px;padding:3px 12px;border-radius:999px;font:24px/1.2 "Secular One",Assistant,sans-serif;font-variant-numeric:tabular-nums;pointer-events:none}
+.boost{font-style:normal;font-size:16px;margin-inline-start:4px}
 .score small{font:600 12px Assistant,sans-serif;color:var(--muted);margin-inline-start:3px}
 .score.blue{left:8px;color:var(--c-blue)} .score.red{right:8px;color:var(--c-red)}
 .log{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:min(440px,56%);list-style:none;margin:0;padding:0;font-size:13px;text-align:center;pointer-events:none}
@@ -98,16 +99,16 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 <body>
 <div class="stage" id="stage">
   <canvas id="cv" aria-label="מפת הקרב"></canvas>
-  <div class="score blue glass" title="הניקוד שלך"><b id="sb">0</b><small class="goal"></small></div>
+  <div class="score blue glass" title="הניקוד שלך"><b id="sb">0</b><small class="goal"></small><i class="boost" id="bb" title="מפגרים: תגבורת וכיבוש מהירים יותר" hidden>⚡</i></div>
   <ol class="log" id="log" aria-live="polite"></ol>
-  <div class="score red glass" title="ניקוד האויב"><b id="sr">0</b><small class="goal"></small></div>
+  <div class="score red glass" title="ניקוד האויב"><b id="sr">0</b><small class="goal"></small><i class="boost" id="rb" title="האויב מפגר: תגבורת וכיבוש מהירים יותר" hidden>⚡</i></div>
   <div class="menu glass" id="menu" hidden>
     <div class="mrow"><span>מהירות</span><button data-rate="0.5">איטי</button><button data-rate="1">רגיל</button><button data-rate="2">מהיר</button></div>
     <div class="mrow"><span>מוזיקה</span><button id="music" class="icon" aria-pressed="true" aria-label="מוזיקה">♪</button><input id="vol" type="range" min="0" max="100" value="35" aria-label="עוצמת מוזיקה"></div>
     <div class="mrow"><span>פיצוצים</span><button id="sfx" class="icon" aria-pressed="true" aria-label="קולות פיצוצים">💥</button><input id="sfxvol" type="range" min="0" max="100" value="60" aria-label="עוצמת פיצוצים"></div>
     <button id="help">❔ הסבר</button>
     <button id="restart">משחק חדש</button>
-    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
+    <p class="legend">לחץ על כוח במפה או על המתקן שלו בבסיס כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>נ"מ חזק מול מטוסים, מטוסים מול טנקים, טנקים מול חי"ר ונ"מ. טווח: נ"מ, מטוסים, טנקים, חי"ר.<br>כל נקודה מאיצה תגבורת, ונקודה מהסוג של הכוח מאיצה אותו יותר. מטוסים לא כובשים וחוזרים לחימוש.<br>⚡ הצד שמפגר בניקוד מקבל תגבורת וכיבוש מהירים יותר.<br>מקלדת: 1–4 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה.</p>
   </div>
   <div class="intro" id="intro">
     <div class="card glass" role="dialog" aria-labelledby="introT">
@@ -118,6 +119,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
         <li><span>👆</span><span>בחר כוח: בכפתורים למטה, לחיצה עליו במפה, או מקשים <kbd>1</kbd> עד <kbd>4</kbd>. מקש <kbd>0</kbd> בוחר את כולם.</span></li>
         <li><span>📍</span><span>בחר <b>⚓ החזק</b> או <b>⚔ תקוף</b> ולחץ על היעד במפה. <b>↩ סגת</b> מחזיר לבסיס.</span></li>
         <li><span>⚖</span><span>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: מתי המפקד נסוג (50%, 30%, 15%).</span></li>
+        <li><span>⚡</span><span>מפגרים? התגבורת והכיבוש שלך מהירים יותר. אף משחק לא אבוד מוקדם.</span></li>
         <li><span>✂</span><span>נ"מ מנצח מטוסים, מטוסים מנצחים טנקים, טנקים מנצחים חי"ר ונ"מ.</span></li>
         <li><span>⏸</span><span>עצירה בכל רגע: <kbd>רווח</kbd> או ⏸. אפשר לתת פקודות גם בעצירה.</span></li>
       </ol>
@@ -185,8 +187,9 @@ const Sim = (() => {
   const ORDER_R = { hold: 60, attack: 100, retreat: 40 };
   const ORDER_NAME = { hold: 'מחזיק', attack: 'תוקף', retreat: 'נסוג', support: 'מסייע' };
   const BASE_HEAL = 10, CAPTURE_RATE = 0.05, REARM_TIME = 2.5;
-  // reinforcement speed: +30% per held point, +100% more if the point matches the unit type
-  const REIN_PER_POINT = 0.3, REIN_PER_MATCH = 1.0;
+  // reinforcement speed: +15% per held point, +50% more if the point matches the unit type
+  // tuned in Node (bot vs bot): the early leader still wins ~2/3 of even games instead of ~95%
+  const REIN_PER_POINT = 0.15, REIN_PER_MATCH = 0.5, CATCHUP_MAX = 0.6, CATCHUP_GAP = 0.2, CATCHUP_CAPTURE = 0.5;
   const FAC_Y = { inf: 80, aa: 240, tank: 400, air: 560 };
   const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
@@ -230,7 +233,8 @@ const Sim = (() => {
                { name: 'מוסך', type: 'tank', x: cx, y: 400 }, { name: 'מכ"ם', type: 'aa', x: cx, y: 555 }]
         .map(p => ({ ...p, r: 40, owner: null, prog: 0, contested: false })),
       bases: { blue: makeBase(30, 0, 60), red: makeBase(W - 30, W - 60, W) },
-      squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, diff: diff in DIFFS ? diff : 'normal' };
+      squads: [], units: [], shots: [], fx: [], log: [], aiIn: 0, noReinforce: false, stats: { rein: { blue: 0, red: 0 } },
+      tune: { point: REIN_PER_POINT, match: REIN_PER_MATCH, catchup: CATCHUP_MAX, capture: CATCHUP_CAPTURE }, diff: diff in DIFFS ? diff : 'normal' };
     const comp = [['א', 'inf', 6], ['ב', 'aa', 4], ['ג', 'tank', 3], ['ד', 'air', 2]];
     const blueTraits = ['aggressive', 'cautious', 'balanced', 'balanced'];
     for (const side of ['blue', 'red']) {
@@ -421,8 +425,8 @@ const Sim = (() => {
     for (const p of s.points) {
       let b = 0, r = 0;
       for (const u of s.units) if (!TYPES[u.type].air && dist(u, p) <= p.r) (u.side === 'blue' ? b++ : r++);
-      if (b && !r) p.prog = Math.min(1, p.prog + dt * CAPTURE_RATE * Math.min(b, 5));
-      else if (r && !b) p.prog = Math.max(-1, p.prog - dt * CAPTURE_RATE * Math.min(r, 5));
+      if (b && !r) p.prog = Math.min(1, p.prog + dt * CAPTURE_RATE * Math.min(b, 5) * (1 + s.tune.capture * catchup(s, 'blue')));
+      else if (r && !b) p.prog = Math.max(-1, p.prog - dt * CAPTURE_RATE * Math.min(r, 5) * (1 + s.tune.capture * catchup(s, 'red')));
       p.contested = !!(b && r);
       const prev = p.owner;
       if (p.prog >= 1) p.owner = 'blue';
@@ -434,9 +438,14 @@ const Sim = (() => {
     }
   }
 
+  // comeback: the side behind on score reinforces faster, up to +CATCHUP_MAX at CATCHUP_GAP of the target
+  const catchup = (s, side) => {
+    const gap = s.score[side === 'blue' ? 'red' : 'blue'] - s.score[side];
+    return s.tune.catchup * clamp(gap / (CATCHUP_GAP * s.WIN), 0, 1);
+  };
   function reinRate(s, sq) {
     const held = s.points.filter(p => p.owner === sq.side);
-    return 1 + REIN_PER_POINT * held.length + REIN_PER_MATCH * held.filter(p => p.type === sq.type).length;
+    return (1 + s.tune.point * held.length + s.tune.match * held.filter(p => p.type === sq.type).length) * (1 + catchup(s, sq.side));
   }
 
   // each squad refills one unit at a time from its own facility
@@ -449,7 +458,7 @@ const Sim = (() => {
       if (sq.reinProg >= 1) {
         sq.reinProg -= 1;
         const f = s.bases[sq.side].fac[sq.type];
-        spawn(s, sq, f.x, f.y);
+        spawn(s, sq, f.x, f.y); s.stats.rein[sq.side]++;
         if (n + 1 === sq.size) report(s, sq, 'הכוח מאויש במלואו');
       }
     }
@@ -557,7 +566,7 @@ const Sim = (() => {
     if (s.score.blue >= s.WIN) s.over = 'blue'; else if (s.score.red >= s.WIN) s.over = 'red';
   }
 
-  return { create, step, order, setTrait, reinRate, note, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+  return { create, step, order, setTrait, reinRate, catchup, note, WIN, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
 })();
 </script>
 
@@ -658,6 +667,7 @@ const Sim = (() => {
   }
   function updateHud() {
     $('sb').textContent = Math.floor(s.score.blue); $('sr').textContent = Math.floor(s.score.red);
+    $('bb').hidden = Sim.catchup(s, 'blue') < 0.15; $('rb').hidden = Sim.catchup(s, 'red') < 0.15;
     const key = s.log.length + ':' + (s.log.at(-1)?.t ?? '') + ':' + Math.floor(s.t / 2);
     if (key !== logKey) {
       logKey = key; const ol = $('log'); ol.textContent = '';
