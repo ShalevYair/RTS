@@ -31,7 +31,8 @@ ok(o.every(k => k.d <= R + 1e-9) && o.reduce((a, k) => a + k.d, 0) / o.length > 
 o = offs('bold');
 const fwd = o.reduce((a, k) => a + k.fwd, 0) / o.length; // the squad (x 900) goes toward x 600: forward = smaller x
 ok(fwd > R * 0.4 && o.every(k => k.d <= R * 1.6 + 1e-9), `bold overshoots forward by ${fwd.toFixed(0)} on average`);
-sq.temper = 'steady'; Sim.step(s, 1 / 30); // back to its real position
+sq.temper = 'steady'; for (const u of s.units) if (u.side === 'red') u.cd = 1e9; // red holds fire: this is about orders, not a fight
+Sim.step(s, 1 / 30); // back to its real position
 for (const u of s.units) if (u.squad === 'blue0') { u.x = 880 + u.sx * 10; u.y = 320 + u.sy * 10; }
 Sim.step(s, 1 / 30);
 Sim.order(s, 'blue0', 'attack', 600, 300); while (s.outbox.length && s.t < 20) Sim.step(s, 1 / 30);
@@ -47,8 +48,10 @@ while (s.t < 150) Sim.step(s, 1 / 30);
 Sim.think(s, 'red', 'normal'); const box = s.outbox.filter(x => x.side === 'red' && x.kind === 'order');
 Sim.think(s, 'red', 'normal'); const box2 = s.outbox.filter(x => x.side === 'red' && x.kind === 'order');
 ok(box.length === box2.length && box.every((x, i) => x === box2[i]), `second think with nothing new sends nothing (${box.length} on the way)`);
-const off = s.squads.filter(q => q.side === 'red' && q.order.want && Math.hypot(q.order.x - q.order.want.x, q.order.y - q.order.want.y) > 1).length;
-ok(off > 0, `red orders are also carried out roughly (${off} squads off target)`);
+// (over the game, not at one moment: near its own HQ a squad's orders land exactly)
+let off = 0;
+for (; s.t < 420 && !s.over && !off; Sim.step(s, 1 / 30)) off = s.squads.filter(q => q.side === 'red' && q.order.want && Math.hypot(q.order.x - q.order.want.x, q.order.y - q.order.want.y) > 1).length;
+ok(off > 0, `red orders are also carried out roughly (${off} squads off target, by ${s.t.toFixed(0)} s)`);
 // full games: the AI still finishes games under the new uncertainty, and uses drones on blurry tracks
 let fin = 0, ids = { 0: 0, 1: 0, 2: 0 };
 for (let i = 0; i < 4; i++) {

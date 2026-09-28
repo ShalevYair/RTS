@@ -2,7 +2,7 @@
 // Under fog an order is a message: it reaches the squad after orderDelay seconds, longer where control is
 // poor (see control.js). A newer message of the same kind replaces one still on its way, so orders can't
 // arrive out of sequence.
-const hq = (s, side) => hqOf(s, side) || { x: s.bases[side].x, y: H / 2 };
+const hq = (s, side) => hqOf(s, side) || { x: s.bases[side].x, y: s.H / 2 };
 const orderDelay = (s, sq) => DELAY_MIN + DELAY_SPAN * (1 - qualityAt(s, sq));
 function send(s, sq, msg) {
   s.outbox = s.outbox.filter(m => !(m.id === sq.id && m.kind === msg.kind));
@@ -29,7 +29,8 @@ function order(s, squadId, type, x, y, quiet) {
   if (!sq || sq.dead || s.over || !(type in ORDER_R)) return false;
   if (type === 'retreat') { const f = homeOf(s, sq); x = f.x; y = f.y; }
   if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
-  x = clamp(x, 0, s.W); y = clamp(y, 0, H);
+  x = clamp(x, 0, s.W); y = clamp(y, 0, s.H);
+  if (!TYPES[sq.type].air && lakeAt(s, { x, y })) ({ x, y } = dryOf(s, { x, y }, 10)); // ground squads stop at the shore
   if (s.fog) send(s, sq, { kind: 'order', type, x, y, quiet }); else applyOrder(s, sq, type, x, y, quiet);
   return true;
 }
@@ -45,7 +46,7 @@ function understood(s, sq, x, y) {
     if (d < 1) { fx = sq.side === 'blue' ? 1 : -1; fy = 0; d = 1; } // holding in place: "forward" is toward the enemy
     dx += fx / d * R * BOLD_STRETCH; dy += fy / d * R * BOLD_STRETCH;
   }
-  return { x: clamp(x + dx, 0, s.W), y: clamp(y + dy, 0, H) };
+  return { x: clamp(x + dx, 0, s.W), y: clamp(y + dy, 0, s.H) };
 }
 // under fog an order is carried out "roughly" (a retreat home is always clear); `want` keeps what was asked
 function applyOrder(s, sq, type, x, y, quiet) {
@@ -124,6 +125,6 @@ function sendReport(s, sq, kind) {
   const r = s.rep[sq.id], miss = 1 - qualityAt(s, sq), jit = () => (s.rand() * 2 - 1) * miss;
   let said = sq.strength < 1 ? clamp(sq.strength + TEMPERS[sq.temper].rosy, 0.05, 1) : 1; // bold ones play losses down
   said = clamp(said + NOISE_STR * jit(), 0.05, 1);
-  s.rep[sq.id] = { x: clamp(sq.cx + NOISE_POS * jit(), 0, s.W), y: clamp(sq.cy + NOISE_POS * jit(), 0, H), strength: said, t: s.t, q: 1 - miss, prev: r ? { x: r.x, y: r.y } : null };
+  s.rep[sq.id] = { x: clamp(sq.cx + NOISE_POS * jit(), 0, s.W), y: clamp(sq.cy + NOISE_POS * jit(), 0, s.H), strength: said, t: s.t, q: 1 - miss, prev: r ? { x: r.x, y: r.y } : null };
   if (kind) s.marks.push({ x: sq.cx, y: sq.cy, kind, t: s.t, who: sq.name });
 }

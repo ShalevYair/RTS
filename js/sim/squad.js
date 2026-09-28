@@ -95,7 +95,7 @@ function updateUnit(s, u, sq, dt) {
   }
   const o = effOrder(s, sq), retreat = sq.retreating || o.type === 'retreat';
   const anchor = retreat ? homeOf(s, sq) : o;
-  const onHill = !T.air && inHill(s, u), range = T.range * (onHill ? 1.2 : 1);
+  const up = 1 + ELEV_BONUS * (u.lvl || 0), range = T.range * up, sight = T.sight * up; // higher ground: further
   const leash = o.r * TRAITS[sq.trait].leash;
   let best = null, bd = Infinity, bw = Infinity, near = null, nd = Infinity;
   for (const e of s.units) {
@@ -103,7 +103,7 @@ function updateUnit(s, u, sq, dt) {
     // prefer targets this unit type is effective against
     const d = dist(u, e), w = d / (MULT[u.type][e.type] + 0.2);
     if (d <= range && w < nd) { nd = w; near = e; }
-    if (!retreat && d <= T.sight && dist(anchor, e) <= leash + range && w < bw) { bw = w; bd = d; best = e; }
+    if (!retreat && d <= sight && dist(anchor, e) <= leash + range && w < bw) { bw = w; bd = d; best = e; }
   }
   const tgt = best && bd <= range ? best : near;
   // nothing else to shoot at: hit an enemy forward HQ or (AA only) a drone in range
@@ -112,18 +112,19 @@ function updateUnit(s, u, sq, dt) {
     if (n) {
       u.engaged = true; n.hp -= T.dmg * NODE_MULT[u.type]; u.cd = T.cd; if (T.ammo) u.ammo--;
       u.aim = Math.atan2(n.y - u.y, n.x - u.x); u.lastFire = s.t;
-      s.shots.push({ x1: u.x, y1: u.y, x2: n.x, y2: n.y, life: 0.15, side: u.side, kind: u.type });
-      s.fx.push({ x: n.x, y: n.y, life: IMPACT[u.type].life, max: IMPACT[u.type].life, size: IMPACT[u.type].size });
+      shot(s, u, n);
+      s.fx.push({ x: n.x, y: n.y, life: IMPACT[u.type].life, max: IMPACT[u.type].life, size: IMPACT[u.type].size, wait: SHOT_TIME[u.type] });
     }
   }
   if (tgt) {
     u.engaged = true;
     if (u.cd === 0) {
-      tgt.hp -= T.dmg * MULT[u.type][tgt.type] * (!TYPES[tgt.type].air && inHill(s, tgt) ? 0.7 : 1); u.cd = T.cd; if (T.ammo) u.ammo--;
+      const hit = friendlyFire(s, u, sq, tgt) || tgt;
+      hit.hp -= T.dmg * MULT[u.type][hit.type]; u.cd = T.cd; if (T.ammo) u.ammo--;
       const fx = IMPACT[u.type];
-      s.fx.push({ x: tgt.x + (s.rand() - 0.5) * 6, y: tgt.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size });
-      u.aim = Math.atan2(tgt.y - u.y, tgt.x - u.x); u.lastFire = s.t;
-      s.shots.push({ x1: u.x, y1: u.y, x2: tgt.x, y2: tgt.y, life: 0.15, side: u.side, kind: u.type });
+      s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[u.type] });
+      u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
+      shot(s, u, hit);
     }
   }
   let tx, ty;
@@ -131,9 +132,53 @@ function updateUnit(s, u, sq, dt) {
   else if (best) return;
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
   else { const sr = o.r * 0.55; tx = anchor.x + u.sx * sr; ty = anchor.y + u.sy * sr; }
+  if (!T.air && s.lakes.length) ({ x: tx, y: ty } = wade(s, u, tx, ty));
   const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy);
   if (d > 2) {
-    const sp = T.speed * (onHill ? 0.8 : 1) * (retreat ? 1.15 : 1) * dt, k = Math.min(1, sp / d);
+    // uphill slower, downhill faster (ground units): by how many lines the next few steps climb or drop
+    let slope = 1;
+    if (!T.air) { const L = 6, e0 = elevAt(s, u), e1 = elevAt(s, { x: u.x + vx / d * L, y: u.y + vy / d * L }); slope = 1 - clamp((e1 - e0) / L * SLOPE_K, -SLOPE_MAX, SLOPE_MAX); }
+    const sp = T.speed * slope * (retreat ? 1.15 : 1) * dt, k = Math.min(1, sp / d);
     u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
   }
 }
+
+// Friendly fire (DESIGN.md §2): under fog, a shot at an enemy that has a unit of another friendly squad close
+// to it may hit that unit instead; likelier where the shooter's control is poor. Returns the unit hit, or null.
+function friendlyFire(s, u, sq, tgt) {
+  if (!s.fog) return null;
+  let f = null, fd = FF_R;
+  for (const o of s.units) {
+    if (o.side !== u.side || o.squad === u.squad || o.hp <= 0 || !MULT[u.type][o.type]) continue;
+    const d = dist(o, tgt);
+    if (d <= fd) { fd = d; f = o; }
+  }
+  if (!f || s.rand() >= FF_CHANCE * Math.pow(1 - qualityAt(s, sq), 2)) return null;
+  const v = s.squads.find(q => q.id === f.squad);
+  s.ff.push({ t: s.t, x: f.x, y: f.y, side: u.side, by: sq.id, on: v.id });
+  if (u.side === 'blue') {
+    s.log2.ff++;
+    if (s.t - (v.ffSaid ?? -99) >= FF_NOTE) {
+      v.ffSaid = s.t; report(s, v, `ירי על כוחותינו! נפגענו מכוח ה${sq.name}`);
+      s.marks.push({ x: f.x, y: f.y, kind: 'ff', t: s.t, who: v.name });
+    }
+  }
+  return f;
+}
+
+// ground units don't swim: a spot in a lake becomes its shore, and when the way ahead is wet the unit slides along
+// the shore, on the side that turns it less from where it's going (lakes are convex, so this gets it round)
+function wade(s, u, tx, ty) {
+  let t = { x: tx, y: ty };
+  if (lakeAt(s, t, 4)) t = dryOf(s, t, 6);
+  const dx = t.x - u.x, dy = t.y - u.y, d = Math.hypot(dx, dy);
+  if (d < 1) return t;
+  const ahead = { x: u.x + dx / d * Math.min(LAKE_LOOK, d), y: u.y + dy / d * Math.min(LAKE_LOOK, d) }, l = lakeAt(s, ahead, 6);
+  if (!l) return t;
+  const ox = u.x - l.x, oy = u.y - l.y, o = Math.hypot(ox, oy) || 1, k = dx * -oy + dy * ox > 0 ? 1 : -1;
+  const sx = -oy / o * k * 0.85 + ox / o * 0.15, sy = ox / o * k * 0.85 + oy / o * 0.15;
+  return { x: u.x + sx * LAKE_LOOK, y: u.y + sy * LAKE_LOOK };
+}
+
+// a shot in flight, for the picture: from the shooter to where it lands, SHOT_TIME[kind] long (then a brief fade)
+const shot = (s, u, to) => s.shots.push({ x1: u.x, y1: u.y, x2: to.x, y2: to.y, dur: SHOT_TIME[u.type], life: SHOT_TIME[u.type] + 0.12, side: u.side, kind: u.type });

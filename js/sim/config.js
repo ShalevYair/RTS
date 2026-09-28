@@ -1,16 +1,32 @@
 // Sim: game constants and tunables (no DOM; also loaded by the Node tests)
 const H = 640;
+// map size (DESIGN.md §5): the small map is H high; the big one 2× wide and 2× high. No hill within HILL_CLEAR of
+// either edge (the bases).
+const MAP_H_MAX = 1400, MAP_W_MAX = 3000, HILL_CLEAR = 240;
+// height, in contour lines (0 = the plain, hills up to HILL_LEVELS), on a grid every ELEV_CELL. A ground unit gets
+// ELEV_BONUS more range and sight per line it stands on; climbing slows it and going down speeds it up, by
+// SLOPE_K per line climbed per unit walked, at most SLOPE_MAX. Aircraft don't care.
+const HILL_LEVELS = 10, ELEV_CELL = 8, ELEV_BONUS = 0.1, SLOPE_K = 9, SLOPE_MAX = 0.5;
+// random maps: the enemy's half is our half's twin, each feature moved up to MAP_JITTER and resized up to MAP_RESIZE;
+// lakes keep LAKE_GAP between them
+const MAP_JITTER = 30, MAP_RESIZE = 0.12, LAKE_GAP = 60, SHAPE_AMP = 0.14;
+// lakes: ground units go around them (only aircraft fly over); nothing is built within LAKE_PAD of one.
+// A ground unit looks LAKE_LOOK ahead and slides along the shore when the way is wet.
+const LAKE_PAD = 20, LAKE_LOOK = 28;
 const TYPES = {
-  inf:  { name: 'חי"ר',  hp: 60,  speed: 30, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 5, rein: 7, cost: 1 },
-  tank: { name: 'טנקים', hp: 150, speed: 44, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 8, rein: 12, cost: 2 },
-  air:  { name: 'מטוסים', hp: 90, speed: 95, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 7, rein: 15, air: true, ammo: 10, cost: 2 },
-  aa:   { name: 'נ"מ',   hp: 70,  speed: 34, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 6, rein: 9, cost: 1 },
-  jeep: { name: "ג'יפים", hp: 80,  speed: 70, range: 60,  dmg: 6,  cd: 0.7, sight: 170, r: 6, rein: 8, cost: 1 },
+  inf:  { name: 'חי"ר',  hp: 60,  speed: 26, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 5, rein: 7, cost: 1 },
+  tank: { name: 'טנקים', hp: 150, speed: 37, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 8, rein: 12, cost: 2 },
+  air:  { name: 'מטוסים', hp: 90, speed: 80, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 7, rein: 15, air: true, ammo: 10, cost: 2 },
+  aa:   { name: 'נ"מ',   hp: 70,  speed: 29, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 6, rein: 9, cost: 1 },
+  jeep: { name: "ג'יפים", hp: 80,  speed: 60, range: 60,  dmg: 6,  cd: 0.7, sight: 170, r: 6, rein: 8, cost: 1 },
 };
 // power (for collapse) per full-health unit
 const UNIT_VALUE = { inf: 1, aa: 1.5, jeep: 1.5, tank: 3, air: 4 };
 // Damage multiplier MULT[attacker][target]. Range order: aa > air > tank > inf
 // impact explosion per attacker: big for tanks/aircraft, smaller for AA, tiny for infantry
+// how long a shot flies (s): bullets (infantry, jeeps) are quick, shells slower, missiles (aircraft, AA) slowest;
+// its blast shows when it lands. Only a look: the damage is dealt when fired.
+const SHOT_TIME = { inf: 0.1, jeep: 0.1, tank: 0.25, air: 0.45, aa: 0.5 };
 const IMPACT = { tank: { size: 18, life: 0.5 }, air: { size: 18, life: 0.5 }, aa: { size: 10, life: 0.35 }, inf: { size: 4, life: 0.22 }, jeep: { size: 6, life: 0.25 } };
 // only AA can hit aircraft (and drones): every other air column is 0, and 0 means "can't target"
 const MULT = {
@@ -69,6 +85,10 @@ const ID_FULL = 0.7, ID_CLASS = 0.4, TRACK_GAP = 3;
 // executing "roughly": the commander goes to the target + a random offset within SPREAD·(1−Q)^SPREAD_POW;
 // a bold one also overshoots by BOLD_STRETCH of that radius
 const SPREAD = 120, SPREAD_POW = 1.5, BOLD_STRETCH = 0.6;
+// friendly fire (under fog): a shot at an enemy with a unit of another friendly squad within FF_R of it hits
+// that unit instead, with chance FF_CHANCE·(1−Q)² (Q at the shooter's squad); a squad reports it once per FF_NOTE s.
+// The hard AI only masses squads on one target where its control is at least FF_MASS_Q.
+const FF_CHANCE = 0.08, FF_R = 60, FF_NOTE = 8, FF_MASS_Q = 0.5;
 // damage to structures by attacker type (AA is the only thing that can hit a drone)
 const NODE_MULT = { inf: 0.6, tank: 1.5, air: 1.2, aa: 1.5, jeep: 0.8 };
 const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
@@ -82,4 +102,6 @@ const DIFFS = {
 };
 const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
+// forward HQs: a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
+const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
 const AI_PLAN = ['aapost', 'tankshop', 'jeepshop', 'tent', 'airfield', 'tankshop', 'aapost'], AI_READY = 0.6;

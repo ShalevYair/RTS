@@ -6,6 +6,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
   for (const [name, vp, touch] of [['desk', { width: 1400, height: 800 }, false], ['phone', { width: 390, height: 844 }, true]]) {
     const ctx = await b.newContext({ viewport: vp, hasTouch: touch, isMobile: touch });
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); } catch (e) { /* no storage */ } }); // the full game, not the tutorial
     const p = await ctx.newPage(); const errs = [];
     p.on('console', m => m.type() === 'error' && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(800);
