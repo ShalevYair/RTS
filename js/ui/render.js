@@ -184,6 +184,12 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     for (let i = 0; i < 5; i++) { const tx = (-0.8 + (((i * 0.32 - step * 0.06) % 1.6) + 1.6) % 1.6) * k; c.fillRect(tx, -0.55 * k, 0.08 * k, 0.24 * k); c.fillRect(tx, 0.31 * k, 0.08 * k, 0.24 * k); }
     c.rotate(aim - hd); barrel(0, 0, 1.3 * k, 0, 0.22 * k);
     c.beginPath(); c.arc(0, 0, 0.36 * k, 0, Math.PI * 2); paint();
+  } else if (type === 'truck') {
+    // supply truck: a cargo box behind a darker cab, with a crate mark
+    c.rotate(hd); c.beginPath(); c.rect(-0.8 * k, -0.45 * k, 1.6 * k, 0.9 * k); paint();
+    c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0.4 * k, -0.4 * k, 0.4 * k, 0.8 * k);
+    c.strokeStyle = outline ? 'rgba(0,0,0,.45)' : tcol('truck'); c.lineWidth = 0.1 * k; c.strokeRect(-0.6 * k, -0.28 * k, 0.8 * k, 0.56 * k);
+    c.beginPath(); c.moveTo(-0.6 * k, -0.28 * k); c.lineTo(0.2 * k, 0.28 * k); c.moveTo(0.2 * k, -0.28 * k); c.lineTo(-0.6 * k, 0.28 * k); c.stroke();
   } else if (type === 'mech') {
     // mechanics: a tow truck — body, a darker cab in front, a crane boom off the back with its hook
     c.rotate(hd); c.beginPath(); c.rect(-0.75 * k, -0.45 * k, 1.5 * k, 0.9 * k); paint();
@@ -552,7 +558,39 @@ function stride(u) {
   if (!a) { a = { x: u.x, y: u.y, ph: 0 }; anim.walk.set(u.id, a); }
   const d = Math.hypot(u.x - a.x, u.y - a.y); a.x = u.x; a.y = u.y;
   if (d > 0.05 && d < 20) a.ph += d * 0.35; else if (d <= 0.05) a.ph = 0;
+  if (d > 0.05) addTrack(u, a);
   return a.ph;
+}
+// the fallen lie where they fell for a while (soldiers on their side, vehicles as dark wrecks), fading
+function drawFallen(c) {
+  for (const f of s.fallen) {
+    const age = s.t - f.t; if (s.fog && !shownAt(f)) continue;
+    const a = Math.max(0, 1 - age / 12), T = Sim.TYPES[f.type], k = SIZE[f.type];
+    if (T.air) { c.globalAlpha = 0.5 * a; c.fillStyle = '#2a2a24'; ring(f.x, f.y, k * 0.9); c.fill(); continue; } // a crash site
+    c.globalAlpha = 0.75 * a;
+    if (f.type === 'tank' || f.type === 'jeep' || f.type === 'mech' || f.type === 'truck') glyph(c, f.type, f.x, f.y, k, '#3b3833', colors.outline, f.hd + 0.3, f.hd + 1.2);
+    else { c.save(); c.translate(f.x, f.y); c.rotate(Math.PI / 2 * (f.side === 'blue' ? -1 : 1)); glyph(c, f.type, 0, 0, k, shade(colors[f.side], -0.35), colors.outline, 0); c.restore(); }
+  }
+  c.globalAlpha = 1;
+}
+// tracks: vehicles leave faint marks in the ground as they drive, fading over TRACK_T s
+const tracks = [], TRACK_T = 8, TRACK_MAX = 1500;
+function addTrack(u, a) {
+  if (u.type !== 'tank' && u.type !== 'jeep' && u.type !== 'mech' && u.type !== 'truck') return;
+  const d = Math.hypot(u.x - (a.tx ?? u.x - 99), u.y - (a.ty ?? u.y - 99));
+  if (d < 7) return;
+  a.tx = u.x; a.ty = u.y; tracks.push({ x: u.x, y: u.y, a: u.hd, t: s.t, w: u.type === 'tank' ? 0.55 : 0.45, k: SIZE[u.type] });
+  if (tracks.length > TRACK_MAX) tracks.splice(0, tracks.length - TRACK_MAX);
+}
+function drawTracks(c) {
+  while (tracks.length && s.t - tracks[0].t > TRACK_T) tracks.shift();
+  c.fillStyle = colors.shadow;
+  for (const p of tracks) {
+    if (p.t > s.t) continue;
+    c.globalAlpha = 0.6 * (1 - (s.t - p.t) / TRACK_T);
+    c.save(); c.translate(p.x, p.y); c.rotate(p.a); c.fillRect(-2.5, -p.w * p.k - 1, 5, 2); c.fillRect(-2.5, p.w * p.k - 1, 5, 2); c.restore();
+  }
+  c.globalAlpha = 1;
 }
 function drawGhosts(c) {
   const alive = new Set(s.units.map(u => u.id));
@@ -576,6 +614,7 @@ function drawUnits(c, show) {
     else { c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(u.x + 2, u.y + 4, k * 0.75, k * 0.35, 0, 0, Math.PI * 2); c.fill(); }
     glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim, 1.2, T.air ? 0 : stride(u));
     if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
+    if (u.resup && !u.care) { c.fillStyle = colors.halo; ring(u.x + k * 0.8, u.y - k * 0.9, 4.5); c.fill(); c.fillStyle = AMMO; c.fillRect(u.x + k * 0.8 - 2.5, u.y - k * 0.9 - 2.5, 5, 5); }
     if (u.care) { c.fillStyle = colors.halo; ring(u.x + k * 0.8, u.y - k * 0.9, 4.5); c.fill(); c.fillStyle = colors.red; c.fillRect(u.x + k * 0.8 - 1, u.y - k * 0.9 - 3, 2, 6); c.fillRect(u.x + k * 0.8 - 3, u.y - k * 0.9 - 1, 6, 2); }
     if (u.side === 'blue' && isSel(u.squad)) {
       c.strokeStyle = colors.ink; c.lineWidth = 1.2; ring(u.x, u.y, k + 3); c.stroke();
@@ -632,7 +671,8 @@ function draw() {
   }
   c.restore(); c.globalAlpha = 1;
   // units: exact picture without fog; under fog what we see where the picture is exact (see shownAt)
-  if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); }
+  if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); tracks.length = 0; }
+  drawTracks(c); drawFallen(c);
   if (!s.fog) drawUnits(c, () => true);
   else { drawUnits(c, u => (u.side === 'blue' || s.vis.blue.has(u.id)) && shownAt(u)); drawGhosts(c); }
   // explosions: fireball, smoke ring for medium+, sparks for big
@@ -677,6 +717,11 @@ function draw() {
     if (stale) label('?', x - 17, y - 6, colors.ink);
     // why it's heading back: 🩹 fell back after heavy losses (to heal at home); aircraft show ammo, ⟳ = going to rearm
     if (q.retreating) { c.font = '15px sans-serif'; c.fillText('🩹', x, y - 18); }
+    if (s.supply && Sim.SUPPLY[q.type]) {
+      const m = s.units.filter(u => u.squad === q.id), k = m.length ? m.reduce((a, u) => a + u.sup, 0) / m.length : 0;
+      c.fillStyle = colors.shadow; c.fillRect(x - 12, y + 19, 24, 3); c.fillStyle = AMMO; c.fillRect(x - 12, y + 19, 24 * k, 3);
+      if (m.some(u => u.resup)) { c.font = '14px sans-serif'; c.fillText('📦', x + (q.retreating ? 16 : 0), y - 18); }
+    }
     if (Sim.TYPES[q.type].ammo) {
       const m = s.units.filter(u => u.squad === q.id), A = Sim.TYPES[q.type].ammo;
       const k = m.length ? m.reduce((a, u) => a + (u.rearm ? 0 : u.ammo / A), 0) / m.length : 0;
@@ -715,6 +760,18 @@ function drawMini() {
 
 // the selection rectangle while it's being drawn (screen pixels)
 function drawBox() {
+  if (faceDrag && fit) {
+    const f = faceDrag, c = ctx, a = Math.atan2(f.y1 - f.y0, f.x1 - f.x0), L = Math.hypot(f.x1 - f.x0, f.y1 - f.y0);
+    c.save(); c.setTransform(fit.dpr, 0, 0, fit.dpr, 0, 0); c.strokeStyle = colors.blue; c.fillStyle = colors.blue; c.lineWidth = 3; c.lineCap = 'round';
+    c.beginPath(); c.arc(f.x0, f.y0, 6, 0, Math.PI * 2); c.fill();
+    if (L > 10) {
+      c.beginPath(); c.moveTo(f.x0, f.y0); c.lineTo(f.x1, f.y1); c.stroke();
+      c.beginPath(); c.moveTo(f.x1, f.y1); c.lineTo(f.x1 - Math.cos(a - 0.45) * 14, f.y1 - Math.sin(a - 0.45) * 14); c.lineTo(f.x1 - Math.cos(a + 0.45) * 14, f.y1 - Math.sin(a + 0.45) * 14); c.closePath(); c.fill();
+      // the front: a line across the arrow at its start
+      c.globalAlpha = 0.6; c.beginPath(); c.moveTo(f.x0 - Math.sin(a) * 40, f.y0 + Math.cos(a) * 40); c.lineTo(f.x0 + Math.sin(a) * 40, f.y0 - Math.cos(a) * 40); c.stroke();
+    }
+    c.restore();
+  }
   if (!boxSel || !fit) return;
   const b = boxSel, c = ctx; c.save(); c.setTransform(fit.dpr, 0, 0, fit.dpr, 0, 0);
   c.fillStyle = hexA(colors.blue, 0.12); c.strokeStyle = colors.blue; c.lineWidth = 1.5; c.setLineDash([5, 4]);

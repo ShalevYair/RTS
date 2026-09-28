@@ -6,7 +6,7 @@
 //       fog = fog of war (only what you see) · eye = drones · c2 = command friction (orders take time and are carried
 //       out roughly far from HQ, reports, radio log, calls) · fhq = forward HQs
 // fogAt: the fog comes down that many seconds into the level. prebuilt: our extra buildings at the start (a full quota).
-const B_ALL = ['tent', 'jeepshop', 'tankshop', 'clinic', 'garage'];
+const B_ALL = ['tent', 'jeepshop', 'tankshop', 'clinic', 'garage', 'depot'];
 const LEVELS = [
   // 1. tap the map: your squad goes there and fights
   { ui: [], nodes: [], blue: [['inf', 0.2, 0.5, 6]], red: [['inf', 0.72, 0.5, 4]], bot: null },
@@ -18,7 +18,7 @@ const LEVELS = [
   { ui: ['squads', 'orders', 'build'], builds: ['tent'], nodes: ['hq', 'tent'], bot: 'easy', easy: true },
   // 5. + vehicles: jeep and tank workshops
   { ui: ['squads', 'orders', 'build', 'vehicles'], builds: ['tent', 'jeepshop', 'tankshop'], nodes: ['hq', 'tent'], bot: 'easy', easy: true },
-  // 6. + medics and mechanics: the hurt go to them on their own
+  // 6. + medics, mechanics and supply trucks: the hurt, and those out of ammunition, go to them on their own
   { ui: ['squads', 'orders', 'build', 'vehicles', 'care'], builds: B_ALL, nodes: ['hq', 'tent'], bot: 'easy', easy: true },
   // 7. + aircraft and AA (only AA hits aircraft)
   { ui: ['squads', 'orders', 'build', 'vehicles', 'care', 'air'], nodes: ['hq', 'tent'], bot: 'easy', easy: true },
@@ -54,6 +54,8 @@ function level(n, seed = 1, W = 1000) {
   const s = L.big ? create(seed, 2 * Math.max(1000, W), L.bot || 'easy', 2 * H) : create(seed, W, L.bot || 'easy');
   s.level = n; s.ui = L.ui.slice(); s.fog = L.ui.includes('fog') && !L.fogAt; s.c2 = L.ui.includes('c2');
   if (L.fogAt) s.fogAt = L.fogAt;
+  s.supply = L.ui.includes('care'); // ammunition runs out from the level that brings medics, mechanics and supply trucks
+  s.style.red = 'steady';
   s.bots = L.bot ? ['red'] : [];
   s.aiCan = { build: !!L.nodes.includes('tent'), drone: false, fhq: false, ...L.can };
   if (L.builds) s.builds = L.builds.slice();

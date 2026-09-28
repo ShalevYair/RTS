@@ -40,7 +40,8 @@ const spacing = type => TYPES[type].r * 2 + LINE_GAP;
 const lineWidth = sq => sq.size * spacing(sq.type);
 // all these squads to (x, y) together, in rows facing the enemy: tanks in front, then jeeps, infantry, AA, and medics /
 // mechanics at the back; aircraft over the middle. Squads of a kind stand side by side in their row.
-function formation(s, ids, type, x, y, quiet) {
+// fa: the way the front should face (a drag on the map); without it, toward the enemy HQ (a seen enemy always wins)
+function formation(s, ids, type, x, y, quiet, fa) {
   if (type === 'retreat') { let ok = false; for (const id of ids) ok = order(s, id, type, x, y, quiet) || ok; return ok; }
   const rows = new Map();
   for (const id of ids) { const q = s.squads.find(k => k.id === id); if (q && !q.dead) { const k = FORM_ROW[q.type]; if (!rows.has(k)) rows.set(k, []); rows.get(k).push(q); } }
@@ -48,14 +49,15 @@ function formation(s, ids, type, x, y, quiet) {
   let ok = false;
   for (const [k, list] of rows) {
     let at = -(list.reduce((a, q) => a + lineWidth(q), 0) + SIDE_GAP * (list.length - 1)) / 2;
-    for (const q of list) { const w = lineWidth(q); ok = order(s, q.id, type, x, y, quiet, { depth: (k - mid) * ROW_GAP, lat: at + w / 2 }) || ok; at += w + SIDE_GAP; }
+    for (const q of list) { const w = lineWidth(q); ok = order(s, q.id, type, x, y, quiet, { depth: (k - mid) * ROW_GAP, lat: at + w / 2, fa }) || ok; at += w + SIDE_GAP; }
   }
   return ok;
 }
-// which way to face from p: the nearest enemy seen within FACE_R, else the enemy HQ
-function faceAt(s, side, p) {
+// which way to face from p: the nearest enemy seen within FACE_R, else fa (where the player pointed), else the enemy HQ
+function faceAt(s, side, p, fa) {
   let best = null, bd = FACE_R;
   for (const e of s.units) if (e.side !== side && seen(s, side, e)) { const d = dist(e, p); if (d < bd) { bd = d; best = e; } }
+  if (!best && Number.isFinite(fa)) return fa;
   const t = best || hqOf(s, side === 'blue' ? 'red' : 'blue') || s.bases[side === 'blue' ? 'red' : 'blue'];
   return Math.atan2(t.y - p.y, t.x - p.x);
 }
@@ -64,7 +66,7 @@ const turnTo = (a, b, k) => { const d = Math.atan2(Math.sin(b - a), Math.cos(b -
 // a squad in a formation: its spot moves with the way the formation faces (it turns toward a threat)
 function placeForm(s, sq, dt) {
   const o = sq.order, f = o.form;
-  f.a = f.a === undefined ? faceAt(s, sq.side, f) : turnTo(f.a, faceAt(s, sq.side, f), FACE_TURN * dt);
+  f.a = f.a === undefined ? faceAt(s, sq.side, f, f.fa) : turnTo(f.a, faceAt(s, sq.side, f, f.fa), FACE_TURN * dt);
   const dx = Math.cos(f.a), dy = Math.sin(f.a), at = (x, y) => ({ x: clamp(x - dx * f.depth - dy * f.lat, 10, s.W - 10), y: clamp(y - dy * f.depth + dx * f.lat, 10, s.H - 10) });
   let p = at(f.x, f.y);
   if (!TYPES[sq.type].air && lakeAt(s, p)) p = dryOf(s, p, 10);
@@ -89,7 +91,7 @@ function understood(s, sq, x, y) {
 function applyOrder(s, sq, type, x, y, quiet, form) {
   const p = friction(s) && type !== 'retreat' ? understood(s, sq, x, y) : { x, y }, off = Math.hypot(p.x - x, p.y - y);
   sq.order = { type, x: p.x, y: p.y, r: ORDER_R[type], want: { x, y } };
-  if (form && type !== 'retreat') { sq.order.form = { x: p.x, y: p.y, wx: x, wy: y, depth: form.depth, lat: form.lat }; placeForm(s, sq, 0); }
+  if (form && type !== 'retreat') { sq.order.form = { x: p.x, y: p.y, wx: x, wy: y, depth: form.depth || 0, lat: form.lat || 0, fa: form.fa }; placeForm(s, sq, 0); }
   sq.retreating = false; sq.arrived = false; sq.support = null;
   if (sq.side === 'blue' && friction(s) && type !== 'retreat') {
     s.log2.off += off; s.log2.offN++;

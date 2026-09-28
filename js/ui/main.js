@@ -13,12 +13,21 @@ function newGame(skipIntro) {
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
 }
 
-const DT = 1 / 30; let last = performance.now(), acc = 0;
+const DT = 1 / 30; let last = performance.now(), acc = 0, shake = 0;
+const SHAKE_MAX = 8, reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (playing) { acc += dt * rate; while (acc >= DT) { Sim.step(s, DT); acc -= DT; } } else acc = 0;
   // one sound per new explosion (the audio side rate-limits bursts)
-  for (const f of s.fx) if (!f.heard && !(f.wait > 0)) { f.heard = true; if (sfxOn) Music.boom(f.size, f.x / s.W); }
+  const vr = viewRect(), onScreen = p => vr && p.x > vr.x - 60 && p.x < vr.x + vr.w + 60 && p.y > vr.y - 60 && p.y < vr.y + vr.h + 60;
+  for (const f of s.fx) if (!f.heard && !(f.wait > 0)) {
+    f.heard = true; if (sfxOn) Music.boom(f.size, f.x / s.W);
+    if (f.size >= 26 && onScreen(f)) shake = Math.min(SHAKE_MAX, shake + (f.size >= 34 ? 6 : 2.5)); // a unit / building destroyed
+  }
+  // gunfire on screen: a crack for bullets, a thump for shells, a whoosh for missiles (the audio side limits bursts)
+  for (const sh of s.shots) if (!sh.heard) { sh.heard = true; if (sfxOn && onScreen({ x: sh.x1, y: sh.y1 })) Music.shot(sh.kind, sh.x1 / s.W); }
+  shake *= Math.exp(-dt * 9); if (shake < 0.2) shake = 0;
+  cv.style.transform = shake && !reduceMotion ? `translate(${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px, ${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px)` : '';
   for (const k of s.marks) if (!k.heard) { k.heard = true; if (playing) Radio.hear(k); }
   Radio.tick();
   if (replayAuto && !$('end').hidden && !$('replayBox').hidden && now - replayAt > 180) {

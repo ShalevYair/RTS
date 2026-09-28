@@ -267,6 +267,34 @@ const Music = (() => {
       o.connect(g).connect(out); o.start(t); o.stop(t + P.dur);
     }
   }
+  // a shot: bullets crack (high, short), shells thump (low), missiles whoosh (a rising hiss). Quieter than blasts.
+  const SHOT = { inf: 'crack', jeep: 'crack', tank: 'thump', air: 'whoosh', aa: 'whoosh' }, SHOT_GAP = { crack: 0.05, thump: 0.12, whoosh: 0.18 }, lastShot = {};
+  function shot(kind, xFrac) {
+    const cls = SHOT[kind];
+    if (!cls || !ac || ac.state !== 'running' || sfxVol <= 0 || voices >= MAX_VOICES) return;
+    const t = ac.currentTime; if (t - (lastShot[cls] || 0) < SHOT_GAP[cls]) return;
+    lastShot[cls] = t;
+    let out = sfxBus;
+    if (ac.createStereoPanner) { const pan = ac.createStereoPanner(); pan.pan.value = Math.max(-1, Math.min(1, ((Number(xFrac) || 0.5) * 2 - 1) * 0.7)); pan.connect(sfxBus); out = pan; }
+    const src = ac.createBufferSource(), f = ac.createBiquadFilter(), e = ac.createGain(), j = 0.85 + Math.random() * 0.3;
+    src.buffer = noise; voices++; src.onended = () => { voices--; };
+    if (cls === 'crack') {
+      f.type = 'highpass'; f.frequency.value = 2200 * j;
+      e.gain.setValueAtTime(0.14, t); e.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      src.connect(f).connect(e).connect(out); src.start(t, Math.random() * 0.5); src.stop(t + 0.07);
+    } else if (cls === 'thump') {
+      f.type = 'lowpass'; f.frequency.setValueAtTime(1400 * j, t); f.frequency.exponentialRampToValueAtTime(200, t + 0.25);
+      e.gain.setValueAtTime(0.3, t); e.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      src.connect(f).connect(e).connect(out); src.start(t, Math.random() * 0.5); src.stop(t + 0.32);
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.frequency.setValueAtTime(110 * j, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.2);
+      g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22); o.connect(g).connect(out); o.start(t); o.stop(t + 0.25);
+    } else {
+      f.type = 'bandpass'; f.Q.value = 2; f.frequency.setValueAtTime(600 * j, t); f.frequency.exponentialRampToValueAtTime(3200 * j, t + 0.4);
+      e.gain.setValueAtTime(0.0001, t); e.gain.linearRampToValueAtTime(0.12, t + 0.08); e.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      src.connect(f).connect(e).connect(out); src.start(t, Math.random() * 0.5); src.stop(t + 0.47);
+    }
+  }
   // radio "click" before a voice report: a short band-passed noise burst on the effects bus
   function squelch() {
     if (!ac || ac.state !== 'running') return;
@@ -297,7 +325,7 @@ const Music = (() => {
     ({ ac, master, sfxBus, leadBus, lowBus, delay, noise } = keep); nextSong(keep.song);
     return { name: SONGS[k].name, rate, data: Array.from(buf.getChannelData(0), v => Math.max(-32768, Math.min(32767, Math.round(v * 32767)))) };
   }
-  return { start, stop, unlock, setVolume, setSfxVolume, boom, squelch, _debug: { render, playAll, tones, song: () => song.name, next: () => { nextSong(); return song.name; }, voices: () => voices } };
+  return { start, stop, unlock, setVolume, setSfxVolume, boom, shot, squelch, _debug: { render, playAll, tones, song: () => song.name, next: () => { nextSong(); return song.name; }, voices: () => voices } };
 })();
 let musicOn = true, vol = 35, sfxOn = true, sfxVol = 60;
 try { const m = JSON.parse(localStorage.getItem('irts-audio') || 'null'); if (m) { musicOn = !!m.on; vol = Math.max(0, Math.min(100, +m.vol || 0)); if ('sfxOn' in m) { sfxOn = !!m.sfxOn; sfxVol = Math.max(0, Math.min(100, +m.sfxVol || 0)); } } } catch (e) { /* storage unavailable */ }

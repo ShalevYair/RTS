@@ -22,14 +22,20 @@ const TYPES = {
   // care squads: they don't fight (range 0); medics treat infantry and AA, mechanics repair jeeps and tanks
   med:  { name: 'חובשים', hp: 50,  speed: 30, range: 0,   dmg: 0,  cd: 1,   sight: 110, r: 5, rein: 8, cost: 1, care: true },
   mech: { name: 'מכונאים', hp: 80, speed: 45, range: 0,   dmg: 0,  cd: 1,   sight: 130, r: 6, rein: 8, cost: 1, care: true },
+  truck: { name: 'משאיות אספקה', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1,  sight: 120, r: 6, rein: 8, cost: 1, care: true },
 };
+// logistics: ground fighters carry SUPPLY shots, one used per shot. Low (below SUPPLY_LOW of a load) a unit goes on
+// its own to the nearest supply truck, or home, holding its fire until refilled to SUPPLY_DONE. Within SUPPLY_R of a
+// truck, or by one of its side's buildings (a forward HQ too), it refills SUPPLY_FILL of a load per second.
+// Only where s.supply is on (the full game, and the tutorial from its care level).
+const SUPPLY = { inf: 150, jeep: 150, tank: 60, aa: 60 }, SUPPLY_LOW = 0.1, SUPPLY_DONE = 0.9, SUPPLY_FILL = 0.12, SUPPLY_R = 40;
 // care: a unit below CARE_AT of its health leaves the fight on its own and goes to the nearest unit that treats its
 // kind (CARER), or home if there is none; it doesn't shoot until back at CARE_DONE. Within CARE_R of a medic /
 // mechanic it heals CARE_HEAL per second.
-const CARER = { inf: 'med', aa: 'med', med: 'med', jeep: 'mech', tank: 'mech', mech: 'mech' };
+const CARER = { inf: 'med', aa: 'med', med: 'med', jeep: 'mech', tank: 'mech', mech: 'mech', truck: 'mech' };
 const CARE_AT = 0.4, CARE_DONE = 0.9, CARE_R = 30, CARE_HEAL = 9;
 // power (for collapse) per full-health unit
-const UNIT_VALUE = { inf: 1, aa: 1.5, jeep: 1.5, tank: 3, air: 4, med: 1, mech: 1.5 };
+const UNIT_VALUE = { inf: 1, aa: 1.5, jeep: 1.5, tank: 3, air: 4, med: 1, mech: 1.5, truck: 1.5 };
 // Damage multiplier MULT[attacker][target]. Range order: aa > air > tank > inf
 // impact explosion per attacker: big for tanks/aircraft, smaller for AA, tiny for infantry
 // how long a shot flies (s): bullets (infantry, jeeps) are quick, shells slower, missiles (aircraft, AA) slowest;
@@ -39,13 +45,14 @@ const IMPACT = { tank: { size: 18, life: 0.5 }, air: { size: 18, life: 0.5 }, aa
 // only AA can hit aircraft (and drones): every other air column is 0, and 0 means "can't target"
 // (medics are hit like infantry, mechanics like jeeps; care squads hit nothing)
 const MULT = {
-  inf:  { inf: 1,    tank: 0.4, air: 0,   aa: 1,    jeep: 0.8, med: 1,    mech: 0.8 },
-  tank: { inf: 1.3,  tank: 1,   air: 0,   aa: 1.3,  jeep: 1.3, med: 1.3,  mech: 1.3 },
-  air:  { inf: 0.4,  tank: 2,   air: 0,   aa: 0.5,  jeep: 1.5, med: 0.4,  mech: 1.5 },
-  aa:   { inf: 0.25, tank: 0.2, air: 2.2, aa: 0.25, jeep: 0.3, med: 0.25, mech: 0.3 },
-  jeep: { inf: 1.2,  tank: 0.3, air: 0,   aa: 1,    jeep: 1,   med: 1.2,  mech: 1 },
-  med:  { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0 },
-  mech: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0 },
+  inf:  { inf: 1,    tank: 0.4, air: 0,   aa: 1,    jeep: 0.8, med: 1,    mech: 0.8, truck: 0.8 },
+  tank: { inf: 1.3,  tank: 1,   air: 0,   aa: 1.3,  jeep: 1.3, med: 1.3,  mech: 1.3, truck: 1.3 },
+  air:  { inf: 0.4,  tank: 2,   air: 0,   aa: 0.5,  jeep: 1.5, med: 0.4,  mech: 1.5, truck: 1.5 },
+  aa:   { inf: 0.25, tank: 0.2, air: 2.2, aa: 0.25, jeep: 0.3, med: 0.25, mech: 0.3, truck: 0.3 },
+  jeep: { inf: 1.2,  tank: 0.3, air: 0,   aa: 1,    jeep: 1,   med: 1.2,  mech: 1,   truck: 1 },
+  med:  { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0 },
+  mech: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0 },
+  truck: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0 },
 };
 const TRAITS = {
   aggressive: { name: 'תוקפני', leash: 1.8, retreatAt: 0.15, support: 420 },
@@ -67,6 +74,7 @@ const STRUCTS = {
   airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2 },
   clinic:   { name: 'תחנת חובשים', icon: '🏥', hp: 350,  value: 3, unit: 'med',  build: 20, every: 25,  size: 2 },
   garage:   { name: 'מוסך',        icon: '🛠', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2 },
+  depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2 },
 };
 const PRODUCERS = Object.keys(STRUCTS).filter(k => STRUCTS[k].unit);
 const BUILD_MIN_Q = 0.5, BUILD_BASE = 2, BUILD_PER_NODE = 2, BUILD_GAP = 45, STRUCT_SIGHT = 120;
@@ -114,7 +122,7 @@ const NODE_MULT = { inf: 0.6, tank: 1.5, air: 1.2, aa: 1.5, jeep: 0.8 };
 // lines them up in rows, front to back (FORM_ROW): tanks, jeeps, infantry, AA, medics and mechanics; aircraft over the
 // middle. Rows are ROW_GAP apart, squads in a row SIDE_GAP apart.
 const FACE_R = 320, FACE_TURN = 0.8, LINE_GAP = 6, ROW_GAP = 50, SIDE_GAP = 20;
-const FORM_ROW = { tank: 0, jeep: 1, air: 1.5, inf: 2, aa: 3, med: 4, mech: 4 };
+const FORM_ROW = { tank: 0, jeep: 1, air: 1.5, inf: 2, aa: 3, med: 4, mech: 4, truck: 4 };
 const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
 // difficulty: how often the AI re-plans and how well it decides (never extra units or vision).
@@ -128,4 +136,14 @@ const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
 // forward HQs: a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
 const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
-const AI_PLAN = ['aapost', 'tankshop', 'jeepshop', 'clinic', 'tent', 'airfield', 'garage', 'tankshop', 'aapost'], AI_READY = 0.6;
+const AI_PLAN = ['aapost', 'tankshop', 'jeepshop', 'clinic', 'tent', 'depot', 'airfield', 'garage', 'tankshop', 'aapost'], AI_READY = 0.6;
+// the AI's style, picked per game for red (blue bots play 'steady'): what it builds first, how worn a squad may be
+// and still attack (ready), and how it goes about it — rush attacks early and often; turtle holds near home until it
+// has `wait` squads (or the upper hand), striking only what comes close; flank goes round by the map's edge.
+const AI_STYLES = {
+  steady: { name: 'שקול',  icon: '🦉', plan: AI_PLAN, ready: AI_READY },
+  rush:   { name: 'מסתער', icon: '⚡', plan: ['jeepshop', 'tent', 'tankshop', 'jeepshop', 'depot', 'aapost', 'clinic', 'airfield', 'garage'], ready: 0.45 },
+  turtle: { name: 'מתבצר', icon: '🏰', plan: ['aapost', 'tankshop', 'depot', 'clinic', 'aapost', 'airfield', 'tankshop', 'garage', 'tent'], ready: 0.7, wait: 5 },
+  flank:  { name: 'מאגף',  icon: '↪', plan: AI_PLAN, ready: AI_READY, flank: true },
+};
+const AI_HOME_R = 350, AI_FLANK_R = 350, FALLEN_T = 12;

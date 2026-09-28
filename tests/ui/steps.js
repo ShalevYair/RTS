@@ -26,7 +26,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // level 6: medics and mechanics in the build menu, new ones pulsing
     await level(6); await p.click('#bld'); await p.waitForTimeout(150);
     const menu6 = await p.evaluate(() => [...document.querySelectorAll('[data-build]')].filter(e => !e.hidden).map(e => e.dataset.build + (e.classList.contains('new') ? '*' : '')).join());
-    check(name, menu6 === 'tent,jeepshop,tankshop,clinic*,garage*', `level 6 builds: ${menu6}`);
+    check(name, menu6 === 'tent,jeepshop,tankshop,clinic*,garage*,depot*', `level 6 builds: ${menu6}`);
     await p.screenshot({ path: `${OUT}/${name}-st-lv6-menu.png` });
     // build a clinic, raise its medics, hurt an infantryman: he walks to them with a cross over him
     const cared = await p.evaluate(() => {
@@ -83,7 +83,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.mouse.click(spot.x, spot.y); await p.waitForTimeout(100);
     const trip = await p.evaluate(() => { const q = s.squads.find(k => k.fhqAt); return q ? q.type : null; });
     await run(90); await p.waitForTimeout(200);
-    const built = await p.evaluate(P => { const f = s.nodes.find(n => n.kind === 'fhq' && n.side === 'blue'); return f ? { d: Math.round(Math.hypot(f.x - P.x, f.y - P.y)), build: Sim.buildCheck(s, 'blue', f.x + 60, f.y) } : null; }, spot.P);
+    const built = await p.evaluate(P => { const f = s.nodes.find(n => n.kind === 'fhq' && n.side === 'blue'); return f ? { d: Math.round(Math.hypot(f.x - P.x, f.y - P.y)), build: [0, 1, 2, 3, 4, 5, 6, 7].map(i => Sim.buildCheck(s, 'blue', f.x + Math.cos(i * 0.8) * 70, f.y + Math.sin(i * 0.8) * 70)).includes('') ? '' : 'none' } : null; }, spot.P);
     check(name, armed && trip && built && built.d < 45 && built.build === '', `🏕 then a spot: the ${trip} squad drove there and set it up (${JSON.stringify(built)}), and building is allowed around it`);
     await p.screenshot({ path: `${OUT}/${name}-st-lv11.png` });
     // ★ all squads + a tap: rows toward the enemy — tanks in front, then jeeps, infantry, AA, medics and mechanics
@@ -98,9 +98,34 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const rows = await p.evaluate(() => { const x = t => { const q = s.squads.find(k => k.side === 'blue' && k.type === t); return Math.round(q.order.x); }; return { tank: x('tank'), jeep: x('jeep'), inf: x('inf'), aa: x('aa'), med: x('med') }; });
     check(name, rows.tank > rows.jeep && rows.jeep > rows.inf && rows.inf > rows.aa && rows.aa > rows.med, `★ + tap: rows toward the enemy ${JSON.stringify(rows)}`);
     await p.screenshot({ path: `${OUT}/${name}-st-formation.png` });
+    // right-drag: the same order with a facing — the front turns to where the mouse was dragged (south here)
+    if (!touch) {
+      const P = await p.evaluate(() => { const hq = s.nodes.find(n => n.kind === 'hq' && n.side === 'blue'), c = cv.getBoundingClientRect(); let W = { x: hq.x + 300, y: hq.y - 60 }; if (Sim.lakeAt(s, W, 140)) W.y += 200; return { x: c.left + view.cox + W.x * view.css, y: c.top + view.coy + W.y * view.css }; });
+      await p.mouse.move(P.x, P.y); await p.mouse.down({ button: 'right' }); await p.mouse.move(P.x + 5, P.y + 90, { steps: 6 });
+      await p.screenshot({ path: `${OUT}/${name}-st-face-drag.png` });
+      await p.mouse.up({ button: 'right' }); await run(8);
+      const f = await p.evaluate(() => { const y = t => Math.round(s.squads.find(k => k.side === 'blue' && k.type === t).order.y); return { tank: y('tank'), inf: y('inf'), med: y('med') }; });
+      check(name, f.tank > f.inf && f.inf > f.med, `right-drag south: the front faces south ${JSON.stringify(f)}`);
+    }
+    // a fight up close: the fallen stay a while, vehicles leave tracks
+    const fx = await p.evaluate(() => { const u = s.units.find(x => x.side === 'blue' && x.type === 'inf'); u.hp = 0; for (let i = 0; i < 60; i++) Sim.step(s, 1 / 30); for (let i = 0; i < 20; i++) draw(); return { fallen: s.fallen.length, tracks: tracks.length }; });
+    check(name, fx.fallen >= 1 && fx.tracks > 0, `the fallen lie there a while, vehicles leave tracks ${JSON.stringify(fx)}`);
     // the full screen button (Chrome has the API; not shown when already full screen / installed)
     check(name, await shown('#fs'), 'a full screen button ⛶');
     check(name, !errs.length, `no errors ${JSON.stringify(errs)}`);
+    await ctx.close();
+  }
+  {
+    // a phone held upright: the squad buttons fold into 👥, which opens them
+    const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); } catch (e) { /* ignore */ } });
+    const p = await ctx.newPage(); await p.goto(URL); await p.waitForTimeout(400); await p.click('#go'); await p.waitForTimeout(300);
+    const vis = sel => p.evaluate(sel => { const e = document.querySelector(sel); return !!e && e.offsetParent !== null && getComputedStyle(e).display !== 'none'; }, sel);
+    const closed = { t: await vis('#sqT'), sqs: await vis('#sqs') };
+    await p.click('#sqT'); await p.waitForTimeout(150); const open = await vis('#sqs');
+    await p.screenshot({ path: `${OUT}/portrait-squads.png` });
+    await p.click('[data-sq]'); await p.waitForTimeout(150); const after = await vis('#sqs');
+    check('portrait', closed.t && !closed.sqs && open && !after, `upright phone: squads fold into 👥 (${JSON.stringify(closed)}), open on a tap (${open}), close after picking one (${after})`);
     await ctx.close();
   }
   await b.close();

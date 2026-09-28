@@ -16,14 +16,14 @@ const oneSel = () => typeof sel === 'string' && sel !== 'all' ? sel : null;
 const colors = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
-  for (const k of ['ground', 'grass2', 'field', 'field2', 'hill', 'hillHi', 'hillLine', 'tree', 'treeHi', 'road', 'roadEdge', 'water', 'waterEdge', 'rock', 'shadow', 'halo', 'outline', 'blue', 'red', 'ink', 'point', 'line', 'tInf', 'tAa', 'tTank', 'tAir', 'tJeep', 'tMed', 'tMech', 'fog'])
+  for (const k of ['ground', 'grass2', 'field', 'field2', 'hill', 'hillHi', 'hillLine', 'tree', 'treeHi', 'road', 'roadEdge', 'water', 'waterEdge', 'rock', 'shadow', 'halo', 'outline', 'blue', 'red', 'ink', 'point', 'line', 'tInf', 'tAa', 'tTank', 'tAir', 'tJeep', 'tMed', 'tMech', 'tTruck', 'fog'])
     colors[k] = cs.getPropertyValue('--c-' + k).trim();
 }
 readColors();
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) { /* old browsers */ }
 new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-const TC = { inf: 'tInf', aa: 'tAa', tank: 'tTank', air: 'tAir', jeep: 'tJeep', med: 'tMed', mech: 'tMech' }, tcol = t => colors[TC[t]];
-const SIZE = { inf: 9, aa: 10, tank: 9, air: 13, jeep: 8, med: 9, mech: 8 };
+const TC = { inf: 'tInf', aa: 'tAa', tank: 'tTank', air: 'tAir', jeep: 'tJeep', med: 'tMed', mech: 'tMech', truck: 'tTruck' }, tcol = t => colors[TC[t]];
+const SIZE = { inf: 9, aa: 10, tank: 9, air: 13, jeep: 8, med: 9, mech: 8, truck: 8 };
 
 // ---- viewport: world is sized to the screen's aspect at game start; a camera (centre + zoom) looks at it ----
 // zoom 1 = the whole map fits; zooming in stops at ZOOM_PX screen px per world unit. The big map opens on our base at

@@ -30,17 +30,30 @@ function tap(e) {
   if (hit) { select(hit); return; }
   issue(mode, x, y);
 }
-// Mouse: left-drag draws a rectangle that picks every squad in it; right- or middle-drag pans; the wheel zooms; the
-// view also slides when the pointer rests at a screen edge. Touch: one finger pans, two pinch.
+// Mouse: left-drag draws a rectangle that picks every squad in it; right-drag gives the order with a facing (from where
+// it starts, the front toward where it's dragged), a right click the plain order; middle-drag pans; the wheel zooms;
+// the view also slides when the pointer rests at a screen edge. Touch: one finger pans, two pinch; press and hold, then
+// drag, is the order with a facing.
 // A press that moves more than DRAG_PX is not a tap.
 const DRAG_PX = 8, touches = new Map();
-let drag = null, boxSel = null;
+let drag = null, boxSel = null, faceDrag = null;
+const HOLD_MS = 450;
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
   const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed && !fhqArmed;
-  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0 } : { moved: true };
+  const free = !eyeArmed && !buildArmed && !fhqArmed;
+  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0, face: e.pointerType === 'mouse' && e.button === 2 && free } : { moved: true };
+  if (drag.face) { const r = cv.getBoundingClientRect(); faceDrag = { x0: e.clientX - r.left, y0: e.clientY - r.top, x1: e.clientX - r.left, y1: e.clientY - r.top }; }
+  // touch: held still for a moment, the drag that follows sets a facing
+  if (e.pointerType !== 'mouse' && touches.size === 1 && free) {
+    const d = drag; d.hold = setTimeout(() => {
+      if (drag !== d || d.moved || touches.size !== 1) return;
+      const r = cv.getBoundingClientRect(); d.face = true; faceDrag = { x0: d.x - r.left, y0: d.y - r.top, x1: d.x - r.left, y1: d.y - r.top };
+      try { navigator.vibrate && navigator.vibrate(15); } catch (err) { /* no vibration */ }
+    }, HOLD_MS);
+  }
 });
 cv.addEventListener('pointermove', e => {
   const p = touches.get(e.pointerId); if (!p) return;
@@ -54,7 +67,8 @@ cv.addEventListener('pointermove', e => {
   }
   const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
   if (!drag) return;
-  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_PX) { drag.moved = true; if (!drag.box) panBy(e.clientX - drag.x - dx, e.clientY - drag.y - dy); }
+  if (drag.face) { const r = cv.getBoundingClientRect(); faceDrag.x1 = e.clientX - r.left; faceDrag.y1 = e.clientY - r.top; return; }
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_PX) { drag.moved = true; clearTimeout(drag.hold); if (!drag.box) panBy(e.clientX - drag.x - dx, e.clientY - drag.y - dy); }
   if (!drag.moved) return;
   if (drag.box) { const r = cv.getBoundingClientRect(); boxSel = { x0: drag.x - r.left, y0: drag.y - r.top, x1: e.clientX - r.left, y1: e.clientY - r.top }; }
   else panBy(dx, dy);
@@ -67,13 +81,19 @@ function pickBox(b) {
   const ids = blueSquads().filter(q => !q.dead && pos(q) && (inside(pos(q).x, pos(q).y) || inside(pos(q).x, pos(q).y - 26))).map(q => q.id);
   if (ids.length) select(ids.length === 1 ? ids[0] : ids);
 }
-const lift = e => { touches.delete(e.pointerId); if (!touches.size) drag = null; };
+const lift = e => { touches.delete(e.pointerId); if (drag) clearTimeout(drag.hold); if (!touches.size) drag = null; };
 cv.addEventListener('pointerup', e => {
-  const d = drag, b = boxSel; lift(e); boxSel = null;
+  const d = drag, b = boxSel, f = faceDrag; lift(e); boxSel = null; faceDrag = null;
+  if (d && d.face) {
+    if (!menu.hidden || s.over) return;
+    if (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) < DRAG_PX * 2) { tap(e); return; } // a plain right click / hold: the order
+    const w = p => ({ x: (p.x - view.cox) / view.css, y: (p.y - view.coy) / view.css }), a = w({ x: f.x0, y: f.y0 }), z = w({ x: f.x1, y: f.y1 });
+    issue(mode, a.x, a.y, Math.atan2(z.y - a.y, z.x - a.x)); return;
+  }
   if (d && d.box && d.moved && b) { if (!menu.hidden || s.over) return; pickBox(b); return; }
   if (d && !d.moved && d.tapOk && e.isPrimary !== false) tap(e);
 });
-cv.addEventListener('pointercancel', e => { lift(e); boxSel = null; });
+cv.addEventListener('pointercancel', e => { lift(e); boxSel = null; faceDrag = null; });
 // edge scroll: where the mouse is (null when it has left the window)
 let mouseAt = null;
 window.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') mouseAt = { x: e.clientX, y: e.clientY }; });

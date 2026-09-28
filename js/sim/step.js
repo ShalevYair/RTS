@@ -9,9 +9,15 @@ function step(s, dt) {
   const bySquad = new Map(s.squads.map(q => [q.id, q]));
   for (const u of s.units) updateUnit(s, u, bySquad.get(u.squad), dt);
   separate(s);
-  for (const u of s.units) if (u.hp <= 0) s.fx.push({ x: u.x, y: u.y, life: 0.7, max: 0.7, size: 26 });
+  for (const u of s.units) if (u.hp <= 0) { s.fx.push({ x: u.x, y: u.y, life: 0.7, max: 0.7, size: 26 }); s.fallen.push({ x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t }); }
+  if (s.fallen.length && s.t - s.fallen[0].t > FALLEN_T) s.fallen = s.fallen.filter(f => s.t - f.t <= FALLEN_T); // for the picture
   s.units = s.units.filter(u => u.hp > 0);
   for (const u of s.units) if (!TYPES[u.type].air && healSpot(s, u)) u.hp = Math.min(TYPES[u.type].hp, u.hp + BASE_HEAL * dt);
+  // refilling ammunition: by a supply truck or one of the side's buildings
+  if (s.supply) {
+    const trucks = s.units.filter(u => u.type === 'truck' && !u.care);
+    for (const u of s.units) if (SUPPLY[u.type] && u.sup < 1 && (trucks.some(m => m.side === u.side && dist(m, u) <= SUPPLY_R) || healSpot(s, u))) u.sup = Math.min(1, u.sup + SUPPLY_FILL * dt);
+  }
   // medics and mechanics treat their kinds close to them
   const carers = s.units.filter(u => TYPES[u.type].care && !u.care);
   if (carers.length) for (const u of s.units) {
@@ -38,4 +44,4 @@ function step(s, dt) {
   }
 }
 
-const Sim = { planFhq, _makeSquad: makeSquad, _fillSquad: fillSquad, formation, fhqCount, friction, dronesUp, DRONE_SIGHT, CARER, create, lakeAt, wobble, inHill, elevAt, levelAt, hillHeight, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+const Sim = { SUPPLY, AI_STYLES, planFhq, _makeSquad: makeSquad, _fillSquad: fillSquad, formation, fhqCount, friction, dronesUp, DRONE_SIGHT, CARER, create, lakeAt, wobble, inHill, elevAt, levelAt, hillHeight, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };

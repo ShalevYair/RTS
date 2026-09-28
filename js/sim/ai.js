@@ -31,7 +31,8 @@ function aiBuild(s, side, D) {
   if (!D.smart && s.t - (s.lastBuild[side] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
   let kind = null;
-  for (let i = 0; i < AI_PLAN.length && !kind; i++) { const k = AI_PLAN[(s.plan[side] + i) % AI_PLAN.length]; if (!s.builds || s.builds.includes(k)) { kind = k; s.plan[side] += i; } }
+  const plan = AI_STYLES[s.style[side]].plan;
+  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if (!s.builds || s.builds.includes(k)) { kind = k; s.plan[side] += i; } }
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
   const anchors = controlNodes(s, side).filter(n => n.kind !== 'drone').sort((a, b) => dist(a, goal) - dist(b, goal));
@@ -95,12 +96,17 @@ function think(s, side, level) {
   if (D.smart && can.fhq) aiForward(s, side, mine, setOrder);
   const structs = knownStructs(s, side);
   const foes = s.squads.filter(q => q.side === foe).map(q => ({ q, k: intel(s, side, q) })).filter(o => o.k);
+  // style: the turtle stays home until it has enough squads (or the upper hand); the flanker goes round by an edge
+  const St = AI_STYLES[s.style[side]] || AI_STYLES.steady, home = hqOf(s, side) || s.bases[side];
+  const fighters = mine.filter(q => !TYPES[q.type].care);
+  const stayHome = St.wait && s.t < 300 && !(fighters.length >= St.wait && s.t > 150) && share(s, side) < 0.55; // (never past 5 minutes)
+  let nth = 0;
   for (const sq of mine) {
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
     if (TYPES[sq.type].care) { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); continue; }
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
-    if (D.smart && sq.strength < AI_READY && !fighting) { const h = homeOf(s, sq); setOrder(sq, 'hold', h.x, h.y); continue; }
+    if (D.smart && sq.strength < St.ready && !fighting) { const h = homeOf(s, sq); setOrder(sq, 'hold', h.x, h.y); continue; }
     const cands = [];
     for (const { q, k } of foes) {
       if (!canHit(sq, k)) continue; // can't hurt it (aircraft for everyone but AA), as far as we can tell
@@ -108,6 +114,11 @@ function think(s, side, level) {
     }
     // structures: production and forward HQs matter most; aircraft go for them when there's nothing better
     if (sq.type !== 'aa') for (const n of structs) cands.push({ x: n.x, y: n.y, w: n.kind === 'hq' ? 120 : n.kind === 'fhq' ? -60 : -30 });
+    // staying home: only what comes close; else a guard spot a little out from the HQ, toward the enemy
+    if (stayHome) {
+      for (let i = cands.length - 1; i >= 0; i--) if (dist(cands[i], home) > AI_HOME_R) cands.splice(i, 1);
+      if (!cands.length) { const g = s.bases[foe], d = dist(g, home) || 1; setOrder(sq, 'hold', Math.round(home.x + (g.x - home.x) / d * 160), Math.round(home.y + (g.y - home.y) / d * 160 + (nth++ % 3 - 1) * 70)); continue; }
+    }
     if (!cands.length) continue;
     const score = p => {
       // massing on one target where control is poor means shooting each other (friendly fire): spread out there
@@ -123,6 +134,14 @@ function think(s, side, level) {
     const aim = sq.order.want || sq.order, cur = D.smart && cands.find(p => Math.hypot(p.x - aim.x, p.y - aim.y) < 40);
     if (cur && cur !== best && score(cur) < bs + AI_KEEP) best = cur;
     taken.set(best.x + ',' + best.y, (taken.get(best.x + ',' + best.y) || 0) + 1);
+    // flanking: a far target is reached by way of a point near the top or bottom edge (squads take turns), halfway there
+    if (St.flank && !TYPES[sq.type].air && dist(c, best) > AI_FLANK_R) {
+      const key = Math.round(best.x / 50) + ',' + Math.round(best.y / 50);
+      if (sq.flankKey !== key) { sq.flankKey = key; sq.flanked = false; sq.flankY = (nth++ % 2 ? 0.12 : 0.88) * s.H; }
+      const wp = { x: Math.round((c.x + best.x) / 2), y: Math.round(sq.flankY) };
+      if (!sq.flanked && dist(c, wp) < 120) sq.flanked = true;
+      if (!sq.flanked) { setOrder(sq, 'attack', wp.x, wp.y); continue; }
+    }
     setOrder(sq, 'attack', best.x, best.y);
   }
   // posture (hard): press when losing, play safe when winning

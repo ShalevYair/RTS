@@ -3,7 +3,7 @@ function spawn(s, sq, x, y) {
   const T = TYPES[sq.type], a = s.rand() * Math.PI * 2, m = Math.sqrt(s.rand());
   s.units.push({ id: s.nextId++, side: sq.side, squad: sq.id, type: sq.type,
     x: clamp(x + Math.cos(a) * m * 20, 5, s.W - 5), y: clamp(y + Math.sin(a) * m * 20, 5, s.H - 5),
-    hp: T.hp, hd: sq.side === 'blue' ? 0 : Math.PI, aim: sq.side === 'blue' ? 0 : Math.PI, lastFire: -99, ammo: T.ammo || 0, rearm: false, rearmT: 0, cd: s.rand() * T.cd, sx: Math.cos(a) * m, sy: Math.sin(a) * m, engaged: false });
+    hp: T.hp, sup: 1, hd: sq.side === 'blue' ? 0 : Math.PI, aim: sq.side === 'blue' ? 0 : Math.PI, lastFire: -99, ammo: T.ammo || 0, rearm: false, rearmT: 0, cd: s.rand() * T.cd, sx: Math.cos(a) * m, sy: Math.sin(a) * m, engaged: false });
 }
 
 function makeBase(x, x0, x1, h) {
@@ -127,7 +127,10 @@ function create(seed = 1, W = 1000, diff = 'normal', mapH = H) {
     rep: {}, marks: [], outbox: [], calls: [], nextCall: 1, hist: [], histIn: 0, names: { blue: SURNAMES.slice(), red: SURNAMES.slice() }, lastBuild: {},
     log2: { orders: 0, delay: 0, answered: 0, missed: 0, off: 0, offN: 0, ff: 0 }, ff: [], power: { blue: 0, red: 0 }, peak: { blue: 0, red: 0 }, plan: { blue: 0, red: 0 },
     nodes: [], nextNode: 1, visNodes: { blue: new Set(), red: new Set() }, cd: { blue: { fhq: 0 }, red: { fhq: 0 } }, drones: { blue: { stock: 1, next: NODES.drone.every }, red: { stock: 1, next: NODES.drone.every } },
-    diff: diff in DIFFS ? diff : 'normal', bots: ['red'], botDiff: 'normal', aiFhq: { blue: null, red: null } };
+    diff: diff in DIFFS ? diff : 'normal', bots: ['red'], botDiff: 'normal', aiFhq: { blue: null, red: null }, supply: true, fallen: [] };
+  // the enemy's style: from the seed, on its own stream
+  const st = ['rush', 'turtle', 'flank', 'steady'];
+  s.style = { blue: 'steady', red: st[Math.floor(rng(seed ^ 0x2545f491)() * st.length)] };
   makeTerrain(s);
   for (const side of ['blue', 'red']) {
     const b = s.bases[side], dir = side === 'blue' ? 1 : -1;

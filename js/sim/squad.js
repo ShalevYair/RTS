@@ -12,7 +12,7 @@ function updateSquad(s, sq, dt) {
   const line = m.filter(u => !u.care);
   line.forEach((u, i) => { u.slot = i - (line.length - 1) / 2; });
   if (sq.order.form && !sq.support) placeForm(s, sq, dt);
-  const want = faceAt(s, sq.side, effOrder(s, sq));
+  const want = faceAt(s, sq.side, effOrder(s, sq), sq.order.form && sq.order.form.fa);
   sq.face = sq.face === undefined ? want : turnTo(sq.face, want, FACE_TURN * dt);
   const c = { x: sq.cx, y: sq.cy };
   if (fresh) sendReport(s, sq);
@@ -76,7 +76,7 @@ function initiative(s, sq, dt) {
     if (why !== null) { sq.support = null; sq.arrived = false; if (why) report(s, sq, why); }
     return;
   }
-  if (sq.dead || sq.retreating || sq.order.type === 'retreat' || !sq.arrived || inContact(sq) || sq.strength < 0.6) return;
+  if (sq.dead || sq.retreating || sq.order.type === 'retreat' || !sq.arrived || inContact(sq) || sq.strength < 0.6 || TYPES[sq.type].care) return; // (care squads don't join fights)
   if (threatAt(s, sq.side, sq.order, sq.order.r * 2)) return;
   let best = null, bd = Infinity;
   for (const t of s.squads) {
@@ -104,8 +104,13 @@ function updateUnit(s, u, sq, dt) {
   if (CARER[u.type]) {
     if (!u.care && u.hp < CARE_AT * T.hp) u.care = true;
     else if (u.care && u.hp >= CARE_DONE * T.hp) u.care = false;
-    if (u.care) { const f = careSpot(s, u, sq); if (dist(u, f) > CARE_R * 0.6) moveTo(s, u, f.x, f.y, 1.15, dt); return; }
   }
+  // and low on ammunition: off to the nearest supply truck (or home), holding fire, until refilled
+  if (s.supply && SUPPLY[u.type]) {
+    if (!u.resup && u.sup < SUPPLY_LOW) u.resup = true;
+    else if (u.resup && u.sup >= SUPPLY_DONE) u.resup = false;
+  } else u.resup = false;
+  if (u.care || u.resup) { const f = careSpot(s, u, sq, u.care ? CARER[u.type] : 'truck'); if (dist(u, f) > CARE_R * 0.6) moveTo(s, u, f.x, f.y, 1.15, dt); return; }
   const o = effOrder(s, sq), retreat = sq.retreating || o.type === 'retreat';
   const anchor = retreat ? homeOf(s, sq) : o;
   const up = 1 + ELEV_BONUS * (u.lvl || 0), range = T.range * up, sight = T.sight * up; // higher ground: further
@@ -124,7 +129,7 @@ function updateUnit(s, u, sq, dt) {
   if (!tgt && !retreat && u.cd === 0 && !T.care) {
     const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= range);
     if (n) {
-      u.engaged = true; n.hp -= T.dmg * NODE_MULT[u.type]; u.cd = T.cd; if (T.ammo) u.ammo--;
+      u.engaged = true; n.hp -= T.dmg * NODE_MULT[u.type]; u.cd = T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= 1 / SUPPLY[u.type];
       u.aim = Math.atan2(n.y - u.y, n.x - u.x); u.lastFire = s.t;
       shot(s, u, n);
       s.fx.push({ x: n.x, y: n.y, life: IMPACT[u.type].life, max: IMPACT[u.type].life, size: IMPACT[u.type].size, wait: SHOT_TIME[u.type] });
@@ -134,7 +139,7 @@ function updateUnit(s, u, sq, dt) {
     u.engaged = true;
     if (u.cd === 0) {
       const hit = friendlyFire(s, u, sq, tgt) || tgt;
-      hit.hp -= T.dmg * MULT[u.type][hit.type]; u.cd = T.cd; if (T.ammo) u.ammo--;
+      hit.hp -= T.dmg * MULT[u.type][hit.type]; u.cd = T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= 1 / SUPPLY[u.type];
       const fx = IMPACT[u.type];
       s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[u.type] });
       u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
@@ -162,8 +167,9 @@ function moveTo(s, u, tx, ty, fast, dt) {
   u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
 }
 // where a hurt unit goes: the nearest medic / mechanic of its side that isn't itself being treated, else home
-function careSpot(s, u, sq) {
-  const kind = CARER[u.type]; let best = null, bd = Infinity;
+// (kind: who to go to — a medic / mechanic for treatment, a supply truck for ammunition)
+function careSpot(s, u, sq, kind = CARER[u.type]) {
+  let best = null, bd = Infinity;
   for (const m of s.units) if (m.type === kind && m.side === u.side && m !== u && !m.care) { const d = dist(u, m); if (d < bd) { bd = d; best = m; } }
   return best || homeOf(s, sq);
 }

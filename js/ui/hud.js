@@ -3,13 +3,14 @@
 const blueIds = () => blueSquads().map(q => q.id);
 const selIds = () => sel === 'all' ? blueIds() : Array.isArray(sel) ? sel : [sel];
 function select(id) { sel = id; syncButtons(); updateHud(); }
-function issue(type, x, y) {
+// fa: the way the front should face (a drag), else toward the enemy
+function issue(type, x, y, fa) {
   const all = sel === 'all';
   const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id) : selIds();
   // all together: rows facing the enemy (tanks in front … medics and mechanics at the back); otherwise each on its own
   let ok = false;
-  if (all) ok = Sim.formation(s, ids, type, x, y, true);
-  else for (const id of ids) ok = Sim.order(s, id, type, x, y, false) || ok;
+  if (all) ok = Sim.formation(s, ids, type, x, y, true, fa);
+  else for (const id of ids) ok = Sim.order(s, id, type, x, y, false, Number.isFinite(fa) ? { fa } : undefined) || ok;
   if (ok && all) Sim.note(s, 'כל הכוחות: ' + (type === 'hold' ? 'מחזיקים עמדה' : type === 'attack' ? 'תוקפים את האזור' : 'נסוגים הביתה'));
   updateHud();
 }
@@ -57,7 +58,8 @@ function showEnd() {
   $('again').textContent = lvl && s.over === 'blue' ? '▶' : '↻';
   const b = Math.round(Sim.share(s, 'blue') * 100);
   $('endMe').textContent = b + '%'; $('endFoe').textContent = (100 - b) + '%';
-  $('endInfo').textContent = `${fmtTime(s.t)} · ${lvl ? lvl + ' / ' + Sim.LEVELS : Sim.DIFFS[s.diff].name}`;
+  const St = Sim.AI_STYLES[s.style.red];
+  $('endInfo').textContent = `${fmtTime(s.t)} · ${lvl ? lvl + ' / ' + Sim.LEVELS : Sim.DIFFS[s.diff].name + ' · ' + St.icon + ' ' + St.name}`;
   $('end').hidden = false; $('again').focus();
   const H = s.hist, show = s.fog && H.length > 1;
   $('replayBox').hidden = !show;
@@ -119,13 +121,14 @@ function updateHud() {
 
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { mode = b.dataset.mode; syncButtons(); }));
 document.querySelectorAll('[data-rate]').forEach(b => b.addEventListener('click', () => { rate = +b.dataset.rate; syncButtons(); }));
-$('all').addEventListener('click', () => select('all'));
+$('all').addEventListener('click', () => { select('all'); bar.classList.remove('sqOpen'); });
+$('sqT').addEventListener('click', () => bar.classList.toggle('sqOpen'));
 // squad buttons: one per blue squad (they come and go with buildings); icon drawn with the map glyphs
 let sqKey = '';
 function renderSquadButtons() {
   const list = blueSquads(), key = list.map(q => q.id).join();
   if (key === sqKey) return;
-  sqKey = key; const box = $('sqs'); box.textContent = '';
+  sqKey = key; const box = $('sqs'); box.textContent = ''; $('sqT').querySelector('b').textContent = list.filter(q => !q.dead).length;
   list.forEach((q, i) => {
     const b = document.createElement('button'); b.className = 'sqb'; b.dataset.sq = q.id;
     b.innerHTML = '<canvas width="52" height="52"></canvas><kbd></kbd><i></i>';
@@ -135,7 +138,7 @@ function renderSquadButtons() {
     c.fillStyle = tcol(q.type); c.beginPath(); c.arc(26, 26, 24, 0, Math.PI * 2); c.fill();
     glyph(c, q.type, 26 - (q.type === 'tank' ? 3 : 0), 26, q.type === 'air' ? 17 : 13, '#fff', null, 0, q.type === 'aa' ? -Math.PI / 2 : 0);
     // a second tap on the selected squad centres the camera on it
-    b.addEventListener('click', () => { if (sel === q.id && !q.dead) { const p = pos(q); if (p) lookAt(p.x, p.y); } select(q.id); });
+    b.addEventListener('click', () => { if (sel === q.id && !q.dead) { const p = pos(q); if (p) lookAt(p.x, p.y); } select(q.id); bar.classList.remove('sqOpen'); });
     box.appendChild(b);
   });
   if (Array.isArray(sel)) { sel = sel.filter(id => list.some(q => q.id === id)); if (sel.length < 2) sel = sel[0] || 'all'; }
@@ -214,7 +217,7 @@ $('go').addEventListener('click', () => { if (matchMedia('(pointer: coarse)').ma
 // (the radio log #log stays hidden for now: the map says it)
 const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'slots'], vehicles: ['bld'], care: ['bld'], air: ['bld'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq', 'slots'] };
 // building kinds each level step brings
-const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage'], air: ['aapost', 'airfield'] };
+const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage', 'depot'], air: ['aapost', 'airfield'] };
 // an element shows when any of the level steps that bring it is there
 const UI_EL_ANY = id => Object.keys(UI_EL).some(k => UI_EL[k].includes(id) && uiHas(k));
 function applyUi() {
