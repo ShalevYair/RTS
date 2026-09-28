@@ -51,9 +51,9 @@ function aiForward(s, side, mine, setOrder) {
     else if (sq.arrived && !pending(s, sq.id, 'order') && buildFhq(s, sq.id)) s.aiFhq[side] = null;
     return;
   }
-  if (s.cd[side].fhq > 0) return;
+  if (s.cd[side].fhq > 0 || fhqCount(s, side) >= NODES.fhq.max) return;
   const nodes = controlNodes(s, side).filter(n => n.kind !== 'drone'), foe = s.bases[foeOf(side)];
-  const hills = s.hills.filter(h => quality(s, side, h) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
+  const hills = s.hills.filter(h => quality(s, side, h, true) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
     nodes.some(n => dist(n, h) < NODES[n.kind].r1 + AI_FHQ_REACH) && !threatAt(s, side, h, AI_NEAR));
   let best = null, bs = Infinity;
   for (const q of mine) if (FHQ_BUILDERS.includes(q.type) && q.strength >= AI_READY) for (const h of hills) {
@@ -65,13 +65,28 @@ function aiForward(s, side, mine, setOrder) {
   const h = best.hill; setOrder(s.squads.find(q => q.id === best.sq), 'hold', h.x, h.y);
 }
 
+// where a medic / mechanic squad waits: a little behind the squads it treats (or all of ours), toward home;
+// on a coarse grid so the order isn't resent for every step they take
+function careStation(s, sq, mine) {
+  const home = homeOf(s, sq);
+  let list = mine.filter(q => CARER[q.type] === sq.type && q.type !== sq.type);
+  if (!list.length) list = mine.filter(q => !TYPES[q.type].care && !TYPES[q.type].air);
+  if (!list.length) return home;
+  const c = { x: list.reduce((a, q) => a + q.cx, 0) / list.length, y: list.reduce((a, q) => a + q.cy, 0) / list.length };
+  const d = dist(c, home) || 1, back = Math.min(d, 110), G = 40;
+  return { x: Math.round((c.x + (home.x - c.x) / d * back) / G) * G, y: Math.round((c.y + (home.y - c.y) / d * back) / G) * G };
+}
+
 function think(s, side, level) {
   const D = DIFFS[level] || DIFFS.normal, foe = foeOf(side), taken = new Map();
   const mine = s.squads.filter(q => q.side === side && !q.dead && !q.retreating);
   const setOrder = (sq, type, x, y) => {
     // compare with what was asked, not where the commander understood it (that would resend every time)
-    const p = pending(s, sq.id, 'order'), cur = p || sq.order, w = cur.want || cur;
+    const p = pending(s, sq.id, 'order'), cur = p || sq.order, w = cur.want || cur, k = sq.aiAsk;
     if (w.x === x && w.y === y && cur.type === type) return;
+    // (a target in a lake is moved to the shore: compare with what the AI itself last asked, too)
+    if (k && k.x === x && k.y === y && k.type === type && cur.type === type) return;
+    sq.aiAsk = { type, x, y };
     order(s, sq.id, type, x, y, true);
   };
   // what the AI may do: tutorial levels hold the enemy (red) back; the full game allows everything
@@ -82,6 +97,7 @@ function think(s, side, level) {
   const foes = s.squads.filter(q => q.side === foe).map(q => ({ q, k: intel(s, side, q) })).filter(o => o.k);
   for (const sq of mine) {
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
+    if (TYPES[sq.type].care) { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); continue; }
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
     if (D.smart && sq.strength < AI_READY && !fighting) { const h = homeOf(s, sq); setOrder(sq, 'hold', h.x, h.y); continue; }
@@ -95,7 +111,7 @@ function think(s, side, level) {
     if (!cands.length) continue;
     const score = p => {
       // massing on one target where control is poor means shooting each other (friendly fire): spread out there
-      const mass = D.mass && (!s.fog || quality(s, side, p) >= FF_MASS_Q);
+      const mass = D.mass && (!friction(s) || quality(s, side, p) >= FF_MASS_Q);
       let sc = dist(c, p) + p.w + (mass ? -150 : 200) * (taken.get(p.x + ',' + p.y) || 0);
       if (D.smart && p.edge) sc -= 60 * edgeAt(s, sq, p);
       if (D.smart && sq.type === 'air') for (const { q, k } of foes) if (k.type === 'aa' && Math.hypot(k.x - p.x, k.y - p.y) < 150) sc += 300 * k.strength;
@@ -115,11 +131,14 @@ function think(s, side, level) {
     for (const sq of s.squads) if (sq.side === side && sq.trait !== tr) setTrait(s, sq.id, tr, true);
   }
   // drones: first on a fresh track we can't make out, else where we know least — an unexplored spot on the enemy's side
-  const blur = D.smart && can.drone && s.fog && s.cd[side].drone <= 0 && foes.find(o => o.k.lvl < 2 && s.t - o.k.t < 5);
+  // (one drone per think, never where one of ours already looks)
+  const hand = D.smart && can.drone && s.fog && s.drones[side].stock > 0;
+  const free = (x, y) => !s.nodes.some(n => n.side === side && n.kind === 'drone' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0 * 1.5);
+  const blur = hand && foes.find(o => o.k.lvl < 2 && s.t - o.k.t < 5 && free(o.k.x, o.k.y));
   if (blur) drone(s, side, blur.k.x, blur.k.y);
-  else if (D.smart && can.drone && s.fog && s.cd[side].drone <= 0) {
+  else if (hand) {
     const x = s.bases[foe].x + (s.bases[side].x - s.bases[foe].x) * (0.2 + 0.4 * s.rand()), y = 60 + s.rand() * (s.H - 120);
-    if (!structs.some(n => n.id !== 'hq?' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0)) drone(s, side, x, y);
+    if (free(x, y) && !structs.some(n => n.id !== 'hq?' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0)) drone(s, side, x, y);
   }
   // no hill for it: a builder that reached its target, far from our other control nodes, sets one up there
   if (D.smart && can.fhq && s.cd[side].fhq <= 0 && !s.aiFhq[side]) {

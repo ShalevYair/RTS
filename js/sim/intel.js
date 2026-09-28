@@ -9,7 +9,7 @@ function intel(s, side, q) {
 }
 // how well a side can make out an enemy at p: 2 type and number, 1 ground/air, 0 only "something moves"
 function idLevel(s, side, p) {
-  if (!s.fog) return 2;
+  if (!friction(s)) return 2;
   const q = quality(s, side, p);
   return q >= ID_FULL ? 2 : q >= ID_CLASS ? 1 : 0;
 }

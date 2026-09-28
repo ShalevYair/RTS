@@ -6,8 +6,10 @@ function select(id) { sel = id; syncButtons(); updateHud(); }
 function issue(type, x, y) {
   const all = sel === 'all';
   const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id) : selIds();
+  // all together: rows facing the enemy (tanks in front … medics and mechanics at the back); otherwise each on its own
   let ok = false;
-  for (const id of ids) ok = Sim.order(s, id, type, x, y, all) || ok;
+  if (all) ok = Sim.formation(s, ids, type, x, y, true);
+  else for (const id of ids) ok = Sim.order(s, id, type, x, y, false) || ok;
   if (ok && all) Sim.note(s, 'כל הכוחות: ' + (type === 'hold' ? 'מחזיקים עמדה' : type === 'attack' ? 'תוקפים את האזור' : 'נסוגים הביתה'));
   updateHud();
 }
@@ -18,14 +20,12 @@ function syncButtons() {
   document.querySelectorAll('[data-sq]').forEach(b => b.setAttribute('aria-pressed', String(sel !== 'all' && isSel(b.dataset.sq))));
   document.querySelectorAll('[data-diff]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.diff === diff)));
   document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
-  const traitOf = id => (s.outbox.find(m => m.id === id && m.kind === 'trait') || s.squads.find(q => q.id === id)).trait;
-  const traits = new Set(selIds().map(traitOf));
-  document.querySelectorAll('[data-trait]').forEach(b => b.setAttribute('aria-pressed', String(traits.size === 1 && traits.has(b.dataset.trait))));
   document.querySelectorAll('[data-rate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.rate === rate)));
   const pb = $('play'); pb.textContent = playing ? '⏸' : '▶'; pb.setAttribute('aria-label', playing ? 'עצור' : 'התחל');
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
   document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.map === 'big') === bigMap)));
-  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !s.fog || !uiHas('fhq');
+  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq');
+  $('fs').hidden = !fsCan();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
   cv.style.cursor = eyeArmed ? 'zoom-in' : buildArmed ? 'copy' : '';
 }
@@ -79,12 +79,13 @@ function updateHud() {
   $('slotN').textContent = Sim.buildCount(s, 'blue') + '/' + Sim.buildLimit(s, 'blue');
   $('bld').setAttribute('aria-disabled', String(buildFull() && !buildArmed));
   renderSquadButtons();
-  // drone / forward HQ buttons: seconds until ready, and a refill bar
-  const cd = s.cd.blue, N = Sim.NODES;
-  $('eyeN').textContent = cd.drone > 0 ? Math.ceil(cd.drone) : ''; $('eye').disabled = cd.drone > 0 && !eyeArmed;
-  $('eye').style.setProperty('--p', (1 - cd.drone / N.drone.every).toFixed(2));
+  // drones: how many in hand, and a bar until the next one; forward HQ: seconds until the next, and a refill bar
+  const cd = s.cd.blue, N = Sim.NODES, D = s.drones.blue;
+  $('eyeN').textContent = D.stock || ''; $('eye').disabled = D.stock < 1 && !eyeArmed;
+  $('eye').style.setProperty('--p', D.stock + Sim.dronesUp(s, 'blue') >= N.drone.max ? '1' : (1 - D.next / N.drone.every).toFixed(2));
   const bsq = oneSel() && s.squads.find(q => q.id === oneSel());
-  $('fhqN').textContent = cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').disabled = !Sim.canBuildFhq(s, bsq);
+  $('fhqN').textContent = Sim.fhqCount(s, 'blue') >= N.fhq.max ? N.fhq.max + '/' + N.fhq.max : cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').setAttribute('aria-disabled', String(!Sim.canBuildFhq(s, bsq)));
+  if (s.fog !== fogWas) { fogWas = s.fog; syncButtons(); } // the tutorial's fog comes down mid-level
   $('fhq').style.setProperty('--p', (1 - cd.fhq / N.fhq.every).toFixed(2));
   $('bb').hidden = Sim.boost(s, 'blue') < 0.05;
   const key = s.log.length + ':' + (s.log.at(-1)?.t ?? '') + ':' + Math.floor(s.t / 2);
@@ -118,12 +119,6 @@ function updateHud() {
 
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { mode = b.dataset.mode; syncButtons(); }));
 document.querySelectorAll('[data-rate]').forEach(b => b.addEventListener('click', () => { rate = +b.dataset.rate; syncButtons(); }));
-document.querySelectorAll('[data-trait]').forEach(b => b.addEventListener('click', () => {
-  const all = sel === 'all'; let ok = false;
-  for (const id of selIds()) ok = Sim.setTrait(s, id, b.dataset.trait, all) || ok;
-  if (ok && all) Sim.note(s, `כל הכוחות: מצב ${Sim.TRAITS[b.dataset.trait].name}`);
-  syncButtons(); updateHud();
-}));
 $('all').addEventListener('click', () => select('all'));
 // squad buttons: one per blue squad (they come and go with buildings); icon drawn with the map glyphs
 let sqKey = '';
@@ -159,7 +154,7 @@ function believedShare() {
   const me = s.power.blue; return me + foe > 0 ? me / (me + foe) : 0.5;
 }
 // build menu: pick a building, then a spot on the map where control is strong enough
-const BUILD_WHY = { q: 'השליטה כאן חלשה מדי לבנייה', limit: 'אין מקום פנוי במכסה — הקם פיקוד קדמי', gap: 'קרוב מדי למבנה אחר', bad: 'מחוץ למפה' };
+const BUILD_WHY = { q: 'השליטה כאן חלשה מדי לבנייה', limit: 'אין מקום פנוי במכסה — הקם 🏕 פיקוד קדמי', gap: 'קרוב מדי למבנה אחר', bad: 'מחוץ למפה' };
 function initBuildMenu() {
   const m = $('buildm');
   for (const k of Sim.PRODUCERS) {
@@ -179,10 +174,11 @@ function syncBuildMenu(fresh) {
   }
 }
 const buildFull = () => Sim.buildCount(s, 'blue') >= Sim.buildLimit(s, 'blue');
-// no free slot: the button is dimmed, and pressing it anyway flashes the slots counter
+const blink = el => { el.classList.remove('blink'); void el.offsetWidth; el.classList.add('blink'); };
+// no free slot: the button is dimmed, and pressing it anyway flashes the slots counter and the way out: 🏕
 function toggleBuild() {
   const m = $('buildm');
-  if (!buildArmed && m.hidden && buildFull()) { const k = $('slots'); k.classList.remove('blink'); void k.offsetWidth; k.classList.add('blink'); return; }
+  if (!buildArmed && m.hidden && buildFull()) { blink($('slots')); if (!$('fhq').hidden) blink($('fhq')); return; }
   if (buildArmed) { buildArmed = null; m.hidden = true; } else m.hidden = !m.hidden;
   syncButtons();
 }
@@ -213,17 +209,17 @@ function renderLevels() {
     box.appendChild(b);
   }
 }
-$('go').addEventListener('click', () => { showIntro(false); setPlaying(true); });
+$('go').addEventListener('click', () => { if (matchMedia('(pointer: coarse)').matches && fsCan()) fullScreen(true); showIntro(false); setPlaying(true); });
 // only the controls this level has; the ones it adds pulse until first used
-const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'slots'], vehicles: ['bld'], air: ['bld'], traits: ['gTrait'], fog: ['log'] };
+const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'slots'], vehicles: ['bld'], care: ['bld'], air: ['bld'], fog: [], eye: ['eye'], c2: ['log'], fhq: ['fhq', 'slots'] };
 // building kinds each level step brings
-const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], air: ['aapost', 'airfield'] };
+const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage'], air: ['aapost', 'airfield'] };
 // an element shows when any of the level steps that bring it is there
 const UI_EL_ANY = id => Object.keys(UI_EL).some(k => UI_EL[k].includes(id) && uiHas(k));
 function applyUi() {
   const fresh = lvl > 1 ? Sim.levelUi(lvl).filter(k => !Sim.levelUi(lvl - 1).includes(k)) : [];
   document.querySelectorAll('.new').forEach(e => e.classList.remove('new'));
-  for (const k in UI_EL) for (const id of UI_EL[k]) $(id).hidden = !UI_EL_ANY(id);
+  for (const k in UI_EL) for (const id of UI_EL[k]) if (id !== 'eye' && id !== 'fhq') $(id).hidden = !UI_EL_ANY(id);
   syncBuildMenu(fresh.flatMap(k => UI_BUILDS[k] || []));
   for (const k of fresh) for (const id of UI_EL[k] || [k]) $(id).classList.add('new');
   bar.classList.toggle('tut', !!s.ui && s.ui.length < 4);
@@ -239,11 +235,29 @@ document.querySelectorAll('[data-fog]').forEach(b => b.addEventListener('click',
   fog = b.dataset.fog === '1'; s.fog = fog; try { localStorage.setItem('irts-fog', fog ? '1' : '0'); } catch (e) { /* ignore */ }
   syncButtons();
 }));
-let eyeArmed = false;
-function toggleEye() { eyeArmed = !eyeArmed && s.fog && s.cd.blue.drone <= 0; syncButtons(); }
+let eyeArmed = false, fogWas = null;
+function toggleEye() { eyeArmed = !eyeArmed && s.fog && s.drones.blue.stock > 0; syncButtons(); }
 $('eye').addEventListener('click', toggleEye);
-// forward HQ: the selected tank/jeep squad sets one up where it stands (the order travels like any other)
-function buildHere() { if (oneSel() && Sim.buildFhq(s, oneSel())) updateHud(); }
+// forward HQ: the selected tank/jeep squad sets one up where it stands (the order travels like any other).
+// Nothing fit selected: the squads that could do it blink.
+function buildHere() {
+  if (oneSel() && Sim.buildFhq(s, oneSel())) { updateHud(); return; }
+  if (s.cd.blue.fhq > 0) return;
+  for (const b of document.querySelectorAll('[data-sq]')) { const q = s.squads.find(x => x.id === b.dataset.sq); if (q && Sim.canBuildFhq(s, q)) blink(b); }
+}
+// full screen (and landscape, where the phone allows it); a tap on ▶ on a phone goes full screen by itself
+const fsEl = document.documentElement;
+const fsCan = () => !!(fsEl.requestFullscreen || fsEl.webkitRequestFullscreen) && !matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
+const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+function fullScreen(on = !fsOn()) {
+  try {
+    if (on && !fsOn()) {
+      const p = (fsEl.requestFullscreen || fsEl.webkitRequestFullscreen).call(fsEl, { navigationUI: 'hide' });
+      if (p && p.then) p.then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (e) { /* not on this device */ } }).catch(() => {});
+    } else if (!on && fsOn()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } catch (e) { /* not allowed here */ }
+}
+$('fs').addEventListener('click', () => fullScreen());
 $('fhq').addEventListener('click', buildHere);
 const answerCall = choice => { if (Sim.answer(s, +$('call').dataset.id, choice)) updateHud(); };
 $('callHold').addEventListener('click', () => answerCall('hold'));

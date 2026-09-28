@@ -29,3 +29,5 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 initBuildMenu(); newGame(); requestAnimationFrame(frame);
+// installable as an app (full screen from the home screen); only over http(s), not from the disk
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});

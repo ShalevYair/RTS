@@ -16,12 +16,12 @@ const rate = (x, n = 20000, fog = true) => {
   for (let i = 0; i < n; i++) if (Sim.friendlyFire(s, u, inf, tgt)) hits++;
   return { r: hits / n, s };
 };
-// Q around blue's HQ (x = 30): 1 up to x = 310, floor 0.15 from x = 510
+// Q around blue's HQ (x = 30): 1 up to x = 310, rings of 80/60/40/20% every 50, floor 0.15 from x = 510
 const far = rate(800), want = 0.08 * 0.85 * 0.85;
 ok(Math.abs(far.r - want) < 0.008, `at the control floor: ${(far.r * 100).toFixed(1)}% (formula ${(want * 100).toFixed(1)}%)`);
 ok(rate(200).r === 0, 'full control: never');
-const mid = rate(410).r; // Q = 0.5 -> 2%
-ok(Math.abs(mid - 0.02) < 0.005, `half control: ${(mid * 100).toFixed(1)}% (formula 2.0%)`);
+const mid = rate(385).r; // Q = 0.6 -> 1.28%
+ok(Math.abs(mid - 0.0128) < 0.004, `60% control: ${(mid * 100).toFixed(1)}% (formula 1.3%)`);
 ok(rate(800, 2000, false).r === 0, 'without fog: never');
 ok(far.s.log2.ff > 0 && far.s.ff.length === far.s.log2.ff, 'incidents logged for the replay and the end screen');
 ok(far.s.marks.filter(k => k.kind === 'ff').length === 1 && far.s.log.filter(e => /ירי על כוחותינו/.test(e.msg)).length === 1, 'one report per squad per few seconds, not per shot');
