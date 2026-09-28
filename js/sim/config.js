@@ -4,6 +4,9 @@ const H = 640;
 // HILL_AREA of ground, none within HILL_CLEAR of either edge (the bases) and HILL_GAP apart.
 // On a hill (ground units): range +20%, sight +30%, damage taken −30%, speed −20%.
 const MAP_H_MAX = 1400, MAP_W_MAX = 3000, HILL_AREA = 100000, HILL_CLEAR = 240, HILL_GAP = 30;
+// random maps: the enemy's half is our half's twin, each feature moved up to MAP_JITTER and resized up to MAP_RESIZE;
+// lakes keep LAKE_GAP between them
+const MAP_JITTER = 30, MAP_RESIZE = 0.12, LAKE_GAP = 60;
 // lakes: ground units go around them (only aircraft fly over); nothing is built within LAKE_PAD of one.
 // A ground unit looks LAKE_LOOK ahead and slides along the shore when the way is wet.
 const LAKE_PAD = 20, LAKE_LOOK = 28;

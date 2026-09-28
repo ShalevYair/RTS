@@ -30,4 +30,4 @@ function step(s, dt) {
   }
 }
 
-const Sim = { create, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+const Sim = { create, lakeAt, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };

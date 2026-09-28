@@ -9,26 +9,46 @@ function spawn(s, sq, x, y) {
 function makeBase(x, x0, x1, h) {
   return { x, y: h / 2, x0, x1 };
 }
-// hills: the small map keeps its fixed layout; a bigger one gets many, from the seed, mirrored so both sides
-// get the same ground (plus a few on the centre line). Kept clear of the bases and each other.
-function makeHills(s) {
-  const W = s.W, h = s.H, cx = W / 2;
-  if (h <= H) {
-    const off = 0.17 * W;
-    return [{ x: cx, y: 555, r: 75 }, { x: cx - off, y: 165, r: 60 }, { x: cx + off, y: 165, r: 60 }, { x: cx - off, y: 470, r: 55 }, { x: cx + off, y: 470, r: 55 }, { x: cx, y: 90, r: 55 }];
+// The ground, new every game (from the seed, on its own random stream so it doesn't shift the rest of the game).
+// Our half is made first; the enemy's is its twin — mirrored left-right or turned half a circle (picked per map),
+// each feature nudged by up to MAP_JITTER and resized by up to MAP_RESIZE: close to fair, never identical.
+// A few hills sit on the centre line. Nothing within `clear` of either edge (the bases), nothing overlapping.
+function makeTerrain(s) {
+  const W = s.W, h = s.H, cx = W / 2, big = h > H, r = rng(s.seed ^ 0x5bd1e995);
+  const clear = big ? HILL_CLEAR : clamp(0.2 * W, 140, HILL_CLEAR), J = big ? MAP_JITTER * 1.5 : MAP_JITTER;
+  const turn = r() < 0.5, jit = () => (r() * 2 - 1) * J, size = v => v * (1 + (r() * 2 - 1) * MAP_RESIZE);
+  const twin = f => ({ ...f, x: W - f.x + jit(), y: (turn ? h - f.y : f.y) + jit() });
+  const lakes = [], hills = [];
+  const inside = (f, R) => f.x - R >= clear && f.x + R <= W - clear && f.y - R >= 10 && f.y + R <= h - 10;
+  const lakeFree = (f, R) => inside(f, R) && lakes.every(l => Math.hypot(l.x - f.x, l.y - f.y) > l.rx + R + LAKE_GAP);
+  const hillFree = (f, R) => inside(f, R) && hills.every(o => Math.hypot(o.x - f.x, o.y - f.y) > o.r + R + HILL_GAP) &&
+    lakes.every(l => Math.hypot(l.x - f.x, l.y - f.y) > l.rx + R + HILL_GAP);
+  // lakes: pairs (and on a big map sometimes one on the centre line)
+  const lakePairs = big ? 2 + Math.floor(r() * 2) : W >= 1100 && r() < 0.5 ? 2 : 1;
+  for (let i = 0, n = 0; i < 300 && n < lakePairs; i++) {
+    const rx = 40 + r() * 25, ry = 16 + r() * 12, a = (r() - 0.5) * 1.2;
+    const f = { x: clear + rx + r() * (cx - clear - 2 * rx - 20), y: ry + 20 + r() * (h - 2 * ry - 40), rx, ry, a };
+    const g = { ...twin(f), rx: size(rx), ry: size(ry), a: turn ? a : -a };
+    if (lakeFree(f, rx) && lakeFree(g, g.rx) && Math.hypot(f.x - g.x, f.y - g.y) > rx + g.rx + LAKE_GAP) { lakes.push(f, g); n++; }
   }
-  const out = [], free = (x, y, r) => out.every(o => Math.hypot(o.x - x, o.y - y) > o.r + r + HILL_GAP) &&
-    !lakeAt(s, { x, y }, r + HILL_GAP);
-  for (let i = 0, mid = 0; i < 200 && mid < 3; i++) {
-    const r = 55 + s.rand() * 25, y = r + 20 + s.rand() * (h - 2 * r - 40);
-    if (free(cx, y, r)) { out.push({ x: cx, y, r }); mid++; }
+  if (big && r() < 0.5) for (let i = 0; i < 50; i++) {
+    const f = { x: cx, y: 60 + r() * (h - 120), rx: 30 + r() * 15, ry: 45 + r() * 20, a: (r() - 0.5) * 0.4 };
+    if (lakeFree(f, f.ry)) { lakes.push(f); break; }
   }
-  const want = Math.round(W * h / HILL_AREA);
-  for (let i = 0; i < 2000 && out.length < want; i++) {
-    const r = 40 + s.rand() * 40, x = HILL_CLEAR + r + s.rand() * (cx - HILL_CLEAR - 2 * r - 30), y = r + 10 + s.rand() * (h - 2 * r - 20);
-    if (free(x, y, r) && free(W - x, y, r)) out.push({ x, y, r }, { x: W - x, y, r });
+  // hills: one to three on the centre line, then pairs up to about one per HILL_AREA (small map: 6-8 in all)
+  const mids = big ? 3 : 1 + Math.floor(r() * 2);
+  for (let i = 0, n = 0; i < 200 && n < mids; i++) {
+    const R = 50 + r() * 25, f = { x: cx + (r() - 0.5) * J, y: R + 20 + r() * (h - 2 * R - 40), r: R };
+    if (hillFree(f, R)) { hills.push(f); n++; }
   }
-  return out;
+  const want = big ? Math.round(W * h / HILL_AREA) : 6 + Math.floor(r() * 3);
+  for (let i = 0; i < 3000 && hills.length < want; i++) {
+    const R = (big ? 40 : 45) + r() * (big ? 40 : 25);
+    const f = { x: clear + R + r() * (cx - clear - 2 * R - 30), y: R + 10 + r() * (h - 2 * R - 20), r: R };
+    const g = { ...twin(f), r: size(R) };
+    if (hillFree(f, R) && hillFree(g, g.r) && Math.hypot(f.x - g.x, f.y - g.y) > R + g.r + HILL_GAP) hills.push(f, g);
+  }
+  s.lakes = lakes; s.hills = hills; s.turn = turn;
 }
 
 // a squad with its commander; `home` is the building that raises and refills it (null: no refills)
@@ -51,19 +71,11 @@ const fillSquad = (s, sq, x, y) => {
 };
 
 // Opening (DESIGN.md §3): HQ, a tent with its infantry, and one jeep squad without a building
-// lakes (ground units go around them): the small map has two, a taller one two more; mirrored like the hills
-function makeLakes(s) {
-  const W = s.W, ky = s.H / H;
-  const out = [{ x: W * 0.36, y: 592 * ky, rx: 55, ry: 22, a: 0.1 }, { x: W * 0.64, y: 50 * ky, rx: 55, ry: 22, a: -0.1 }];
-  if (ky > 1) out.push({ x: W * 0.2, y: s.H * 0.35, rx: 60, ry: 25, a: 0.2 }, { x: W * 0.8, y: s.H * 0.65, rx: 60, ry: 25, a: 0.2 });
-  return out;
-}
-
 // mapH: the world's height (H = the small map; up to MAP_H_MAX for the big one, DESIGN.md §5)
 function create(seed = 1, W = 1000, diff = 'normal', mapH = H) {
   const h = clamp(Math.round(mapH) || H, H, MAP_H_MAX);
   W = clamp(Math.round(W) || 1000, 700, MAP_W_MAX);
-  const s = { W, H: h, t: 0, over: null, nextId: 1, nextSq: 0, rand: rng(seed), hills: [], lakes: [],
+  const s = { W, H: h, seed, t: 0, over: null, nextId: 1, nextSq: 0, rand: rng(seed), hills: [], lakes: [],
     bases: { blue: makeBase(30, 0, 60, h), red: makeBase(W - 30, W - 60, W, h) },
     squads: [], units: [], shots: [], fx: [], log: [], aiIn: { blue: 0, red: 0 }, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true,
     vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} }, memNodes: { blue: {}, red: {} },
@@ -71,7 +83,7 @@ function create(seed = 1, W = 1000, diff = 'normal', mapH = H) {
     log2: { orders: 0, delay: 0, answered: 0, missed: 0, off: 0, offN: 0, ff: 0 }, ff: [], power: { blue: 0, red: 0 }, peak: { blue: 0, red: 0 }, plan: { blue: 0, red: 0 },
     nodes: [], nextNode: 1, visNodes: { blue: new Set(), red: new Set() }, cd: { blue: { drone: 0, fhq: 0 }, red: { drone: 0, fhq: 0 } },
     diff: diff in DIFFS ? diff : 'normal', bots: ['red'], botDiff: 'normal', aiFhq: { blue: null, red: null } };
-  s.lakes = makeLakes(s); s.hills = makeHills(s);
+  makeTerrain(s);
   for (const side of ['blue', 'red']) {
     const b = s.bases[side], dir = side === 'blue' ? 1 : -1;
     addStruct(s, side, 'hq', b.x, h / 2, true);

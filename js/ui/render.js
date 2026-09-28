@@ -1,11 +1,13 @@
 // UI: canvas rendering — terrain, bases, points, fog, intel, marks, units
-// scenery (no effect on play): the small map keeps its fixed look; a taller map scales it (ky) and gets more of it
+// scenery (no effect on play), new every game like the ground: grass, fields, trees, rocks, and roads from each
+// side's edge to a crossing near the middle. The enemy's roads are twins of ours (the same mirror or half-turn as
+// the ground, nudged a little), and no road runs through a lake.
 function makeDecor(s) {
   const W = s.W, ky = s.H / Sim.H, K = W * ky;
-  let a = s.H > Sim.H ? 12345 + Math.round(s.hills[0].y * 1000) : 12345; const r = () => ((a = (a * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  let a = (s.seed * 2654435761 >>> 1) || 12345; const r = () => ((a = (a * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
   const mid = W / 2, ok = (x, m = 0) => x > 90 + m && x < W - 90 - m && Math.abs(x - mid) > 80 + m;
   const lakes = s.lakes; // part of the ground now (ground units go around them)
-  const inLake = (x, y) => lakes.some(l => ((x - l.x) / (l.rx + 8)) ** 2 + ((y - l.y) / (l.ry + 8)) ** 2 < 1);
+  const inLake = (x, y) => !!Sim.lakeAt(s, { x, y }, 8);
   const patches = [], fields = [], trees = [], rocks = [], n = Math.round(K / 70);
   for (let i = 0; i < n; i++) patches.push({ x: 90 + r() * (W - 180), y: r() * s.H, rx: 40 + r() * 70, ry: 25 + r() * 40 });
   for (let i = 0; i < Math.round(K / 220); i++) {
@@ -18,7 +20,32 @@ function makeDecor(s) {
   }
   for (let i = 0; i < Math.round(K / 80); i++) { const x = 100 + r() * (W - 200), y = 20 + r() * (s.H - 40); if (ok(x) && !inLake(x, y)) rocks.push({ x, y, r: 1.5 + r() * 2.5 }); }
   trees.sort((p, q) => p.y - q.y);
-  return { patches, fields, lakes, trees, rocks };
+  return { patches, fields, lakes, trees, rocks, roads: makeRoads(s, r) };
+}
+function makeRoads(s, r) {
+  const W = s.W, H = s.H, n = H > Sim.H ? 5 : 3 + (r() < 0.5 ? 1 : 0);
+  let roads = [];
+  const bez = (P, k) => { const u = 1 - k; return { x: u * u * u * P[0].x + 3 * u * u * k * P[1].x + 3 * u * k * k * P[2].x + k * k * k * P[3].x, y: u * u * u * P[0].y + 3 * u * u * k * P[1].y + 3 * u * k * k * P[2].y + k * k * k * P[3].y }; };
+  const dry = P => { for (let i = 0; i <= 30; i++) if (Sim.lakeAt(s, bez(P, i / 30), 14)) return false; return true; };
+  const twin = p => ({ x: W - p.x + (r() - 0.5) * 30, y: (s.turn ? H - p.y : p.y) + (r() - 0.5) * 30 });
+  // roads for one crossing X: for each lane, a few tries at a dry pair (ours and its twin)
+  const lay = X => {
+    const out = [];
+    for (let k = 0; k < n; k++) for (let tries = 0; tries < 15; tries++) {
+      const y = H * (k + 0.5) / n + (r() - 0.5) * H / n * 0.6;
+      const P = [{ x: 60, y }, { x: W * (0.18 + r() * 0.1), y: y + (r() - 0.5) * 80 }, { x: W * (0.3 + r() * 0.1), y: X.y + (r() - 0.5) * 120 }, X];
+      const Q = [{ x: W - 60, y: s.turn ? H - y : y }, twin(P[1]), twin(P[2]), X];
+      if (dry(P) && dry(Q)) { out.push(P, Q); break; }
+    }
+    return out;
+  };
+  // the crossing that gets the most roads through (lakes near the middle can block some spots)
+  for (let i = 0; i < 12 && roads.length < 2 * n; i++) {
+    const X = { x: W / 2 + (r() - 0.5) * 160, y: H / 2 + (r() - 0.5) * H * 0.5 };
+    if (Sim.lakeAt(s, X, 30)) continue;
+    const got = lay(X); if (got.length > roads.length) roads = got;
+  }
+  return roads;
 }
 
 // ---- render ----
@@ -101,13 +128,9 @@ function drawTerrain(c, W, H, mid) {
     c.fillStyle = colors.treeHi; ring(t.x - t.r * 0.3, t.y - t.r * 0.3, t.r * 0.5); c.fill();
   }
   c.fillStyle = colors.rock; for (const r of decor.rocks) { ring(r.x, r.y, r.r); c.fill(); }
-  const ky = H / Sim.H, cy = H / 2;
   const roads = () => {
     c.beginPath();
-    for (const y of [80, 240, 400, 560]) {
-      c.moveTo(60, y * ky); c.bezierCurveTo(W * 0.25, y * ky, W * 0.3, cy, mid, cy);
-      c.moveTo(W - 60, y * ky); c.bezierCurveTo(W * 0.75, y * ky, W * 0.7, cy, mid, cy);
-    }
+    for (const P of decor.roads) { c.moveTo(P[0].x, P[0].y); c.bezierCurveTo(P[1].x, P[1].y, P[2].x, P[2].y, P[3].x, P[3].y); }
   };
   c.lineCap = 'round';
   roads(); c.strokeStyle = colors.roadEdge; c.lineWidth = 13; c.stroke();

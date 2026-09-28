@@ -47,8 +47,10 @@ while (s.t < 150) Sim.step(s, 1 / 30);
 Sim.think(s, 'red', 'normal'); const box = s.outbox.filter(x => x.side === 'red' && x.kind === 'order');
 Sim.think(s, 'red', 'normal'); const box2 = s.outbox.filter(x => x.side === 'red' && x.kind === 'order');
 ok(box.length === box2.length && box.every((x, i) => x === box2[i]), `second think with nothing new sends nothing (${box.length} on the way)`);
-const off = s.squads.filter(q => q.side === 'red' && q.order.want && Math.hypot(q.order.x - q.order.want.x, q.order.y - q.order.want.y) > 1).length;
-ok(off > 0, `red orders are also carried out roughly (${off} squads off target)`);
+// (over the game, not at one moment: near its own HQ a squad's orders land exactly)
+let off = 0;
+for (; s.t < 420 && !s.over && !off; Sim.step(s, 1 / 30)) off = s.squads.filter(q => q.side === 'red' && q.order.want && Math.hypot(q.order.x - q.order.want.x, q.order.y - q.order.want.y) > 1).length;
+ok(off > 0, `red orders are also carried out roughly (${off} squads off target, by ${s.t.toFixed(0)} s)`);
 // full games: the AI still finishes games under the new uncertainty, and uses drones on blurry tracks
 let fin = 0, ids = { 0: 0, 1: 0, 2: 0 };
 for (let i = 0; i < 4; i++) {
