@@ -4,6 +4,7 @@ function step(s, dt) {
   s.t += dt;
   for (const sq of s.squads) updateSquad(s, sq, dt);
   for (const sq of s.squads) initiative(s, sq, dt);
+  for (const u of s.units) u.hill = !TYPES[u.type].air && inHill(s, u);
   const bySquad = new Map(s.squads.map(q => [q.id, q]));
   for (const u of s.units) updateUnit(s, u, bySquad.get(u.squad), dt);
   separate(s);

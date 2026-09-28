@@ -1,5 +1,10 @@
 // Sim: game constants and tunables (no DOM; also loaded by the Node tests)
 const H = 640;
+// map size (DESIGN.md §5): the small map is H high; the big one 2× wide and 2× high. Big maps get about one hill per
+// HILL_AREA of ground, none within HILL_CLEAR of either edge (the bases) and HILL_GAP apart.
+// On a hill (ground units): range +20%, sight +30%, damage taken −30%, speed −20%.
+const MAP_H_MAX = 1400, MAP_W_MAX = 3000, HILL_AREA = 100000, HILL_CLEAR = 240, HILL_GAP = 30;
+const HILL_RANGE = 1.2, HILL_SIGHT = 1.3, HILL_ARMOR = 0.7, HILL_SLOW = 0.8;
 const TYPES = {
   inf:  { name: 'חי"ר',  hp: 60,  speed: 30, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 5, rein: 7, cost: 1 },
   tank: { name: 'טנקים', hp: 150, speed: 44, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 8, rein: 12, cost: 2 },
@@ -86,4 +91,6 @@ const DIFFS = {
 };
 const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
+// forward HQs: a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
+const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
 const AI_PLAN = ['aapost', 'tankshop', 'jeepshop', 'tent', 'airfield', 'tankshop', 'aapost'], AI_READY = 0.6;

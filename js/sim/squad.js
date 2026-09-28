@@ -95,7 +95,7 @@ function updateUnit(s, u, sq, dt) {
   }
   const o = effOrder(s, sq), retreat = sq.retreating || o.type === 'retreat';
   const anchor = retreat ? homeOf(s, sq) : o;
-  const onHill = !T.air && inHill(s, u), range = T.range * (onHill ? 1.2 : 1);
+  const onHill = u.hill, range = T.range * (onHill ? HILL_RANGE : 1), sight = T.sight * (onHill ? HILL_SIGHT : 1);
   const leash = o.r * TRAITS[sq.trait].leash;
   let best = null, bd = Infinity, bw = Infinity, near = null, nd = Infinity;
   for (const e of s.units) {
@@ -103,7 +103,7 @@ function updateUnit(s, u, sq, dt) {
     // prefer targets this unit type is effective against
     const d = dist(u, e), w = d / (MULT[u.type][e.type] + 0.2);
     if (d <= range && w < nd) { nd = w; near = e; }
-    if (!retreat && d <= T.sight && dist(anchor, e) <= leash + range && w < bw) { bw = w; bd = d; best = e; }
+    if (!retreat && d <= sight && dist(anchor, e) <= leash + range && w < bw) { bw = w; bd = d; best = e; }
   }
   const tgt = best && bd <= range ? best : near;
   // nothing else to shoot at: hit an enemy forward HQ or (AA only) a drone in range
@@ -120,7 +120,7 @@ function updateUnit(s, u, sq, dt) {
     u.engaged = true;
     if (u.cd === 0) {
       const hit = friendlyFire(s, u, sq, tgt) || tgt;
-      hit.hp -= T.dmg * MULT[u.type][hit.type] * (!TYPES[hit.type].air && inHill(s, hit) ? 0.7 : 1); u.cd = T.cd; if (T.ammo) u.ammo--;
+      hit.hp -= T.dmg * MULT[u.type][hit.type] * (hit.hill ? HILL_ARMOR : 1); u.cd = T.cd; if (T.ammo) u.ammo--;
       const fx = IMPACT[u.type];
       s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size });
       u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
@@ -134,7 +134,7 @@ function updateUnit(s, u, sq, dt) {
   else { const sr = o.r * 0.55; tx = anchor.x + u.sx * sr; ty = anchor.y + u.sy * sr; }
   const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy);
   if (d > 2) {
-    const sp = T.speed * (onHill ? 0.8 : 1) * (retreat ? 1.15 : 1) * dt, k = Math.min(1, sp / d);
+    const sp = T.speed * (onHill ? HILL_SLOW : 1) * (retreat ? 1.15 : 1) * dt, k = Math.min(1, sp / d);
     u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
   }
 }

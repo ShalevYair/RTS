@@ -7,6 +7,9 @@ function rng(seed) {
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const inHill = (s, p) => s.hills.some(h => dist(h, p) < h.r);
+// how far a unit sees: more from a hill (aircraft don't care)
+// (u.hill is set once a tick in step(); aircraft are never "on" a hill)
+const sightOf = (s, u) => TYPES[u.type].sight * (u.hill ? HILL_SIGHT : 1);
 
 function report(s, sq, msg) {
   if (sq && sq.side !== 'blue') return;

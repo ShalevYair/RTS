@@ -3,8 +3,8 @@
   "private": true,
   "description": "פיקוד על כוונה — browser RTS prototype. No build: open index.html. These scripts only run the tests.",
   "scripts": {
-    "test": "node tests/sim/smoke.js && node tests/sim/control.js && node tests/sim/command.js && node tests/sim/recon.js && node tests/sim/ff.js",
-    "test:ui": "node tests/ui/basics.js && node tests/ui/end-screen.js && node tests/ui/fog.js && node tests/ui/drone.js && node tests/ui/calls-replay.js && node tests/ui/recon.js && node tests/ui/ff.js"
+    "test": "node tests/sim/smoke.js && node tests/sim/control.js && node tests/sim/command.js && node tests/sim/recon.js && node tests/sim/ff.js && node tests/sim/map.js",
+    "test:ui": "node tests/ui/basics.js && node tests/ui/end-screen.js && node tests/ui/fog.js && node tests/ui/drone.js && node tests/ui/calls-replay.js && node tests/ui/recon.js && node tests/ui/ff.js && node tests/ui/map.js"
   },
   "devDependencies": {
     "playwright": "^1.56.1"

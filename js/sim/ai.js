@@ -21,7 +21,7 @@ function knownStructs(s, side) {
   const foe = foeOf(side);
   const list = s.fog ? Object.values(s.memNodes[side]) : s.nodes.filter(n => n.side === foe && n.hp > 0);
   const out = list.filter(n => n.kind !== 'drone');
-  if (!out.some(n => n.kind === 'hq') && hqOf(s, foe)) out.push({ id: 'hq?', kind: 'hq', x: s.bases[foe].x, y: H / 2 });
+  if (!out.some(n => n.kind === 'hq') && hqOf(s, foe)) out.push({ id: 'hq?', kind: 'hq', x: s.bases[foe].x, y: s.H / 2 });
   return out;
 }
 
@@ -29,13 +29,36 @@ function knownStructs(s, side) {
 function aiBuild(s, side, D) {
   if (buildCount(s, side) >= buildLimit(s, side)) return;
   if (!D.smart && s.t - (s.lastBuild[side] || -99) < 30) return; // easy builds slowly
-  const foe = foeOf(side), goal = { x: s.bases[foe].x, y: H / 2 }, kind = AI_PLAN[s.plan[side] % AI_PLAN.length];
+  const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 }, kind = AI_PLAN[s.plan[side] % AI_PLAN.length];
   const anchors = controlNodes(s, side).filter(n => n.kind !== 'drone').sort((a, b) => dist(a, goal) - dist(b, goal));
   for (const a of anchors) for (let i = 0; i < 12; i++) {
     const ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * 2.4, r = 55 + s.rand() * 110;
     const x = a.x + Math.cos(ang) * r, y = a.y + Math.sin(ang) * r;
     if (build(s, side, kind, x, y)) { s.plan[side]++; s.lastBuild[side] = s.t; return; }
   }
+}
+
+// forward HQ on a hill (DESIGN.md §6): a hill just past the edge of our control, clear of known enemies and
+// short of the enemy HQ; the nearest fit jeep/tank squad goes there (the rest of think leaves it alone) and sets up
+function aiForward(s, side, mine, setOrder) {
+  const job = s.aiFhq[side], sq = job && s.squads.find(q => q.id === job.sq);
+  if (job) {
+    if (!sq || sq.dead || sq.retreating || s.t > job.until) s.aiFhq[side] = null;
+    else if (sq.arrived && !pending(s, sq.id, 'order') && buildFhq(s, sq.id)) s.aiFhq[side] = null;
+    return;
+  }
+  if (s.cd[side].fhq > 0) return;
+  const nodes = controlNodes(s, side).filter(n => n.kind !== 'drone'), foe = s.bases[foeOf(side)];
+  const hills = s.hills.filter(h => quality(s, side, h) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
+    nodes.some(n => dist(n, h) < NODES[n.kind].r1 + AI_FHQ_REACH) && !threatAt(s, side, h, AI_NEAR));
+  let best = null, bs = Infinity;
+  for (const q of mine) if (FHQ_BUILDERS.includes(q.type) && q.strength >= AI_READY) for (const h of hills) {
+    const sc = dist({ x: q.cx, y: q.cy }, h) + 0.5 * Math.abs(h.x - foe.x);
+    if (sc < bs) { bs = sc; best = { sq: q.id, hill: h }; }
+  }
+  if (!best) return;
+  s.aiFhq[side] = { ...best, until: s.t + AI_FHQ_TRIP };
+  const h = best.hill; setOrder(s.squads.find(q => q.id === best.sq), 'hold', h.x, h.y);
 }
 
 function think(s, side, level) {
@@ -48,9 +71,11 @@ function think(s, side, level) {
     order(s, sq.id, type, x, y, true);
   };
   aiBuild(s, side, D);
+  if (D.smart) aiForward(s, side, mine, setOrder);
   const structs = knownStructs(s, side);
   const foes = s.squads.filter(q => q.side === foe).map(q => ({ q, k: intel(s, side, q) })).filter(o => o.k);
   for (const sq of mine) {
+    if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
     if (D.smart && sq.strength < AI_READY && !fighting) { const h = homeOf(s, sq); setOrder(sq, 'hold', h.x, h.y); continue; }
@@ -87,11 +112,11 @@ function think(s, side, level) {
   const blur = D.smart && s.fog && s.cd[side].drone <= 0 && foes.find(o => o.k.lvl < 2 && s.t - o.k.t < 5);
   if (blur) drone(s, side, blur.k.x, blur.k.y);
   else if (D.smart && s.fog && s.cd[side].drone <= 0) {
-    const x = s.bases[foe].x + (s.bases[side].x - s.bases[foe].x) * (0.2 + 0.4 * s.rand()), y = 60 + s.rand() * (H - 120);
+    const x = s.bases[foe].x + (s.bases[side].x - s.bases[foe].x) * (0.2 + 0.4 * s.rand()), y = 60 + s.rand() * (s.H - 120);
     if (!structs.some(n => n.id !== 'hq?' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0)) drone(s, side, x, y);
   }
-  // forward HQ: a builder that reached its target, far from our other control nodes, sets one up there
-  if (D.smart && s.fog && s.cd[side].fhq <= 0) {
+  // no hill for it: a builder that reached its target, far from our other control nodes, sets one up there
+  if (D.smart && s.cd[side].fhq <= 0 && !s.aiFhq[side]) {
     const b = mine.find(q => FHQ_BUILDERS.includes(q.type) && q.arrived && !pending(s, q.id, 'order') &&
       controlNodes(s, side).every(n => dist(n, { x: q.cx, y: q.cy }) > NODES.fhq.r1));
     if (b) buildFhq(s, b.id);

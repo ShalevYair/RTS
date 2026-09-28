@@ -15,7 +15,7 @@ const buildLimit = (s, side) => BUILD_BASE + BUILD_PER_NODE * alive(s, side, ['h
 const buildCount = (s, side) => alive(s, side, PRODUCERS).length;
 // why a building can't go at (x, y): '' when it can; 'q' poor control, 'limit' no free slot, 'gap' too close, 'bad' bad input
 function buildCheck(s, side, x, y) {
-  if (!Number.isFinite(x) || !Number.isFinite(y) || x < 20 || y < 20 || x > s.W - 20 || y > H - 20) return 'bad';
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x < 20 || y < 20 || x > s.W - 20 || y > s.H - 20) return 'bad';
   if (buildCount(s, side) >= buildLimit(s, side)) return 'limit';
   if (quality(s, side, { x, y }) < BUILD_MIN_Q) return 'q';
   if (s.nodes.some(n => n.kind !== 'drone' && dist(n, { x, y }) < BUILD_GAP)) return 'gap';

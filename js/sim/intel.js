@@ -22,12 +22,12 @@ function visibility(s) {
     for (const e of s.units) {
       if (e.side === side) continue;
       if (s.t - e.lastFire < FIRE_REVEAL || nodeSees(s, side, e) ||
-          eyes.some(u => dist(u, e) <= TYPES[u.type].sight)) { v.add(e.id); vq.add(e.squad); }
+          eyes.some(u => dist(u, e) <= sightOf(s, u))) { v.add(e.id); vq.add(e.squad); }
     }
     s.vis[side] = v; s.visSq[side] = vq;
     // enemy forward HQs / drones: seen when a unit or a working node of ours has them in sight
     s.visNodes[side] = new Set(s.nodes.filter(n => n.side !== side &&
-      (!s.fog || nodeSees(s, side, n) || eyes.some(u => dist(u, n) <= TYPES[u.type].sight))).map(n => n.id));
+      (!s.fog || nodeSees(s, side, n) || eyes.some(u => dist(u, n) <= sightOf(s, u)))).map(n => n.id));
     // structures don't move: once seen, remembered until seen destroyed
     for (const n of s.nodes) if (s.visNodes[side].has(n.id)) s.memNodes[side][n.id] = { id: n.id, x: n.x, y: n.y, kind: n.kind, t: s.t };
     // remember where the seen part of each enemy squad is, not the whole squad (that would leak)

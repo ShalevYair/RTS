@@ -24,6 +24,7 @@ function syncButtons() {
   document.querySelectorAll('[data-rate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.rate === rate)));
   const pb = $('play'); pb.textContent = playing ? '⏸' : '▶'; pb.setAttribute('aria-label', playing ? 'עצור' : 'התחל');
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
+  document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.map === 'big') === bigMap)));
   $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('eye').hidden = $('fhq').hidden = !s.fog;
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
   cv.style.cursor = eyeArmed ? 'zoom-in' : buildArmed ? 'copy' : '';
@@ -37,16 +38,17 @@ function drawReplay(i) {
   const c = cvR.getContext('2d'); c.setTransform(k * dpr, 0, 0, k * dpr, 0, 0);
   c.fillStyle = colors.ground; c.fillRect(0, 0, s.W, s.H);
   for (const side of ['blue', 'red']) { const b = s.bases[side]; c.fillStyle = hexA(colors[side], 0.2); c.fillRect(b.x0, 0, b.x1 - b.x0, s.H); }
+  const g = s.H / Sim.H; // symbols keep their size on screen on a bigger map
   for (const q of h.sq) {
     const col = colors[q.side];
-    if (q.truth && q.belief) { c.strokeStyle = hexA(col, 0.6); c.lineWidth = 2; c.setLineDash([6, 6]); c.beginPath(); c.moveTo(q.truth[0], q.truth[1]); c.lineTo(q.belief[0], q.belief[1]); c.stroke(); c.setLineDash([]); }
-    if (q.belief) { c.strokeStyle = col; c.lineWidth = 4; c.beginPath(); c.arc(q.belief[0], q.belief[1], 16, 0, Math.PI * 2); c.stroke(); }
-    if (q.truth) { c.fillStyle = col; c.beginPath(); c.arc(q.truth[0], q.truth[1], 11, 0, Math.PI * 2); c.fill(); }
+    if (q.truth && q.belief) { c.strokeStyle = hexA(col, 0.6); c.lineWidth = 2 * g; c.setLineDash([6 * g, 6 * g]); c.beginPath(); c.moveTo(q.truth[0], q.truth[1]); c.lineTo(q.belief[0], q.belief[1]); c.stroke(); c.setLineDash([]); }
+    if (q.belief) { c.strokeStyle = col; c.lineWidth = 4 * g; c.beginPath(); c.arc(q.belief[0], q.belief[1], 16 * g, 0, Math.PI * 2); c.stroke(); }
+    if (q.truth) { c.fillStyle = col; c.beginPath(); c.arc(q.truth[0], q.truth[1], 11 * g, 0, Math.PI * 2); c.fill(); }
   }
   // friendly fire since the previous snapshot
   const t0 = i ? s.hist[i - 1].t : -1;
-  c.font = '30px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = colors.red;
-  for (const f of s.ff) if (f.side === 'blue' && f.t > t0 && f.t <= h.t) c.fillText('⚠', f.x, f.y - 24);
+  c.font = `${Math.round(30 * g)}px sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = colors.red;
+  for (const f of s.ff) if (f.side === 'blue' && f.t > t0 && f.t <= h.t) c.fillText('⚠', f.x, f.y - 24 * g);
   $('replayT').textContent = fmtTime(h.t);
 }
 $('scrub').addEventListener('input', () => { replayAuto = false; drawReplay(+$('scrub').value); });
@@ -135,7 +137,8 @@ function renderSquadButtons() {
     const c = b.querySelector('canvas').getContext('2d');
     c.fillStyle = tcol(q.type); c.beginPath(); c.arc(26, 26, 24, 0, Math.PI * 2); c.fill();
     glyph(c, q.type, 26 - (q.type === 'tank' ? 3 : 0), 26, q.type === 'air' ? 17 : 13, '#fff', null, 0, q.type === 'aa' ? -Math.PI / 2 : 0);
-    b.addEventListener('click', () => select(q.id));
+    // a second tap on the selected squad centres the camera on it
+    b.addEventListener('click', () => { if (sel === q.id && !q.dead) { const p = pos(q); if (p) lookAt(p.x, p.y); } select(q.id); });
     box.appendChild(b);
   });
   if (sel !== 'all' && !list.some(q => q.id === sel)) sel = 'all';
@@ -148,6 +151,8 @@ function believedShare() {
   // unidentified sightings count as a typical squad (FOE_GUESS): the estimate is only as good as the identification
   for (const q of s.squads) { const m = q.side === 'red' && s.mem.blue[q.id]; if (m && s.t - m.t < 60) foe += m.type ? m.n * Sim.UNIT_VALUE[m.type] : FOE_GUESS; }
   for (const id in s.memNodes.blue) foe += Sim.STRUCTS[s.memNodes.blue[id].kind].value;
+  // the enemy HQ's place is known from the start, even before anyone has seen it
+  if (!Object.values(s.memNodes.blue).some(n => n.kind === 'hq') && s.nodes.some(n => n.side === 'red' && n.kind === 'hq' && n.hp > 0)) foe += Sim.STRUCTS.hq.value;
   const me = s.power.blue; return me + foe > 0 ? me / (me + foe) : 0.5;
 }
 // build menu: pick a building, then a spot on the map where control is strong enough
@@ -186,6 +191,12 @@ const showIntro = (on, full) => {
   $('intro').classList.toggle('short', seen && !full); setPlaying(false); $('go').focus();
 };
 $('go').addEventListener('click', () => { showIntro(false); try { localStorage.setItem('irts-seen', '1'); } catch (e) { /* ignore */ } setPlaying(true); });
+// map size: a new map is made at once (the intro is still up, nothing has happened yet)
+document.querySelectorAll('[data-map]').forEach(b => b.addEventListener('click', () => {
+  const big = b.dataset.map === 'big'; if (big === bigMap) return;
+  bigMap = big; try { localStorage.setItem('irts-map', big ? 'big' : 'small'); } catch (e) { /* ignore */ }
+  newGame(true); showIntro(true);
+}));
 document.querySelectorAll('[data-fog]').forEach(b => b.addEventListener('click', () => {
   fog = b.dataset.fog === '1'; s.fog = fog; try { localStorage.setItem('irts-fog', fog ? '1' : '0'); } catch (e) { /* ignore */ }
   syncButtons();

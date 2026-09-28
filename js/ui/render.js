@@ -1,20 +1,23 @@
 // UI: canvas rendering — terrain, bases, points, fog, intel, marks, units
-function makeDecor(W) {
-  let a = 12345; const r = () => ((a = (a * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+// scenery (no effect on play): the small map keeps its fixed look; a taller map scales it (ky) and gets more of it
+function makeDecor(s) {
+  const W = s.W, ky = s.H / Sim.H, K = W * ky;
+  let a = s.H > Sim.H ? 12345 + Math.round(s.hills[0].y * 1000) : 12345; const r = () => ((a = (a * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
   const mid = W / 2, ok = (x, m = 0) => x > 90 + m && x < W - 90 - m && Math.abs(x - mid) > 80 + m;
-  const lakes = [{ x: W * 0.36, y: 592, rx: 55, ry: 22, a: 0.1 }, { x: W * 0.64, y: 50, rx: 55, ry: 22, a: -0.1 }];
+  const lakes = [{ x: W * 0.36, y: 592 * ky, rx: 55, ry: 22, a: 0.1 }, { x: W * 0.64, y: 50 * ky, rx: 55, ry: 22, a: -0.1 }];
+  if (ky > 1) lakes.push({ x: W * 0.2, y: s.H * 0.35, rx: 60, ry: 25, a: 0.2 }, { x: W * 0.8, y: s.H * 0.65, rx: 60, ry: 25, a: 0.2 });
   const inLake = (x, y) => lakes.some(l => ((x - l.x) / (l.rx + 8)) ** 2 + ((y - l.y) / (l.ry + 8)) ** 2 < 1);
-  const patches = [], fields = [], trees = [], rocks = [], n = Math.round(W / 70);
-  for (let i = 0; i < n; i++) patches.push({ x: 90 + r() * (W - 180), y: r() * 640, rx: 40 + r() * 70, ry: 25 + r() * 40 });
-  for (let i = 0; i < Math.round(W / 220); i++) {
-    const x = 100 + r() * (W - 200), y = 30 + r() * 580;
+  const patches = [], fields = [], trees = [], rocks = [], n = Math.round(K / 70);
+  for (let i = 0; i < n; i++) patches.push({ x: 90 + r() * (W - 180), y: r() * s.H, rx: 40 + r() * 70, ry: 25 + r() * 40 });
+  for (let i = 0; i < Math.round(K / 220); i++) {
+    const x = 100 + r() * (W - 200), y = 30 + r() * (s.H - 60);
     if (ok(x, 30) && !inLake(x, y)) fields.push({ x, y, w: 50 + r() * 40, h: 30 + r() * 20, a: (r() - 0.5) * 0.8 });
   }
-  for (let i = 0; i < Math.round(W / 55); i++) {
-    const cx = 100 + r() * (W - 200), cy = 20 + r() * 600, m = 3 + Math.floor(r() * 6);
+  for (let i = 0; i < Math.round(K / 55); i++) {
+    const cx = 100 + r() * (W - 200), cy = 20 + r() * (s.H - 40), m = 3 + Math.floor(r() * 6);
     for (let j = 0; j < m; j++) { const x = cx + (r() - 0.5) * 50, y = cy + (r() - 0.5) * 40; if (ok(x) && !inLake(x, y)) trees.push({ x, y, r: 4 + r() * 4 }); }
   }
-  for (let i = 0; i < Math.round(W / 80); i++) { const x = 100 + r() * (W - 200), y = 20 + r() * 600; if (ok(x) && !inLake(x, y)) rocks.push({ x, y, r: 1.5 + r() * 2.5 }); }
+  for (let i = 0; i < Math.round(K / 80); i++) { const x = 100 + r() * (W - 200), y = 20 + r() * (s.H - 40); if (ok(x) && !inLake(x, y)) rocks.push({ x, y, r: 1.5 + r() * 2.5 }); }
   trees.sort((p, q) => p.y - q.y);
   return { patches, fields, lakes, trees, rocks };
 }
@@ -99,11 +102,12 @@ function drawTerrain(c, W, H, mid) {
     c.fillStyle = colors.treeHi; ring(t.x - t.r * 0.3, t.y - t.r * 0.3, t.r * 0.5); c.fill();
   }
   c.fillStyle = colors.rock; for (const r of decor.rocks) { ring(r.x, r.y, r.r); c.fill(); }
+  const ky = H / Sim.H, cy = H / 2;
   const roads = () => {
-    c.beginPath(); c.moveTo(mid, 60); c.lineTo(mid, 580);
+    c.beginPath(); c.moveTo(mid, 60 * ky); c.lineTo(mid, 580 * ky);
     for (const y of [80, 240, 400, 560]) {
-      c.moveTo(60, y); c.bezierCurveTo(W * 0.25, y, W * 0.3, 320, mid, 320);
-      c.moveTo(W - 60, y); c.bezierCurveTo(W * 0.75, y, W * 0.7, 320, mid, 320);
+      c.moveTo(60, y * ky); c.bezierCurveTo(W * 0.25, y * ky, W * 0.3, cy, mid, cy);
+      c.moveTo(W - 60, y * ky); c.bezierCurveTo(W * 0.75, y * ky, W * 0.7, cy, mid, cy);
     }
   };
   c.lineCap = 'round';
@@ -347,4 +351,31 @@ function draw() {
     if (stale) label('?', x - 17, y - 6, colors.ink);
     c.globalAlpha = 1;
   }
+}
+
+// minimap (shown when the map doesn't fit on screen): terrain, our squads and structures, what we know of the
+// enemy, fresh reports, and the part on screen. Tap / drag it to look there.
+const MINI_W = 360;
+function drawMini() {
+  const m = $('mini'), vr = viewRect(), all = !vr || (vr.w >= s.W - 1 && vr.h >= s.H - 1);
+  m.hidden = all || !$('intro').hidden || !$('end').hidden;
+  if (m.hidden) return;
+  const w = MINI_W, h = Math.round(w * s.H / s.W), k = w / s.W;
+  if (m.width !== w || m.height !== h) { m.width = w; m.height = h; m.style.setProperty('--ar', (s.W / s.H).toFixed(3)); }
+  const c = m.getContext('2d'); c.setTransform(k, 0, 0, k, 0, 0);
+  c.fillStyle = colors.ground; c.fillRect(0, 0, s.W, s.H);
+  c.fillStyle = colors.hill; for (const hl of s.hills) { c.beginPath(); c.arc(hl.x, hl.y, hl.r, 0, Math.PI * 2); c.fill(); }
+  for (const side of ['blue', 'red']) { const b = s.bases[side]; c.fillStyle = hexA(colors[side], 0.35); c.fillRect(b.x0, 0, b.x1 - b.x0, s.H); }
+  if (s.fog) { c.fillStyle = hexA(colors.blue, 0.12); for (const n of s.nodes) if (n.side === 'blue' && Sim.NODES[n.kind] && s.t >= n.ready) { c.beginPath(); c.arc(n.x, n.y, Sim.NODES[n.kind].r0, 0, Math.PI * 2); c.fill(); } }
+  const dot = (x, y, r, col, sq) => { c.fillStyle = col; c.beginPath(); if (sq) c.rect(x - r, y - r, 2 * r, 2 * r); else c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
+  for (const n of s.nodes) if (nodeShown(n)) dot(n.x, n.y, 14, colors[n.side], true);
+  if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { c.globalAlpha = 0.5; const n = s.memNodes.blue[id]; dot(n.x, n.y, 14, colors.red, true); c.globalAlpha = 1; }
+  for (const q of s.squads) {
+    if (q.dead) continue;
+    if (q.side === 'blue') { const p = pos(q); if (p) dot(p.x, p.y, 20, tcol(q.type)); continue; }
+    const e = s.fog ? s.mem.blue[q.id] : { x: q.cx, y: q.cy, t: s.t };
+    if (e && s.t - e.t < 40) { c.globalAlpha = 1 - (s.t - e.t) / 40; dot(e.x, e.y, 20, colors.red); c.globalAlpha = 1; }
+  }
+  for (const f of s.marks) { c.strokeStyle = f.kind === 'lost' || f.kind === 'ff' || f.kind === 'nodeLost' ? colors.red : colors.ink; c.lineWidth = 10; c.beginPath(); c.arc(f.x, f.y, 40 + 30 * (s.t - f.t), 0, Math.PI * 2); c.stroke(); }
+  c.strokeStyle = colors.ink; c.lineWidth = 2 / k; c.strokeRect(vr.x, vr.y, vr.w, vr.h);
 }

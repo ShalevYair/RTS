@@ -19,7 +19,7 @@ const qualityAt = (s, sq) => quality(s, sq.side, { x: sq.cx, y: sq.cy });
 function drone(s, side, x, y) {
   if (s.over || s.cd[side].drone > 0 || !Number.isFinite(x) || !Number.isFinite(y)) return false;
   const N = NODES.drone;
-  const d = addStruct(s, side, 'drone', clamp(x, 0, s.W), clamp(y, 0, H)); d.ready = s.t + N.warm; d.until = s.t + N.warm + N.life;
+  const d = addStruct(s, side, 'drone', clamp(x, 0, s.W), clamp(y, 0, s.H)); d.ready = s.t + N.warm; d.until = s.t + N.warm + N.life;
   s.cd[side].drone = N.every;
   if (side === 'blue') note(s, 'רחפן בדרך');
   return true;
