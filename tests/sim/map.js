@@ -36,7 +36,12 @@ const s = Sim.create(5, 2400, 'normal', 1280);
 ok(s.W === 2400 && s.H === 1280 && s.bases.blue.y === 640 && s.nodes.find(n => n.kind === 'hq').y === 640, 'big map: 2400×1280, bases in the middle of the height');
 ok(s.hills.length >= 20, `many hills: ${s.hills.length}`);
 ok(s.hills.every(h => h.x - h.r >= 240 - 1e-9 && h.x + h.r <= s.W - 240 + 1e-9), 'no hill in either base area');
-ok(s.hills.every((h, i) => s.hills.every((o, j) => i === j || Math.hypot(h.x - o.x, h.y - o.y) >= h.r + o.r)), 'hills don\'t overlap');
+ok(s.hills.every((h, i) => s.hills.every((o, j) => i === j || Math.hypot(h.x - o.x, h.y - o.y) >= (h.r + o.r) * 0.8 - 1e-9)), 'hills may touch, but none is swallowed by another');
+{
+  let touch = 0; const lv = new Set();
+  for (let seed = 1; seed <= 10; seed++) { const g = Sim.create(seed, 2400, 'normal', 1280); for (const h of g.hills) { lv.add(h.lv); if (g.hills.some(o => o !== h && Math.hypot(h.x - o.x, h.y - o.y) < h.r + o.r)) touch++; } }
+  ok(touch > 50 && lv.has(1) && lv.has(10), `hills run into ridges (${touch} touching another) and stand 1 to 10 contour lines high (${[...lv].sort((a, b) => a - b).join(',')})`);
+}
 ok(s.hills.every(h => h.y - h.r >= 0 && h.y + h.r <= s.H), 'hills are on the map');
 const s2 = Sim.create(5, 2400, 'normal', 1280), s3 = Sim.create(6, 2400, 'normal', 1280);
 ok(JSON.stringify(s2.hills) === JSON.stringify(s.hills) && JSON.stringify(s3.hills) !== JSON.stringify(s.hills), 'the same seed gives the same map, another seed another');

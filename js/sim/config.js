@@ -7,6 +7,9 @@ const MAP_H_MAX = 1400, MAP_W_MAX = 3000, HILL_AREA = 100000, HILL_CLEAR = 240, 
 // random maps: the enemy's half is our half's twin, each feature moved up to MAP_JITTER and resized up to MAP_RESIZE;
 // lakes keep LAKE_GAP between them
 const MAP_JITTER = 30, MAP_RESIZE = 0.12, LAKE_GAP = 60, SHAPE_AMP = 0.14;
+// hills may touch: centres at least HILL_TOUCH of their radii apart; HILL_RIDGE of them grow off another into a ridge;
+// the highest has HILL_LEVELS contour lines. Lakes reach LAKE_MAX across (half-width).
+const HILL_TOUCH = 0.8, HILL_RIDGE = 0.5, HILL_LEVELS = 10, LAKE_MAX = 110;
 // lakes: ground units go around them (only aircraft fly over); nothing is built within LAKE_PAD of one.
 // A ground unit looks LAKE_LOOK ahead and slides along the shore when the way is wet.
 const LAKE_PAD = 20, LAKE_LOOK = 28;

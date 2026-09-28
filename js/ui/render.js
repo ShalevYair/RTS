@@ -3,7 +3,7 @@
 // hills and lakes follow the sim's uneven outlines, grass comes in blotches of several shades with tufts, roads
 // wander and change width, and every hill, lake, field and tree gets its own tint. Shapes are built once as Path2D.
 function makeDecor(s) {
-  const W = s.W, ky = s.H / Sim.H, K = W * ky;
+  const W = s.W, ky = s.H / Sim.H, K = W * ky, TUFT_SHADES = 8;
   let a = (s.seed * 2654435761 >>> 1) || 12345; const r = () => ((a = (a * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
   const mid = W / 2, ok = (x, m = 0) => x > 90 + m && x < W - 90 - m && Math.abs(x - mid) > 80 + m;
   const inLake = (x, y) => !!Sim.lakeAt(s, { x, y }, 8);
@@ -22,9 +22,10 @@ function makeDecor(s) {
   const blob = (x, y, rx, ry) => { const w = [[0.18, 2, r() * 7], [0.12, 3, r() * 7], [0.08, 5, r() * 7]]; return outline(x, y, th => { const f = Sim.wobble(w, th); return [Math.cos(th) * rx * f, Math.sin(th) * ry * f]; }, 24); };
   // grass: big blotches in a few shades, then small tufts, grouped by shade (one path per shade)
   const patches = [];
-  for (let i = 0; i < Math.round(K / 45); i++) patches.push({ p: blob(r() * W, r() * s.H, 40 + r() * 90, 25 + r() * 50), t: tone(0.05), dark: r() < 0.55 });
-  const tufts = [new Path2D(), new Path2D(), new Path2D()];
-  for (let i = 0; i < Math.round(K / 3); i++) { const x = r() * W, y = r() * s.H, k = Math.floor(r() * 3); if (!inLake(x, y)) { tufts[k].moveTo(x + 1.6, y); tufts[k].arc(x, y, 0.8 + r() * 1.2, 0, Math.PI * 2); } }
+  // (each blotch anywhere between the two grass colours, a touch lighter or darker: a continuous range, not two tones)
+  for (let i = 0; i < Math.round(K / 40); i++) patches.push({ p: blob(r() * W, r() * s.H, 30 + r() * 100, 20 + r() * 60), u: r(), t: tone(0.06) });
+  const tufts = Array.from({ length: TUFT_SHADES }, () => new Path2D());
+  for (let i = 0; i < Math.round(K / 3); i++) { const x = r() * W, y = r() * s.H, k = Math.floor(r() * TUFT_SHADES); if (!inLake(x, y)) { tufts[k].moveTo(x + 1.6, y); tufts[k].arc(x, y, 0.8 + r() * 1.2, 0, Math.PI * 2); } }
   const fields = [], trees = [], rocks = [];
   for (let i = 0; i < Math.round(K / 220); i++) {
     const x = 100 + r() * (W - 200), y = 30 + r() * (s.H - 60);
@@ -36,14 +37,19 @@ function makeDecor(s) {
   }
   for (let i = 0; i < Math.round(K / 60); i++) { const x = 60 + r() * (W - 120), y = 20 + r() * (s.H - 40); if (!inLake(x, y)) rocks.push({ x, y, r: 1.2 + r() * 2.8, t: tone(0.12) }); }
   trees.sort((p, q) => p.y - q.y);
-  // hills: the sim's outline, contour lines that drift toward the (off-centre) top, speckles of loose earth
-  const hills = s.hills.map(h => {
-    const px = (r() - 0.5) * h.r * 0.3, py = (r() - 0.5) * h.r * 0.3; // where the top is
-    const ring = f => outline(h.x + px * (1 - f), h.y + py * (1 - f), th => { const q = h.r * f * Sim.wobble(h.w, th); return [Math.cos(th) * q, Math.sin(th) * q]; });
-    const dots = new Path2D();
-    for (let i = 0; i < 10 + h.r / 5; i++) { const th = r() * 7, d = Math.sqrt(r()) * h.r * 0.85; dots.moveTo(h.x + Math.cos(th) * d + 1.5, h.y + Math.sin(th) * d); dots.arc(h.x + Math.cos(th) * d, h.y + Math.sin(th) * d, 0.8 + r() * 1.4, 0, Math.PI * 2); }
-    return { h, top: { x: h.x + px, y: h.y + py }, rims: [ring(1), ring(0.74), ring(0.5), ring(0.27)], dots, t: tone(0.1) };
-  });
+  // hills as a contour map: a hill `lv` lines high gets rings 0..lv-1 (ring 0 = the sim's outline), each drawn a bit
+  // smaller, drifting toward an off-centre top and with a little wobble of its own. Rings are grouped by height, so
+  // hills that touch share their contour lines, like one massif.
+  const levels = [], dots = new Path2D();
+  for (const h of s.hills) {
+    const px = (r() - 0.5) * h.r * 0.5, py = (r() - 0.5) * h.r * 0.5; // where the top is
+    for (let k = 0; k < h.lv; k++) {
+      const q = k / h.lv, f = 1 - Math.pow(q, 0.9) * 0.88, w = [...(h.w || []), [0.05 * q, 4, r() * 7], [0.03 * q, 7, r() * 7]];
+      (levels[k] = levels[k] || []).push(outline(h.x + px * q, h.y + py * q, th => { const d = h.r * f * Sim.wobble(w, th); return [Math.cos(th) * d, Math.sin(th) * d]; }));
+    }
+    for (let i = 0; i < 8 + h.r / 6; i++) { const th = r() * 7, d = Math.sqrt(r()) * h.r * 0.85, x = h.x + Math.cos(th) * d, y = h.y + Math.sin(th) * d; dots.moveTo(x + 1.5, y); dots.arc(x, y, 0.7 + r() * 1.3, 0, Math.PI * 2); }
+  }
+  const hills = { levels, dots };
   // lakes: the sim's outline, a darker middle, a shallow rim
   const lakes = s.lakes.map(l => {
     const shp = f => outline(l.x, l.y, th => { const q = f * Sim.wobble(l.w, Math.atan2(Math.sin(th) / l.ry, Math.cos(th) / l.rx)); return [Math.cos(th) * l.rx * q, Math.sin(th) * l.ry * q]; }, 56, l.a);
@@ -144,11 +150,18 @@ function shade(col, k) {
   const n = parseInt(m[1], 16), f = v => Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k));
   return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
 }
+// between two theme colours (u 0..1), then a shade
+function mix(a, b, u, k = 0) {
+  const m = /^#([0-9a-f]{6})$/i.exec(a || ''), n = /^#([0-9a-f]{6})$/i.exec(b || ''); if (!m || !n) return a;
+  const A = parseInt(m[1], 16), B = parseInt(n[1], 16), ch = sh => Math.round(((A >> sh) & 255) * (1 - u) + ((B >> sh) & 255) * u);
+  return shade('#' + ((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0'), k);
+}
 function drawTerrain(c, W, H, mid) {
   c.globalAlpha = 0.75;
-  for (const p of decor.patches) { c.fillStyle = shade(p.dark ? colors.grass2 : colors.ground, p.t + (p.dark ? 0 : 0.035)); c.fill(p.p); }
+  for (const p of decor.patches) { c.fillStyle = mix(colors.ground, colors.grass2, p.u, p.t); c.fill(p.p); }
   c.globalAlpha = 1;
-  decor.tufts.forEach((p, k) => { c.fillStyle = shade(colors.grass2, [-0.18, -0.08, 0.1][k]); c.fill(p); });
+  const n = decor.tufts.length;
+  decor.tufts.forEach((p, k) => { c.fillStyle = shade(colors.grass2, -0.2 + 0.32 * k / (n - 1)); c.fill(p); });
   for (const f of decor.fields) {
     c.save(); c.translate(f.x, f.y); c.rotate(f.a); c.fillStyle = shade(colors.field, f.t); c.fillRect(-f.w / 2, -f.h / 2, f.w, f.h);
     c.strokeStyle = shade(colors.field2, f.t); c.lineWidth = 3;
@@ -164,16 +177,17 @@ function drawTerrain(c, W, H, mid) {
     const l = k.l; c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5;
     c.beginPath(); c.ellipse(l.x - l.rx * 0.25, l.y - l.ry * 0.3, l.rx * 0.3, l.ry * 0.25, l.a, Math.PI * 1.1, Math.PI * 1.6); c.stroke();
   }
-  // hills: layered rings, lighter toward the top, contour lines, loose earth
-  for (const k of decor.hills) {
-    const h = k.h;
-    k.rims.forEach((p, i) => { c.fillStyle = shade(colors.hill, k.t + i * 0.07); c.fill(p); });
-    const g = c.createRadialGradient(k.top.x - h.r * 0.2, k.top.y - h.r * 0.2, h.r * 0.05, k.top.x, k.top.y, h.r * 0.6);
-    g.addColorStop(0, hexA(colors.hillHi, 0.55)); g.addColorStop(1, hexA(colors.hillHi, 0)); c.fillStyle = g; c.fill(k.rims[0]);
-    c.strokeStyle = shade(colors.hillLine, k.t); c.lineWidth = 1; c.globalAlpha = 0.55;
-    for (const p of k.rims) c.stroke(p);
-    c.globalAlpha = 0.5; c.fillStyle = shade(colors.hillLine, k.t - 0.1); c.fill(k.dots); c.globalAlpha = 1;
-  }
+  // hills, one height at a time: stroke every ring of that height, then fill them all over it, so only the outer edge
+  // of each group of touching rings is left as a line. The colour runs from the hill colour at the foot to its light
+  // colour at the highest line.
+  const L = decor.hills.levels;
+  L.forEach((paths, k) => {
+    c.strokeStyle = colors.hillLine; c.lineWidth = k ? 1.6 : 2.2;
+    for (const p of paths) c.stroke(p);
+    c.fillStyle = mix(colors.hill, colors.hillHi, Math.min(1, k / 9));
+    for (const p of paths) c.fill(p);
+  });
+  c.globalAlpha = 0.45; c.fillStyle = colors.hillLine; c.fill(decor.hills.dots); c.globalAlpha = 1;
   // roads (over the hills: they climb them): an edge, the dirt (width changes along the way), then faint wheel ruts
   c.lineCap = 'round'; c.lineJoin = 'round';
   for (const [col, extra] of [[colors.roadEdge, 4], [colors.road, 0]]) {
