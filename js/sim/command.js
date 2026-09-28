@@ -19,7 +19,7 @@ function deliver(s) {
     const sq = s.squads.find(q => q.id === m.id);
     if (!sq || sq.dead) continue; // the squad is gone; the message is lost
     if (m.kind === 'order') applyOrder(s, sq, m.type, m.x, m.y, m.quiet, m.form);
-    else if (m.kind === 'build') setUpFhq(s, sq);
+    else if (m.kind === 'build') setUpFhq(s, sq, m.spot); // (m.at is when it arrives)
     else applyTrait(s, sq, m.trait, m.quiet);
   }
 }

@@ -24,10 +24,10 @@ function syncButtons() {
   const pb = $('play'); pb.textContent = playing ? '⏸' : '▶'; pb.setAttribute('aria-label', playing ? 'עצור' : 'התחל');
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
   document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.map === 'big') === bigMap)));
-  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq');
+  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq');
   $('fs').hidden = !fsCan();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
-  cv.style.cursor = eyeArmed ? 'zoom-in' : buildArmed ? 'copy' : '';
+  cv.style.cursor = eyeArmed ? 'zoom-in' : buildArmed || fhqArmed ? 'copy' : '';
 }
 
 let replayAuto = false, replayAt = 0;
@@ -211,7 +211,8 @@ function renderLevels() {
 }
 $('go').addEventListener('click', () => { if (matchMedia('(pointer: coarse)').matches && fsCan()) fullScreen(true); showIntro(false); setPlaying(true); });
 // only the controls this level has; the ones it adds pulse until first used
-const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'slots'], vehicles: ['bld'], care: ['bld'], air: ['bld'], fog: [], eye: ['eye'], c2: ['log'], fhq: ['fhq', 'slots'] };
+// (the radio log #log stays hidden for now: the map says it)
+const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'slots'], vehicles: ['bld'], care: ['bld'], air: ['bld'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq', 'slots'] };
 // building kinds each level step brings
 const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage'], air: ['aapost', 'airfield'] };
 // an element shows when any of the level steps that bring it is there
@@ -238,12 +239,21 @@ document.querySelectorAll('[data-fog]').forEach(b => b.addEventListener('click',
 let eyeArmed = false, fogWas = null;
 function toggleEye() { eyeArmed = !eyeArmed && s.fog && s.drones.blue.stock > 0; syncButtons(); }
 $('eye').addEventListener('click', toggleEye);
-// forward HQ: the selected tank/jeep squad sets one up where it stands (the order travels like any other).
-// Nothing fit selected: the squads that could do it blink.
+// forward HQ: 🏕, then a spot on the map; the selected jeep / tank squad (or the nearest one) drives there and sets it
+// up. With none that can, the squads that could blink (or nothing happens while waiting for the next one).
+let fhqArmed = false;
+const fhqBuilders = () => s.squads.filter(q => q.side === 'blue' && Sim.canBuildFhq(s, q));
 function buildHere() {
-  if (oneSel() && Sim.buildFhq(s, oneSel())) { updateHud(); return; }
-  if (s.cd.blue.fhq > 0) return;
-  for (const b of document.querySelectorAll('[data-sq]')) { const q = s.squads.find(x => x.id === b.dataset.sq); if (q && Sim.canBuildFhq(s, q)) blink(b); }
+  if (fhqArmed) { fhqArmed = false; syncButtons(); return; }
+  if (s.cd.blue.fhq > 0 || Sim.fhqCount(s, 'blue') >= Sim.NODES.fhq.max) return;
+  if (!fhqBuilders().length) { for (const b of document.querySelectorAll('[data-sq]')) { const q = s.squads.find(x => x.id === b.dataset.sq); if (q && ['jeep', 'tank'].includes(q.type)) blink(b); } return; }
+  fhqArmed = true; eyeArmed = false; buildArmed = null; $('buildm').hidden = true; syncButtons();
+}
+function placeFhq(x, y) {
+  const list = fhqBuilders(), picked = list.find(q => isSel(q.id) && sel !== 'all');
+  const q = picked || list.sort((a, b) => Math.hypot(pos(a).x - x, pos(a).y - y) - Math.hypot(pos(b).x - x, pos(b).y - y))[0];
+  if (q) Sim.planFhq(s, q.id, x, y);
+  fhqArmed = false; syncButtons(); updateHud();
 }
 // full screen (and landscape, where the phone allows it); a tap on ▶ on a phone goes full screen by itself
 const fsEl = document.documentElement;

@@ -61,3 +61,16 @@ function spread(s, q) {
   s.nodes.find(n => n.kind === 'fhq').hp = 0; Sim.step(s, 1 / 30);
   ok(Sim.buildFhq(s, j.id), 'one destroyed: room for another');
 }
+{
+  // placing a forward HQ: the squad drives to the spot and sets it up there; another order calls the trip off (slot back)
+  const s = Sim.create(6, 1200, 'normal'); s.bots = []; s.fog = false; s.lakes = [];
+  s.units = s.units.filter(u => u.side === 'blue'); s.noReinforce = true;
+  const j = s.squads.find(q => q.type === 'jeep' && q.side === 'blue'), spot = { x: 560, y: 250 };
+  ok(Sim.planFhq(s, j.id, spot.x, spot.y) && Sim.fhqCount(s, 'blue') === 1 && !Sim.planFhq(s, j.id, 300, 300), 'placing one: the slot is taken at once (no second while waiting)');
+  step(s, 20);
+  const f = s.nodes.find(n => n.kind === 'fhq' && n.side === 'blue');
+  ok(f && Math.hypot(f.x - spot.x, f.y - spot.y) < 45, `the jeeps drove there and set it up (${f ? Math.round(Math.hypot(f.x - spot.x, f.y - spot.y)) : '-'} from the spot)`);
+  s.cd.blue.fhq = 0;
+  Sim.planFhq(s, j.id, 900, 500); step(s, 1); Sim.order(s, j.id, 'attack', 300, 100); step(s, 1);
+  ok(!j.fhqAt && s.cd.blue.fhq === 0 && Sim.fhqCount(s, 'blue') === 1, 'another order calls the trip off, and the slot comes back');
+}

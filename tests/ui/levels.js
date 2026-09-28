@@ -61,7 +61,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.evaluate(() => { lvl = Sim.LEVELS; newGame(true); setPlaying(true); Sim.drone(s, 'blue', s.nodes.find(n => n.kind === 'hq' && n.side === 'blue').x + 160, s.H / 2 - 60); });
     await p.waitForTimeout(600);
     const last = await p.evaluate(() => ({ fog: s.fog, big: s.H > Sim.H, svg: !!document.querySelector('#eye svg'), emoji: document.getElementById('eye').textContent.includes('🛸') }));
-    check(name, last.fog && last.big && last.svg && !last.emoji && await shown('#eye') && await shown('#log'), `last level: fog, big map, drone button is a picture ${JSON.stringify(last)}`);
+    check(name, last.fog && last.big && last.svg && !last.emoji && await shown('#eye') && !(await shown('#log')), `last level: fog, big map, drone button is a picture, no text log ${JSON.stringify(last)}`);
     await p.screenshot({ path: `${OUT}/${name}-lv-last.png` });
     await p.evaluate(() => localStorage.clear());
     check(name, !errs.length, 'no errors ' + JSON.stringify(errs));

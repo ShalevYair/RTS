@@ -21,6 +21,7 @@ function tap(e) {
   if (x < 0 || y < 0 || x > s.W || y > s.H) return;
   if (eyeArmed) { Sim.drone(s, 'blue', x, y); eyeArmed = false; syncButtons(); updateHud(); return; }
   if (buildArmed) { placeBuilding(x, y); return; }
+  if (fhqArmed) { placeFhq(x, y); return; }
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
   // tapping one of our buildings selects the squad it raises
   const home = s.nodes.find(n => n.side === 'blue' && n.squad && Math.hypot(n.x - x, n.y - y) < tapR(18));
@@ -38,7 +39,7 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
-  const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed;
+  const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed && !fhqArmed;
   drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0 } : { moved: true };
 });
 cv.addEventListener('pointermove', e => {
@@ -115,5 +116,5 @@ document.addEventListener('keydown', e => {
   else if (k === 'f') fullScreen();
   else if (e.key.startsWith('Arrow')) { e.preventDefault(); const d = 120; panBy(e.key === 'ArrowLeft' ? d : e.key === 'ArrowRight' ? -d : 0, e.key === 'ArrowUp' ? d : e.key === 'ArrowDown' ? -d : 0); }
   else if (e.key === '+' || e.key === '=' || e.key === '-') zoomAt(fit.w / 2, fit.top + fit.h / 2, e.key === '-' ? 1 / 1.25 : 1.25);
-  else if (k === 'escape') { eyeArmed = false; buildArmed = null; $('buildm').hidden = true; syncButtons(); menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false'); }
+  else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; $('buildm').hidden = true; syncButtons(); menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false'); }
 });

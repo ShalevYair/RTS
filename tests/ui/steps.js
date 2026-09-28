@@ -65,15 +65,26 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     check(name, r10.friction && r10.rings && r10.live, `level 10: command friction, control rings drawn, near HQ the picture is live ${JSON.stringify(r10)}`);
     await p.evaluate(() => { cam.z = 1; applyView(); });
     await p.screenshot({ path: `${OUT}/${name}-st-lv10-rings.png` });
+    // a unit that leaves the exact picture doesn't vanish: it fades out where it was last drawn
+    const ghost = await p.evaluate(() => { const u = s.units.find(x => x.side === 'blue' && anim.last.has(x.id)); if (!u) return null; u.x = s.W - 300; u.y = 60; Sim.step(s, 1); draw(); const g = anim.last.get(u.id); return g ? +(s.t - g.t).toFixed(1) : null; });
+    check(name, ghost !== null && ghost > 0 && ghost < 10, `a unit gone out of the full-control ring fades out where it was (seen ${ghost} s ago)`);
     // level 11: the quota is full; pressing 🏗 blinks the counter and 🏕; 🏕 with no jeep/tank picked blinks the squads that can
     await level(11); await p.waitForTimeout(250);
     await p.click('#bld', { force: true }); await p.waitForTimeout(100);
     const h1 = await p.evaluate(() => ({ slots: document.getElementById('slots').classList.contains('blink'), fhq: document.getElementById('fhq').classList.contains('blink'), newFhq: document.getElementById('fhq').classList.contains('new'), n: document.getElementById('slotN').textContent }));
     check(name, h1.slots && h1.fhq && h1.newFhq && h1.n === '4/4', `level 11: full quota ${h1.n}; 🏗 blinks the counter and 🏕 (which pulses as new) ${JSON.stringify(h1)}`);
+    // 🏕, then a spot on the map: the nearest jeep squad drives there and sets it up; building opens around it
     await p.evaluate(() => select('all'));
     await p.click('#fhq', { force: true }); await p.waitForTimeout(100);
-    const h2 = await p.evaluate(() => [...document.querySelectorAll('[data-sq]')].filter(e => e.classList.contains('blink')).map(e => s.squads.find(q => q.id === e.dataset.sq).type).join());
-    check(name, h2.length && h2.split(',').every(t => t === 'jeep' || t === 'tank'), `🏕 with no jeep / tank picked blinks the ones that can: ${h2}`);
+    const armed = await p.evaluate(() => fhqArmed);
+    const spot = await p.evaluate(() => { const h = s.nodes.find(n => n.kind === 'hq' && n.side === 'blue'); let P = { x: h.x + 520, y: h.y - 150 }; if (Sim.lakeAt(s, P, 40)) P.y += 300; lookAt(P.x, P.y); const c = cv.getBoundingClientRect(); return { P, x: c.left + view.cox + P.x * view.css, y: c.top + view.coy + P.y * view.css }; });
+    await p.mouse.move(spot.x, spot.y); await p.waitForTimeout(150);
+    await p.screenshot({ path: `${OUT}/${name}-st-lv11-place.png` });
+    await p.mouse.click(spot.x, spot.y); await p.waitForTimeout(100);
+    const trip = await p.evaluate(() => { const q = s.squads.find(k => k.fhqAt); return q ? q.type : null; });
+    await run(90); await p.waitForTimeout(200);
+    const built = await p.evaluate(P => { const f = s.nodes.find(n => n.kind === 'fhq' && n.side === 'blue'); return f ? { d: Math.round(Math.hypot(f.x - P.x, f.y - P.y)), build: Sim.buildCheck(s, 'blue', f.x + 60, f.y) } : null; }, spot.P);
+    check(name, armed && trip && built && built.d < 45 && built.build === '', `🏕 then a spot: the ${trip} squad drove there and set it up (${JSON.stringify(built)}), and building is allowed around it`);
     await p.screenshot({ path: `${OUT}/${name}-st-lv11.png` });
     // ★ all squads + a tap: rows toward the enemy — tanks in front, then jeeps, infantry, AA, medics and mechanics
     await p.evaluate(() => {

@@ -153,8 +153,10 @@ function poly(c, pts, k) {
   c.closePath();
 }
 // unit / facility glyphs: soldier, missile, tank (with barrel), plane
-function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2) {
-  c.save(); c.translate(x, y); c.lineJoin = 'round'; c.lineCap = 'round';
+// step: how far along its stride / tracks the unit is (radians; 0 = standing): legs swing, treads run, bodies bob
+function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step = 0) {
+  const sw = Math.sin(step) * 0.13 * k, bob = step ? Math.abs(Math.sin(step)) * 0.05 * k : 0;
+  c.save(); c.translate(x, y - bob); c.lineJoin = 'round'; c.lineCap = 'round';
   const paint = () => { if (outline) { c.lineWidth = lw; c.strokeStyle = outline; c.stroke(); } c.fillStyle = fill; c.fill(); };
   const barrel = (x1, y1, x2, y2, w) => {
     if (outline) { c.strokeStyle = outline; c.lineWidth = w + lw * 2; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); }
@@ -167,7 +169,7 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2) {
     const a = flip ? Math.PI - aim : aim;
     c.beginPath(); c.arc(-0.1 * k, -0.62 * k, 0.24 * k, 0, Math.PI * 2);
     c.moveTo(-0.42 * k, -0.34 * k); c.lineTo(0.22 * k, -0.34 * k); c.lineTo(0.14 * k, 0.2 * k); c.lineTo(-0.34 * k, 0.2 * k); c.closePath();
-    c.rect(-0.34 * k, 0.2 * k, 0.18 * k, 0.55 * k); c.rect(-0.04 * k, 0.2 * k, 0.18 * k, 0.55 * k);
+    c.rect(-0.34 * k + sw, 0.2 * k, 0.18 * k, 0.55 * k); c.rect(-0.04 * k - sw, 0.2 * k, 0.18 * k, 0.55 * k);
     paint();
     c.save(); c.translate(0.05 * k, -0.42 * k); c.rotate(a);
     c.beginPath(); c.rect(-0.45 * k, -0.15 * k, 1.35 * k, 0.3 * k); paint();
@@ -177,6 +179,9 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2) {
   else if (type === 'tank') {
     c.rotate(hd); c.beginPath(); c.rect(-0.8 * k, -0.55 * k, 1.6 * k, 1.1 * k); paint();
     c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(-0.8 * k, -0.55 * k, 1.6 * k, 0.24 * k); c.fillRect(-0.8 * k, 0.31 * k, 1.6 * k, 0.24 * k);
+    // tread links running back as it drives
+    c.fillStyle = 'rgba(255,255,255,.28)';
+    for (let i = 0; i < 5; i++) { const tx = (-0.8 + (((i * 0.32 - step * 0.06) % 1.6) + 1.6) % 1.6) * k; c.fillRect(tx, -0.55 * k, 0.08 * k, 0.24 * k); c.fillRect(tx, 0.31 * k, 0.08 * k, 0.24 * k); }
     c.rotate(aim - hd); barrel(0, 0, 1.3 * k, 0, 0.22 * k);
     c.beginPath(); c.arc(0, 0, 0.36 * k, 0, Math.PI * 2); paint();
   } else if (type === 'mech') {
@@ -190,7 +195,7 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2) {
     if (Math.cos(hd) < 0) c.scale(-1, 1);
     c.beginPath(); c.arc(0, -0.62 * k, 0.24 * k, 0, Math.PI * 2);
     c.moveTo(-0.32 * k, -0.34 * k); c.lineTo(0.32 * k, -0.34 * k); c.lineTo(0.24 * k, 0.2 * k); c.lineTo(-0.24 * k, 0.2 * k); c.closePath();
-    c.rect(-0.24 * k, 0.2 * k, 0.18 * k, 0.55 * k); c.rect(0.06 * k, 0.2 * k, 0.18 * k, 0.55 * k);
+    c.rect(-0.24 * k + sw, 0.2 * k, 0.18 * k, 0.55 * k); c.rect(0.06 * k - sw, 0.2 * k, 0.18 * k, 0.55 * k);
     paint();
     c.fillStyle = outline ? '#fff' : tcol('med');
     c.fillRect(-0.07 * k, -0.3 * k, 0.14 * k, 0.44 * k); c.fillRect(-0.2 * k, -0.15 * k, 0.4 * k, 0.14 * k);
@@ -198,12 +203,13 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2) {
     // jeep: open body, four wheels, a pintle gun on top
     c.rotate(hd); c.beginPath(); c.rect(-0.75 * k, -0.45 * k, 1.5 * k, 0.9 * k); paint();
     c.fillStyle = 'rgba(0,0,0,.45)'; for (const [wx, wy] of [[-0.5, -0.55], [0.35, -0.55], [-0.5, 0.42], [0.35, 0.42]]) c.fillRect(wx * k, wy * k, 0.3 * k, 0.14 * k);
+    if (step) { c.fillStyle = 'rgba(255,255,255,.35)'; const o = (Math.sin(step * 2) + 1) * 0.1 * k; for (const [wx, wy] of [[-0.5, -0.55], [0.35, -0.55], [-0.5, 0.42], [0.35, 0.42]]) c.fillRect(wx * k + o, wy * k, 0.06 * k, 0.14 * k); }
     c.rotate(aim - hd); barrel(0, 0, 0.9 * k, 0, 0.12 * k);
   } else {
     if (Math.cos(hd) < 0) c.scale(-1, 1);
     c.beginPath(); c.arc(0, -0.62 * k, 0.24 * k, 0, Math.PI * 2);
     c.moveTo(-0.32 * k, -0.34 * k); c.lineTo(0.32 * k, -0.34 * k); c.lineTo(0.24 * k, 0.2 * k); c.lineTo(-0.24 * k, 0.2 * k); c.closePath();
-    c.rect(-0.24 * k, 0.2 * k, 0.18 * k, 0.55 * k); c.rect(0.06 * k, 0.2 * k, 0.18 * k, 0.55 * k);
+    c.rect(-0.24 * k + sw, 0.2 * k, 0.18 * k, 0.55 * k); c.rect(0.06 * k - sw, 0.2 * k, 0.18 * k, 0.55 * k);
     paint(); barrel(0.05 * k, 0.05 * k, 0.62 * k, -0.75 * k, 0.14 * k);
   }
   c.restore();
@@ -434,29 +440,25 @@ function drawEnemyIntel(c) {
 // where the picture is exact under fog: the full-control ring (a drone's centre, near the HQ); units there are drawn
 // as they are, and our squads report there all the time. Only the fog without command friction shows every seen unit.
 const shownAt = p => !Sim.friction(s) || Sim.quality(s, 'blue', p) >= 1;
-// control quality: blue rings, deepest at full control, a step lighter for each ring out (100 / 80 / 60 / 40 / 20%),
-// each edged with a thin line. Worked out once on a grid (a point every QC units, like the height grid, so the same
-// contour tracer draws the edges) and redone only when the nodes change.
-const qual = { cv: document.createElement('canvas'), key: '', lines: [] }, QC = ELEV;
+// control quality: a blue wash, deepest at full control and fading smoothly out to nothing (the rings of the rules
+// blend into each other on the map). Worked out once on a grid (a point every QC units) and redone only when the
+// nodes change.
+const qual = { cv: document.createElement('canvas'), key: '' }, QC = ELEV;
 function drawQuality(c) {
   const nodes = s.nodes.filter(n => n.side === 'blue' && Sim.NODES[n.kind] && n.hp > 0 && s.t >= n.ready);
   const key = s.seed + ':' + s.W + ':' + nodes.map(n => n.id).join() + ':' + colors.blue;
   if (key !== qual.key) {
     qual.key = key;
     const w = Math.ceil(s.W / QC) + 1, h = Math.ceil(s.H / QC) + 1, q = qual.cv; q.width = w; q.height = h;
-    const g = q.getContext('2d'), img = g.createImageData(w, h), d = img.data, [r0, g0, b0] = rgbOf(colors.blue), steps = new Float32Array(w * h);
+    const g = q.getContext('2d'), img = g.createImageData(w, h), d = img.data, [r0, g0, b0] = rgbOf(colors.blue);
     for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-      const k = j * w + i, v = Math.floor(Sim.quality(s, 'blue', { x: i * QC, y: j * QC }) * 5 + 1e-6); // 0 (the floor) to 5 (full)
-      steps[k] = v; if (!v) continue;
-      d[k * 4] = r0; d[k * 4 + 1] = g0; d[k * 4 + 2] = b0; d[k * 4 + 3] = Math.round(255 * (0.02 + 0.045 * v));
+      const k = j * w + i, v = Sim.quality(s, 'blue', { x: i * QC, y: j * QC }, false, true) - 0.15; // above the floor
+      if (v <= 0) continue;
+      d[k * 4] = r0; d[k * 4 + 1] = g0; d[k * 4 + 2] = b0; d[k * 4 + 3] = Math.round(255 * 0.24 * Math.pow(v / 0.85, 1.4));
     }
     g.putImageData(img, 0, 0);
-    qual.lines = contours({ w, h, g: steps });
   }
   c.drawImage(qual.cv, -QC / 2, -QC / 2, qual.cv.width * QC, qual.cv.height * QC);
-  c.save(); c.strokeStyle = colors.blue; c.setLineDash([5, 5]);
-  qual.lines.forEach((p, k) => { c.globalAlpha = 0.25 + 0.1 * k; c.lineWidth = k === 4 ? 1.8 : 1; c.stroke(p); });
-  c.restore();
 }
 // control nodes: forward HQs (build-up ring, then working) and drones (warm-up, then flight time left)
 // structures: HQ, buildings, forward HQs, drones. Ours always; the enemy's while seen, then faded where last seen.
@@ -464,9 +466,11 @@ function drawQuality(c) {
 const nodeShown = n => n.side === 'blue' || !s.fog || s.visNodes.blue.has(n.id);
 function drawStruct(c, n, ghost) {
   const S = Sim.STRUCTS[n.kind], N = Sim.NODES[n.kind], col = colors[n.side], on = s.t >= n.ready, big = n.kind === 'hq' ? 1.5 : 1;
-  if (n.side === 'blue' && N && n.kind !== 'hq') {
-    c.strokeStyle = col; c.lineWidth = on ? 2 : 1; c.globalAlpha = on ? 0.7 : 0.35; c.setLineDash([6, 5]);
-    ring(n.x, n.y, N.r0); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+  // under construction: a pegged-out plot, and the building rising out of it (small and faint at first)
+  const grow = on || ghost || n.kind === 'hq' || n.kind === 'drone' ? 1 : Math.max(0, Math.min(1, (s.t - n.t0) / Math.max(0.01, n.ready - n.t0)));
+  if (grow < 1) {
+    c.strokeStyle = col; c.globalAlpha = 0.6; c.lineWidth = 1.2; c.setLineDash([3, 3]); c.strokeRect(n.x - 15, n.y - 15, 30, 30); c.setLineDash([]);
+    c.globalAlpha = 1; c.save(); c.translate(n.x, n.y); c.scale(0.35 + 0.65 * grow, 0.35 + 0.65 * grow); c.translate(-n.x, -n.y);
   }
   c.globalAlpha = ghost ? 0.45 : 1;
   if (!ghost && n.kind !== 'hq') {
@@ -477,8 +481,9 @@ function drawStruct(c, n, ghost) {
   else if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.55; drawDrone(c, n.x, n.y, 11, col); }
   else {
     c.fillStyle = colors.halo; ring(n.x, n.y, 13 * big); c.fill(); c.lineWidth = 1.5; c.strokeStyle = col; c.stroke();
-    c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.55; c.font = `${Math.round(16 * big)}px sans-serif`; c.fillText(S.icon, n.x, n.y + 6 * big);
+    c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.25 + 0.6 * grow; c.font = `${Math.round(16 * big)}px sans-serif`; c.fillText(S.icon, n.x, n.y + 6 * big);
   }
+  if (grow < 1) c.restore();
   c.globalAlpha = 1;
   if (ghost) return;
   if (!on) label(String(Math.ceil(n.ready - s.t)), n.x, n.y - 20 * big, col);
@@ -489,8 +494,23 @@ function drawNodes(c) {
   if (!s.fog) return;
   for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) drawStruct(c, { ...s.memNodes.blue[id], side: 'red' }, true);
 }
+// how far from a forward HQ building is allowed (its control there is at least the building minimum, in the rings)
+const FHQ_BUILD_R = (() => { const N = Sim.NODES.fhq; let d = N.r0; while (d < N.r1 && N.q * (Math.ceil((1 - (d - N.r0) / (N.r1 - N.r0)) * 4) / 5) >= 0.5) d += 2; return d; })();
 // build placement: green where a building may go (strong enough control, a free slot, room)
 function drawBuildArea(c) {
+  // forward HQs on their way: a faint 🏕 where each will stand, a dotted line from its squad; placing one: the area it
+  // will open for building, around the pointer
+  for (const q of s.squads) if (q.side === 'blue' && q.fhqAt && !q.dead) {
+    const p = pos(q), f = q.fhqAt;
+    c.globalAlpha = 0.6; c.strokeStyle = colors.blue; c.lineWidth = 1.5; c.setLineDash([2, 4]); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(f.x, f.y); c.stroke(); c.setLineDash([]);
+    c.globalAlpha = 0.55; c.font = '16px sans-serif'; c.fillText('🏕', f.x, f.y + 6); c.globalAlpha = 1;
+  }
+  if (fhqArmed && mouseAt) {
+    const r = cv.getBoundingClientRect(), w = { x: (mouseAt.x - r.left - view.cox) / view.css, y: (mouseAt.y - r.top - view.coy) / view.css };
+    c.fillStyle = 'rgba(80,200,90,.16)'; c.strokeStyle = 'rgba(60,170,70,.7)'; c.lineWidth = 1.5; c.setLineDash([6, 5]);
+    ring(w.x, w.y, FHQ_BUILD_R); c.fill(); c.stroke(); c.setLineDash([]);
+    c.globalAlpha = 0.7; c.font = '18px sans-serif'; c.fillText('🏕', w.x, w.y + 6); c.globalAlpha = 1;
+  }
   if (!buildArmed) return;
   const G = 20; c.fillStyle = 'rgba(80,200,90,.22)';
   for (let y = G / 2; y < s.H; y += G) for (let x = G / 2; x < s.W; x += G) if (!Sim.buildCheck(s, 'blue', x, y)) c.fillRect(x - G / 2, y - G / 2, G, G);
@@ -524,15 +544,37 @@ function drawMarks(c) {
   c.globalAlpha = 1;
 }
 
+// per unit (this game): its stride (how far it has moved, for the walking / driving look) and, under fog, where it was
+// last drawn — a unit that leaves the exact picture fades out there over GHOST_T s (like a sighting), not all at once
+const anim = { s: null, walk: new Map(), last: new Map() }, GHOST_T = 10;
+function stride(u) {
+  let a = anim.walk.get(u.id);
+  if (!a) { a = { x: u.x, y: u.y, ph: 0 }; anim.walk.set(u.id, a); }
+  const d = Math.hypot(u.x - a.x, u.y - a.y); a.x = u.x; a.y = u.y;
+  if (d > 0.05 && d < 20) a.ph += d * 0.35; else if (d <= 0.05) a.ph = 0;
+  return a.ph;
+}
+function drawGhosts(c) {
+  const alive = new Set(s.units.map(u => u.id));
+  for (const [id, g] of anim.last) {
+    const age = s.t - g.t;
+    if (age < 0.05) continue; // still drawn for real
+    if (age > GHOST_T || (!alive.has(id) && age < 0.3)) { anim.last.delete(id); continue; } // gone, or seen dying
+    c.globalAlpha = 0.55 * (1 - age / GHOST_T);
+    glyph(c, g.type, g.x, g.y, SIZE[g.type], colors[g.side], colors.outline, g.hd, g.hd);
+  }
+  c.globalAlpha = 1;
+}
 // units: ground first, aircraft (with drop shadows) on top
 function drawUnits(c, show) {
   for (const pass of [false, true]) for (const u of s.units) {
     const T = Sim.TYPES[u.type]; if (!!T.air !== pass || !show(u)) continue;
+    if (s.fog) anim.last.set(u.id, { x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t });
     const k = SIZE[u.type], recent = s.t - u.lastFire < 3;
     const aim = recent ? u.aim : (u.type === 'aa' ? idleAim('aa', u.side) : u.hd);
     if (T.air) { c.globalAlpha = 0.22; glyph(c, 'air', u.x + 7, u.y + 10, k, '#000', null, u.hd); c.globalAlpha = 1; }
     else { c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(u.x + 2, u.y + 4, k * 0.75, k * 0.35, 0, 0, Math.PI * 2); c.fill(); }
-    glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim);
+    glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim, 1.2, T.air ? 0 : stride(u));
     if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
     if (u.care) { c.fillStyle = colors.halo; ring(u.x + k * 0.8, u.y - k * 0.9, 4.5); c.fill(); c.fillStyle = colors.red; c.fillRect(u.x + k * 0.8 - 1, u.y - k * 0.9 - 3, 2, 6); c.fillRect(u.x + k * 0.8 - 3, u.y - k * 0.9 - 1, 6, 2); }
     if (u.side === 'blue' && isSel(u.squad)) {
@@ -590,8 +632,9 @@ function draw() {
   }
   c.restore(); c.globalAlpha = 1;
   // units: exact picture without fog; under fog what we see where the picture is exact (see shownAt)
+  if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); }
   if (!s.fog) drawUnits(c, () => true);
-  else drawUnits(c, u => (u.side === 'blue' || s.vis.blue.has(u.id)) && shownAt(u));
+  else { drawUnits(c, u => (u.side === 'blue' || s.vis.blue.has(u.id)) && shownAt(u)); drawGhosts(c); }
   // explosions: fireball, smoke ring for medium+, sparks for big
   for (const f of s.fx) {
     if (f.wait > 0) continue; // its shot is still flying
