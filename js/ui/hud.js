@@ -43,6 +43,10 @@ function drawReplay(i) {
     if (q.belief) { c.strokeStyle = col; c.lineWidth = 4; c.beginPath(); c.arc(q.belief[0], q.belief[1], 16, 0, Math.PI * 2); c.stroke(); }
     if (q.truth) { c.fillStyle = col; c.beginPath(); c.arc(q.truth[0], q.truth[1], 11, 0, Math.PI * 2); c.fill(); }
   }
+  // friendly fire since the previous snapshot
+  const t0 = i ? s.hist[i - 1].t : -1;
+  c.font = '30px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = colors.red;
+  for (const f of s.ff) if (f.side === 'blue' && f.t > t0 && f.t <= h.t) c.fillText('⚠', f.x, f.y - 24);
   $('replayT').textContent = fmtTime(h.t);
 }
 $('scrub').addEventListener('input', () => { replayAuto = false; drawReplay(+$('scrub').value); });
@@ -61,7 +65,7 @@ function showEnd() {
     let err = 0, n = 0;
     for (const h of H) for (const q of h.sq) if (q.truth && q.belief) { err += Math.hypot(q.truth[0] - q.belief[0], q.truth[1] - q.belief[1]); n++; }
     const L = s.log2;
-    $('endStats').textContent = `טעות ממוצעת בתמונה: ${n ? Math.round(err / n) : 0} · פקודות: ${L.orders}, בדרך בממוצע ${L.orders ? (L.delay / L.orders).toFixed(1) : 0} ש׳, סטייה בביצוע ${L.offN ? Math.round(L.off / L.offN) : 0} · שיחות: ענית ${L.answered}, החליטו לבד ${L.missed}`;
+    $('endStats').textContent = `טעות ממוצעת בתמונה: ${n ? Math.round(err / n) : 0} · פקודות: ${L.orders}, בדרך בממוצע ${L.orders ? (L.delay / L.orders).toFixed(1) : 0} ש׳, סטייה בביצוע ${L.offN ? Math.round(L.off / L.offN) : 0} · שיחות: ענית ${L.answered}, החליטו לבד ${L.missed} · ⚠ ירי על כוחותינו: ${L.ff}`;
     drawReplay(0);
   }
 }

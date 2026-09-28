@@ -63,7 +63,9 @@ function think(s, side, level) {
     if (sq.type !== 'aa') for (const n of structs) cands.push({ x: n.x, y: n.y, w: n.kind === 'hq' ? 120 : n.kind === 'fhq' ? -60 : -30 });
     if (!cands.length) continue;
     const score = p => {
-      let sc = dist(c, p) + p.w + (D.mass ? -150 : 200) * (taken.get(p.x + ',' + p.y) || 0);
+      // massing on one target where control is poor means shooting each other (friendly fire): spread out there
+      const mass = D.mass && (!s.fog || quality(s, side, p) >= FF_MASS_Q);
+      let sc = dist(c, p) + p.w + (mass ? -150 : 200) * (taken.get(p.x + ',' + p.y) || 0);
       if (D.smart && p.edge) sc -= 60 * edgeAt(s, sq, p);
       if (D.smart && sq.type === 'air') for (const { q, k } of foes) if (k.type === 'aa' && Math.hypot(k.x - p.x, k.y - p.y) < 150) sc += 300 * k.strength;
       return sc;

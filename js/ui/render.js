@@ -215,7 +215,7 @@ function drawBuildArea(c) {
   for (let y = G / 2; y < s.H; y += G) for (let x = G / 2; x < s.W; x += G) if (!Sim.buildCheck(s, 'blue', x, y)) c.fillRect(x - G / 2, y - G / 2, G, G);
 }
 // event reports appear where they happened, pop in and fade out
-const MARK = { ack: '👌', contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕', nodeLost: '💥' };
+const MARK = { ack: '👌', contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕', nodeLost: '💥', ff: '⚠' };
 // orders still on their way: a courier dot runs from HQ toward the squad, the new target is a ghost ring
 function drawMail(c) {
   const hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq') || { x: s.bases.blue.x, y: s.H / 2 };
@@ -238,7 +238,7 @@ function drawMarks(c) {
     const a = (s.t - k.t) / Sim.MARK_LIFE, sc = a < 0.15 ? 0.6 + a / 0.15 * 0.6 : 1.2 - Math.min(0.2, a);
     c.globalAlpha = Math.max(0, 1 - a); c.font = `${Math.round(18 * sc)}px sans-serif`;
     c.lineWidth = 3; c.strokeStyle = colors.halo; c.strokeText(MARK[k.kind], k.x, k.y - 44);
-    c.fillStyle = k.kind === 'lost' || k.kind === 'flagLost' ? colors.red : colors.ink; c.fillText(MARK[k.kind], k.x, k.y - 44);
+    c.fillStyle = k.kind === 'lost' || k.kind === 'flagLost' || k.kind === 'ff' ? colors.red : colors.ink; c.fillText(MARK[k.kind], k.x, k.y - 44);
   }
   c.globalAlpha = 1;
 }

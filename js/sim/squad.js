@@ -119,11 +119,12 @@ function updateUnit(s, u, sq, dt) {
   if (tgt) {
     u.engaged = true;
     if (u.cd === 0) {
-      tgt.hp -= T.dmg * MULT[u.type][tgt.type] * (!TYPES[tgt.type].air && inHill(s, tgt) ? 0.7 : 1); u.cd = T.cd; if (T.ammo) u.ammo--;
+      const hit = friendlyFire(s, u, sq, tgt) || tgt;
+      hit.hp -= T.dmg * MULT[u.type][hit.type] * (!TYPES[hit.type].air && inHill(s, hit) ? 0.7 : 1); u.cd = T.cd; if (T.ammo) u.ammo--;
       const fx = IMPACT[u.type];
-      s.fx.push({ x: tgt.x + (s.rand() - 0.5) * 6, y: tgt.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size });
-      u.aim = Math.atan2(tgt.y - u.y, tgt.x - u.x); u.lastFire = s.t;
-      s.shots.push({ x1: u.x, y1: u.y, x2: tgt.x, y2: tgt.y, life: 0.15, side: u.side, kind: u.type });
+      s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size });
+      u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
+      s.shots.push({ x1: u.x, y1: u.y, x2: hit.x, y2: hit.y, life: 0.15, side: u.side, kind: u.type });
     }
   }
   let tx, ty;
@@ -136,4 +137,27 @@ function updateUnit(s, u, sq, dt) {
     const sp = T.speed * (onHill ? 0.8 : 1) * (retreat ? 1.15 : 1) * dt, k = Math.min(1, sp / d);
     u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
   }
+}
+
+// Friendly fire (DESIGN.md §2): under fog, a shot at an enemy that has a unit of another friendly squad close
+// to it may hit that unit instead; likelier where the shooter's control is poor. Returns the unit hit, or null.
+function friendlyFire(s, u, sq, tgt) {
+  if (!s.fog) return null;
+  let f = null, fd = FF_R;
+  for (const o of s.units) {
+    if (o.side !== u.side || o.squad === u.squad || o.hp <= 0 || !MULT[u.type][o.type]) continue;
+    const d = dist(o, tgt);
+    if (d <= fd) { fd = d; f = o; }
+  }
+  if (!f || s.rand() >= FF_CHANCE * Math.pow(1 - qualityAt(s, sq), 2)) return null;
+  const v = s.squads.find(q => q.id === f.squad);
+  s.ff.push({ t: s.t, x: f.x, y: f.y, side: u.side, by: sq.id, on: v.id });
+  if (u.side === 'blue') {
+    s.log2.ff++;
+    if (s.t - (v.ffSaid ?? -99) >= FF_NOTE) {
+      v.ffSaid = s.t; report(s, v, `ירי על כוחותינו! נפגענו מכוח ה${sq.name}`);
+      s.marks.push({ x: f.x, y: f.y, kind: 'ff', t: s.t, who: v.name });
+    }
+  }
+  return f;
 }

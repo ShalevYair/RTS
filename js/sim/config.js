@@ -69,6 +69,10 @@ const ID_FULL = 0.7, ID_CLASS = 0.4, TRACK_GAP = 3;
 // executing "roughly": the commander goes to the target + a random offset within SPREAD·(1−Q)^SPREAD_POW;
 // a bold one also overshoots by BOLD_STRETCH of that radius
 const SPREAD = 120, SPREAD_POW = 1.5, BOLD_STRETCH = 0.6;
+// friendly fire (under fog): a shot at an enemy with a unit of another friendly squad within FF_R of it hits
+// that unit instead, with chance FF_CHANCE·(1−Q)² (Q at the shooter's squad); a squad reports it once per FF_NOTE s.
+// The hard AI only masses squads on one target where its control is at least FF_MASS_Q.
+const FF_CHANCE = 0.08, FF_R = 60, FF_NOTE = 8, FF_MASS_Q = 0.5;
 // damage to structures by attacker type (AA is the only thing that can hit a drone)
 const NODE_MULT = { inf: 0.6, tank: 1.5, air: 1.2, aa: 1.5, jeep: 0.8 };
 const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
