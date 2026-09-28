@@ -11,7 +11,7 @@
   - `Sim.create(seed, width, diff)` (diff: easy/normal/hard, `Sim.DIFFS`), `Sim.step(s, dt)`, `Sim.order(s, squadId, type, x, y, quiet)`, `Sim.setTrait`, `Sim.answer`, `Sim.build`, `Sim.buildFhq`, `Sim.drone`, `Sim.quality`, `Sim.share`, `Sim.think`.
   - עולם בגובה 640; הרוחב נקבע לפי יחס המסך בתחילת משחק (700–1500).
 - `js/ui/` — `core.js` מצב ומשתנים משותפים, צבעים, viewport · `render.js` ציור ה-canvas · `audio.js` מוזיקה, פיצוצים, קשר בקול · `hud.js` סרגל, HUD, מסך פתיחה/סיום, שחזור · `input.js` עכבר/מגע ומקלדת · `main.js` משחק חדש ולולאה.
-- `DESIGN.md` — מסמך התכנון לגרסה 2 ("פיקוד ושליטה").
+- `DESIGN.md` — מסמך התכנון לגרסה 2 ("פיקוד ושליטה"). `HANDOFF.md` — מה נעשה, מצב נוכחי ומה נשאר (להתחלת שיחה חדשה).
 - `tests/` — `load-sim.js` טוען את `js/sim/*` ל-Node; `tests/sim/*` בדיקות סימולציה; `tests/ui/*` בדיקות Playwright (צילומים ב-`tests/ui/out/`).
 
 ## מכניקות עיקריות (גרסה 2, לפי `DESIGN.md`; שלבים 0–2 בוצעו)
