@@ -8,6 +8,12 @@ function updateSquad(s, sq, dt) {
   const T = TYPES[sq.type], tr = TRAITS[sq.trait];
   sq.strength = m.reduce((a, u) => a + u.hp, 0) / (sq.size * T.hp);
   const body = bodyCenter(m); sq.cx = body.x; sq.cy = body.y;
+  // the line: a place for each unit that isn't away for treatment, facing the enemy (turning toward a new threat)
+  const line = m.filter(u => !u.care);
+  line.forEach((u, i) => { u.slot = i - (line.length - 1) / 2; });
+  if (sq.order.form && !sq.support) placeForm(s, sq, dt);
+  const want = faceAt(s, sq.side, effOrder(s, sq));
+  sq.face = sq.face === undefined ? want : turnTo(sq.face, want, FACE_TURN * dt);
   const c = { x: sq.cx, y: sq.cy };
   if (fresh) sendReport(s, sq);
   if (!sq.retreating && sq.order.type !== 'retreat' && sq.strength < retreatAt(s, sq)) {
@@ -108,7 +114,8 @@ function updateUnit(s, u, sq, dt) {
   for (const e of s.units) {
     if (e.side === u.side || e.hp <= 0 || !MULT[u.type][e.type]) continue; // 0 = can't hit it (only AA hits aircraft)
     // prefer targets this unit type is effective against
-    const d = dist(u, e), w = d / (MULT[u.type][e.type] + 0.2);
+    // prefer what this unit hurts most, and finishing off the wounded
+    const d = dist(u, e), w = d / (MULT[u.type][e.type] + 0.2) * (0.6 + 0.4 * e.hp / TYPES[e.type].hp);
     if (d <= range && w < nd) { nd = w; near = e; }
     if (!retreat && d <= sight && dist(anchor, e) <= leash + range && w < bw) { bw = w; bd = d; best = e; }
   }
@@ -138,7 +145,8 @@ function updateUnit(s, u, sq, dt) {
   if (best && bd > range * 0.9) { tx = best.x; ty = best.y; }
   else if (best) return;
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
-  else { const sr = o.r * 0.55; tx = anchor.x + u.sx * sr; ty = anchor.y + u.sy * sr; }
+  else if (T.air) { const sr = o.r * 0.55; tx = anchor.x + u.sx * sr; ty = anchor.y + u.sy * sr; }
+  else { const g = (u.slot || 0) * spacing(u.type), a = sq.face || 0; tx = anchor.x - Math.sin(a) * g; ty = anchor.y + Math.cos(a) * g; } // in the line
   moveTo(s, u, tx, ty, retreat ? 1.15 : 1, dt);
 }
 // a step toward (tx, ty): ground units go round lakes; uphill slower, downhill faster (by how many lines the next

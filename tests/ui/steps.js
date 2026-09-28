@@ -75,6 +75,18 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const h2 = await p.evaluate(() => [...document.querySelectorAll('[data-sq]')].filter(e => e.classList.contains('blink')).map(e => s.squads.find(q => q.id === e.dataset.sq).type).join());
     check(name, h2.length && h2.split(',').every(t => t === 'jeep' || t === 'tank'), `🏕 with no jeep / tank picked blinks the ones that can: ${h2}`);
     await p.screenshot({ path: `${OUT}/${name}-st-lv11.png` });
+    // ★ all squads + a tap: rows toward the enemy — tanks in front, then jeeps, infantry, AA, medics and mechanics
+    await p.evaluate(() => {
+      lvl = 0; fog = false; newGame(true); showIntro(false); s.fog = false; setPlaying(false); s.bots = [];
+      const hq = s.nodes.find(n => n.kind === 'hq' && n.side === 'blue');
+      for (const t of ['tank', 'aa', 'med', 'mech', 'air']) { const q = Sim._makeSquad(s, 'blue', t, null, hq.x + 100, hq.y); q.size = 4; Sim._fillSquad(s, q, hq.x + 100, hq.y); }
+      cam = { x: hq.x + 400, y: hq.y, z: 1.6 }; applyView(); updateHud(); select('all'); mode = 'hold'; syncButtons();
+    });
+    const tapAt = await p.evaluate(() => { const hq = s.nodes.find(n => n.kind === 'hq' && n.side === 'blue'), c = cv.getBoundingClientRect(); let P = { x: hq.x + 420, y: hq.y }; if (Sim.lakeAt(s, P, 120)) P.y -= 200; return { x: c.left + view.cox + P.x * view.css, y: c.top + view.coy + P.y * view.css }; });
+    await p.mouse.click(tapAt.x, tapAt.y); await run(45); await p.waitForTimeout(300);
+    const rows = await p.evaluate(() => { const x = t => { const q = s.squads.find(k => k.side === 'blue' && k.type === t); return Math.round(q.order.x); }; return { tank: x('tank'), jeep: x('jeep'), inf: x('inf'), aa: x('aa'), med: x('med') }; });
+    check(name, rows.tank > rows.jeep && rows.jeep > rows.inf && rows.inf > rows.aa && rows.aa > rows.med, `★ + tap: rows toward the enemy ${JSON.stringify(rows)}`);
+    await p.screenshot({ path: `${OUT}/${name}-st-formation.png` });
     // the full screen button (Chrome has the API; not shown when already full screen / installed)
     check(name, await shown('#fs'), 'a full screen button ⛶');
     check(name, !errs.length, `no errors ${JSON.stringify(errs)}`);

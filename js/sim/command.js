@@ -18,21 +18,58 @@ function deliver(s) {
   for (const m of due) {
     const sq = s.squads.find(q => q.id === m.id);
     if (!sq || sq.dead) continue; // the squad is gone; the message is lost
-    if (m.kind === 'order') applyOrder(s, sq, m.type, m.x, m.y, m.quiet);
+    if (m.kind === 'order') applyOrder(s, sq, m.type, m.x, m.y, m.quiet, m.form);
     else if (m.kind === 'build') setUpFhq(s, sq);
     else applyTrait(s, sq, m.trait, m.quiet);
   }
 }
 
-function order(s, squadId, type, x, y, quiet) {
+// form: this squad's place in a formation around (x, y) — { depth: behind the middle, lat: to the side }
+function order(s, squadId, type, x, y, quiet, form) {
   const sq = s.squads.find(q => q.id === squadId);
   if (!sq || sq.dead || s.over || !(type in ORDER_R)) return false;
   if (type === 'retreat') { const f = homeOf(s, sq); x = f.x; y = f.y; }
   if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
   x = clamp(x, 0, s.W); y = clamp(y, 0, s.H);
   if (!TYPES[sq.type].air && lakeAt(s, { x, y })) ({ x, y } = dryOf(s, { x, y }, 10)); // ground squads stop at the shore
-  if (friction(s)) send(s, sq, { kind: 'order', type, x, y, quiet }); else applyOrder(s, sq, type, x, y, quiet);
+  if (friction(s)) send(s, sq, { kind: 'order', type, x, y, quiet, form }); else applyOrder(s, sq, type, x, y, quiet, form);
   return true;
+}
+// how wide a squad's line is
+const spacing = type => TYPES[type].r * 2 + LINE_GAP;
+const lineWidth = sq => sq.size * spacing(sq.type);
+// all these squads to (x, y) together, in rows facing the enemy: tanks in front, then jeeps, infantry, AA, and medics /
+// mechanics at the back; aircraft over the middle. Squads of a kind stand side by side in their row.
+function formation(s, ids, type, x, y, quiet) {
+  if (type === 'retreat') { let ok = false; for (const id of ids) ok = order(s, id, type, x, y, quiet) || ok; return ok; }
+  const rows = new Map();
+  for (const id of ids) { const q = s.squads.find(k => k.id === id); if (q && !q.dead) { const k = FORM_ROW[q.type]; if (!rows.has(k)) rows.set(k, []); rows.get(k).push(q); } }
+  const ks = [...rows.keys()], mid = (Math.min(...ks) + Math.max(...ks)) / 2;
+  let ok = false;
+  for (const [k, list] of rows) {
+    let at = -(list.reduce((a, q) => a + lineWidth(q), 0) + SIDE_GAP * (list.length - 1)) / 2;
+    for (const q of list) { const w = lineWidth(q); ok = order(s, q.id, type, x, y, quiet, { depth: (k - mid) * ROW_GAP, lat: at + w / 2 }) || ok; at += w + SIDE_GAP; }
+  }
+  return ok;
+}
+// which way to face from p: the nearest enemy seen within FACE_R, else the enemy HQ
+function faceAt(s, side, p) {
+  let best = null, bd = FACE_R;
+  for (const e of s.units) if (e.side !== side && seen(s, side, e)) { const d = dist(e, p); if (d < bd) { bd = d; best = e; } }
+  const t = best || hqOf(s, side === 'blue' ? 'red' : 'blue') || s.bases[side === 'blue' ? 'red' : 'blue'];
+  return Math.atan2(t.y - p.y, t.x - p.x);
+}
+// turn angle a toward b by at most k
+const turnTo = (a, b, k) => { const d = Math.atan2(Math.sin(b - a), Math.cos(b - a)); return a + clamp(d, -k, k); };
+// a squad in a formation: its spot moves with the way the formation faces (it turns toward a threat)
+function placeForm(s, sq, dt) {
+  const o = sq.order, f = o.form;
+  f.a = f.a === undefined ? faceAt(s, sq.side, f) : turnTo(f.a, faceAt(s, sq.side, f), FACE_TURN * dt);
+  const dx = Math.cos(f.a), dy = Math.sin(f.a), at = (x, y) => ({ x: clamp(x - dx * f.depth - dy * f.lat, 10, s.W - 10), y: clamp(y - dy * f.depth + dx * f.lat, 10, s.H - 10) });
+  let p = at(f.x, f.y);
+  if (!TYPES[sq.type].air && lakeAt(s, p)) p = dryOf(s, p, 10);
+  o.x = p.x; o.y = p.y;
+  if (o.want) o.want = at(f.wx, f.wy);
 }
 // where the commander understood the order to point: the target plus a random offset that grows as control
 // weakens (none at Q = 1); a bold commander also overshoots, past the target along the way there
@@ -49,9 +86,10 @@ function understood(s, sq, x, y) {
   return { x: clamp(x + dx, 0, s.W), y: clamp(y + dy, 0, s.H) };
 }
 // under fog an order is carried out "roughly" (a retreat home is always clear); `want` keeps what was asked
-function applyOrder(s, sq, type, x, y, quiet) {
+function applyOrder(s, sq, type, x, y, quiet, form) {
   const p = friction(s) && type !== 'retreat' ? understood(s, sq, x, y) : { x, y }, off = Math.hypot(p.x - x, p.y - y);
   sq.order = { type, x: p.x, y: p.y, r: ORDER_R[type], want: { x, y } };
+  if (form && type !== 'retreat') { sq.order.form = { x: p.x, y: p.y, wx: x, wy: y, depth: form.depth, lat: form.lat }; placeForm(s, sq, 0); }
   sq.retreating = false; sq.arrived = false; sq.support = null;
   if (sq.side === 'blue' && friction(s) && type !== 'retreat') {
     s.log2.off += off; s.log2.offN++;

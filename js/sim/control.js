@@ -39,7 +39,9 @@ function droneSupply(s, dt) {
   }
 }
 // a forward HQ is set up where the squad stands when the order reaches it (sent like any order)
-const canBuildFhq = (s, sq) => !!sq && !sq.dead && FHQ_BUILDERS.includes(sq.type) && s.cd[sq.side].fhq <= 0;
+// at most NODES.fhq.max standing (or on their way, as a message) per side
+const fhqCount = (s, side) => s.nodes.filter(n => n.side === side && n.kind === 'fhq' && n.hp > 0).length + s.outbox.filter(m => m.side === side && m.kind === 'build').length;
+const canBuildFhq = (s, sq) => !!sq && !sq.dead && FHQ_BUILDERS.includes(sq.type) && s.cd[sq.side].fhq <= 0 && fhqCount(s, sq.side) < NODES.fhq.max;
 function buildFhq(s, squadId) {
   const sq = s.squads.find(q => q.id === squadId);
   if (s.over || !canBuildFhq(s, sq)) return false;

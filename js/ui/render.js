@@ -561,14 +561,14 @@ function draw() {
     const on = isSel(q.id), p = pos(q);
     c.strokeStyle = colors.blue; c.globalAlpha = on ? 0.9 : 0.35; c.lineWidth = on ? 2 : 1.2;
     c.setLineDash(o.type === 'support' ? [2, 4] : [7, 5]); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(o.x, o.y); c.stroke();
-    ring(o.x, o.y, o.r); c.stroke(); c.setLineDash([]);
+    const or = o.form ? 22 : o.r; ring(o.x, o.y, or); c.stroke(); c.setLineDash([]); // (in a formation: a small ring per squad)
     // "roger": the ring is where the commander understood the order; a cross marks what was actually asked
     if (o.want && Math.hypot(o.want.x - o.x, o.want.y - o.y) > 8) {
       const w = o.want; c.lineWidth = 1.5; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(w.x, w.y); c.lineTo(o.x, o.y); c.stroke(); c.setLineDash([]);
       c.lineWidth = 2; c.beginPath(); c.moveTo(w.x - 5, w.y - 5); c.lineTo(w.x + 5, w.y + 5); c.moveTo(w.x + 5, w.y - 5); c.lineTo(w.x - 5, w.y + 5); c.stroke();
     }
     const stack = labelSpots.filter(p => Math.hypot(p.x - o.x, p.y - o.y) < 30).length; labelSpots.push(o);
-    label(ORDER_ICON[o.type], o.x, o.y + o.r + 14 + stack * 15, tcol(q.type));
+    label(ORDER_ICON[o.type], o.x, o.y + or + 14 + stack * 15, tcol(q.type));
     c.globalAlpha = 1;
   }
   // shots in flight: bullets (a quick bright dot), shells (a glowing round with a short streak), missiles (a body

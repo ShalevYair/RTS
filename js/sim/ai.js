@@ -51,7 +51,7 @@ function aiForward(s, side, mine, setOrder) {
     else if (sq.arrived && !pending(s, sq.id, 'order') && buildFhq(s, sq.id)) s.aiFhq[side] = null;
     return;
   }
-  if (s.cd[side].fhq > 0) return;
+  if (s.cd[side].fhq > 0 || fhqCount(s, side) >= NODES.fhq.max) return;
   const nodes = controlNodes(s, side).filter(n => n.kind !== 'drone'), foe = s.bases[foeOf(side)];
   const hills = s.hills.filter(h => quality(s, side, h, true) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
     nodes.some(n => dist(n, h) < NODES[n.kind].r1 + AI_FHQ_REACH) && !threatAt(s, side, h, AI_NEAR));
@@ -82,8 +82,11 @@ function think(s, side, level) {
   const mine = s.squads.filter(q => q.side === side && !q.dead && !q.retreating);
   const setOrder = (sq, type, x, y) => {
     // compare with what was asked, not where the commander understood it (that would resend every time)
-    const p = pending(s, sq.id, 'order'), cur = p || sq.order, w = cur.want || cur;
+    const p = pending(s, sq.id, 'order'), cur = p || sq.order, w = cur.want || cur, k = sq.aiAsk;
     if (w.x === x && w.y === y && cur.type === type) return;
+    // (a target in a lake is moved to the shore: compare with what the AI itself last asked, too)
+    if (k && k.x === x && k.y === y && k.type === type && cur.type === type) return;
+    sq.aiAsk = { type, x, y };
     order(s, sq.id, type, x, y, true);
   };
   // what the AI may do: tutorial levels hold the enemy (red) back; the full game allows everything

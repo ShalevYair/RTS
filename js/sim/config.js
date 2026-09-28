@@ -90,7 +90,7 @@ const SURNAMES = ['כהן', 'לוי', 'מזרחי', 'פרץ', 'ביטון', 'א�
 // Drones don't count for building (only the HQ and forward HQs do).
 const NODES = {
   hq:    { q: 1,    r0: 280, r1: 480 },
-  fhq:   { q: 0.85, r0: 110, r1: 220, hp: 600, warm: 30, every: 60, sight: 150 },
+  fhq:   { q: 0.85, r0: 110, r1: 220, hp: 600, warm: 30, every: 180, sight: 150, max: 3 },
   drone: { q: 1,    r0: 110, r1: 310, hp: 30,  warm: 5,  every: 60, max: 10 },
 };
 const Q_STEPS = 4, DRONE_SEE = 0.6;
@@ -109,6 +109,12 @@ const SPREAD = 120, SPREAD_POW = 1.5, BOLD_STRETCH = 0.6;
 const FF_CHANCE = 0.08, FF_R = 60, FF_NOTE = 8, FF_MASS_Q = 0.5;
 // damage to structures by attacker type (AA is the only thing that can hit a drone)
 const NODE_MULT = { inf: 0.6, tank: 1.5, air: 1.2, aa: 1.5, jeep: 0.8 };
+// formations: a squad stands in a line across the way to the enemy (the nearest one seen within FACE_R, else the enemy
+// HQ), its units LINE_GAP + 2r apart; it turns toward a new threat at FACE_TURN rad/s. Ordering all squads at once
+// lines them up in rows, front to back (FORM_ROW): tanks, jeeps, infantry, AA, medics and mechanics; aircraft over the
+// middle. Rows are ROW_GAP apart, squads in a row SIDE_GAP apart.
+const FACE_R = 320, FACE_TURN = 0.8, LINE_GAP = 6, ROW_GAP = 50, SIDE_GAP = 20;
+const FORM_ROW = { tank: 0, jeep: 1, air: 1.5, inf: 2, aa: 3, med: 4, mech: 4 };
 const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
 // difficulty: how often the AI re-plans and how well it decides (never extra units or vision).

@@ -6,8 +6,10 @@ function select(id) { sel = id; syncButtons(); updateHud(); }
 function issue(type, x, y) {
   const all = sel === 'all';
   const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id) : selIds();
+  // all together: rows facing the enemy (tanks in front … medics and mechanics at the back); otherwise each on its own
   let ok = false;
-  for (const id of ids) ok = Sim.order(s, id, type, x, y, all) || ok;
+  if (all) ok = Sim.formation(s, ids, type, x, y, true);
+  else for (const id of ids) ok = Sim.order(s, id, type, x, y, false) || ok;
   if (ok && all) Sim.note(s, 'כל הכוחות: ' + (type === 'hold' ? 'מחזיקים עמדה' : type === 'attack' ? 'תוקפים את האזור' : 'נסוגים הביתה'));
   updateHud();
 }
@@ -82,7 +84,7 @@ function updateHud() {
   $('eyeN').textContent = D.stock || ''; $('eye').disabled = D.stock < 1 && !eyeArmed;
   $('eye').style.setProperty('--p', D.stock + Sim.dronesUp(s, 'blue') >= N.drone.max ? '1' : (1 - D.next / N.drone.every).toFixed(2));
   const bsq = oneSel() && s.squads.find(q => q.id === oneSel());
-  $('fhqN').textContent = cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').setAttribute('aria-disabled', String(!Sim.canBuildFhq(s, bsq)));
+  $('fhqN').textContent = Sim.fhqCount(s, 'blue') >= N.fhq.max ? N.fhq.max + '/' + N.fhq.max : cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').setAttribute('aria-disabled', String(!Sim.canBuildFhq(s, bsq)));
   if (s.fog !== fogWas) { fogWas = s.fog; syncButtons(); } // the tutorial's fog comes down mid-level
   $('fhq').style.setProperty('--p', (1 - cd.fhq / N.fhq.every).toFixed(2));
   $('bb').hidden = Sim.boost(s, 'blue') < 0.05;
