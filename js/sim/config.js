@@ -4,6 +4,9 @@ const H = 640;
 // HILL_AREA of ground, none within HILL_CLEAR of either edge (the bases) and HILL_GAP apart.
 // On a hill (ground units): range +20%, sight +30%, damage taken −30%, speed −20%.
 const MAP_H_MAX = 1400, MAP_W_MAX = 3000, HILL_AREA = 100000, HILL_CLEAR = 240, HILL_GAP = 30;
+// lakes: ground units go around them (only aircraft fly over); nothing is built within LAKE_PAD of one.
+// A ground unit looks LAKE_LOOK ahead and slides along the shore when the way is wet.
+const LAKE_PAD = 20, LAKE_LOOK = 28;
 const HILL_RANGE = 1.2, HILL_SIGHT = 1.3, HILL_ARMOR = 0.7, HILL_SLOW = 0.8;
 const TYPES = {
   inf:  { name: 'חי"ר',  hp: 60,  speed: 30, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 5, rein: 7, cost: 1 },

@@ -18,11 +18,12 @@ function buildCheck(s, side, x, y) {
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 20 || y < 20 || x > s.W - 20 || y > s.H - 20) return 'bad';
   if (buildCount(s, side) >= buildLimit(s, side)) return 'limit';
   if (quality(s, side, { x, y }) < BUILD_MIN_Q) return 'q';
+  if (lakeAt(s, { x, y }, LAKE_PAD)) return 'bad';
   if (s.nodes.some(n => n.kind !== 'drone' && dist(n, { x, y }) < BUILD_GAP)) return 'gap';
   return '';
 }
 function build(s, side, kind, x, y) {
-  if (s.over || !PRODUCERS.includes(kind) || buildCheck(s, side, x, y)) return false;
+  if (s.over || !PRODUCERS.includes(kind) || (s.builds && !s.builds.includes(kind)) || buildCheck(s, side, x, y)) return false;
   addStruct(s, side, kind, x, y);
   if (side === 'blue') note(s, `מתחילים לבנות ${STRUCTS[kind].name}`);
   return true;
@@ -80,7 +81,7 @@ function updateStructs(s, dt) {
     if (!sq || s.noReinforce) continue;
     const have = s.units.filter(u => u.squad === sq.id).length;
     if (have >= sq.size) { n.prog = 0; continue; }
-    n.prog += dt * (1 + boost(s, n.side)) / S.every;
+    n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) / S.every;
     if (n.prog >= 1) {
       n.prog = 0; spawn(s, sq, n.x, n.y); s.stats.rein[n.side]++;
       if (have + 1 === sq.size) report(s, sq, 'הכוח מאויש במלואו');

@@ -13,8 +13,11 @@ ok(grows, 'every level keeps what came before and adds something');
 {
   const s = Sim.level(1, 7, 1100), sq = side => s.squads.filter(q => q.side === side);
   ok(sq('blue').length === 1 && sq('red').length === 1 && !s.nodes.length && !s.bots.length && !s.fog, 'level 1: one squad each, no buildings, the enemy just stands there, no fog');
-  ok(Sim.level(6, 7, 1100).fog && !Sim.level(5, 7, 1100).fog, 'fog comes in at level 6');
-  ok(Sim.level(7, 7, 1100).H > Sim.H && Sim.level(6, 7, 1100).H === Sim.H, 'the big map comes in at the last level');
+    const fogAt = [...Array(N)].map((_, i) => Sim.level(i + 1, 7, 1100).fog).indexOf(true) + 1;
+  ok(fogAt >= N - 1 && !Sim.level(fogAt - 1, 7, 1100).fog, `fog comes in late (level ${fogAt})`);
+  ok(Sim.level(N, 7, 1100).H > Sim.H && Sim.level(N - 1, 7, 1100).H === Sim.H, 'the big map comes in at the last level');
+  const b4 = Sim.level(4, 7, 1100);
+  ok(b4.builds.join() === 'tent' && !Sim.build(b4, 'blue', 'tankshop', 150, 200) && Sim.build(b4, 'blue', 'tent', 150, 200), 'level 4 builds tents only (buildings come in one kind at a time)');
   // tapping the map with the only squad selected wins it
   const r = sq('red')[0]; Sim.order(s, sq('blue')[0].id, 'attack', r.cx, r.cy);
   while (!s.over && s.t < 120) Sim.step(s, 1 / 30);
@@ -25,7 +28,7 @@ ok(grows, 'every level keeps what came before and adds something');
   const n0 = s.nodes.length; while (s.t < 120 && !s.over) Sim.step(s, 1 / 30);
   ok(s.nodes.filter(n => n.kind !== 'drone').length <= n0 && !s.nodes.some(n => n.kind === 'drone' || n.kind === 'fhq'), 'level 3: the enemy builds nothing, no drones, no forward HQ');
 }
-// a plain 'normal' bot playing blue wins levels 1-3 (they should be easy); from 4 on they are real games (reported only)
+// a plain 'normal' bot playing blue (about what a new player does) wins every level, quickly
 for (let n = 1; n <= N; n++) {
   let won = 0, T = 0; const G = n <= 3 ? 3 : 2;
   for (let i = 0; i < G; i++) {
@@ -33,5 +36,6 @@ for (let n = 1; n <= N; n++) {
     while (!s.over && s.t < 900) Sim.step(s, 1 / 30);
     if (s.over === 'blue') won++; T += s.t;
   }
-  ok(n > 3 || won === G, `level ${n}: a normal bot as blue won ${won}/${G} (average ${Math.round(T / G)} s)`);
+  // the tutorial is meant to be won: blue wins every level, and each is over in a few minutes
+  ok(won === G && T / G < (n < N ? 300 : 480), `level ${n}: a normal bot as blue won ${won}/${G} (average ${Math.round(T / G)} s)`);
 }

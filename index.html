@@ -13,9 +13,11 @@
 <div class="stage" id="stage">
   <canvas id="cv" aria-label="מפת הקרב"></canvas>
   <canvas id="mini" class="glass" aria-label="מפה קטנה: לחץ כדי להסתכל שם" hidden></canvas>
-  <div class="score blue glass" title="עוצמה: החלק שלך מהכוח של שני הצדדים (בערפל: לפי הערכה). מתחת ל-15% — קריסה והפסד"><b id="pwN">50%</b><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="bb" title="החלש מבין הצדדים: ייצור מהיר יותר" hidden>⚡</i></div>
+  <div class="hudl">
+    <div class="score blue glass" title="עוצמה: החלק שלך מהכוח של שני הצדדים (בערפל: לפי הערכה). מתחת ל-15% — קריסה והפסד"><b id="pwN">50%</b><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="bb" title="החלש מבין הצדדים: ייצור מהיר יותר" hidden>⚡</i></div>
+    <div class="score slots glass" id="slots" title="מבנים: בנויים / מכסה (2 + 2 לכל מפקדה ופיקוד קדמי פעילים)">🏗 <b id="slotN">1/4</b></div>
+  </div>
   <ol class="log" id="log" aria-live="polite"></ol>
-  <div class="score right glass" id="slots" title="מבנים: בנויים / מכסה (2 + 2 לכל מפקדה ופיקוד קדמי פעילים)">🏗 <b id="slotN">1/4</b></div>
   <div class="buildm glass" id="buildm" hidden role="menu" aria-label="בנייה"></div>
   <div class="call glass" id="call" hidden role="alertdialog" aria-live="assertive">
     <span id="callTxt"></span>

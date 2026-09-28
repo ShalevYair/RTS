@@ -4,8 +4,7 @@ function makeDecor(s) {
   const W = s.W, ky = s.H / Sim.H, K = W * ky;
   let a = s.H > Sim.H ? 12345 + Math.round(s.hills[0].y * 1000) : 12345; const r = () => ((a = (a * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
   const mid = W / 2, ok = (x, m = 0) => x > 90 + m && x < W - 90 - m && Math.abs(x - mid) > 80 + m;
-  const lakes = [{ x: W * 0.36, y: 592 * ky, rx: 55, ry: 22, a: 0.1 }, { x: W * 0.64, y: 50 * ky, rx: 55, ry: 22, a: -0.1 }];
-  if (ky > 1) lakes.push({ x: W * 0.2, y: s.H * 0.35, rx: 60, ry: 25, a: 0.2 }, { x: W * 0.8, y: s.H * 0.65, rx: 60, ry: 25, a: 0.2 });
+  const lakes = s.lakes; // part of the ground now (ground units go around them)
   const inLake = (x, y) => lakes.some(l => ((x - l.x) / (l.rx + 8)) ** 2 + ((y - l.y) / (l.ry + 8)) ** 2 < 1);
   const patches = [], fields = [], trees = [], rocks = [], n = Math.round(K / 70);
   for (let i = 0; i < n; i++) patches.push({ x: 90 + r() * (W - 180), y: r() * s.H, rx: 40 + r() * 70, ry: 25 + r() * 40 });
@@ -104,7 +103,7 @@ function drawTerrain(c, W, H, mid) {
   c.fillStyle = colors.rock; for (const r of decor.rocks) { ring(r.x, r.y, r.r); c.fill(); }
   const ky = H / Sim.H, cy = H / 2;
   const roads = () => {
-    c.beginPath(); c.moveTo(mid, 60 * ky); c.lineTo(mid, 580 * ky);
+    c.beginPath();
     for (const y of [80, 240, 400, 560]) {
       c.moveTo(60, y * ky); c.bezierCurveTo(W * 0.25, y * ky, W * 0.3, cy, mid, cy);
       c.moveTo(W - 60, y * ky); c.bezierCurveTo(W * 0.75, y * ky, W * 0.7, cy, mid, cy);
@@ -141,7 +140,7 @@ function drawHQ(c, x, y, col) {
 const HQ_WALL = '#b8a47a', HQ_YARD = '#9c8b66';
 // drone: a quadcopter from above — four rotors on an X frame
 // what a squad is doing, under its target ring: a symbol, not a word
-const ORDER_ICON = { hold: '⚓', attack: '⚔', retreat: '↩', support: '➕' };
+const ORDER_ICON = { hold: '⚓', attack: '⚔', retreat: '↩', support: '➕' }, AMMO = '#e0b020';
 function drawDrone(c, x, y, k, col) {
   c.save(); c.translate(x, y); c.lineWidth = k * 0.16; c.strokeStyle = colors.outline;
   c.beginPath(); c.moveTo(-k * 0.7, -k * 0.7); c.lineTo(k * 0.7, k * 0.7); c.moveTo(k * 0.7, -k * 0.7); c.lineTo(-k * 0.7, k * 0.7); c.stroke();
@@ -376,6 +375,14 @@ function draw() {
     c.font = '11px sans-serif'; c.fillText(POSTURE[q.trait], x + 20, y + 4);
     if (s.fog) c.fillText(Sim.TEMPERS[q.temper].icon, x - 20, y + 4);
     if (stale) label('?', x - 17, y - 6, colors.ink);
+    // why it's heading back: 🩹 fell back after heavy losses (to heal at home); aircraft show ammo, ⟳ = going to rearm
+    if (q.retreating) { c.font = '15px sans-serif'; c.fillText('🩹', x, y - 18); }
+    if (Sim.TYPES[q.type].ammo) {
+      const m = s.units.filter(u => u.squad === q.id), A = Sim.TYPES[q.type].ammo;
+      const k = m.length ? m.reduce((a, u) => a + (u.rearm ? 0 : u.ammo / A), 0) / m.length : 0;
+      c.fillStyle = colors.shadow; c.fillRect(x - 12, y + 19, 24, 3); c.fillStyle = AMMO; c.fillRect(x - 12, y + 19, 24 * k, 3);
+      if (m.some(u => u.rearm)) { c.font = '15px sans-serif'; c.fillText('⟳', x, y - 18); }
+    }
     c.globalAlpha = 1;
   }
 }

@@ -77,6 +77,7 @@ function updateHud() {
   const b = Math.round(100 * (s.fog ? believedShare() : Sim.share(s, 'blue')));
   $('pwN').textContent = (s.fog ? '≈' : '') + b + '%'; $('pwB').style.width = b + '%';
   $('slotN').textContent = Sim.buildCount(s, 'blue') + '/' + Sim.buildLimit(s, 'blue');
+  $('bld').setAttribute('aria-disabled', String(buildFull() && !buildArmed));
   renderSquadButtons();
   // drone / forward HQ buttons: seconds until ready, and a refill bar
   const cd = s.cd.blue, N = Sim.NODES;
@@ -169,8 +170,18 @@ function initBuildMenu() {
     m.appendChild(b);
   }
 }
+// the menu offers what this game allows (the tutorial adds kinds level by level)
+function syncBuildMenu(fresh) {
+  for (const b of document.querySelectorAll('[data-build]')) {
+    b.hidden = !!s.builds && !s.builds.includes(b.dataset.build);
+    b.classList.toggle('new', fresh.includes(b.dataset.build));
+  }
+}
+const buildFull = () => Sim.buildCount(s, 'blue') >= Sim.buildLimit(s, 'blue');
+// no free slot: the button is dimmed, and pressing it anyway flashes the slots counter
 function toggleBuild() {
   const m = $('buildm');
+  if (!buildArmed && m.hidden && buildFull()) { const k = $('slots'); k.classList.remove('blink'); void k.offsetWidth; k.classList.add('blink'); return; }
   if (buildArmed) { buildArmed = null; m.hidden = true; } else m.hidden = !m.hidden;
   syncButtons();
 }
@@ -203,11 +214,16 @@ function renderLevels() {
 }
 $('go').addEventListener('click', () => { showIntro(false); setPlaying(true); });
 // only the controls this level has; the ones it adds pulse until first used
-const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'slots'], traits: ['gTrait'], fog: ['log'] };
+const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'slots'], vehicles: ['bld'], air: ['bld'], traits: ['gTrait'], fog: ['log'] };
+// building kinds each level step brings
+const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], air: ['aapost', 'airfield'] };
+// an element shows when any of the level steps that bring it is there
+const UI_EL_ANY = id => Object.keys(UI_EL).some(k => UI_EL[k].includes(id) && uiHas(k));
 function applyUi() {
   const fresh = lvl > 1 ? Sim.levelUi(lvl).filter(k => !Sim.levelUi(lvl - 1).includes(k)) : [];
   document.querySelectorAll('.new').forEach(e => e.classList.remove('new'));
-  for (const k in UI_EL) for (const id of UI_EL[k]) $(id).hidden = !uiHas(k);
+  for (const k in UI_EL) for (const id of UI_EL[k]) $(id).hidden = !UI_EL_ANY(id);
+  syncBuildMenu(fresh.flatMap(k => UI_BUILDS[k] || []));
   for (const k of fresh) for (const id of UI_EL[k] || [k]) $(id).classList.add('new');
   bar.classList.toggle('tut', !!s.ui && s.ui.length < 4);
 }

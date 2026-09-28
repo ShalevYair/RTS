@@ -30,6 +30,7 @@ function order(s, squadId, type, x, y, quiet) {
   if (type === 'retreat') { const f = homeOf(s, sq); x = f.x; y = f.y; }
   if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
   x = clamp(x, 0, s.W); y = clamp(y, 0, s.H);
+  if (!TYPES[sq.type].air && lakeAt(s, { x, y })) ({ x, y } = dryOf(s, { x, y }, 10)); // ground squads stop at the shore
   if (s.fog) send(s, sq, { kind: 'order', type, x, y, quiet }); else applyOrder(s, sq, type, x, y, quiet);
   return true;
 }

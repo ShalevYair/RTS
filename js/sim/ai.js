@@ -29,7 +29,11 @@ function knownStructs(s, side) {
 function aiBuild(s, side, D) {
   if (buildCount(s, side) >= buildLimit(s, side)) return;
   if (!D.smart && s.t - (s.lastBuild[side] || -99) < 30) return; // easy builds slowly
-  const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 }, kind = AI_PLAN[s.plan[side] % AI_PLAN.length];
+  // the next planned kind this game allows (tutorial levels allow only some)
+  let kind = null;
+  for (let i = 0; i < AI_PLAN.length && !kind; i++) { const k = AI_PLAN[(s.plan[side] + i) % AI_PLAN.length]; if (!s.builds || s.builds.includes(k)) { kind = k; s.plan[side] += i; } }
+  if (!kind) return;
+  const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
   const anchors = controlNodes(s, side).filter(n => n.kind !== 'drone').sort((a, b) => dist(a, goal) - dist(b, goal));
   for (const a of anchors) for (let i = 0; i < 12; i++) {
     const ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * 2.4, r = 55 + s.rand() * 110;

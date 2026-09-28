@@ -132,6 +132,7 @@ function updateUnit(s, u, sq, dt) {
   else if (best) return;
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
   else { const sr = o.r * 0.55; tx = anchor.x + u.sx * sr; ty = anchor.y + u.sy * sr; }
+  if (!T.air && s.lakes.length) ({ x: tx, y: ty } = wade(s, u, tx, ty));
   const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy);
   if (d > 2) {
     const sp = T.speed * (onHill ? HILL_SLOW : 1) * (retreat ? 1.15 : 1) * dt, k = Math.min(1, sp / d);
@@ -160,4 +161,18 @@ function friendlyFire(s, u, sq, tgt) {
     }
   }
   return f;
+}
+
+// ground units don't swim: a spot in a lake becomes its shore, and when the way ahead is wet the unit slides along
+// the shore, on the side that turns it less from where it's going (lakes are convex, so this gets it round)
+function wade(s, u, tx, ty) {
+  let t = { x: tx, y: ty };
+  if (lakeAt(s, t, 4)) t = dryOf(s, t, 6);
+  const dx = t.x - u.x, dy = t.y - u.y, d = Math.hypot(dx, dy);
+  if (d < 1) return t;
+  const ahead = { x: u.x + dx / d * Math.min(LAKE_LOOK, d), y: u.y + dy / d * Math.min(LAKE_LOOK, d) }, l = lakeAt(s, ahead, 6);
+  if (!l) return t;
+  const ox = u.x - l.x, oy = u.y - l.y, o = Math.hypot(ox, oy) || 1, k = dx * -oy + dy * ox > 0 ? 1 : -1;
+  const sx = -oy / o * k * 0.85 + ox / o * 0.15, sy = ox / o * k * 0.85 + oy / o * 0.15;
+  return { x: u.x + sx * LAKE_LOOK, y: u.y + sy * LAKE_LOOK };
 }

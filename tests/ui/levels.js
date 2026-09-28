@@ -39,6 +39,23 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.waitForTimeout(400);
     check(name, await shown('#gOrd'), 'level 3: hold / attack / retreat appear');
     await p.screenshot({ path: `${OUT}/${name}-lv3.png` });
+    // level 4: tents only; with every slot taken the build button is dimmed and pressing it flashes the counter
+    await p.evaluate(() => { lvl = 4; newGame(true); setPlaying(false); });
+    const kinds = await p.evaluate(() => [...document.querySelectorAll('[data-build]')].filter(b => !b.hidden).map(b => b.dataset.build).join());
+    check(name, kinds === 'tent', `level 4: the build menu offers tents only (${kinds})`);
+    const full = await p.evaluate(() => {
+      const hq = s.nodes.find(n => n.kind === 'hq' && n.side === 'blue');
+      for (let i = 0; i < 40 && Sim.buildCount(s, 'blue') < Sim.buildLimit(s, 'blue'); i++) Sim.build(s, 'blue', 'tent', hq.x + 60 + (i % 4) * 50, 80 + Math.floor(i / 4) * 60);
+      updateHud(); return { dis: document.getElementById('bld').getAttribute('aria-disabled'), slots: document.getElementById('slotN').textContent };
+    });
+    await p.click('#bld', { force: true }); // dimmed, but a finger can still press it
+    const after = await p.evaluate(() => ({ blink: document.getElementById('slots').classList.contains('blink'), menu: !document.getElementById('buildm').hidden }));
+    check(name, full.dis === 'true' && after.blink && !after.menu, `full (${full.slots}): build button dimmed, pressing it flashes the counter, no menu ${JSON.stringify(after)}`);
+    const left = await p.evaluate(() => { const a = document.getElementById('slots').getBoundingClientRect(), b = document.querySelector('.score.blue').getBoundingClientRect(); return a.right < innerWidth / 2 && Math.abs(a.top - b.top) < 4; });
+    check(name, left, 'the slots counter sits on the left, beside the power bar');
+    // music: five pieces, all playable
+    const mus = await p.evaluate(() => { const r = Music._debug.playAll(); Music.stop(); const a = Music._debug.song(), b = Music._debug.next(); return { r, change: a !== b }; });
+    check(name, mus.r && Object.keys(mus.r).length === 5 && Object.values(mus.r).every(n => n >= 20) && mus.change, `music: ${JSON.stringify(mus.r)}, the next piece is a different one`);
     // last level: fog, drone (a quadcopter, not an emoji) and forward HQ
     await p.evaluate(() => { lvl = Sim.LEVELS; newGame(true); setPlaying(true); Sim.drone(s, 'blue', s.nodes.find(n => n.kind === 'hq' && n.side === 'blue').x + 160, s.H / 2 - 60); });
     await p.waitForTimeout(600);

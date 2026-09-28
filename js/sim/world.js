@@ -17,7 +17,8 @@ function makeHills(s) {
     const off = 0.17 * W;
     return [{ x: cx, y: 555, r: 75 }, { x: cx - off, y: 165, r: 60 }, { x: cx + off, y: 165, r: 60 }, { x: cx - off, y: 470, r: 55 }, { x: cx + off, y: 470, r: 55 }, { x: cx, y: 90, r: 55 }];
   }
-  const out = [], free = (x, y, r) => out.every(o => Math.hypot(o.x - x, o.y - y) > o.r + r + HILL_GAP);
+  const out = [], free = (x, y, r) => out.every(o => Math.hypot(o.x - x, o.y - y) > o.r + r + HILL_GAP) &&
+    !lakeAt(s, { x, y }, r + HILL_GAP);
   for (let i = 0, mid = 0; i < 200 && mid < 3; i++) {
     const r = 55 + s.rand() * 25, y = r + 20 + s.rand() * (h - 2 * r - 40);
     if (free(cx, y, r)) { out.push({ x: cx, y, r }); mid++; }
@@ -50,11 +51,19 @@ const fillSquad = (s, sq, x, y) => {
 };
 
 // Opening (DESIGN.md §3): HQ, a tent with its infantry, and one jeep squad without a building
+// lakes (ground units go around them): the small map has two, a taller one two more; mirrored like the hills
+function makeLakes(s) {
+  const W = s.W, ky = s.H / H;
+  const out = [{ x: W * 0.36, y: 592 * ky, rx: 55, ry: 22, a: 0.1 }, { x: W * 0.64, y: 50 * ky, rx: 55, ry: 22, a: -0.1 }];
+  if (ky > 1) out.push({ x: W * 0.2, y: s.H * 0.35, rx: 60, ry: 25, a: 0.2 }, { x: W * 0.8, y: s.H * 0.65, rx: 60, ry: 25, a: 0.2 });
+  return out;
+}
+
 // mapH: the world's height (H = the small map; up to MAP_H_MAX for the big one, DESIGN.md §5)
 function create(seed = 1, W = 1000, diff = 'normal', mapH = H) {
   const h = clamp(Math.round(mapH) || H, H, MAP_H_MAX);
   W = clamp(Math.round(W) || 1000, 700, MAP_W_MAX);
-  const s = { W, H: h, t: 0, over: null, nextId: 1, nextSq: 0, rand: rng(seed), hills: [],
+  const s = { W, H: h, t: 0, over: null, nextId: 1, nextSq: 0, rand: rng(seed), hills: [], lakes: [],
     bases: { blue: makeBase(30, 0, 60, h), red: makeBase(W - 30, W - 60, W, h) },
     squads: [], units: [], shots: [], fx: [], log: [], aiIn: { blue: 0, red: 0 }, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true,
     vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} }, memNodes: { blue: {}, red: {} },
@@ -62,7 +71,7 @@ function create(seed = 1, W = 1000, diff = 'normal', mapH = H) {
     log2: { orders: 0, delay: 0, answered: 0, missed: 0, off: 0, offN: 0, ff: 0 }, ff: [], power: { blue: 0, red: 0 }, peak: { blue: 0, red: 0 }, plan: { blue: 0, red: 0 },
     nodes: [], nextNode: 1, visNodes: { blue: new Set(), red: new Set() }, cd: { blue: { drone: 0, fhq: 0 }, red: { drone: 0, fhq: 0 } },
     diff: diff in DIFFS ? diff : 'normal', bots: ['red'], botDiff: 'normal', aiFhq: { blue: null, red: null } };
-  s.hills = makeHills(s);
+  s.lakes = makeLakes(s); s.hills = makeHills(s);
   for (const side of ['blue', 'red']) {
     const b = s.bases[side], dir = side === 'blue' ? 1 : -1;
     addStruct(s, side, 'hq', b.x, h / 2, true);
@@ -105,5 +114,8 @@ function separate(s) {
       }
     }
   }
-  for (const u of us) { u.x = clamp(u.x, 5, s.W - 5); u.y = clamp(u.y, 5, s.H - 5); }
+  for (const u of us) {
+    u.x = clamp(u.x, 5, s.W - 5); u.y = clamp(u.y, 5, s.H - 5);
+    if (!TYPES[u.type].air && lakeAt(s, u)) { const d = dryOf(s, u); u.x = d.x; u.y = d.y; } // pushed into a lake: back to the shore
+  }
 }
