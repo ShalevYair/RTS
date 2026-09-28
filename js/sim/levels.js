@@ -1,0 +1,55 @@
+// Sim: the tutorial — levels that add one thing at a time, with no words. Each level is the normal opening
+// (world.js), cut down: fewer structures and squads, a weaker enemy, and a list of what the player gets (`ui`).
+// The UI shows only those controls; what's new in a level pulses. After the last level comes the full game.
+//   ui: squads = pick a squad · orders = hold / attack / retreat · build = buildings (and the slots counter)
+//       traits = posture · fog = fog of war, reports, radio log, calls · eye = drone · fhq = forward HQ
+const LEVELS = [
+  // 1. tap the map: your squad goes there and fights
+  { ui: [], nodes: [], blue: [['inf', 0.2, 0.5, 6]], red: [['inf', 0.72, 0.5, 4]], bot: null },
+  // 2. two squads each: pick one, send it
+  { ui: ['squads'], nodes: [], blue: [['inf', 0.2, 0.3, 6], ['jeep', 0.2, 0.7, 4]], red: [['inf', 0.75, 0.3, 5], ['jeep', 0.75, 0.7, 3]], bot: 'easy' },
+  // 3. headquarters: hold / attack / retreat (back home heals), take out their HQ
+  { ui: ['squads', 'orders'], nodes: ['hq'], blue: [['inf', 0.2, 0.3, 6], ['jeep', 0.2, 0.7, 4]], red: [['inf', 0.8, 0.3, 5], ['jeep', 0.8, 0.7, 3]], bot: 'easy' },
+  // 4. buildings raise squads
+  { ui: ['squads', 'orders', 'build'], nodes: ['hq', 'tent'], bot: 'easy', can: { build: true } },
+  // 5. posture: when a commander falls back
+  { ui: ['squads', 'orders', 'build', 'traits'], nodes: ['hq', 'tent'], bot: 'normal', can: { build: true } },
+  // 6. fog: you see reports, not the ground
+  { ui: ['squads', 'orders', 'build', 'traits', 'fog'], nodes: ['hq', 'tent'], bot: 'normal', can: { build: true, drone: true } },
+  // 7. drone and forward HQ, on the big map
+  { ui: ['squads', 'orders', 'build', 'traits', 'fog', 'eye', 'fhq'], nodes: ['hq', 'tent'], bot: 'normal', big: true, can: { build: true, drone: true, fhq: true } },
+];
+const LEVEL_UI = ['squads', 'orders', 'build', 'traits', 'fog', 'eye', 'fhq'], LEVEL_COLLAPSE = 0.25;
+
+// replace a side's squads with the listed ones: [type, x as a share of the width, y as a share of the height, units]
+function setForces(s, side, list) {
+  const gone = new Set(s.squads.filter(q => q.side === side).map(q => q.id));
+  s.squads = s.squads.filter(q => !gone.has(q.id)); s.units = s.units.filter(u => !gone.has(u.squad));
+  for (const n of s.nodes) if (gone.has(n.squad)) n.squad = null;
+  for (const [type, fx, fy, n] of list) {
+    const x = s.W * fx, y = s.H * fy, sq = makeSquad(s, side, type, null, x, y);
+    sq.size = n; fillSquad(s, sq, x, y);
+  }
+}
+
+// level n (1-based) on a map W wide; null past the last level
+function level(n, seed = 1, W = 1000) {
+  const L = LEVELS[n - 1];
+  if (!L) return null;
+  const s = L.big ? create(seed, 2 * Math.max(1000, W), L.bot || 'easy', 2 * H) : create(seed, W, L.bot || 'easy');
+  s.level = n; s.ui = L.ui.slice(); s.fog = L.ui.includes('fog');
+  s.bots = L.bot ? ['red'] : [];
+  s.aiCan = { build: false, drone: false, fhq: false, ...L.can };
+  // what's left of the opening: only the listed structures; a squad whose building is gone gets no refills
+  s.nodes = s.nodes.filter(k => L.nodes.includes(k.kind));
+  for (const q of s.squads) if (q.home && !s.nodes.some(k => k.id === q.home)) q.home = null;
+  if (L.blue) setForces(s, 'blue', L.blue);
+  if (L.red) setForces(s, 'red', L.red);
+  // levels are short: a side is beaten below LEVEL_COLLAPSE (not 15%); where nothing is produced, from the start,
+  // and the enemy there doesn't run
+  s.collapseAt = LEVEL_COLLAPSE;
+  if (!L.nodes.includes('tent')) { s.collapseAfter = 0; for (const q of s.squads) if (q.side === 'red') q.trait = 'aggressive'; }
+  updatePower(s); visibility(s);
+  s.rep = {}; for (const q of s.squads) sendReport(s, q);
+  return s;
+}

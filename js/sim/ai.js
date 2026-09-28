@@ -70,8 +70,10 @@ function think(s, side, level) {
     if (w.x === x && w.y === y && cur.type === type) return;
     order(s, sq.id, type, x, y, true);
   };
-  aiBuild(s, side, D);
-  if (D.smart) aiForward(s, side, mine, setOrder);
+  // what the AI may do: tutorial levels hold the enemy (red) back; the full game allows everything
+  const can = s.aiCan && side === 'red' ? s.aiCan : { build: true, drone: true, fhq: true };
+  if (can.build) aiBuild(s, side, D);
+  if (D.smart && can.fhq) aiForward(s, side, mine, setOrder);
   const structs = knownStructs(s, side);
   const foes = s.squads.filter(q => q.side === foe).map(q => ({ q, k: intel(s, side, q) })).filter(o => o.k);
   for (const sq of mine) {
@@ -109,14 +111,14 @@ function think(s, side, level) {
     for (const sq of s.squads) if (sq.side === side && sq.trait !== tr) setTrait(s, sq.id, tr, true);
   }
   // drones: first on a fresh track we can't make out, else where we know least — an unexplored spot on the enemy's side
-  const blur = D.smart && s.fog && s.cd[side].drone <= 0 && foes.find(o => o.k.lvl < 2 && s.t - o.k.t < 5);
+  const blur = D.smart && can.drone && s.fog && s.cd[side].drone <= 0 && foes.find(o => o.k.lvl < 2 && s.t - o.k.t < 5);
   if (blur) drone(s, side, blur.k.x, blur.k.y);
-  else if (D.smart && s.fog && s.cd[side].drone <= 0) {
+  else if (D.smart && can.drone && s.fog && s.cd[side].drone <= 0) {
     const x = s.bases[foe].x + (s.bases[side].x - s.bases[foe].x) * (0.2 + 0.4 * s.rand()), y = 60 + s.rand() * (s.H - 120);
     if (!structs.some(n => n.id !== 'hq?' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0)) drone(s, side, x, y);
   }
   // no hill for it: a builder that reached its target, far from our other control nodes, sets one up there
-  if (D.smart && s.cd[side].fhq <= 0 && !s.aiFhq[side]) {
+  if (D.smart && can.fhq && s.cd[side].fhq <= 0 && !s.aiFhq[side]) {
     const b = mine.find(q => FHQ_BUILDERS.includes(q.type) && q.arrived && !pending(s, q.id, 'order') &&
       controlNodes(s, side).every(n => dist(n, { x: q.cx, y: q.cy }) > NODES.fhq.r1));
     if (b) buildFhq(s, b.id);

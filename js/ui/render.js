@@ -115,18 +115,42 @@ function drawTerrain(c, W, H, mid) {
   roads(); c.strokeStyle = colors.road; c.lineWidth = 9; c.stroke();
 }
 
-function drawBases(c, H) {
-  for (const side of ['blue', 'red']) {
-    const b = s.bases[side], w = b.x1 - b.x0, inner = side === 'blue' ? b.x1 : b.x0, face = side === 'blue' ? 0 : Math.PI;
-    c.save();
-    c.fillStyle = hexA(colors[side], 0.2); c.fillRect(b.x0, 0, w, H);
-    c.beginPath(); c.rect(b.x0, 0, w, H); c.clip();
-    c.strokeStyle = hexA(colors[side], 0.14); c.lineWidth = 2;
-    for (let y = -w; y < H + w; y += 14) { c.beginPath(); c.moveTo(b.x0, y); c.lineTo(b.x1, y + w); c.stroke(); }
-    c.restore();
-    c.strokeStyle = colors[side]; c.lineWidth = 2; c.beginPath(); c.moveTo(inner, 0); c.lineTo(inner, H); c.stroke();
-    c.fillStyle = colors[side]; for (let y = 6; y < H; y += 16) c.fillRect(inner - 2, y, 4, 4);
+// headquarters: a walled compound with a command building, a radio mast and the side's flag (about 46 × 38, so it
+// fits at the map's edge where the HQ stands)
+function drawHQ(c, x, y, col) {
+  c.save(); c.translate(x, y); c.scale(0.8, 0.8); c.lineJoin = 'round';
+  c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(3, 5, 28, 22, 0, 0, Math.PI * 2); c.fill();
+  // wall with corner towers
+  c.fillStyle = HQ_WALL; c.strokeStyle = colors.outline; c.lineWidth = 1.5;
+  c.beginPath(); c.rect(-24, -19, 48, 38); c.fill(); c.stroke();
+  c.fillStyle = HQ_YARD; c.fillRect(-19, -14, 38, 28);
+  for (const [tx, ty] of [[-24, -19], [24, -19], [-24, 19], [24, 19]]) { c.fillStyle = HQ_WALL; c.beginPath(); c.rect(tx - 5, ty - 5, 10, 10); c.fill(); c.stroke(); }
+  // gate toward the enemy
+  c.fillStyle = HQ_YARD; c.fillRect(x < s.W / 2 ? 19 : -25, -5, 6, 10);
+  // command building in the side's colour, with a roof ridge
+  c.fillStyle = col; c.beginPath(); c.rect(-11, -8, 22, 16); c.fill(); c.stroke();
+  c.strokeStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.moveTo(-11, 0); c.lineTo(11, 0); c.stroke();
+  // radio mast
+  c.strokeStyle = colors.outline; c.lineWidth = 1.5; c.beginPath(); c.moveTo(6, -8); c.lineTo(6, -30); c.stroke();
+  c.beginPath(); c.arc(6, -30, 5, Math.PI * 1.15, Math.PI * 1.85); c.stroke(); c.beginPath(); c.arc(6, -30, 9, Math.PI * 1.2, Math.PI * 1.8); c.stroke();
+  // flag
+  c.beginPath(); c.moveTo(-6, -8); c.lineTo(-6, -38); c.stroke();
+  c.fillStyle = col; c.beginPath(); c.moveTo(-6, -38); c.lineTo(10 * (x < s.W / 2 ? 1 : -1) - 6, -33); c.lineTo(-6, -28); c.closePath(); c.fill(); c.stroke();
+  c.restore();
+}
+const HQ_WALL = '#b8a47a', HQ_YARD = '#9c8b66';
+// drone: a quadcopter from above — four rotors on an X frame
+// what a squad is doing, under its target ring: a symbol, not a word
+const ORDER_ICON = { hold: '⚓', attack: '⚔', retreat: '↩', support: '➕' };
+function drawDrone(c, x, y, k, col) {
+  c.save(); c.translate(x, y); c.lineWidth = k * 0.16; c.strokeStyle = colors.outline;
+  c.beginPath(); c.moveTo(-k * 0.7, -k * 0.7); c.lineTo(k * 0.7, k * 0.7); c.moveTo(k * 0.7, -k * 0.7); c.lineTo(-k * 0.7, k * 0.7); c.stroke();
+  for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    c.fillStyle = colors.halo; c.beginPath(); c.arc(a * k * 0.7, b * k * 0.7, k * 0.42, 0, Math.PI * 2); c.fill();
+    c.lineWidth = k * 0.1; c.strokeStyle = col; c.stroke();
   }
+  c.fillStyle = col; c.beginPath(); c.rect(-k * 0.28, -k * 0.28, k * 0.56, k * 0.56); c.fill(); c.lineWidth = k * 0.08; c.strokeStyle = colors.outline; c.stroke();
+  c.restore();
 }
 
 // fog of war: dim everything outside what blue can see (units' sight, own base, held points)
@@ -144,9 +168,8 @@ function drawFog() {
     g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
     f.fillStyle = g; f.beginPath(); f.arc(x, y, r, 0, Math.PI * 2); f.fill();
   };
-  const b = s.bases.blue; f.fillRect(b.x0, 0, b.x1 - b.x0 + 5, s.H);
   for (const q of s.squads) if (q.side === 'blue' && !q.dead) { const p = pos(q); hole(p.x, p.y, Sim.TYPES[q.type].sight + 30); }
-  for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, n.kind === 'drone' ? Sim.NODES.drone.r0 + 15 : n.kind === 'fhq' ? Sim.NODES.fhq.sight : 120);
+  for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, n.kind === 'drone' ? Sim.NODES.drone.r0 + 15 : n.kind === 'fhq' ? Sim.NODES.fhq.sight : n.kind === 'hq' ? Sim.STRUCTS.hq.sight + 20 : 120);
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(fogCv, 0, 0); ctx.restore();
 }
 
@@ -197,12 +220,17 @@ function drawStruct(c, n, ghost) {
     ring(n.x, n.y, N.r0); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
   }
   c.globalAlpha = ghost ? 0.45 : 1;
-  if (!ghost) {
+  if (!ghost && n.kind !== 'hq') {
     const k = !on ? (s.t - n.t0) / Math.max(0.01, n.ready - n.t0) : n.kind === 'drone' ? (n.until - s.t) / N.life : S.unit ? n.prog : 1;
     c.strokeStyle = col; c.lineWidth = 3; c.beginPath(); c.arc(n.x, n.y, 16 * big, -Math.PI / 2, -Math.PI / 2 + Math.max(0, Math.min(1, k)) * Math.PI * 2); c.stroke();
   }
-  c.fillStyle = colors.halo; ring(n.x, n.y, 13 * big); c.fill(); c.lineWidth = 1.5; c.strokeStyle = col; c.stroke();
-  c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.55; c.font = `${Math.round(16 * big)}px sans-serif`; c.fillText(S.icon, n.x, n.y + 6 * big); c.globalAlpha = 1;
+  if (n.kind === 'hq') drawHQ(c, n.x, n.y, col);
+  else if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.55; drawDrone(c, n.x, n.y, 11, col); }
+  else {
+    c.fillStyle = colors.halo; ring(n.x, n.y, 13 * big); c.fill(); c.lineWidth = 1.5; c.strokeStyle = col; c.stroke();
+    c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.55; c.font = `${Math.round(16 * big)}px sans-serif`; c.fillText(S.icon, n.x, n.y + 6 * big);
+  }
+  c.globalAlpha = 1;
   if (ghost) return;
   if (!on) label(String(Math.ceil(n.ready - s.t)), n.x, n.y - 20 * big, col);
   if (n.hp < S.hp) { c.fillStyle = colors.shadow; c.fillRect(n.x - 14, n.y + 19 * big, 28, 3); c.fillStyle = col; c.fillRect(n.x - 14, n.y + 19 * big, 28 * Math.max(0, n.hp / S.hp), 3); }
@@ -274,7 +302,6 @@ function draw() {
   c.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
   c.textAlign = 'center';
   drawTerrain(c, W, H, mid);
-  drawBases(c, H);
   // player orders
   const labelSpots = [];
   for (const q of s.squads) {
@@ -291,7 +318,7 @@ function draw() {
       c.lineWidth = 2; c.beginPath(); c.moveTo(w.x - 5, w.y - 5); c.lineTo(w.x + 5, w.y + 5); c.moveTo(w.x + 5, w.y - 5); c.lineTo(w.x - 5, w.y + 5); c.stroke();
     }
     const stack = labelSpots.filter(p => Math.hypot(p.x - o.x, p.y - o.y) < 30).length; labelSpots.push(o);
-    label(Sim.ORDER_NAME[o.type], o.x, o.y + o.r + 14 + stack * 15, tcol(q.type));
+    label(ORDER_ICON[o.type], o.x, o.y + o.r + 14 + stack * 15, tcol(q.type));
     c.globalAlpha = 1;
   }
   // tracers
@@ -365,7 +392,6 @@ function drawMini() {
   const c = m.getContext('2d'); c.setTransform(k, 0, 0, k, 0, 0);
   c.fillStyle = colors.ground; c.fillRect(0, 0, s.W, s.H);
   c.fillStyle = colors.hill; for (const hl of s.hills) { c.beginPath(); c.arc(hl.x, hl.y, hl.r, 0, Math.PI * 2); c.fill(); }
-  for (const side of ['blue', 'red']) { const b = s.bases[side]; c.fillStyle = hexA(colors[side], 0.35); c.fillRect(b.x0, 0, b.x1 - b.x0, s.H); }
   if (s.fog) { c.fillStyle = hexA(colors.blue, 0.12); for (const n of s.nodes) if (n.side === 'blue' && Sim.NODES[n.kind] && s.t >= n.ready) { c.beginPath(); c.arc(n.x, n.y, Sim.NODES[n.kind].r0, 0, Math.PI * 2); c.fill(); } }
   const dot = (x, y, r, col, sq) => { c.fillStyle = col; c.beginPath(); if (sq) c.rect(x - r, y - r, 2 * r, 2 * r); else c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
   for (const n of s.nodes) if (nodeShown(n)) dot(n.x, n.y, 14, colors[n.side], true);

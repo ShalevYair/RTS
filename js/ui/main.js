@@ -2,13 +2,15 @@
 function newGame(skipIntro) {
   const seed = (Date.now() % 1e6) | 0;
   // big: 2× wide and 2× high, never narrower than 2000 (a phone held upright would get a thin strip)
-  s = bigMap ? Sim.create(seed, 2 * Math.max(1000, worldWidth()), diff, 2 * Sim.H) : Sim.create(seed, worldWidth(), diff); s.fog = fog;
+  if (lvl) s = Sim.level(lvl, seed, worldWidth());
+  else { s = bigMap ? Sim.create(seed, 2 * Math.max(1000, worldWidth()), diff, 2 * Sim.H) : Sim.create(seed, worldWidth(), diff); s.fog = fog; }
   // the big map opens zoomed in on our base; the small one shows it all
-  cam = bigMap ? { x: 0, y: s.H / 2, z: -1 } : { x: s.W / 2, y: s.H / 2, z: 1 };
-  decor = makeDecor(s); sel = 'all'; mode = 'hold'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; sqKey = ''; Radio.reset();
+  cam = s.H > Sim.H ? { x: 0, y: s.H / 2, z: -1 } : { x: s.W / 2, y: s.H / 2, z: 1 };
+  // in the tutorial a tap on the map attacks (hold / retreat come later)
+  decor = makeDecor(s); sel = 'all'; mode = lvl ? 'attack' : 'hold'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; sqKey = ''; Radio.reset();
   $('buildm').hidden = true;
   $('end').hidden = true; $('share').textContent = 'שתף 🔗';
-  resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
+  applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
 }
 
 const DT = 1 / 30; let last = performance.now(), acc = 0;

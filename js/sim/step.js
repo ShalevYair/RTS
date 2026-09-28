@@ -24,10 +24,10 @@ function step(s, dt) {
   for (const side of s.bots) { s.aiIn[side] -= dt; if (s.aiIn[side] <= 0) s.aiIn[side] = think(s, side, side === 'red' ? s.diff : s.botDiff); }
   // collapse (DESIGN.md §4): below COLLAPSE of the total power, a side is beaten
   updatePower(s);
-  if (s.t >= COLLAPSE_AFTER) {
-    const b = share(s, 'blue');
-    if (b < COLLAPSE) s.over = 'red'; else if (1 - b < COLLAPSE) s.over = 'blue';
+  if (s.t >= (s.collapseAfter ?? COLLAPSE_AFTER)) {
+    const b = share(s, 'blue'), k = s.collapseAt ?? COLLAPSE;
+    if (b < k) s.over = 'red'; else if (1 - b < k) s.over = 'blue';
   }
 }
 
-const Sim = { create, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+const Sim = { create, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };

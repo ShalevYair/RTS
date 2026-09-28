@@ -4,6 +4,12 @@ const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage'), bar = $('bar'
 let s, decor, sel = 'all', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0, diff = 'normal', endShown = false, fog = true, buildArmed = null;
 try { fog = localStorage.getItem('irts-fog') !== '0'; } catch (e) { /* storage unavailable */ }
 try { const d = localStorage.getItem('irts-diff'); if (d in Sim.DIFFS) diff = d; } catch (e) { /* storage unavailable */ }
+// tutorial: `done` = the highest level won; `lvl` = the level being played (0 = the full game, with its settings)
+let done = 0;
+try { done = Math.max(0, Math.min(Sim.LEVELS, +localStorage.getItem('irts-done') || 0)); } catch (e) { /* storage unavailable */ }
+let lvl = done >= Sim.LEVELS ? 0 : done + 1;
+// what the player has in this game: everything in the full game, only the level's controls in the tutorial
+const uiHas = k => !s.ui || s.ui.includes(k);
 const colors = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);

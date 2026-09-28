@@ -70,6 +70,9 @@ document.addEventListener('keydown', e => {
   if (!$('end').hidden) return;
   // physical key codes, so the shortcuts also work on a Hebrew keyboard layout
   const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : /^(Digit|Numpad)\d$/.test(e.code) ? e.code.slice(-1) : e.key.toLowerCase();
+  // keys for controls this level doesn't have yet do nothing
+  const need = /^\d$/.test(k) ? 'squads' : 'har'.includes(k) ? 'orders' : k in TRAIT_KEY ? 'traits' : { d: 'eye', b: 'fhq', g: 'build' }[k];
+  if (need && !uiHas(need)) return;
   if (/^[1-9]$/.test(k)) { const q = blueSquads()[+k - 1]; if (q) select(q.id); }
   else if (k === '0') select('all');
   else if (k === 'h') { mode = 'hold'; syncButtons(); }

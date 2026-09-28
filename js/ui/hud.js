@@ -25,7 +25,7 @@ function syncButtons() {
   const pb = $('play'); pb.textContent = playing ? '⏸' : '▶'; pb.setAttribute('aria-label', playing ? 'עצור' : 'התחל');
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
   document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.map === 'big') === bigMap)));
-  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('eye').hidden = $('fhq').hidden = !s.fog;
+  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !s.fog || !uiHas('fhq');
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
   cv.style.cursor = eyeArmed ? 'zoom-in' : buildArmed ? 'copy' : '';
 }
@@ -37,7 +37,6 @@ function drawReplay(i) {
   cvR.width = Math.round(w * dpr); cvR.height = Math.round(s.H * k * dpr);
   const c = cvR.getContext('2d'); c.setTransform(k * dpr, 0, 0, k * dpr, 0, 0);
   c.fillStyle = colors.ground; c.fillRect(0, 0, s.W, s.H);
-  for (const side of ['blue', 'red']) { const b = s.bases[side]; c.fillStyle = hexA(colors[side], 0.2); c.fillRect(b.x0, 0, b.x1 - b.x0, s.H); }
   const g = s.H / Sim.H; // symbols keep their size on screen on a bigger map
   for (const q of h.sq) {
     const col = colors[q.side];
@@ -53,10 +52,12 @@ function drawReplay(i) {
 }
 $('scrub').addEventListener('input', () => { replayAuto = false; drawReplay(+$('scrub').value); });
 function showEnd() {
-  $('endT').textContent = s.over === 'blue' ? 'ניצחת! 🏆' : 'הפסדת';
+  $('endT').textContent = s.over === 'blue' ? '🏆' : '✖';
+  if (lvl && s.over === 'blue' && lvl > done) { done = lvl; try { localStorage.setItem('irts-done', String(done)); } catch (e) { /* ignore */ } }
+  $('again').textContent = lvl && s.over === 'blue' ? '▶' : '↻';
   const b = Math.round(Sim.share(s, 'blue') * 100);
   $('endMe').textContent = b + '%'; $('endFoe').textContent = (100 - b) + '%';
-  $('endInfo').textContent = `${fmtTime(s.t)} · ${Sim.DIFFS[s.diff].name}`;
+  $('endInfo').textContent = `${fmtTime(s.t)} · ${lvl ? lvl + ' / ' + Sim.LEVELS : Sim.DIFFS[s.diff].name}`;
   $('end').hidden = false; $('again').focus();
   const H = s.hist, show = s.fog && H.length > 1;
   $('replayBox').hidden = !show;
@@ -184,13 +185,33 @@ document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click'
   diff = b.dataset.diff; s.diff = diff; try { localStorage.setItem('irts-diff', diff); } catch (e) { /* ignore */ }
   syncButtons();
 }));
-// full rules the first time and from ❔; afterwards a new game only asks for difficulty
-const showIntro = (on, full) => {
+// the intro has no words: the level path and ▶. The full game (∞) adds its settings; ❔ shows the written rules.
+function showIntro(on, full) {
   $('intro').hidden = !on; if (!on) return;
-  let seen = false; try { seen = !!localStorage.getItem('irts-seen'); } catch (e) { /* ignore */ }
-  $('intro').classList.toggle('short', seen && !full); setPlaying(false); $('go').focus();
-};
-$('go').addEventListener('click', () => { showIntro(false); try { localStorage.setItem('irts-seen', '1'); } catch (e) { /* ignore */ } setPlaying(true); });
+  $('rules').hidden = !full; $('freeOpts').hidden = !!lvl; renderLevels(); setPlaying(false); $('go').focus();
+}
+function renderLevels() {
+  const box = $('levels'); box.textContent = '';
+  for (let n = 1; n <= Sim.LEVELS + 1; n++) {
+    const k = n > Sim.LEVELS ? 0 : n, b = document.createElement('button');
+    b.textContent = k ? String(k) : '∞'; b.setAttribute('aria-label', k ? `שלב ${k}` : 'משחק מלא');
+    b.setAttribute('aria-pressed', String(k === lvl)); b.classList.toggle('won', !!k && k <= done);
+    b.disabled = !!k && k > done + 1; // a level opens when the one before it is won; the full game is always open
+    b.addEventListener('click', () => { if (k === lvl) return; lvl = k; newGame(); });
+    box.appendChild(b);
+  }
+}
+$('go').addEventListener('click', () => { showIntro(false); setPlaying(true); });
+// only the controls this level has; the ones it adds pulse until first used
+const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'slots'], traits: ['gTrait'], fog: ['log'] };
+function applyUi() {
+  const fresh = lvl > 1 ? Sim.levelUi(lvl).filter(k => !Sim.levelUi(lvl - 1).includes(k)) : [];
+  document.querySelectorAll('.new').forEach(e => e.classList.remove('new'));
+  for (const k in UI_EL) for (const id of UI_EL[k]) $(id).hidden = !uiHas(k);
+  for (const k of fresh) for (const id of UI_EL[k] || [k]) $(id).classList.add('new');
+  bar.classList.toggle('tut', !!s.ui && s.ui.length < 4);
+}
+document.addEventListener('pointerdown', e => { const n = e.target.closest && e.target.closest('.new'); if (n) n.classList.remove('new'); }, true);
 // map size: a new map is made at once (the intro is still up, nothing has happened yet)
 document.querySelectorAll('[data-map]').forEach(b => b.addEventListener('click', () => {
   const big = b.dataset.map === 'big'; if (big === bigMap) return;
@@ -210,7 +231,10 @@ $('fhq').addEventListener('click', buildHere);
 const answerCall = choice => { if (Sim.answer(s, +$('call').dataset.id, choice)) updateHud(); };
 $('callHold').addEventListener('click', () => answerCall('hold'));
 $('callBack').addEventListener('click', () => answerCall('retreat'));
-$('again').addEventListener('click', () => { newGame(true); setPlaying(true); });
+$('again').addEventListener('click', () => {
+  if (lvl && s.over === 'blue') lvl = lvl < Sim.LEVELS ? lvl + 1 : 0;
+  newGame(true); setPlaying(true);
+});
 $('settings').addEventListener('click', () => newGame());
 $('share').addEventListener('click', async () => {
   const url = location.href.split('#')[0];
