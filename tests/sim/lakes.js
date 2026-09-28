@@ -2,7 +2,7 @@
 const { Sim, play } = require('./bench.js');
 const ok = (c, m) => { console.log((c ? 'ok  ' : 'FAIL') + ' ' + m); if (!c) process.exitCode = 1; };
 // inside a (rotated) lake ellipse
-const wet = (l, p) => { const c = Math.cos(l.a), s = Math.sin(l.a), dx = p.x - l.x, dy = p.y - l.y, u = dx * c + dy * s, v = -dx * s + dy * c; return (u / l.rx) ** 2 + (v / l.ry) ** 2 < 1; };
+const wet = (l, p) => { const c = Math.cos(l.a), s = Math.sin(l.a), dx = p.x - l.x, dy = p.y - l.y, u = (dx * c + dy * s) / l.rx, v = (-dx * s + dy * c) / l.ry; return u * u + v * v < Sim.wobble(l.w, Math.atan2(v, u)) ** 2; }; // the lake's real (uneven) outline
 const small = Sim.create(3, 1000, 'normal'), big = Sim.create(3, 2400, 'normal', 1280);
 ok(small.lakes.length === 2 && big.lakes.length === 4, `lakes: ${small.lakes.length} on the small map, ${big.lakes.length} on the big one`);
 ok(big.hills.every(h => big.lakes.every(l => Math.hypot(h.x - l.x, h.y - l.y) > h.r + l.rx)), 'no hill in a lake');

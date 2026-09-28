@@ -6,12 +6,15 @@ function rng(seed) {
 }
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const inHill = (s, p) => s.hills.some(h => dist(h, p) < h.r);
+// hills and lakes aren't perfect circles / ellipses: each has a few waves around its rim (w = [[amp, k, phase], ...]);
+// `wobble` is how far out the rim is at angle th, as a share of the plain radius
+const wobble = (w, th) => { let f = 1; if (w) for (const [a, k, ph] of w) f += a * Math.cos(k * th + ph); return f; };
+const inHill = (s, p) => s.hills.some(h => { const d = dist(h, p); return d < h.r * 1.25 && d < h.r * wobble(h.w, Math.atan2(p.y - h.y, p.x - h.x)); });
 // lakes are rotated ellipses; `lakeK` < 1 means p is inside (grown by pad)
 function lakeK(l, p, pad = 0) {
   const c = Math.cos(l.a), sn = Math.sin(l.a), dx = p.x - l.x, dy = p.y - l.y;
-  const u = dx * c + dy * sn, v = -dx * sn + dy * c;
-  return (u / (l.rx + pad)) ** 2 + (v / (l.ry + pad)) ** 2;
+  const u = (dx * c + dy * sn) / (l.rx + pad), v = (-dx * sn + dy * c) / (l.ry + pad);
+  return (u * u + v * v) / wobble(l.w, Math.atan2(v, u)) ** 2;
 }
 const lakeAt = (s, p, pad = 0) => s.lakes.find(l => lakeK(l, p, pad) < 1);
 // the nearest dry spot: p pushed straight out from the lake's centre to its (padded) shore

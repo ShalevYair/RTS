@@ -1,26 +1,55 @@
 // UI: canvas rendering — terrain, bases, points, fog, intel, marks, units
-// scenery (no effect on play), new every game like the ground: grass, fields, trees, rocks, and roads from each
-// side's edge to a crossing near the middle. The enemy's roads are twins of ours (the same mirror or half-turn as
-// the ground, nudged a little), and no road runs through a lake.
+// scenery (no effect on play), new every game like the ground. Nothing is a perfect shape or one flat colour:
+// hills and lakes follow the sim's uneven outlines, grass comes in blotches of several shades with tufts, roads
+// wander and change width, and every hill, lake, field and tree gets its own tint. Shapes are built once as Path2D.
 function makeDecor(s) {
   const W = s.W, ky = s.H / Sim.H, K = W * ky;
   let a = (s.seed * 2654435761 >>> 1) || 12345; const r = () => ((a = (a * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
   const mid = W / 2, ok = (x, m = 0) => x > 90 + m && x < W - 90 - m && Math.abs(x - mid) > 80 + m;
-  const lakes = s.lakes; // part of the ground now (ground units go around them)
   const inLake = (x, y) => !!Sim.lakeAt(s, { x, y }, 8);
-  const patches = [], fields = [], trees = [], rocks = [], n = Math.round(K / 70);
-  for (let i = 0; i < n; i++) patches.push({ x: 90 + r() * (W - 180), y: r() * s.H, rx: 40 + r() * 70, ry: 25 + r() * 40 });
+  const tone = (k = 0.12) => (r() * 2 - 1) * k;
+  // a closed outline through n points at radius R(th) around (x, y), rotated by rot
+  const outline = (x, y, R, n = 56, rot = 0) => {
+    const p = new Path2D();
+    for (let i = 0; i <= n; i++) {
+      const th = i / n * Math.PI * 2, [px, py] = R(th), c = Math.cos(rot), sn = Math.sin(rot);
+      const X = x + px * c - py * sn, Y = y + px * sn + py * c;
+      if (i) p.lineTo(X, Y); else p.moveTo(X, Y);
+    }
+    p.closePath(); return p;
+  };
+  // a soft random blob (grass, bare earth)
+  const blob = (x, y, rx, ry) => { const w = [[0.18, 2, r() * 7], [0.12, 3, r() * 7], [0.08, 5, r() * 7]]; return outline(x, y, th => { const f = Sim.wobble(w, th); return [Math.cos(th) * rx * f, Math.sin(th) * ry * f]; }, 24); };
+  // grass: big blotches in a few shades, then small tufts, grouped by shade (one path per shade)
+  const patches = [];
+  for (let i = 0; i < Math.round(K / 45); i++) patches.push({ p: blob(r() * W, r() * s.H, 40 + r() * 90, 25 + r() * 50), t: tone(0.05), dark: r() < 0.55 });
+  const tufts = [new Path2D(), new Path2D(), new Path2D()];
+  for (let i = 0; i < Math.round(K / 3); i++) { const x = r() * W, y = r() * s.H, k = Math.floor(r() * 3); if (!inLake(x, y)) { tufts[k].moveTo(x + 1.6, y); tufts[k].arc(x, y, 0.8 + r() * 1.2, 0, Math.PI * 2); } }
+  const fields = [], trees = [], rocks = [];
   for (let i = 0; i < Math.round(K / 220); i++) {
     const x = 100 + r() * (W - 200), y = 30 + r() * (s.H - 60);
-    if (ok(x, 30) && !inLake(x, y)) fields.push({ x, y, w: 50 + r() * 40, h: 30 + r() * 20, a: (r() - 0.5) * 0.8 });
+    if (ok(x, 30) && !inLake(x, y)) fields.push({ x, y, w: 50 + r() * 40, h: 30 + r() * 20, a: (r() - 0.5) * 0.8, t: tone(0.1), gap: 6 + r() * 4 });
   }
   for (let i = 0; i < Math.round(K / 55); i++) {
-    const cx = 100 + r() * (W - 200), cy = 20 + r() * (s.H - 40), m = 3 + Math.floor(r() * 6);
-    for (let j = 0; j < m; j++) { const x = cx + (r() - 0.5) * 50, y = cy + (r() - 0.5) * 40; if (ok(x) && !inLake(x, y)) trees.push({ x, y, r: 4 + r() * 4 }); }
+    const cx = 100 + r() * (W - 200), cy = 20 + r() * (s.H - 40), m = 3 + Math.floor(r() * 6), t0 = tone(0.1);
+    for (let j = 0; j < m; j++) { const x = cx + (r() - 0.5) * 50, y = cy + (r() - 0.5) * 40; if (ok(x) && !inLake(x, y)) trees.push({ x, y, r: 3.5 + r() * 5, t: t0 + tone(0.06) }); }
   }
-  for (let i = 0; i < Math.round(K / 80); i++) { const x = 100 + r() * (W - 200), y = 20 + r() * (s.H - 40); if (ok(x) && !inLake(x, y)) rocks.push({ x, y, r: 1.5 + r() * 2.5 }); }
+  for (let i = 0; i < Math.round(K / 60); i++) { const x = 60 + r() * (W - 120), y = 20 + r() * (s.H - 40); if (!inLake(x, y)) rocks.push({ x, y, r: 1.2 + r() * 2.8, t: tone(0.12) }); }
   trees.sort((p, q) => p.y - q.y);
-  return { patches, fields, lakes, trees, rocks, roads: makeRoads(s, r) };
+  // hills: the sim's outline, contour lines that drift toward the (off-centre) top, speckles of loose earth
+  const hills = s.hills.map(h => {
+    const px = (r() - 0.5) * h.r * 0.3, py = (r() - 0.5) * h.r * 0.3; // where the top is
+    const ring = f => outline(h.x + px * (1 - f), h.y + py * (1 - f), th => { const q = h.r * f * Sim.wobble(h.w, th); return [Math.cos(th) * q, Math.sin(th) * q]; });
+    const dots = new Path2D();
+    for (let i = 0; i < 10 + h.r / 5; i++) { const th = r() * 7, d = Math.sqrt(r()) * h.r * 0.85; dots.moveTo(h.x + Math.cos(th) * d + 1.5, h.y + Math.sin(th) * d); dots.arc(h.x + Math.cos(th) * d, h.y + Math.sin(th) * d, 0.8 + r() * 1.4, 0, Math.PI * 2); }
+    return { h, top: { x: h.x + px, y: h.y + py }, rims: [ring(1), ring(0.74), ring(0.5), ring(0.27)], dots, t: tone(0.1) };
+  });
+  // lakes: the sim's outline, a darker middle, a shallow rim
+  const lakes = s.lakes.map(l => {
+    const shp = f => outline(l.x, l.y, th => { const q = f * Sim.wobble(l.w, Math.atan2(Math.sin(th) / l.ry, Math.cos(th) / l.rx)); return [Math.cos(th) * l.rx * q, Math.sin(th) * l.ry * q]; }, 56, l.a);
+    return { l, edge: shp(1.08), body: shp(1), deep: shp(0.55), t: tone(0.08) };
+  });
+  return { patches, tufts, fields, lakes, hills, trees, rocks, roads: makeRoads(s, r) };
 }
 function makeRoads(s, r) {
   const W = s.W, H = s.H, n = H > Sim.H ? 5 : 3 + (r() < 0.5 ? 1 : 0);
@@ -45,7 +74,16 @@ function makeRoads(s, r) {
     if (Sim.lakeAt(s, X, 30)) continue;
     const got = lay(X); if (got.length > roads.length) roads = got;
   }
-  return roads;
+  // a dirt road wanders a little off its curve and gets wider and narrower (points with a width each)
+  return roads.map(P => {
+    const f1 = r() * 7, f2 = r() * 7, f3 = r() * 7, len = Math.hypot(P[3].x - P[0].x, P[3].y - P[0].y), m = Math.max(24, Math.round(len / 14)), pts = [];
+    for (let i = 0; i <= m; i++) {
+      const k = i / m, p = bez(P, k), q = bez(P, Math.min(1, k + 0.01)), o = bez(P, Math.max(0, k - 0.01));
+      const dx = q.x - o.x, dy = q.y - o.y, d = Math.hypot(dx, dy) || 1, sway = (Math.sin(k * 9 + f1) * 4 + Math.sin(k * 23 + f2) * 1.5) * Math.sin(Math.PI * k);
+      pts.push({ x: p.x - dy / d * sway, y: p.y + dx / d * sway, w: 8 + Math.sin(k * 13 + f3) * 1.8 + Math.sin(k * 31 + f1) * 0.8 });
+    }
+    return pts;
+  });
 }
 
 // ---- render ----
@@ -100,41 +138,64 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2) {
 }
 const idleAim = (type, side) => type === 'aa' ? -Math.PI / 2 + (side === 'blue' ? 0.6 : -0.6) : (side === 'blue' ? 0 : Math.PI);
 
+// a shade of a theme colour: k > 0 toward white, k < 0 toward black
+function shade(col, k) {
+  const m = /^#([0-9a-f]{6})$/i.exec(col || ''); if (!m) return col;
+  const n = parseInt(m[1], 16), f = v => Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k));
+  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+}
 function drawTerrain(c, W, H, mid) {
-  c.fillStyle = colors.grass2;
-  for (const p of decor.patches) { c.beginPath(); c.ellipse(p.x, p.y, p.rx, p.ry, 0, 0, Math.PI * 2); c.fill(); }
+  c.globalAlpha = 0.75;
+  for (const p of decor.patches) { c.fillStyle = shade(p.dark ? colors.grass2 : colors.ground, p.t + (p.dark ? 0 : 0.035)); c.fill(p.p); }
+  c.globalAlpha = 1;
+  decor.tufts.forEach((p, k) => { c.fillStyle = shade(colors.grass2, [-0.18, -0.08, 0.1][k]); c.fill(p); });
   for (const f of decor.fields) {
-    c.save(); c.translate(f.x, f.y); c.rotate(f.a); c.fillStyle = colors.field; c.fillRect(-f.w / 2, -f.h / 2, f.w, f.h);
-    c.strokeStyle = colors.field2; c.lineWidth = 3;
-    for (let x = -f.w / 2 + 4; x < f.w / 2; x += 8) { c.beginPath(); c.moveTo(x, -f.h / 2); c.lineTo(x, f.h / 2); c.stroke(); }
+    c.save(); c.translate(f.x, f.y); c.rotate(f.a); c.fillStyle = shade(colors.field, f.t); c.fillRect(-f.w / 2, -f.h / 2, f.w, f.h);
+    c.strokeStyle = shade(colors.field2, f.t); c.lineWidth = 3;
+    for (let x = -f.w / 2 + 4; x < f.w / 2; x += f.gap) { c.beginPath(); c.moveTo(x, -f.h / 2); c.lineTo(x, f.h / 2); c.stroke(); }
     c.restore();
   }
-  for (const l of decor.lakes) {
-    c.beginPath(); c.ellipse(l.x, l.y, l.rx, l.ry, l.a, 0, Math.PI * 2); c.fillStyle = colors.water; c.fill();
-    c.lineWidth = 3; c.strokeStyle = colors.waterEdge; c.stroke();
-    c.beginPath(); c.ellipse(l.x - l.rx * 0.2, l.y - l.ry * 0.25, l.rx * 0.45, l.ry * 0.3, l.a, 0, Math.PI * 2); c.fillStyle = 'rgba(255,255,255,.18)'; c.fill();
+  // lakes: shallow rim, water, a darker middle, a glint
+  for (const k of decor.lakes) {
+    c.fillStyle = shade(colors.waterEdge, 0.35 + k.t); c.globalAlpha = 0.6; c.fill(k.edge); c.globalAlpha = 1;
+    c.fillStyle = shade(colors.water, k.t); c.fill(k.body);
+    c.lineWidth = 2; c.strokeStyle = shade(colors.waterEdge, k.t); c.stroke(k.body);
+    c.fillStyle = shade(colors.waterEdge, -0.1 + k.t); c.globalAlpha = 0.45; c.fill(k.deep); c.globalAlpha = 1;
+    const l = k.l; c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5;
+    c.beginPath(); c.ellipse(l.x - l.rx * 0.25, l.y - l.ry * 0.3, l.rx * 0.3, l.ry * 0.25, l.a, Math.PI * 1.1, Math.PI * 1.6); c.stroke();
   }
-  for (const h of s.hills) {
-    const g = c.createRadialGradient(h.x - h.r * 0.35, h.y - h.r * 0.35, h.r * 0.1, h.x, h.y, h.r);
-    g.addColorStop(0, colors.hillHi); g.addColorStop(1, colors.hill);
-    c.fillStyle = g; ring(h.x, h.y, h.r); c.fill();
-    c.strokeStyle = colors.hillLine; c.lineWidth = 1; c.globalAlpha = 0.6;
-    for (const f of [1, 0.7, 0.4]) { ring(h.x, h.y, h.r * f); c.stroke(); }
-    c.globalAlpha = 1;
+  // hills: layered rings, lighter toward the top, contour lines, loose earth
+  for (const k of decor.hills) {
+    const h = k.h;
+    k.rims.forEach((p, i) => { c.fillStyle = shade(colors.hill, k.t + i * 0.07); c.fill(p); });
+    const g = c.createRadialGradient(k.top.x - h.r * 0.2, k.top.y - h.r * 0.2, h.r * 0.05, k.top.x, k.top.y, h.r * 0.6);
+    g.addColorStop(0, hexA(colors.hillHi, 0.55)); g.addColorStop(1, hexA(colors.hillHi, 0)); c.fillStyle = g; c.fill(k.rims[0]);
+    c.strokeStyle = shade(colors.hillLine, k.t); c.lineWidth = 1; c.globalAlpha = 0.55;
+    for (const p of k.rims) c.stroke(p);
+    c.globalAlpha = 0.5; c.fillStyle = shade(colors.hillLine, k.t - 0.1); c.fill(k.dots); c.globalAlpha = 1;
   }
+  // roads (over the hills: they climb them): an edge, the dirt (width changes along the way), then faint wheel ruts
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  for (const [col, extra] of [[colors.roadEdge, 4], [colors.road, 0]]) {
+    c.strokeStyle = col;
+    for (const pts of decor.roads) for (let i = 1; i < pts.length; i++) { c.lineWidth = pts[i].w + extra; c.beginPath(); c.moveTo(pts[i - 1].x, pts[i - 1].y); c.lineTo(pts[i].x, pts[i].y); c.stroke(); }
+  }
+  c.strokeStyle = shade(colors.roadEdge, -0.05); c.lineWidth = 1; c.globalAlpha = 0.35;
+  for (const pts of decor.roads) for (const side of [-2.2, 2.2]) {
+    c.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+      const x = pts[i].x - dy / d * side, y = pts[i].y + dx / d * side; if (i) c.lineTo(x, y); else c.moveTo(x, y);
+    }
+    c.stroke();
+  }
+  c.globalAlpha = 1;
   for (const t of decor.trees) {
     c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(t.x + 2, t.y + 3, t.r, t.r * 0.8, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = colors.tree; ring(t.x, t.y, t.r); c.fill();
-    c.fillStyle = colors.treeHi; ring(t.x - t.r * 0.3, t.y - t.r * 0.3, t.r * 0.5); c.fill();
+    c.fillStyle = shade(colors.tree, t.t); ring(t.x, t.y, t.r); c.fill();
+    c.fillStyle = shade(colors.treeHi, t.t); ring(t.x - t.r * 0.3, t.y - t.r * 0.3, t.r * 0.5); c.fill();
   }
-  c.fillStyle = colors.rock; for (const r of decor.rocks) { ring(r.x, r.y, r.r); c.fill(); }
-  const roads = () => {
-    c.beginPath();
-    for (const P of decor.roads) { c.moveTo(P[0].x, P[0].y); c.bezierCurveTo(P[1].x, P[1].y, P[2].x, P[2].y, P[3].x, P[3].y); }
-  };
-  c.lineCap = 'round';
-  roads(); c.strokeStyle = colors.roadEdge; c.lineWidth = 13; c.stroke();
-  roads(); c.strokeStyle = colors.road; c.lineWidth = 9; c.stroke();
+  for (const r of decor.rocks) { c.fillStyle = shade(colors.rock, r.t); ring(r.x, r.y, r.r); c.fill(); }
 }
 
 // headquarters: a walled compound with a command building, a radio mast and the side's flag (about 46 × 38, so it

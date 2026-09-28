@@ -19,10 +19,12 @@ function makeTerrain(s) {
   const turn = r() < 0.5, jit = () => (r() * 2 - 1) * J, size = v => v * (1 + (r() * 2 - 1) * MAP_RESIZE);
   const twin = f => ({ ...f, x: W - f.x + jit(), y: (turn ? h - f.y : f.y) + jit() });
   const lakes = [], hills = [];
-  const inside = (f, R) => f.x - R >= clear && f.x + R <= W - clear && f.y - R >= 10 && f.y + R <= h - 10;
+  // a rim of a few waves (the outline wanders up to about ±SHAPE_AMP of the radius); room is kept for the widest point
+  const shape = () => [[SHAPE_AMP * (0.5 + r() * 0.5), 2, r() * 7], [SHAPE_AMP * 0.6 * r(), 3, r() * 7], [SHAPE_AMP * 0.35 * r(), 5, r() * 7]];
+  const inside = (f, R) => (R *= 1 + SHAPE_AMP * 1.5, f.x - R >= clear) && f.x + R <= W - clear && f.y - R >= 10 && f.y + R <= h - 10;
   const lakeFree = (f, R) => inside(f, R) && lakes.every(l => Math.hypot(l.x - f.x, l.y - f.y) > l.rx + R + LAKE_GAP);
-  const hillFree = (f, R) => inside(f, R) && hills.every(o => Math.hypot(o.x - f.x, o.y - f.y) > o.r + R + HILL_GAP) &&
-    lakes.every(l => Math.hypot(l.x - f.x, l.y - f.y) > l.rx + R + HILL_GAP);
+  const hillFree = (f, R) => inside(f, R) && hills.every(o => Math.hypot(o.x - f.x, o.y - f.y) > (o.r + R) * (1 + SHAPE_AMP) + HILL_GAP) &&
+    lakes.every(l => Math.hypot(l.x - f.x, l.y - f.y) > (l.rx + R) * (1 + SHAPE_AMP) + HILL_GAP);
   // lakes: pairs (and on a big map sometimes one on the centre line)
   const lakePairs = big ? 2 + Math.floor(r() * 2) : W >= 1100 && r() < 0.5 ? 2 : 1;
   for (let i = 0, n = 0; i < 300 && n < lakePairs; i++) {
@@ -48,6 +50,7 @@ function makeTerrain(s) {
     const g = { ...twin(f), r: size(R) };
     if (hillFree(f, R) && hillFree(g, g.r) && Math.hypot(f.x - g.x, f.y - g.y) > R + g.r + HILL_GAP) hills.push(f, g);
   }
+  for (const f of [...lakes, ...hills]) f.w = shape(); // twins get their own outline
   s.lakes = lakes; s.hills = hills; s.turn = turn;
 }
 
