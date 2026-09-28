@@ -31,7 +31,7 @@ function order(s, squadId, type, x, y, quiet) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
   x = clamp(x, 0, s.W); y = clamp(y, 0, s.H);
   if (!TYPES[sq.type].air && lakeAt(s, { x, y })) ({ x, y } = dryOf(s, { x, y }, 10)); // ground squads stop at the shore
-  if (s.fog) send(s, sq, { kind: 'order', type, x, y, quiet }); else applyOrder(s, sq, type, x, y, quiet);
+  if (friction(s)) send(s, sq, { kind: 'order', type, x, y, quiet }); else applyOrder(s, sq, type, x, y, quiet);
   return true;
 }
 // where the commander understood the order to point: the target plus a random offset that grows as control
@@ -50,10 +50,10 @@ function understood(s, sq, x, y) {
 }
 // under fog an order is carried out "roughly" (a retreat home is always clear); `want` keeps what was asked
 function applyOrder(s, sq, type, x, y, quiet) {
-  const p = s.fog && type !== 'retreat' ? understood(s, sq, x, y) : { x, y }, off = Math.hypot(p.x - x, p.y - y);
+  const p = friction(s) && type !== 'retreat' ? understood(s, sq, x, y) : { x, y }, off = Math.hypot(p.x - x, p.y - y);
   sq.order = { type, x: p.x, y: p.y, r: ORDER_R[type], want: { x, y } };
   sq.retreating = false; sq.arrived = false; sq.support = null;
-  if (sq.side === 'blue' && s.fog && type !== 'retreat') {
+  if (sq.side === 'blue' && friction(s) && type !== 'retreat') {
     s.log2.off += off; s.log2.offN++;
     s.marks.push({ x: p.x, y: p.y, kind: 'ack', t: s.t, who: sq.name }); // "roger": where the squad is actually going
   }
@@ -66,7 +66,7 @@ function setTrait(s, squadId, trait, quiet) {
   if (!sq || s.over || !(trait in TRAITS)) return false;
   const p = pending(s, sq.id, 'trait');
   if (p ? p.trait === trait : sq.trait === trait) return false;
-  if (s.fog) send(s, sq, { kind: 'trait', trait, quiet }); else applyTrait(s, sq, trait, quiet);
+  if (friction(s)) send(s, sq, { kind: 'trait', trait, quiet }); else applyTrait(s, sq, trait, quiet);
   return true;
 }
 function applyTrait(s, sq, trait, quiet) {

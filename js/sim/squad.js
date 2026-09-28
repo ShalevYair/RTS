@@ -30,12 +30,13 @@ function updateSquad(s, sq, dt) {
   if (rearming && !sq.wasRearm) report(s, sq, 'נגמרה התחמושת, חוזרים לשדה התעופה לחימוש');
   sq.wasRearm = rearming;
   // routine check-in; a squad in a fight is busy and reports half as often
-  const r = s.rep[sq.id];
-  const every = (REPORT_MIN + REPORT_SPAN * (1 - qualityAt(s, sq))) * TEMPERS[sq.temper].report * (s.t - sq.lastContact < CONTACT_MEMORY ? 2 : 1);
+  // (in the full-control ring the picture is live: a report every tick)
+  const r = s.rep[sq.id], q = qualityAt(s, sq);
+  const every = q >= 1 ? 0 : (REPORT_MIN + REPORT_SPAN * (1 - q)) * TEMPERS[sq.temper].report * (s.t - sq.lastContact < CONTACT_MEMORY ? 2 : 1);
   if (sq.side === 'blue' && (!r || s.t - r.t >= every)) sendReport(s, sq);
   // under pressure but not yet breaking: ask HQ
   const thr = retreatAt(s, sq);
-  if (sq.side === 'blue' && s.fog && contact && !sq.retreating && !s.calls.length && sq.order.type !== 'retreat' &&
+  if (sq.side === 'blue' && friction(s) && contact && !sq.retreating && !s.calls.length && sq.order.type !== 'retreat' &&
       s.t - sq.lastCall > CALL_COOLDOWN && sq.strength < thr + CALL_BAND && sq.strength >= thr) {
     sq.callOpen = true; sq.lastCall = s.t;
     s.calls.push({ id: s.nextCall++, sq: sq.id, t: s.t, until: s.t + CALL_TIME });
@@ -93,6 +94,12 @@ function updateUnit(s, u, sq, dt) {
       return;
     }
   }
+  // care: badly hurt, the unit leaves the fight on its own for the nearest medic / mechanic (or home), holding its fire
+  if (CARER[u.type]) {
+    if (!u.care && u.hp < CARE_AT * T.hp) u.care = true;
+    else if (u.care && u.hp >= CARE_DONE * T.hp) u.care = false;
+    if (u.care) { const f = careSpot(s, u, sq); if (dist(u, f) > CARE_R * 0.6) moveTo(s, u, f.x, f.y, 1.15, dt); return; }
+  }
   const o = effOrder(s, sq), retreat = sq.retreating || o.type === 'retreat';
   const anchor = retreat ? homeOf(s, sq) : o;
   const up = 1 + ELEV_BONUS * (u.lvl || 0), range = T.range * up, sight = T.sight * up; // higher ground: further
@@ -107,7 +114,7 @@ function updateUnit(s, u, sq, dt) {
   }
   const tgt = best && bd <= range ? best : near;
   // nothing else to shoot at: hit an enemy forward HQ or (AA only) a drone in range
-  if (!tgt && !retreat && u.cd === 0) {
+  if (!tgt && !retreat && u.cd === 0 && !T.care) {
     const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= range);
     if (n) {
       u.engaged = true; n.hp -= T.dmg * NODE_MULT[u.type]; u.cd = T.cd; if (T.ammo) u.ammo--;
@@ -132,21 +139,31 @@ function updateUnit(s, u, sq, dt) {
   else if (best) return;
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
   else { const sr = o.r * 0.55; tx = anchor.x + u.sx * sr; ty = anchor.y + u.sy * sr; }
+  moveTo(s, u, tx, ty, retreat ? 1.15 : 1, dt);
+}
+// a step toward (tx, ty): ground units go round lakes; uphill slower, downhill faster (by how many lines the next
+// few steps climb or drop)
+function moveTo(s, u, tx, ty, fast, dt) {
+  const T = TYPES[u.type];
   if (!T.air && s.lakes.length) ({ x: tx, y: ty } = wade(s, u, tx, ty));
   const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy);
-  if (d > 2) {
-    // uphill slower, downhill faster (ground units): by how many lines the next few steps climb or drop
-    let slope = 1;
-    if (!T.air) { const L = 6, e0 = elevAt(s, u), e1 = elevAt(s, { x: u.x + vx / d * L, y: u.y + vy / d * L }); slope = 1 - clamp((e1 - e0) / L * SLOPE_K, -SLOPE_MAX, SLOPE_MAX); }
-    const sp = T.speed * slope * (retreat ? 1.15 : 1) * dt, k = Math.min(1, sp / d);
-    u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
-  }
+  if (d <= 2) return;
+  let slope = 1;
+  if (!T.air) { const L = 6, e0 = elevAt(s, u), e1 = elevAt(s, { x: u.x + vx / d * L, y: u.y + vy / d * L }); slope = 1 - clamp((e1 - e0) / L * SLOPE_K, -SLOPE_MAX, SLOPE_MAX); }
+  const k = Math.min(1, T.speed * slope * fast * dt / d);
+  u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
+}
+// where a hurt unit goes: the nearest medic / mechanic of its side that isn't itself being treated, else home
+function careSpot(s, u, sq) {
+  const kind = CARER[u.type]; let best = null, bd = Infinity;
+  for (const m of s.units) if (m.type === kind && m.side === u.side && m !== u && !m.care) { const d = dist(u, m); if (d < bd) { bd = d; best = m; } }
+  return best || homeOf(s, sq);
 }
 
 // Friendly fire (DESIGN.md §2): under fog, a shot at an enemy that has a unit of another friendly squad close
 // to it may hit that unit instead; likelier where the shooter's control is poor. Returns the unit hit, or null.
 function friendlyFire(s, u, sq, tgt) {
-  if (!s.fog) return null;
+  if (!friction(s)) return null;
   let f = null, fd = FF_R;
   for (const o of s.units) {
     if (o.side !== u.side || o.squad === u.squad || o.hp <= 0 || !MULT[u.type][o.type]) continue;

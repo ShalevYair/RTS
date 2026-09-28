@@ -13,8 +13,15 @@ ok(grows, 'every level keeps what came before and adds something');
 {
   const s = Sim.level(1, 7, 1100), sq = side => s.squads.filter(q => q.side === side);
   ok(sq('blue').length === 1 && sq('red').length === 1 && !s.nodes.length && !s.bots.length && !s.fog, 'level 1: one squad each, no buildings, the enemy just stands there, no fog');
-    const fogAt = [...Array(N)].map((_, i) => Sim.level(i + 1, 7, 1100).fog).indexOf(true) + 1;
-  ok(fogAt >= N - 1 && !Sim.level(fogAt - 1, 7, 1100).fog, `fog comes in late (level ${fogAt})`);
+  const L = n => Sim.level(n, 7, 1100), fogAt = [...Array(N)].map((_, i) => { const g = L(i + 1); return g.fog || !!g.fogAt; }).indexOf(true) + 1;
+  ok(fogAt >= N - 3 && !L(fogAt - 1).fog, `fog comes in late (level ${fogAt})`);
+  // the fog comes in steps: first only the fog (coming down during the level, orders still at once), then drones,
+  // then distance (orders as messages, carried out roughly), then forward HQs
+  const f = L(fogAt); let t0 = f.fog; while (f.t < f.fogAt + 1) Sim.step(f, 1 / 30);
+  ok(!t0 && f.fog && !Sim.friction(f) && !L(fogAt).ui.includes('eye'), `level ${fogAt}: the fog comes down after ${f.fogAt} s, with no command friction and no drones`);
+  ok(L(fogAt + 1).ui.includes('eye') && !Sim.friction(L(fogAt + 1)) && Sim.friction(L(fogAt + 2)) && L(N).ui.includes('fhq') && !L(N - 1).ui.includes('fhq'), 'then drones, then distance, then forward HQs');
+  const last = L(N);
+  ok(Sim.buildCount(last, 'blue') === Sim.buildLimit(last, 'blue'), `last level: the quota starts full (${Sim.buildCount(last, 'blue')}/${Sim.buildLimit(last, 'blue')}), so a forward HQ is the way to build more`);
   ok(Sim.level(N, 7, 1100).H > Sim.H && Sim.level(N - 1, 7, 1100).H === Sim.H, 'the big map comes in at the last level');
   const b4 = Sim.level(4, 7, 1100);
   ok(b4.builds.join() === 'tent' && !Sim.build(b4, 'blue', 'tankshop', 150, 200) && Sim.build(b4, 'blue', 'tent', 150, 200), 'level 4 builds tents only (buildings come in one kind at a time)');

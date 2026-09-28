@@ -94,7 +94,6 @@ const mini = $('mini');
 function miniLook(e) { const r = mini.getBoundingClientRect(); lookAt((e.clientX - r.left) / r.width * s.W, (e.clientY - r.top) / r.height * s.H); }
 mini.addEventListener('pointerdown', e => { try { mini.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ } miniLook(e); });
 mini.addEventListener('pointermove', e => { if (e.buttons) miniLook(e); });
-const TRAIT_KEY = { q: 'cautious', w: 'balanced', e: 'aggressive' };
 document.addEventListener('keydown', e => {
   if (e.target.closest('input,textarea')) return;
   if (!$('intro').hidden) { if (e.key === 'Escape') $('go').click(); return; }
@@ -102,18 +101,18 @@ document.addEventListener('keydown', e => {
   // physical key codes, so the shortcuts also work on a Hebrew keyboard layout
   const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : /^(Digit|Numpad)\d$/.test(e.code) ? e.code.slice(-1) : e.key.toLowerCase();
   // keys for controls this level doesn't have yet do nothing
-  const need = /^\d$/.test(k) ? 'squads' : 'har'.includes(k) ? 'orders' : k in TRAIT_KEY ? 'traits' : { d: 'eye', b: 'fhq', g: 'build' }[k];
+  const need = /^\d$/.test(k) ? 'squads' : 'har'.includes(k) ? 'orders' : { d: 'eye', b: 'fhq', g: 'build' }[k];
   if (need && !uiHas(need)) return;
   if (/^[1-9]$/.test(k)) { const q = blueSquads()[+k - 1]; if (q) select(q.id); }
   else if (k === '0') select('all');
   else if (k === 'h') { mode = 'hold'; syncButtons(); }
   else if (k === 'a') { mode = 'attack'; syncButtons(); }
   else if (k === 'r') issue('retreat');
-  else if (k in TRAIT_KEY) document.querySelector(`[data-trait="${TRAIT_KEY[k]}"]`).click();
   else if (k === ' ') { e.preventDefault(); setPlaying(!playing); }
   else if (k === 'd') toggleEye();
   else if (k === 'b') buildHere();
   else if (k === 'g') toggleBuild();
+  else if (k === 'f') fullScreen();
   else if (e.key.startsWith('Arrow')) { e.preventDefault(); const d = 120; panBy(e.key === 'ArrowLeft' ? d : e.key === 'ArrowRight' ? -d : 0, e.key === 'ArrowUp' ? d : e.key === 'ArrowDown' ? -d : 0); }
   else if (e.key === '+' || e.key === '=' || e.key === '-') zoomAt(fit.w / 2, fit.top + fit.h / 2, e.key === '-' ? 1 / 1.25 : 1.25);
   else if (k === 'escape') { eyeArmed = false; buildArmed = null; $('buildm').hidden = true; syncButtons(); menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false'); }

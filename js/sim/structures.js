@@ -17,7 +17,7 @@ const buildCount = (s, side) => alive(s, side, PRODUCERS).length;
 function buildCheck(s, side, x, y) {
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 20 || y < 20 || x > s.W - 20 || y > s.H - 20) return 'bad';
   if (buildCount(s, side) >= buildLimit(s, side)) return 'limit';
-  if (quality(s, side, { x, y }) < BUILD_MIN_Q) return 'q';
+  if (quality(s, side, { x, y }, true) < BUILD_MIN_Q) return 'q'; // drones don't count
   if (lakeAt(s, { x, y }, LAKE_PAD)) return 'bad';
   if (s.nodes.some(n => n.kind !== 'drone' && dist(n, { x, y }) < BUILD_GAP)) return 'gap';
   return '';
@@ -58,6 +58,7 @@ const boost = (s, side) => BOOST_MAX * clamp((0.5 - share(s, side)) / (0.5 - BOO
 
 function updateStructs(s, dt) {
   for (const side of ['blue', 'red']) for (const k in s.cd[side]) s.cd[side][k] = Math.max(0, s.cd[side][k] - dt);
+  droneSupply(s, dt);
   for (const n of s.nodes) {
     const S = STRUCTS[n.kind];
     if (n.hp <= 0) {

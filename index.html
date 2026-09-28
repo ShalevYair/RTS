@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>פיקוד על כוונה · אב-טיפוס</title>
+<!-- installable (Add to Home Screen): opens full screen, like an app -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#a8c97c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="פיקוד על כוונה">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Secular+One&display=swap" rel="stylesheet">
@@ -15,7 +24,7 @@
   <canvas id="mini" class="glass" aria-label="מפה קטנה: לחץ כדי להסתכל שם" hidden></canvas>
   <div class="hudl">
     <div class="score blue glass" title="עוצמה: החלק שלך מהכוח של שני הצדדים (בערפל: לפי הערכה). מתחת ל-15% — קריסה והפסד"><b id="pwN">50%</b><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="bb" title="החלש מבין הצדדים: ייצור מהיר יותר" hidden>⚡</i></div>
-    <div class="score slots glass" id="slots" title="מבנים: בנויים / מכסה (2 + 2 לכל מפקדה ופיקוד קדמי פעילים)">🏗 <b id="slotN">1/4</b></div>
+    <div class="score slots glass" id="slots" title="מבנים: בנויים / מכסה. המפקדה נותנת 4, וכל 🏕 פיקוד קדמי עוד 2">🏗 <b id="slotN">1/4</b></div>
   </div>
   <ol class="log" id="log" aria-live="polite"></ol>
   <div class="buildm glass" id="buildm" hidden role="menu" aria-label="בנייה"></div>
@@ -30,7 +39,7 @@
     <div class="mrow"><span>פיצוצים</span><button id="sfx" class="icon" aria-pressed="true" aria-label="קולות פיצוצים">💥</button><input id="sfxvol" type="range" min="0" max="100" value="60" aria-label="עוצמת פיצוצים"></div>
     <button id="help">❔ הסבר</button>
     <button id="restart">משחק חדש</button>
-    <p class="legend">לחץ על כוח במפה או על המבנה שלו כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: המפקד נסוג ב-50%, 30% או 15% מהכוח.<br>רק נ"מ פוגע במטוסים ורחפנים; מטוסים חזקים מול טנקים וג'יפים, טנקים מול חי"ר, נ"מ וג'יפים. מטוסים חוזרים לחימוש לשדה תעופה או למפקדה.<br>💪 ניצחון בקריסה: פחות מ-15% מהעוצמה המשותפת. 🏗 מבנים: ⛺ חי"ר (20 ש׳), 🎯 נ"מ (30), 🔧 ג'יפים (25), 🏭 טנקים (45), 🛫 מטוסים (60, מטוס כל 2 דק׳). כל מבנה = כוח עם מפקד שהוא ממלא; ליד מבנים מתרפאים.<br>🗺 בערפל: כוחות לפי הדיווח האחרון, אויב ככתם שגדל ככל שהתצפית ישנה; ⚔ 💥 ✓ 🚩 = דיווחים על המפה.<br>🔷 איכות שליטה (הכחול): קובעת כמה מהר מגיעה פקודה (1–8 שניות) ואת קצב ודיוק הדיווחים. רחפן (D): שליטה ותצפית מלאות באזור, עובד אחרי 10 ש׳, טס דקה, אחד כל 30 ש׳, נ"מ מפיל. 🏕 פיקוד קדמי (B, ג'יפים/טנקים): עובד אחרי 30 ש׳, אחד כל דקה, אפשר להשמיד. 📻 דיווחים בקול (בתפריט).<br>✉ בערפל פקודות מגיעות באיחור לפי איכות השליטה. 📞 שיחה: מפקד בלחץ שואל להחזיק או לסגת; בלי תשובה מחליט לפי האופי (🦁 נועז: מחזיק, ממעיט באבדות; 🦉 שקול; 🐇 חרד: נסוג, מגזים באבדות ומדווח יותר).<br>⚡ הצד החלש מייצר מהר יותר (עד 30%).<br>⛰ הר: ראייה +30%, טווח +20%, נזק נספג −30%, איטי יותר. ⚠ ירי על כוחותינו: כוח שלנו ליד המטרה, איפה שהשליטה חלשה.<br>מקלדת: 1–9 כוח, 0 כולם, H/A/R פקודות, Q/W/E מצב לחימה, רווח עצירה, חיצים והזזה, +/− זום.</p>
+    <p class="legend">לחץ על כוח במפה או על המבנה שלו כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>רק נ"מ פוגע במטוסים ורחפנים; מטוסים חזקים מול טנקים וג'יפים, טנקים מול חי"ר, נ"מ וג'יפים. מטוסים חוזרים לחימוש לשדה תעופה או למפקדה.<br>💪 ניצחון בקריסה: פחות מ-15% מהעוצמה המשותפת. 🏗 מבנים: ⛺ חי"ר (20 ש׳), 🎯 נ"מ (30), 🔧 ג'יפים (25), 🏭 טנקים (45), 🛫 מטוסים (60, מטוס כל 2 דק׳), 🏥 חובשים (20), 🛠 מכונאים (25). כל מבנה = כוח עם מפקד שהוא ממלא; ליד מבנים מתרפאים. מכסה: 4 מבנים, ועוד 2 לכל 🏕 פיקוד קדמי.<br>🩹 יחידה פגועה קשה יוצאת לבד מהקרב אל החובש (חי"ר, נ"מ) או המכונאי (ג'יפים, טנקים) הקרוב, ואם אין — הביתה. היא לא יורה עד שהחלימה.<br>🗺 בערפל: כוחות לפי הדיווח האחרון, אויב ככתם שגדל ככל שהתצפית ישנה; ⚔ 💥 ✓ 🚩 = דיווחים על המפה.<br>🔷 איכות שליטה (הכחול, בטבעות 100% → 80% → 60% → 40% → 20%): קובעת כמה מהר מגיעה פקודה (1–8 שניות), כמה מדויק היא מבוצעת ואת קצב ודיוק הדיווחים. בטבעת המלאה הכל כמו בלי ערפל. רחפן (D): רחפן חדש כל דקה, עד 10; נשאר באוויר עד שנ"מ מפיל אותו; רואה בטבעות (במרכז הכל, בשוליים רק קרקע/אוויר). לא נותן לבנות. 🏕 פיקוד קדמי (B, ג'יפים/טנקים): עובד אחרי 30 ש׳, אחד כל דקה, +2 מבנים, אפשר להשמיד. 📻 דיווחים בקול (בתפריט).<br>✉ בערפל פקודות מגיעות באיחור לפי איכות השליטה. 📞 שיחה: מפקד בלחץ שואל להחזיק או לסגת; בלי תשובה מחליט לפי האופי (🦁 נועז: מחזיק, ממעיט באבדות; 🦉 שקול; 🐇 חרד: נסוג, מגזים באבדות ומדווח יותר).<br>⚡ הצד החלש מייצר מהר יותר (עד 30%).<br>⛰ גובה: כל קו גובה +10% ראייה וטווח; בעלייה איטי, בירידה מהיר. ⚠ ירי על כוחותינו: כוח שלנו ליד המטרה, איפה שהשליטה חלשה.<br>מקלדת: 1–9 כוח, 0 כולם, H/A/R פקודות, רווח עצירה, חיצים והזזה, +/− זום, F מסך מלא.</p>
   </div>
   <div class="intro" id="intro">
     <div class="card glass" role="dialog" aria-labelledby="introT">
@@ -40,16 +49,16 @@
       <p class="sub">אתה לא מזיז חיילים. אתה נותן למפקדים כוונה, והם מחליטים איך לבצע.</p>
       <ol>
         <li><span>💪</span><span>המטרה: קריסת האויב. מי שנשאר עם פחות מ-15% מהכוח של שני הצדדים (יחידות ומבנים) מפסיד.</span></li>
-        <li><span>🏗</span><span>בנה מבנים (🏗): כל מבנה מקים כוח עם מפקד וממלא אותו — ⛺ חי"ר, 🎯 נ"מ, 🔧 ג'יפים, 🏭 טנקים, 🛫 מטוסים. בונים רק איפה שהשליטה חזקה, ועד מכסה שגדלה עם כל פיקוד.</span></li>
+        <li><span>🏗</span><span>בנה מבנים (🏗): כל מבנה מקים כוח עם מפקד וממלא אותו — ⛺ חי"ר, 🎯 נ"מ, 🔧 ג'יפים, 🏭 טנקים, 🛫 מטוסים, 🏥 חובשים, 🛠 מכונאים. בונים רק איפה שהשליטה חזקה. המכסה: 4, ועוד 2 לכל 🏕 פיקוד קדמי.</span></li>
+        <li><span>🩹</span><span>יחידה פגועה קשה יוצאת לבד מהקרב אל החובש (חי"ר, נ"מ) או המכונאי (ג'יפים, טנקים) הקרוב — ואם אין, הביתה — ולא יורה עד שהחלימה.</span></li>
         <li><span>👆</span><span>בחר כוח: בכפתורים למטה, לחיצה עליו במפה, או מקשים <kbd>1</kbd> עד <kbd>9</kbd>. מקש <kbd>0</kbd> בוחר את כולם.</span></li>
-        <li><span>📍</span><span>בחר <b>⚓ החזק</b> או <b>⚔ תקוף</b> ולחץ על היעד במפה. <b>↩ סגת</b> מחזיר הביתה, למבנה של הכוח.</span></li>
-        <li><span>⚖</span><span>🛡 זהיר, ⚖ מאוזן, 🔥 תוקפני: מתי המפקד נסוג (50%, 30%, 15%).</span></li>
+        <li><span>📍</span><span>בחר <b>⚓ להחזיק</b> (לעמוד במקום ולהגן עליו) או <b>⚔ לתקוף</b> (לתפוס את האזור ולרדוף אחרי אויב שם) ולחץ על היעד במפה. <b>↩ לסגת</b> מחזיר הביתה, למבנה של הכוח, להתרפא ולהתמלא.</span></li>
         <li><span>🗺</span><span>ערפל: אתה רואה דיווחים, לא את השטח. הכוחות שלך מופיעים לפי הדיווח האחרון (❓ = לא דיווח מזמן), האויב ככתמים שמתפשטים עם הזמן.</span></li>
-        <li><span>🔷</span><span>שליטה: הכחול על המפה. איפה שהוא עמוק, פקודות מגיעות מהר ודיווחים מדויקים. רחפן (D) ו-🏕 פיקוד קדמי (B, ג'יפים או טנקים) מרחיבים אותה.</span></li>
+        <li><span>🔷</span><span>שליטה: הכחול על המפה, בטבעות. בטבעת המלאה ליד המפקדה הכל מדויק ובזמן אמת; ככל שמתרחקים פקודות מגיעות לאט ומבוצעות "בערך", והדיווחים מתיישנים. רחפן (D, אחד חדש כל דקה, עד 10, נשאר עד שנ"מ מפיל) ו-🏕 פיקוד קדמי (B, ג'יפים או טנקים) מרחיבים אותה.</span></li>
         <li><span>✉</span><span>פקודה היא הודעה: היא מגיעה באיחור, יותר ככל שהשליטה במקום של הכוח חלשה. 📞 מפקד בלחץ מתקשר לשאול; בלי תשובה הוא מחליט לפי האופי שלו (🦁 נועז, 🦉 שקול, 🐇 חרד).</span></li>
         <li><span>⚡</span><span>החלש מבין הצדדים מייצר מהר יותר. אף משחק לא אבוד מוקדם.</span></li>
         <li><span>✂</span><span>רק נ"מ פוגע במטוסים ורחפנים. מטוסים מנצחים טנקים וג'יפים, טנקים מנצחים חי"ר, נ"מ וג'יפים, ג'יפים מנצחים חי"ר.</span></li>
-        <li><span>🗺</span><span>מפה גדולה: גרירה מזיזה, גלגלת או צביטה מקרבות, והמפה הקטנה בפינה מקפיצה. לחיצה שנייה על כוח נבחר מביאה אליו. ⛰ על הר רואים ויורים רחוק יותר ונפגעים פחות.</span></li>
+        <li><span>🗺</span><span>מפה גדולה: גרירה מזיזה, גלגלת או צביטה מקרבות, והמפה הקטנה בפינה מקפיצה. לחיצה שנייה על כוח נבחר מביאה אליו. ⛰ על הר רואים ויורים רחוק יותר (+10% לכל קו גובה). ⛶ מסך מלא; בטלפון אפשר גם "הוסף למסך הבית" ולפתוח כאפליקציה.</span></li>
         <li><span>⏸</span><span>עצירה בכל רגע: <kbd>רווח</kbd> או ⏸. אפשר לתת פקודות גם בעצירה.</span></li>
       </ol>
       </div>
@@ -76,6 +85,7 @@
   <div class="bar glass" id="bar" role="toolbar" aria-label="פקודות">
     <button id="play" class="icon" aria-label="התחל">▶</button>
     <button id="gear" class="icon" aria-label="הגדרות" aria-expanded="false">⚙</button>
+    <button id="fs" class="icon" aria-label="מסך מלא (F)" title="מסך מלא (F)" hidden>⛶</button>
     <span class="sep"></span>
     <div class="seg" id="gSq" role="group" aria-label="בחירת כוח">
       <button id="all" class="icon" aria-label="כל הכוחות (0)" aria-pressed="false">★</button>
@@ -83,19 +93,13 @@
     </div>
     <span class="sep"></span>
     <div class="grp" id="gOrd" role="group" aria-label="פקודה">
-    <button class="ord" data-mode="hold" aria-pressed="true" aria-label="החזק"><span class="lg">החזק</span><span class="sm" aria-hidden="true">⚓</span></button>
-    <button class="ord" data-mode="attack" aria-pressed="false" aria-label="תקוף"><span class="lg">תקוף</span><span class="sm" aria-hidden="true">⚔</span></button>
-    <button class="ord" id="retreat" aria-label="סגת"><span class="lg">סגת</span><span class="sm" aria-hidden="true">↩</span></button>
+    <button class="ord" data-mode="hold" aria-pressed="true" aria-label="להחזיק" title="להחזיק (H): לעמוד במקום שתבחר ולהגן עליו"><span class="lg">להחזיק</span><span class="sm" aria-hidden="true">⚓</span></button>
+    <button class="ord" data-mode="attack" aria-pressed="false" aria-label="לתקוף" title="לתקוף (A): לתפוס את האזור שתבחר ולרדוף אחרי אויב שם"><span class="lg">לתקוף</span><span class="sm" aria-hidden="true">⚔</span></button>
+    <button class="ord" id="retreat" aria-label="לסגת" title="לסגת (R): לחזור הביתה, להתרפא ולהתמלא"><span class="lg">לסגת</span><span class="sm" aria-hidden="true">↩</span></button>
     </div>
-    <button id="eye" class="icon node" aria-pressed="false" title="רחפן: לחץ ואז בחר מקום במפה (D). שליטה ותצפית מלאות באזור, מתחיל לעבוד אחרי 10 שניות, טס דקה; נ&quot;מ יכול להפיל" aria-label="רחפן"><svg class="ico" viewBox="-12 -12 24 24" aria-hidden="true"><path d="M-7-7L7 7M7-7L-7 7" stroke="currentColor" stroke-width="2"/><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="-7" cy="-7" r="4.2"/><circle cx="7" cy="-7" r="4.2"/><circle cx="-7" cy="7" r="4.2"/><circle cx="7" cy="7" r="4.2"/></g><rect x="-3" y="-3" width="6" height="6" rx="1.5" fill="currentColor"/></svg><b id="eyeN"></b><i></i></button>
+    <button id="eye" class="icon node" aria-pressed="false" title="רחפן: לחץ ואז בחר מקום במפה (D). רחפן חדש כל דקה, עד 10. נשאר באוויר עד שנ&quot;מ מפיל אותו; רואה ושולט בטבעות סביבו" aria-label="רחפן"><svg class="ico" viewBox="-12 -12 24 24" aria-hidden="true"><path d="M-7-7L7 7M7-7L-7 7" stroke="currentColor" stroke-width="2"/><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="-7" cy="-7" r="4.2"/><circle cx="7" cy="-7" r="4.2"/><circle cx="-7" cy="7" r="4.2"/><circle cx="7" cy="7" r="4.2"/></g><rect x="-3" y="-3" width="6" height="6" rx="1.5" fill="currentColor"/></svg><b id="eyeN"></b><i></i></button>
     <button id="bld" class="icon" aria-expanded="false" title="בנייה (G): בחר מבנה ואז מקום במפה, איפה שהשליטה חזקה" aria-label="בנייה">🏗</button>
-    <button id="fhq" class="icon node" title="פיקוד קדמי (B): הכוח הנבחר (ג'יפים או טנקים) מקים אותו במקומו. משפר שליטה סביבו, מתחיל לעבוד אחרי 30 שניות" aria-label="פיקוד קדמי">🏕<b id="fhqN"></b><i></i></button>
-    <span class="sep"></span>
-    <div class="seg" id="gTrait" role="group" aria-label="מתי המפקד נסוג">
-      <button data-trait="cautious" title="זהיר: נסוג ב-50%">🛡</button>
-      <button data-trait="balanced" title="מאוזן: נסוג ב-30%">⚖</button>
-      <button data-trait="aggressive" title="תוקפני: נסוג ב-15%">🔥</button>
-    </div>
+    <button id="fhq" class="icon node" title="פיקוד קדמי (B): בחר כוח ג'יפים או טנקים ולחץ — הוא מקים אותו במקומו. +2 מבנים במכסה ושליטה סביבו; מתחיל לעבוד אחרי 30 שניות, אחד כל דקה" aria-label="פיקוד קדמי">🏕<b id="fhqN"></b><i></i></button>
   </div>
 </div>
 
