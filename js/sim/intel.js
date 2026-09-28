@@ -3,9 +3,15 @@
 const seen = (s, side, u) => u.side === side || !s.fog || s.vis[side].has(u.id);
 // what a side believes about an enemy squad: live when seen, else its last sighting for MEMORY seconds
 function intel(s, side, q) {
-  if (q.side === side || !s.fog) return q.dead ? null : { x: q.cx, y: q.cy, strength: q.strength };
+  if (q.side === side || !s.fog) return q.dead ? null : { x: q.cx, y: q.cy, strength: q.strength, type: q.type, air: !!TYPES[q.type].air, n: q.count, lvl: 2, t: s.t };
   const m = s.mem[side][q.id];
   return m && s.t - m.t <= MEMORY ? m : null;
+}
+// how well a side can make out an enemy at p: 2 type and number, 1 ground/air, 0 only "something moves"
+function idLevel(s, side, p) {
+  if (!s.fog) return 2;
+  const q = quality(s, side, p);
+  return q >= ID_FULL ? 2 : q >= ID_CLASS ? 1 : 0;
 }
 const threatAt = (s, side, p, r) => s.units.some(u => u.side !== side && dist(u, p) <= r && seen(s, side, u));
 // seen = within sight of a friendly unit or structure, or it fired in the last FIRE_REVEAL seconds (muzzle flash)
@@ -29,7 +35,14 @@ function visibility(s) {
     for (const e of s.units) if (v.has(e.id)) { const a = acc[e.squad] || (acc[e.squad] = { x: 0, y: 0, n: 0 }); a.x += e.x; a.y += e.y; a.n++; }
     for (const q of s.squads) {
       const a = acc[q.id];
-      if (a) s.mem[side][q.id] = { x: a.x / a.n, y: a.y / a.n, n: a.n, strength: q.strength, type: q.type, t: s.t };
+      if (a) {
+        const p = { x: a.x / a.n, y: a.y / a.n }, prev = s.mem[side][q.id];
+        let lvl = idLevel(s, side, p);
+        if (prev && s.t - prev.t <= TRACK_GAP && prev.lvl > lvl) lvl = prev.lvl;
+        // only what could be made out is stored: no type, count or strength below full identification
+        s.mem[side][q.id] = { x: p.x, y: p.y, lvl, t: s.t, type: lvl >= 2 ? q.type : null, air: lvl >= 1 ? !!TYPES[q.type].air : null,
+          n: lvl >= 2 ? a.n : null, strength: lvl >= 2 ? q.strength : null };
+      }
       else if (q.dead) delete s.mem[side][q.id];
     }
   }

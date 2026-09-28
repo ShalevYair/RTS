@@ -33,10 +33,30 @@ function order(s, squadId, type, x, y, quiet) {
   if (s.fog) send(s, sq, { kind: 'order', type, x, y, quiet }); else applyOrder(s, sq, type, x, y, quiet);
   return true;
 }
+// where the commander understood the order to point: the target plus a random offset that grows as control
+// weakens (none at Q = 1); a bold commander also overshoots, past the target along the way there
+function understood(s, sq, x, y) {
+  const R = SPREAD * Math.pow(1 - qualityAt(s, sq), SPREAD_POW);
+  if (R < 1) return { x, y };
+  const a = s.rand() * Math.PI * 2, m = Math.sqrt(s.rand()) * R;
+  let dx = Math.cos(a) * m, dy = Math.sin(a) * m;
+  if (sq.temper === 'bold') {
+    let fx = x - sq.cx, fy = y - sq.cy, d = Math.hypot(fx, fy);
+    if (d < 1) { fx = sq.side === 'blue' ? 1 : -1; fy = 0; d = 1; } // holding in place: "forward" is toward the enemy
+    dx += fx / d * R * BOLD_STRETCH; dy += fy / d * R * BOLD_STRETCH;
+  }
+  return { x: clamp(x + dx, 0, s.W), y: clamp(y + dy, 0, H) };
+}
+// under fog an order is carried out "roughly" (a retreat home is always clear); `want` keeps what was asked
 function applyOrder(s, sq, type, x, y, quiet) {
-  sq.order = { type, x, y, r: ORDER_R[type] };
+  const p = s.fog && type !== 'retreat' ? understood(s, sq, x, y) : { x, y }, off = Math.hypot(p.x - x, p.y - y);
+  sq.order = { type, x: p.x, y: p.y, r: ORDER_R[type], want: { x, y } };
   sq.retreating = false; sq.arrived = false; sq.support = null;
-  if (!quiet) report(s, sq, 'קיבלתי: ' + (type === 'hold' ? 'מחזיק עמדה' : type === 'attack' ? 'תוקף את האזור' : 'נסוג לבסיס'));
+  if (sq.side === 'blue' && s.fog && type !== 'retreat') {
+    s.log2.off += off; s.log2.offN++;
+    s.marks.push({ x: p.x, y: p.y, kind: 'ack', t: s.t, who: sq.name }); // "roger": where the squad is actually going
+  }
+  if (!quiet) report(s, sq, 'קיבלתי: ' + (type === 'hold' ? 'מחזיק עמדה' : type === 'attack' ? 'תוקף את האזור' : 'נסוג לבסיס') + (off > 20 ? ', בערך' : ''));
   return true;
 }
 

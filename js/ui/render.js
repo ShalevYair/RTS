@@ -152,15 +152,22 @@ function drawEnemyIntel(c) {
   for (const q of s.squads) {
     const m = q.side === 'red' && s.mem.blue[q.id], age = m ? s.t - m.t : Infinity;
     if (!m || age > BLOB_LIFE) continue;
-    const k = 1 - age / BLOB_LIFE, r = Math.min(BLOB_MAX, BLOB_R + Sim.TYPES[m.type].speed * age * 0.5);
+    // how fast it could have moved since: by type when identified, else by what's known (aircraft / ground / anything)
+    const speed = m.type ? Sim.TYPES[m.type].speed : m.air ? Sim.TYPES.air.speed : m.air === false ? 50 : 70;
+    const k = 1 - age / BLOB_LIFE, r = Math.min(BLOB_MAX, BLOB_R + speed * age * 0.5);
     const g = c.createRadialGradient(m.x, m.y, 0, m.x, m.y, r);
     g.addColorStop(0, hexA(colors.red, 0.4 * k + 0.1)); g.addColorStop(0.6, hexA(colors.red, 0.2 * k)); g.addColorStop(1, hexA(colors.red, 0));
     c.fillStyle = g; ring(m.x, m.y, r); c.fill();
     c.globalAlpha = 0.35 + 0.65 * k;
-    c.fillStyle = colors.red; ring(m.x, m.y, 11); c.fill(); c.lineWidth = 1.5; c.strokeStyle = '#fff'; c.stroke();
-    glyph(c, m.type, m.x, m.y, m.type === 'air' ? 8 : 6, '#fff', null, Math.PI, m.type === 'aa' ? -Math.PI / 2 : Math.PI);
-    // rough size: 1-3 dots from how many were seen
-    const dots = m.n <= 2 ? 1 : m.n <= 4 ? 2 : 3; c.fillStyle = colors.red;
+    // identification (our control where it is): type and size / only ground or air / only "something moves"
+    if (m.lvl >= 1) { c.fillStyle = colors.red; ring(m.x, m.y, 11); c.fill(); c.lineWidth = 1.5; c.strokeStyle = '#fff'; c.stroke(); }
+    else { c.fillStyle = hexA(colors.red, 0.35); ring(m.x, m.y, 11); c.fill(); c.lineWidth = 1.5; c.strokeStyle = colors.red; c.setLineDash([3, 3]); c.stroke(); c.setLineDash([]); }
+    if (m.type) glyph(c, m.type, m.x, m.y, m.type === 'air' ? 8 : 6, '#fff', null, Math.PI, m.type === 'aa' ? -Math.PI / 2 : Math.PI);
+    else if (m.air) glyph(c, 'air', m.x, m.y, 8, '#fff', null, -Math.PI / 2);
+    else if (m.lvl === 1) { c.fillStyle = '#fff'; c.fillRect(m.x - 5, m.y - 3, 10, 6); }
+    else label('?', m.x, m.y + 5, colors.red);
+    // rough size: 1-3 dots from how many were seen (only when identified)
+    const dots = !m.n ? 0 : m.n <= 2 ? 1 : m.n <= 4 ? 2 : 3; c.fillStyle = colors.red;
     for (let i = 0; i < dots; i++) { ring(m.x - (dots - 1) * 4 + i * 8, m.y + 17, 2.5); c.fill(); }
     if (age > UNSURE) label('?', m.x + 15, m.y - 8, colors.red);
     c.globalAlpha = 1;
@@ -208,7 +215,7 @@ function drawBuildArea(c) {
   for (let y = G / 2; y < s.H; y += G) for (let x = G / 2; x < s.W; x += G) if (!Sim.buildCheck(s, 'blue', x, y)) c.fillRect(x - G / 2, y - G / 2, G, G);
 }
 // event reports appear where they happened, pop in and fade out
-const MARK = { contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕', nodeLost: '💥' };
+const MARK = { ack: '👌', contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕', nodeLost: '💥' };
 // orders still on their way: a courier dot runs from HQ toward the squad, the new target is a ghost ring
 function drawMail(c) {
   const hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq') || { x: s.bases.blue.x, y: s.H / 2 };
@@ -274,6 +281,11 @@ function draw() {
     c.strokeStyle = colors.blue; c.globalAlpha = on ? 0.9 : 0.35; c.lineWidth = on ? 2 : 1.2;
     c.setLineDash(o.type === 'support' ? [2, 4] : [7, 5]); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(o.x, o.y); c.stroke();
     ring(o.x, o.y, o.r); c.stroke(); c.setLineDash([]);
+    // "roger": the ring is where the commander understood the order; a cross marks what was actually asked
+    if (o.want && Math.hypot(o.want.x - o.x, o.want.y - o.y) > 8) {
+      const w = o.want; c.lineWidth = 1.5; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(w.x, w.y); c.lineTo(o.x, o.y); c.stroke(); c.setLineDash([]);
+      c.lineWidth = 2; c.beginPath(); c.moveTo(w.x - 5, w.y - 5); c.lineTo(w.x + 5, w.y + 5); c.moveTo(w.x + 5, w.y - 5); c.lineTo(w.x - 5, w.y + 5); c.stroke();
+    }
     const stack = labelSpots.filter(p => Math.hypot(p.x - o.x, p.y - o.y) < 30).length; labelSpots.push(o);
     label(Sim.ORDER_NAME[o.type], o.x, o.y + o.r + 14 + stack * 15, tcol(q.type));
     c.globalAlpha = 1;

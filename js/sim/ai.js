@@ -8,11 +8,13 @@ function edgeAt(s, sq, p) {
   let e = 0;
   for (const q of s.squads) {
     const k = q.side !== sq.side && intel(s, sq.side, q);
-    if (!k || Math.hypot(k.x - p.x, k.y - p.y) > AI_NEAR) continue;
-    e += (MULT[sq.type][q.type] - MULT[q.type][sq.type]) * k.strength * q.size;
+    if (!k || !k.type || Math.hypot(k.x - p.x, k.y - p.y) > AI_NEAR) continue; // unidentified: can't weigh it
+    e += (MULT[sq.type][k.type] - MULT[k.type][sq.type]) * k.strength * q.size;
   }
   return e;
 }
+// can this squad hurt what it knows of an enemy? unidentified: assume so; known only as aircraft: only AA
+const canHit = (sq, k) => k.type ? MULT[sq.type][k.type] > 0 : k.air ? sq.type === 'aa' : true;
 // enemy structures this side knows about: seen ones stay remembered (they don't move); the enemy HQ's
 // place is known from the start
 function knownStructs(s, side) {
@@ -40,8 +42,9 @@ function think(s, side, level) {
   const D = DIFFS[level] || DIFFS.normal, foe = foeOf(side), taken = new Map();
   const mine = s.squads.filter(q => q.side === side && !q.dead && !q.retreating);
   const setOrder = (sq, type, x, y) => {
-    const p = pending(s, sq.id, 'order'), cur = p || sq.order;
-    if (cur.x === x && cur.y === y && cur.type === type) return;
+    // compare with what was asked, not where the commander understood it (that would resend every time)
+    const p = pending(s, sq.id, 'order'), cur = p || sq.order, w = cur.want || cur;
+    if (w.x === x && w.y === y && cur.type === type) return;
     order(s, sq.id, type, x, y, true);
   };
   aiBuild(s, side, D);
@@ -53,7 +56,7 @@ function think(s, side, level) {
     if (D.smart && sq.strength < AI_READY && !fighting) { const h = homeOf(s, sq); setOrder(sq, 'hold', h.x, h.y); continue; }
     const cands = [];
     for (const { q, k } of foes) {
-      if (!MULT[sq.type][q.type]) continue; // can't hurt it (aircraft for everyone but AA)
+      if (!canHit(sq, k)) continue; // can't hurt it (aircraft for everyone but AA), as far as we can tell
       cands.push({ x: k.x, y: k.y, w: 0, edge: true });
     }
     // structures: production and forward HQs matter most; aircraft go for them when there's nothing better
@@ -62,13 +65,13 @@ function think(s, side, level) {
     const score = p => {
       let sc = dist(c, p) + p.w + (D.mass ? -150 : 200) * (taken.get(p.x + ',' + p.y) || 0);
       if (D.smart && p.edge) sc -= 60 * edgeAt(s, sq, p);
-      if (D.smart && sq.type === 'air') for (const { q, k } of foes) if (q.type === 'aa' && Math.hypot(k.x - p.x, k.y - p.y) < 150) sc += 300 * k.strength;
+      if (D.smart && sq.type === 'air') for (const { q, k } of foes) if (k.type === 'aa' && Math.hypot(k.x - p.x, k.y - p.y) < 150) sc += 300 * k.strength;
       return sc;
     };
     let best = null, bs = Infinity;
     for (const p of cands) { const sc = score(p); if (sc < bs) { bs = sc; best = p; } }
     // don't flip-flop between two targets that score about the same
-    const cur = D.smart && cands.find(p => Math.hypot(p.x - sq.order.x, p.y - sq.order.y) < 40);
+    const aim = sq.order.want || sq.order, cur = D.smart && cands.find(p => Math.hypot(p.x - aim.x, p.y - aim.y) < 40);
     if (cur && cur !== best && score(cur) < bs + AI_KEEP) best = cur;
     taken.set(best.x + ',' + best.y, (taken.get(best.x + ',' + best.y) || 0) + 1);
     setOrder(sq, 'attack', best.x, best.y);
@@ -78,8 +81,10 @@ function think(s, side, level) {
     const sh = share(s, side), tr = sh < 0.4 ? 'aggressive' : sh > 0.6 ? 'cautious' : 'balanced';
     for (const sq of s.squads) if (sq.side === side && sq.trait !== tr) setTrait(s, sq.id, tr, true);
   }
-  // drones: look where we know least — an unexplored spot on the enemy's side of the map
-  if (D.smart && s.fog && s.cd[side].drone <= 0) {
+  // drones: first on a fresh track we can't make out, else where we know least — an unexplored spot on the enemy's side
+  const blur = D.smart && s.fog && s.cd[side].drone <= 0 && foes.find(o => o.k.lvl < 2 && s.t - o.k.t < 5);
+  if (blur) drone(s, side, blur.k.x, blur.k.y);
+  else if (D.smart && s.fog && s.cd[side].drone <= 0) {
     const x = s.bases[foe].x + (s.bases[side].x - s.bases[foe].x) * (0.2 + 0.4 * s.rand()), y = 60 + s.rand() * (H - 120);
     if (!structs.some(n => n.id !== 'hq?' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0)) drone(s, side, x, y);
   }

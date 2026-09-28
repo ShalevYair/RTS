@@ -39,7 +39,7 @@ function create(seed = 1, W = 1000, diff = 'normal') {
     squads: [], units: [], shots: [], fx: [], log: [], aiIn: { blue: 0, red: 0 }, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true,
     vis: { blue: new Set(), red: new Set() }, visSq: { blue: new Set(), red: new Set() }, mem: { blue: {}, red: {} }, memNodes: { blue: {}, red: {} },
     rep: {}, marks: [], outbox: [], calls: [], nextCall: 1, hist: [], histIn: 0, names: { blue: SURNAMES.slice(), red: SURNAMES.slice() }, lastBuild: {},
-    log2: { orders: 0, delay: 0, answered: 0, missed: 0 }, power: { blue: 0, red: 0 }, peak: { blue: 0, red: 0 }, plan: { blue: 0, red: 0 },
+    log2: { orders: 0, delay: 0, answered: 0, missed: 0, off: 0, offN: 0 }, power: { blue: 0, red: 0 }, peak: { blue: 0, red: 0 }, plan: { blue: 0, red: 0 },
     nodes: [], nextNode: 1, visNodes: { blue: new Set(), red: new Set() }, cd: { blue: { drone: 0, fhq: 0 }, red: { drone: 0, fhq: 0 } },
     diff: diff in DIFFS ? diff : 'normal', bots: ['red'], botDiff: 'normal' };
   for (const side of ['blue', 'red']) {
