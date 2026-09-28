@@ -26,8 +26,9 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // tap on the enemy squad: ours goes and wins
     const at = await p.evaluate(() => { const r = s.squads.find(q => q.side === 'red'), c = cv.getBoundingClientRect(); return { x: c.left + view.cox + r.cx * view.css, y: c.top + view.coy + r.cy * view.css }; });
     await p.mouse.click(at.x, at.y);
-    await p.evaluate(() => { rate = 8; });
-    await p.waitForFunction(() => !document.getElementById('end').hidden, null, { timeout: 30000 });
+    // play it out (straight through the sim, so the test doesn't hang on the browser's frame rate)
+    await p.evaluate(() => { for (let i = 0; i < 30 * 300 && !s.over; i++) Sim.step(s, 1 / 30); });
+    await p.waitForFunction(() => !document.getElementById('end').hidden, null, { timeout: 10000 });
     const end = await p.evaluate(() => ({ t: document.getElementById('endT').textContent, again: document.getElementById('again').textContent, done: localStorage.getItem('irts-done') }));
     check(name, end.t === '🏆' && end.again === '▶' && end.done === '1', `level 1 won by one tap: ${JSON.stringify(end)}`);
     await p.click('#again'); await p.waitForTimeout(300);

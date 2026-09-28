@@ -29,13 +29,17 @@ function tap(e) {
   if (hit) { select(hit); return; }
   issue(mode, x, y);
 }
-// camera: drag to pan (a press that moves more than DRAG_PX is not a tap), two fingers to pinch, wheel to zoom
+// Mouse: left-drag draws a rectangle that picks every squad in it; right- or middle-drag pans; the wheel zooms; the
+// view also slides when the pointer rests at a screen edge. Touch: one finger pans, two pinch.
+// A press that moves more than DRAG_PX is not a tap.
 const DRAG_PX = 8, touches = new Map();
-let drag = null;
+let drag = null, boxSel = null;
+cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
-  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false } : { moved: true };
+  const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed;
+  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0 } : { moved: true };
 });
 cv.addEventListener('pointermove', e => {
   const p = touches.get(e.pointerId); if (!p) return;
@@ -48,12 +52,39 @@ cv.addEventListener('pointermove', e => {
     return;
   }
   const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
-  if (drag && !drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_PX) { drag.moved = true; panBy(e.clientX - drag.x - dx, e.clientY - drag.y - dy); }
-  if (drag && drag.moved) panBy(dx, dy);
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_PX) { drag.moved = true; if (!drag.box) panBy(e.clientX - drag.x - dx, e.clientY - drag.y - dy); }
+  if (!drag.moved) return;
+  if (drag.box) { const r = cv.getBoundingClientRect(); boxSel = { x0: drag.x - r.left, y0: drag.y - r.top, x1: e.clientX - r.left, y1: e.clientY - r.top }; }
+  else panBy(dx, dy);
 });
+// the squads inside the rectangle (by their badge or their body): one becomes the selection, several a group
+function pickBox(b) {
+  const w0 = { x: (Math.min(b.x0, b.x1) - view.cox) / view.css, y: (Math.min(b.y0, b.y1) - view.coy) / view.css };
+  const w1 = { x: (Math.max(b.x0, b.x1) - view.cox) / view.css, y: (Math.max(b.y0, b.y1) - view.coy) / view.css };
+  const inside = (x, y) => x >= w0.x && x <= w1.x && y >= w0.y && y <= w1.y;
+  const ids = blueSquads().filter(q => !q.dead && pos(q) && (inside(pos(q).x, pos(q).y) || inside(pos(q).x, pos(q).y - 26))).map(q => q.id);
+  if (ids.length) select(ids.length === 1 ? ids[0] : ids);
+}
 const lift = e => { touches.delete(e.pointerId); if (!touches.size) drag = null; };
-cv.addEventListener('pointerup', e => { const d = drag; lift(e); if (d && !d.moved && e.isPrimary !== false) tap(e); });
-cv.addEventListener('pointercancel', lift);
+cv.addEventListener('pointerup', e => {
+  const d = drag, b = boxSel; lift(e); boxSel = null;
+  if (d && d.box && d.moved && b) { if (!menu.hidden || s.over) return; pickBox(b); return; }
+  if (d && !d.moved && d.tapOk && e.isPrimary !== false) tap(e);
+});
+cv.addEventListener('pointercancel', e => { lift(e); boxSel = null; });
+// edge scroll: where the mouse is (null when it has left the window)
+let mouseAt = null;
+window.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') mouseAt = { x: e.clientX, y: e.clientY }; });
+document.documentElement.addEventListener('mouseleave', () => { mouseAt = null; });
+window.addEventListener('blur', () => { mouseAt = null; });
+const EDGE_PX = 10, EDGE_SPEED = 700;
+function edgeScroll(dt) {
+  if (!mouseAt || drag || !$('intro').hidden || !$('end').hidden) return;
+  const W = innerWidth, H = innerHeight, x = mouseAt.x, y = mouseAt.y;
+  const dx = x < EDGE_PX ? 1 : x > W - EDGE_PX ? -1 : 0, dy = y < EDGE_PX ? 1 : y > H - EDGE_PX ? -1 : 0;
+  if (dx || dy) panBy(dx * EDGE_SPEED * dt, dy * EDGE_SPEED * dt);
+}
 cv.addEventListener('wheel', e => {
   e.preventDefault();
   const r = cv.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));

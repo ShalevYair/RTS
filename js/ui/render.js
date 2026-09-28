@@ -37,19 +37,9 @@ function makeDecor(s) {
   }
   for (let i = 0; i < Math.round(K / 60); i++) { const x = 60 + r() * (W - 120), y = 20 + r() * (s.H - 40); if (!inLake(x, y)) rocks.push({ x, y, r: 1.2 + r() * 2.8, t: tone(0.12) }); }
   trees.sort((p, q) => p.y - q.y);
-  // hills as a contour map: a hill `lv` lines high gets rings 0..lv-1 (ring 0 = the sim's outline), each drawn a bit
-  // smaller, drifting toward an off-centre top and with a little wobble of its own. Rings are grouped by height, so
-  // hills that touch share their contour lines, like one massif.
-  const levels = [], dots = new Path2D();
-  for (const h of s.hills) {
-    const px = (r() - 0.5) * h.r * 0.5, py = (r() - 0.5) * h.r * 0.5; // where the top is
-    for (let k = 0; k < h.lv; k++) {
-      const q = k / h.lv, f = 1 - Math.pow(q, 0.9) * 0.88, w = [...(h.w || []), [0.05 * q, 4, r() * 7], [0.03 * q, 7, r() * 7]];
-      (levels[k] = levels[k] || []).push(outline(h.x + px * q, h.y + py * q, th => { const d = h.r * f * Sim.wobble(w, th); return [Math.cos(th) * d, Math.sin(th) * d]; }));
-    }
-    for (let i = 0; i < 8 + h.r / 6; i++) { const th = r() * 7, d = Math.sqrt(r()) * h.r * 0.85, x = h.x + Math.cos(th) * d, y = h.y + Math.sin(th) * d; dots.moveTo(x + 1.5, y); dots.arc(x, y, 0.7 + r() * 1.3, 0, Math.PI * 2); }
-  }
-  const hills = { levels, dots };
+  // hills: contour lines traced from the sim's height grid (so what's drawn is what counts); the colouring is made
+  // when drawn, from the theme (see relief)
+  const hills = { contours: contours(s.elev), relief: null, theme: '' };
   // lakes: the sim's outline, a darker middle, a shallow rim
   const lakes = s.lakes.map(l => {
     const shp = f => outline(l.x, l.y, th => { const q = f * Sim.wobble(l.w, Math.atan2(Math.sin(th) / l.ry, Math.cos(th) / l.rx)); return [Math.cos(th) * l.rx * q, Math.sin(th) * l.ry * q]; }, 56, l.a);
@@ -62,15 +52,22 @@ function makeRoads(s, r) {
   let roads = [];
   const bez = (P, k) => { const u = 1 - k; return { x: u * u * u * P[0].x + 3 * u * u * k * P[1].x + 3 * u * k * k * P[2].x + k * k * k * P[3].x, y: u * u * u * P[0].y + 3 * u * u * k * P[1].y + 3 * u * k * k * P[2].y + k * k * k * P[3].y }; };
   const dry = P => { for (let i = 0; i <= 30; i++) if (Sim.lakeAt(s, bez(P, i / 30), 14)) return false; return true; };
+  const high = P => { let m = 0; for (let i = 0; i <= 30; i++) m += Sim.elevAt(s, bez(P, i / 30)); return m; }; // total climb along it
   const twin = p => ({ x: W - p.x + (r() - 0.5) * 30, y: (s.turn ? H - p.y : p.y) + (r() - 0.5) * 30 });
   // roads for one crossing X: for each lane, a few tries at a dry pair (ours and its twin)
   const lay = X => {
     const out = [];
-    for (let k = 0; k < n; k++) for (let tries = 0; tries < 15; tries++) {
-      const y = H * (k + 0.5) / n + (r() - 0.5) * H / n * 0.6;
-      const P = [{ x: 60, y }, { x: W * (0.18 + r() * 0.1), y: y + (r() - 0.5) * 80 }, { x: W * (0.3 + r() * 0.1), y: X.y + (r() - 0.5) * 120 }, X];
-      const Q = [{ x: W - 60, y: s.turn ? H - y : y }, twin(P[1]), twin(P[2]), X];
-      if (dry(P) && dry(Q)) { out.push(P, Q); break; }
+    // (of the dry tries, the one that climbs least: roads find the passes and valleys)
+    for (let k = 0; k < n; k++) {
+      let best = null, bh = Infinity;
+      for (let tries = 0; tries < 15; tries++) {
+        const y = H * (k + 0.5) / n + (r() - 0.5) * H / n * 0.6;
+        const P = [{ x: 60, y }, { x: W * (0.18 + r() * 0.1), y: y + (r() - 0.5) * 120 }, { x: W * (0.3 + r() * 0.1), y: X.y + (r() - 0.5) * 160 }, X];
+        const Q = [{ x: W - 60, y: s.turn ? H - y : y }, twin(P[1]), twin(P[2]), X];
+        if (!dry(P) || !dry(Q)) continue;
+        const hgt = Math.max(high(P), high(Q)); if (hgt < bh) { bh = hgt; best = [P, Q]; }
+      }
+      if (best) out.push(...best);
     }
     return out;
   };
@@ -122,7 +119,19 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2) {
     c.strokeStyle = fill; c.lineWidth = w; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
   };
   if (type === 'air') { c.rotate(hd); c.beginPath(); poly(c, PLANE, k); paint(); }
-  else if (type === 'aa') { c.rotate(aim); c.beginPath(); poly(c, MISSILE, k); paint(); }
+  else if (type === 'aa') {
+    // anti-aircraft: a soldier with a launcher tube on his shoulder, pointing where he aims (up, at aircraft)
+    const flip = Math.cos(aim) < 0; if (flip) c.scale(-1, 1);
+    const a = flip ? Math.PI - aim : aim;
+    c.beginPath(); c.arc(-0.1 * k, -0.62 * k, 0.24 * k, 0, Math.PI * 2);
+    c.moveTo(-0.42 * k, -0.34 * k); c.lineTo(0.22 * k, -0.34 * k); c.lineTo(0.14 * k, 0.2 * k); c.lineTo(-0.34 * k, 0.2 * k); c.closePath();
+    c.rect(-0.34 * k, 0.2 * k, 0.18 * k, 0.55 * k); c.rect(-0.04 * k, 0.2 * k, 0.18 * k, 0.55 * k);
+    paint();
+    c.save(); c.translate(0.05 * k, -0.42 * k); c.rotate(a);
+    c.beginPath(); c.rect(-0.45 * k, -0.15 * k, 1.35 * k, 0.3 * k); paint();
+    c.beginPath(); c.moveTo(0.9 * k, -0.15 * k); c.lineTo(1.12 * k, 0); c.lineTo(0.9 * k, 0.15 * k); c.closePath(); paint();
+    c.restore();
+  }
   else if (type === 'tank') {
     c.rotate(hd); c.beginPath(); c.rect(-0.8 * k, -0.55 * k, 1.6 * k, 1.1 * k); paint();
     c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(-0.8 * k, -0.55 * k, 1.6 * k, 0.24 * k); c.fillRect(-0.8 * k, 0.31 * k, 1.6 * k, 0.24 * k);
@@ -144,6 +153,49 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2) {
 }
 const idleAim = (type, side) => type === 'aa' ? -Math.PI / 2 + (side === 'blue' ? 0.6 : -0.6) : (side === 'blue' ? 0 : Math.PI);
 
+const ELEV = 8; // the sim's height grid step (ELEV_CELL)
+// the height grid as a picture, one pixel per grid point, drawn stretched (smoothly) over the map: transparent on
+// the plain, then from the grass's green through the hill's earth to its light top as it climbs; each point lit by
+// how it faces a light in the north-west (so slopes read as slopes)
+function relief(E) {
+  const cv2 = document.createElement('canvas'); cv2.width = E.w; cv2.height = E.h;
+  const c = cv2.getContext('2d'), img = c.createImageData(E.w, E.h), d = img.data, g = E.g;
+  const rgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+  const G = rgb(colors.grass2), M = rgb(colors.hill), T = rgb(colors.hillHi), lerp = (a, b, u) => a.map((v, i) => v + (b[i] - v) * u);
+  for (let j = 0; j < E.h; j++) for (let i = 0; i < E.w; i++) {
+    const k = j * E.w + i, e = g[k]; if (e <= 0) continue;
+    const q = Math.min(1, e / 10), col = q < 0.3 ? lerp(G, M, q / 0.3) : lerp(M, T, (q - 0.3) / 0.7);
+    const dx = (g[k + (i < E.w - 1 ? 1 : 0)] - g[k - (i > 0 ? 1 : 0)]), dy = (g[k + (j < E.h - 1 ? E.w : 0)] - g[k - (j > 0 ? E.w : 0)]);
+    const lit = Math.max(-1, Math.min(1, (-dx - dy) * 0.4)), f = lit > 0 ? [255, 255, 240] : [0, 0, 0], amt = Math.abs(lit) * 0.2;
+    const o = k * 4, m = lerp(col, f, amt);
+    d[o] = m[0]; d[o + 1] = m[1]; d[o + 2] = m[2]; d[o + 3] = 255 * Math.min(1, e / 1.2) * 0.92;
+  }
+  c.putImageData(img, 0, 0); return cv2;
+}
+// contour lines at 1, 2, … lines high, traced over the height grid (marching squares); one path per height
+function contours(E) {
+  const out = [], g = E.g;
+  let top = 0; for (const v of g) if (v > top) top = v;
+  for (let L = 1; L <= Math.floor(top); L++) {
+    const p = new Path2D();
+    for (let j = 0; j < E.h - 1; j++) for (let i = 0; i < E.w - 1; i++) {
+      const k = j * E.w + i, a = g[k], b = g[k + 1], c = g[k + E.w + 1], d = g[k + E.w];
+      const m = (a >= L) | (b >= L) << 1 | (c >= L) << 2 | (d >= L) << 3;
+      if (m === 0 || m === 15) continue;
+      const x = i * ELEV, y = j * ELEV, f = (u, v) => (L - u) / (v - u) * ELEV;
+      const top_ = [x + f(a, b), y], right = [x + ELEV, y + f(b, c)], bot = [x + f(d, c), y + ELEV], left = [x, y + f(a, d)];
+      const seg = (P, Q) => { p.moveTo(P[0], P[1]); p.lineTo(Q[0], Q[1]); };
+      switch (m) {
+        case 1: case 14: seg(left, top_); break; case 2: case 13: seg(top_, right); break;
+        case 3: case 12: seg(left, right); break; case 4: case 11: seg(right, bot); break;
+        case 6: case 9: seg(top_, bot); break; case 7: case 8: seg(left, bot); break;
+        case 5: seg(left, top_); seg(right, bot); break; case 10: seg(top_, right); seg(left, bot); break;
+      }
+    }
+    out.push(p);
+  }
+  return out;
+}
 // a shade of a theme colour: k > 0 toward white, k < 0 toward black
 function shade(col, k) {
   const m = /^#([0-9a-f]{6})$/i.exec(col || ''); if (!m) return col;
@@ -177,20 +229,18 @@ function drawTerrain(c, W, H, mid) {
     const l = k.l; c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5;
     c.beginPath(); c.ellipse(l.x - l.rx * 0.25, l.y - l.ry * 0.3, l.rx * 0.3, l.ry * 0.25, l.a, Math.PI * 1.1, Math.PI * 1.6); c.stroke();
   }
-  // hills, one height at a time: stroke every ring of that height, then fill them all over it, so only the outer edge
-  // of each group of touching rings is left as a line. The colour runs from the hill colour at the foot to its light
-  // colour at the highest line.
-  const L = decor.hills.levels;
-  L.forEach((paths, k) => {
-    c.strokeStyle = colors.hillLine; c.lineWidth = k ? 1.6 : 2.2;
-    for (const p of paths) c.stroke(p);
-    c.fillStyle = mix(colors.hill, colors.hillHi, Math.min(1, k / 9));
-    for (const p of paths) c.fill(p);
-  });
-  c.globalAlpha = 0.45; c.fillStyle = colors.hillLine; c.fill(decor.hills.dots); c.globalAlpha = 1;
+  // hills: the relief (colour by height, lit from the north-west) blends into the grass; then the contour lines,
+  // every fifth a little stronger
+  const R = decor.hills, key = colors.hill + colors.ground + colors.grass2;
+  if (R.theme !== key) { R.relief = relief(s.elev); R.theme = key; }
+  c.drawImage(R.relief, -ELEV / 2, -ELEV / 2, R.relief.width * ELEV, R.relief.height * ELEV);
+  c.strokeStyle = colors.hillLine; c.lineCap = 'round';
+  R.contours.forEach((p, k) => { c.globalAlpha = (k + 1) % 5 ? 0.45 : 0.7; c.lineWidth = (k + 1) % 5 ? 1 : 1.6; c.stroke(p); });
+  c.globalAlpha = 1;
   // roads (over the hills: they climb them): an edge, the dirt (width changes along the way), then faint wheel ruts
   c.lineCap = 'round'; c.lineJoin = 'round';
-  for (const [col, extra] of [[colors.roadEdge, 4], [colors.road, 0]]) {
+  // (their colours lean toward the grass, so a road doesn't glare over the land it crosses)
+  for (const [col, extra] of [[mix(colors.roadEdge, colors.grass2, 0.3), 4], [mix(colors.road, colors.ground, 0.25), 0]]) {
     c.strokeStyle = col;
     for (const pts of decor.roads) for (let i = 1; i < pts.length; i++) { c.lineWidth = pts[i].w + extra; c.beginPath(); c.moveTo(pts[i - 1].x, pts[i - 1].y); c.lineTo(pts[i].x, pts[i].y); c.stroke(); }
   }
@@ -382,7 +432,7 @@ function drawUnits(c, show) {
     else { c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(u.x + 2, u.y + 4, k * 0.75, k * 0.35, 0, 0, Math.PI * 2); c.fill(); }
     glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim);
     if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
-    if (u.side === 'blue' && (sel === 'all' || u.squad === sel)) {
+    if (u.side === 'blue' && isSel(u.squad)) {
       c.strokeStyle = colors.ink; c.lineWidth = 1.2; ring(u.x, u.y, k + 3); c.stroke();
       if (sel !== 'all') { c.globalAlpha = 0.16; c.strokeStyle = colors.blue; ring(u.x, u.y, T.range); c.stroke(); c.globalAlpha = 1; }
     }
@@ -405,7 +455,7 @@ function draw() {
     if (q.side !== 'blue' || q.dead) continue;
     let o = q.retreating ? { ...Sim.homeOf(s, q), r: 30, type: 'retreat' } : Sim.effOrder(s, q);
     if (o.target) o = { ...o, x: pos(o.target).x, y: pos(o.target).y };
-    const on = sel === 'all' || q.id === sel, p = pos(q);
+    const on = isSel(q.id), p = pos(q);
     c.strokeStyle = colors.blue; c.globalAlpha = on ? 0.9 : 0.35; c.lineWidth = on ? 2 : 1.2;
     c.setLineDash(o.type === 'support' ? [2, 4] : [7, 5]); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(o.x, o.y); c.stroke();
     ring(o.x, o.y, o.r); c.stroke(); c.setLineDash([]);
@@ -418,15 +468,24 @@ function draw() {
     label(ORDER_ICON[o.type], o.x, o.y + o.r + 14 + stack * 15, tcol(q.type));
     c.globalAlpha = 1;
   }
-  // tracers
+  // shots in flight: bullets (a quick bright dot), shells (a glowing round with a short streak), missiles (a body
+  // with a smoke trail back to where it was fired)
   c.save(); c.lineCap = 'round';
   for (const sh of s.shots) {
-    c.globalAlpha = Math.max(0, sh.life / 0.15); c.shadowColor = colors[sh.side]; c.shadowBlur = 6;
-    c.strokeStyle = sh.kind === 'aa' ? '#fff1a8' : colors[sh.side];
-    c.lineWidth = sh.kind === 'tank' ? 2.5 : 1.3; c.setLineDash(sh.kind === 'air' ? [3, 3] : []);
-    c.beginPath(); c.moveTo(sh.x1, sh.y1); c.lineTo(sh.x2, sh.y2); c.stroke();
+    const k = Math.min(1, (sh.dur + 0.12 - sh.life) / sh.dur), x = sh.x1 + (sh.x2 - sh.x1) * k, y = sh.y1 + (sh.y2 - sh.y1) * k;
+    const dx = sh.x2 - sh.x1, dy = sh.y2 - sh.y1, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+    if (sh.kind === 'air' || sh.kind === 'aa') {
+      const back = Math.min(d * k, 40);
+      c.globalAlpha = 0.35 * (k < 1 ? 1 : sh.life / 0.12); c.strokeStyle = '#d8d8d0'; c.lineWidth = 2.5;
+      c.beginPath(); c.moveTo(x - ux * back, y - uy * back); c.lineTo(x, y); c.stroke();
+      if (k < 1) { c.globalAlpha = 1; c.strokeStyle = sh.kind === 'aa' ? '#fff1a8' : colors[sh.side]; c.lineWidth = 2.2; c.beginPath(); c.moveTo(x - ux * 5, y - uy * 5); c.lineTo(x, y); c.stroke(); c.fillStyle = '#ffb040'; ring(x - ux * 6, y - uy * 6, 1.6); c.fill(); }
+    } else if (k < 1) {
+      const tank = sh.kind === 'tank', len = tank ? 9 : 5;
+      c.globalAlpha = 1; c.shadowColor = '#ffcf6a'; c.shadowBlur = tank ? 6 : 3; c.strokeStyle = tank ? '#ffe2a0' : '#fff6c8'; c.lineWidth = tank ? 2.6 : 1.4;
+      c.beginPath(); c.moveTo(x - ux * len, y - uy * len); c.lineTo(x, y); c.stroke(); c.shadowBlur = 0;
+    }
   }
-  c.restore();
+  c.restore(); c.globalAlpha = 1;
   // units: exact picture without fog; under fog only what a drone is looking at right now
   const eyes = s.nodes.filter(n => n.side === 'blue' && n.kind === 'drone' && s.t >= n.ready), R = Sim.NODES.drone.r0;
   if (!s.fog) drawUnits(c, () => true);
@@ -436,6 +495,7 @@ function draw() {
   }
   // explosions: fireball, smoke ring for medium+, sparks for big
   for (const f of s.fx) {
+    if (f.wait > 0) continue; // its shot is still flying
     const t = 1 - f.life / f.max, a = 1 - t, R = f.size, r = R * (0.35 + 0.65 * Math.sqrt(t));
     const g = c.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
     g.addColorStop(0, `rgba(255,255,220,${a})`); g.addColorStop(0.35, `rgba(255,200,60,${a * 0.9})`);
@@ -463,7 +523,7 @@ function draw() {
       c.beginPath(); c.moveTo(p.prev.x, p.prev.y - 26); c.lineTo(p.x, p.y - 26); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
     }
     if (stale) c.globalAlpha = pulse;
-    const x = p.x, y = p.y - 26, on = sel === 'all' || q.id === sel;
+    const x = p.x, y = p.y - 26, on = isSel(q.id);
     c.fillStyle = colors.shadow; ring(x + 1.5, y + 2.5, 12); c.fill();
     c.fillStyle = tcol(q.type); ring(x, y, 12); c.fill();
     c.lineWidth = on ? 3 : 1.5; c.strokeStyle = on ? colors.ink : '#fff'; c.stroke();
@@ -509,4 +569,14 @@ function drawMini() {
   }
   for (const f of s.marks) { c.strokeStyle = f.kind === 'lost' || f.kind === 'ff' || f.kind === 'nodeLost' ? colors.red : colors.ink; c.lineWidth = 10; c.beginPath(); c.arc(f.x, f.y, 40 + 30 * (s.t - f.t), 0, Math.PI * 2); c.stroke(); }
   c.strokeStyle = colors.ink; c.lineWidth = 2 / k; c.strokeRect(vr.x, vr.y, vr.w, vr.h);
+}
+
+// the selection rectangle while it's being drawn (screen pixels)
+function drawBox() {
+  if (!boxSel || !fit) return;
+  const b = boxSel, c = ctx; c.save(); c.setTransform(fit.dpr, 0, 0, fit.dpr, 0, 0);
+  c.fillStyle = hexA(colors.blue, 0.12); c.strokeStyle = colors.blue; c.lineWidth = 1.5; c.setLineDash([5, 4]);
+  c.fillRect(Math.min(b.x0, b.x1), Math.min(b.y0, b.y1), Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
+  c.strokeRect(Math.min(b.x0, b.x1), Math.min(b.y0, b.y1), Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
+  c.restore();
 }

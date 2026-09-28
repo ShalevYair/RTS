@@ -9,7 +9,14 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // hills and lakes aren't perfect circles / ellipses: each has a few waves around its rim (w = [[amp, k, phase], ...]);
 // `wobble` is how far out the rim is at angle th, as a share of the plain radius
 const wobble = (w, th) => { let f = 1; if (w) for (const [a, k, ph] of w) f += a * Math.cos(k * th + ph); return f; };
-const inHill = (s, p) => s.hills.some(h => { const d = dist(h, p); return d < h.r * 1.25 && d < h.r * wobble(h.w, Math.atan2(p.y - h.y, p.x - h.x)); });
+// height at p in contour lines (bilinear on the grid made with the map); the line a unit stands on; on a hill = line 1+
+function elevAt(s, p) {
+  const E = s.elev; if (!E) return 0;
+  const fx = clamp(p.x / ELEV_CELL, 0, E.w - 1.001), fy = clamp(p.y / ELEV_CELL, 0, E.h - 1.001), i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j, g = E.g, k = j * E.w + i;
+  return (g[k] * (1 - u) + g[k + 1] * u) * (1 - v) + (g[k + E.w] * (1 - u) + g[k + E.w + 1] * u) * v;
+}
+const levelAt = (s, p) => Math.floor(elevAt(s, p));
+const inHill = (s, p) => elevAt(s, p) >= 1;
 // lakes are rotated ellipses; `lakeK` < 1 means p is inside (grown by pad)
 function lakeK(l, p, pad = 0) {
   const c = Math.cos(l.a), sn = Math.sin(l.a), dx = p.x - l.x, dy = p.y - l.y;
@@ -28,9 +35,8 @@ function dryOf(s, p, pad = 0) {
   }
   return q;
 }
-// how far a unit sees: more from a hill (aircraft don't care)
-// (u.hill is set once a tick in step(); aircraft are never "on" a hill)
-const sightOf = (s, u) => TYPES[u.type].sight * (u.hill ? HILL_SIGHT : 1);
+// how far a unit sees: ELEV_BONUS more per contour line it stands on (u.lvl is set once a tick in step(); 0 for aircraft)
+const sightOf = (s, u) => TYPES[u.type].sight * (1 + ELEV_BONUS * (u.lvl || 0));
 
 function report(s, sq, msg) {
   if (sq && sq.side !== 'blue') return;

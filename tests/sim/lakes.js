@@ -4,8 +4,15 @@ const ok = (c, m) => { console.log((c ? 'ok  ' : 'FAIL') + ' ' + m); if (!c) pro
 // inside a (rotated) lake ellipse
 const wet = (l, p) => { const c = Math.cos(l.a), s = Math.sin(l.a), dx = p.x - l.x, dy = p.y - l.y, u = (dx * c + dy * s) / l.rx, v = (-dx * s + dy * c) / l.ry; return u * u + v * v < Sim.wobble(l.w, Math.atan2(v, u)) ** 2; }; // the lake's real (uneven) outline
 const small = Sim.create(3, 1000, 'normal'), big = Sim.create(3, 2400, 'normal', 1280);
-ok(small.lakes.length === 2 && big.lakes.length === 4, `lakes: ${small.lakes.length} on the small map, ${big.lakes.length} on the big one`);
-ok(big.hills.every(h => big.lakes.every(l => Math.hypot(h.x - l.x, h.y - l.y) > h.r + l.rx)), 'no hill in a lake');
+{
+  let n = 0, maps = 0, wetHill = 0;
+  for (let seed = 1; seed <= 20; seed++) for (const [W, h] of [[1000, 640], [2400, 1280]]) {
+    const g = Sim.create(seed, W, 'normal', h); maps++; if (g.lakes.length >= 2) n++;
+    for (const l of g.lakes) for (let a = 0; a < 6.28; a += 0.5) for (const k of [0, 0.4, 0.6]) { const p = { x: l.x + Math.cos(a) * l.rx * k, y: l.y + Math.sin(a) * l.ry * k }; if (Sim.lakeAt(g, p, -12) && Sim.elevAt(g, p) > 0.2) wetHill++; } // (only well inside the water)
+  }
+  ok(n === maps, `every map has lakes (at least a pair): ${n}/${maps}`);
+  ok(wetHill === 0, 'no hill in a lake: the water is flat');
+}
 // round the lake: infantry left of it, ordered straight through it to the far side
 {
   const s = Sim.create(4, 1000, 'normal'); s.bots = []; s.fog = false;

@@ -10,6 +10,9 @@ try { done = Math.max(0, Math.min(Sim.LEVELS, +localStorage.getItem('irts-done')
 let lvl = done >= Sim.LEVELS ? 0 : done + 1;
 // what the player has in this game: everything in the full game, only the level's controls in the tutorial
 const uiHas = k => !s.ui || s.ui.includes(k);
+// selection: 'all', one squad id, or a list of ids (picked with a rectangle)
+const isSel = id => sel === 'all' || sel === id || (Array.isArray(sel) && sel.includes(id));
+const oneSel = () => typeof sel === 'string' && sel !== 'all' ? sel : null;
 const colors = {};
 function readColors() {
   const cs = getComputedStyle(document.documentElement);

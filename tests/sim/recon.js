@@ -31,7 +31,8 @@ ok(o.every(k => k.d <= R + 1e-9) && o.reduce((a, k) => a + k.d, 0) / o.length > 
 o = offs('bold');
 const fwd = o.reduce((a, k) => a + k.fwd, 0) / o.length; // the squad (x 900) goes toward x 600: forward = smaller x
 ok(fwd > R * 0.4 && o.every(k => k.d <= R * 1.6 + 1e-9), `bold overshoots forward by ${fwd.toFixed(0)} on average`);
-sq.temper = 'steady'; Sim.step(s, 1 / 30); // back to its real position
+sq.temper = 'steady'; for (const u of s.units) if (u.side === 'red') u.cd = 1e9; // red holds fire: this is about orders, not a fight
+Sim.step(s, 1 / 30); // back to its real position
 for (const u of s.units) if (u.squad === 'blue0') { u.x = 880 + u.sx * 10; u.y = 320 + u.sy * 10; }
 Sim.step(s, 1 / 30);
 Sim.order(s, 'blue0', 'attack', 600, 300); while (s.outbox.length && s.t < 20) Sim.step(s, 1 / 30);

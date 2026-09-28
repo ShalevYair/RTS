@@ -18,7 +18,7 @@ function twins(g) {
   for (const [list, R] of [[g.hills, 'r'], [g.lakes, 'rx']]) for (const f of list) {
     if (Math.abs(f.x - cx) < 40) continue; // on the centre line
     if (f.x > cx) continue;
-    const m = map(f), t = list.find(o => o.x > cx && Math.abs(o.x - m.x) <= J && Math.abs(o.y - m.y) <= J && Math.abs(o[R] / f[R] - 1) <= 0.12 + 1e-9);
+    const m = map(f), t = list.find(o => o.x > cx && Math.abs(o.x - m.x) <= J && Math.abs(o.y - m.y) <= J && Math.abs(Math.log(o[R] / f[R])) <= -Math.log(0.88) + 1e-9); // a twin is up to 12% smaller or larger
     if (t) { paired++; if (t.x === m.x && t.y === m.y && t[R] === f[R]) exact++; }
     else return { ok: false };
   }
@@ -34,15 +34,24 @@ ok(allTwin && exacts === 0 && pairs > 200, `every feature has a near twin on the
 ok(turned > 20 && turned < 70, `both kinds of twin occur: turned half a circle in ${turned} of 90 maps, mirrored in the rest`);
 const s = Sim.create(5, 2400, 'normal', 1280);
 ok(s.W === 2400 && s.H === 1280 && s.bases.blue.y === 640 && s.nodes.find(n => n.kind === 'hq').y === 640, 'big map: 2400×1280, bases in the middle of the height');
-ok(s.hills.length >= 20, `many hills: ${s.hills.length}`);
-ok(s.hills.every(h => h.x - h.r >= 240 - 1e-9 && h.x + h.r <= s.W - 240 + 1e-9), 'no hill in either base area');
-ok(s.hills.every((h, i) => s.hills.every((o, j) => i === j || Math.hypot(h.x - o.x, h.y - o.y) >= (h.r + o.r) * 0.8 - 1e-9)), 'hills may touch, but none is swallowed by another');
+ok(s.hills.length >= 16, `many hills: ${s.hills.length}`);
 {
-  let touch = 0; const lv = new Set();
-  for (let seed = 1; seed <= 10; seed++) { const g = Sim.create(seed, 2400, 'normal', 1280); for (const h of g.hills) { lv.add(h.lv); if (g.hills.some(o => o !== h && Math.hypot(h.x - o.x, h.y - o.y) < h.r + o.r)) touch++; } }
-  ok(touch > 50 && lv.has(1) && lv.has(10), `hills run into ridges (${touch} touching another) and stand 1 to 10 contour lines high (${[...lv].sort((a, b) => a - b).join(',')})`);
+  // the bases stand on flat ground; basins: a lake in a hollow ringed by ridges; heights 1 to 10 lines
+  let flat = true, ringed = 0, lakesN = 0; const lv = new Set();
+  for (let seed = 1; seed <= 12; seed++) for (const [W, h] of [[900, 640], [2400, 1280]]) {
+    const g = Sim.create(seed, W, 'normal', h);
+    for (let y = 0; y <= g.H; y += 20) for (const x of [0, 40, 70, g.W - 70, g.W - 40, g.W]) if (Sim.elevAt(g, { x, y }) > 0) flat = false;
+    for (const f of g.hills) lv.add(f.lv);
+    for (const l of g.lakes) {
+      lakesN++; const sides = new Set();
+      for (const f of g.hills) { const d = Math.hypot(f.x - l.x, f.y - l.y); if (d < l.rx * 3.2) sides.add(Math.floor((Math.atan2(f.y - l.y, f.x - l.x) + Math.PI) / (Math.PI / 3))); }
+      if (sides.size >= 3) ringed++;
+    }
+  }
+  ok(flat, 'no hill in either base area: the ground is flat near both edges');
+  ok(ringed >= lakesN * 0.7, `lakes lie in basins: ${ringed} of ${lakesN} have ridges on at least three sides`);
+  ok(lv.has(1) && lv.has(10), `hills stand 1 to 10 contour lines high (${[...lv].sort((a, b) => a - b).join(',')})`);
 }
-ok(s.hills.every(h => h.y - h.r >= 0 && h.y + h.r <= s.H), 'hills are on the map');
 const s2 = Sim.create(5, 2400, 'normal', 1280), s3 = Sim.create(6, 2400, 'normal', 1280);
 ok(JSON.stringify(s2.hills) === JSON.stringify(s.hills) && JSON.stringify(s3.hills) !== JSON.stringify(s.hills), 'the same seed gives the same map, another seed another');
 ok(Sim.create(1, 99999, 'normal', 99999).W === 3000 && Sim.create(1, 99999, 'normal', 99999).H === 1400, 'size is capped (3000×1400)');
@@ -53,18 +62,31 @@ ok(s.squads.find(q => q.id === 'blue1').order.y === 1100, 'an order to y 1100 is
 for (let i = 0; i < 30 * 20; i++) Sim.step(s, 1 / 30);
 ok(s.squads.find(q => q.id === 'blue1').cy > 900, `the squad went there (y ${s.squads.find(q => q.id === 'blue1').cy.toFixed(0)})`);
 ok(Sim.buildCheck(s, 'blue', 150, 900) === '', 'building near the HQ, below the old edge');
-// hills: sight +30% (range +20%, damage taken -30% were there already)
+// height: +10% sight (and range) per contour line; uphill slower, downhill faster
 {
-  const g = Sim.create(7, 2400, 'normal', 1280); g.bots = []; g.noReinforce = true;
-  const hill = g.hills.find(h => h.x < g.W / 2), me = g.units.find(u => u.squad === 'blue0'), foe = g.units.find(u => u.side === 'red');
-  const T = Sim.TYPES[me.type];
+  const g = Sim.create(7, 2400, 'normal', 1280); g.bots = []; g.noReinforce = true; g.fog = true;
+  // the highest point on our half
+  let top = { x: 0, y: 0, e: 0 };
+  for (let y = 40; y < g.H - 40; y += 8) for (let x = 300; x < g.W / 2; x += 8) { const e = Sim.elevAt(g, { x, y }); if (e > top.e) top = { x, y, e }; }
+  const L = Math.floor(top.e), me = g.units.find(u => u.squad === 'blue0'), foe = g.units.find(u => u.side === 'red'), T = Sim.TYPES[me.type];
   for (const u of g.units) if (u !== me && u !== foe) u.x = u.side === 'blue' ? 5 : g.W - 5; // out of the way
-  const look = onHill => {
-    me.x = hill.x; me.y = onHill ? hill.y : hill.y - hill.r - 5 - T.sight * 0.3; // just off the hill
-    foe.x = me.x + T.sight * 1.2; foe.y = me.y; foe.lastFire = -99;
-    me.cd = 99; foe.cd = 99; Sim.step(g, 1 / 30); return g.vis.blue.has(foe.id);
+  const far = T.sight * (1 + 0.1 * L) - 4;
+  const look = (x, y) => { me.x = x; me.y = y; foe.x = x + far; foe.y = y; foe.lastFire = -99; me.cd = 99; foe.cd = 99; Sim.step(g, 1 / 30); return g.vis.blue.has(foe.id); };
+  const plain = { x: 150, y: 80 }; // near the base: flat
+  ok(L >= 4 && look(top.x, top.y) && !look(plain.x, plain.y), `from ${L} lines up infantry sees ${Math.round(far)} away (+${L * 10}%); on the plain, not`);
+  // walk: a jeep squad from the top down the slope, then back up the same way
+  const q = g.squads.find(k => k.id === 'blue1'), J = g.units.filter(u => u.squad === q.id).slice(0, 1); // one jeep (no crowding)
+  g.units = g.units.filter(u => u.squad !== q.id || u === J[0]);
+  let dir = null;
+  for (let a = 0; a < 6.28 && !dir; a += 0.2) { const p = { x: top.x + Math.cos(a) * 60, y: top.y + Math.sin(a) * 60 }; if (Sim.elevAt(g, p) < top.e - 2 && !Sim.lakeAt(g, p, 10)) dir = p; }
+  const walk = (from, to) => {
+    for (const u of J) { u.x = from.x; u.y = from.y; } Sim.step(g, 1 / 30);
+    Sim.order(g, q.id, 'hold', to.x, to.y, true); g.outbox = []; q.order = { type: 'hold', x: to.x, y: to.y, r: 5 };
+    const u = J[0], x0 = u.x, y0 = u.y; for (let i = 0; i < 15; i++) Sim.step(g, 1 / 30); return Math.hypot(u.x - x0, u.y - y0);
   };
-  ok(look(true) && !look(false), `from a hill infantry sees ${Math.round(T.sight * 1.2)} away; off it, not`);
+  const down = walk(top, dir), up = walk(dir, top);
+  const flat = Sim.TYPES.jeep.speed;
+  ok(dir && down * 2 > flat * 1.2 && up * 2 < flat * 0.8, `a jeep (${flat}/s on the flat) goes down a slope at ${(down * 2).toFixed(0)}/s and up it at ${(up * 2).toFixed(0)}/s`);
 }
 // the AI: a forward HQ on a hill
 let onHill = 0, fhqs = 0;

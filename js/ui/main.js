@@ -18,13 +18,13 @@ function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (playing) { acc += dt * rate; while (acc >= DT) { Sim.step(s, DT); acc -= DT; } } else acc = 0;
   // one sound per new explosion (the audio side rate-limits bursts)
-  for (const f of s.fx) if (!f.heard) { f.heard = true; if (sfxOn) Music.boom(f.size, f.x / s.W); }
+  for (const f of s.fx) if (!f.heard && !(f.wait > 0)) { f.heard = true; if (sfxOn) Music.boom(f.size, f.x / s.W); }
   for (const k of s.marks) if (!k.heard) { k.heard = true; if (playing) Radio.hear(k); }
   Radio.tick();
   if (replayAuto && !$('end').hidden && !$('replayBox').hidden && now - replayAt > 180) {
     replayAt = now; const sc = $('scrub'), i = (+sc.value + 1) % (+sc.max + 1); sc.value = i; drawReplay(i);
   }
-  draw(); drawMini();
+  edgeScroll(dt); draw(); drawBox(); drawMini();
   if (now - hudAt > 200) { hudAt = now; updateHud(); }
   requestAnimationFrame(frame);
 }

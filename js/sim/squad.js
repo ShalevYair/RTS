@@ -95,7 +95,7 @@ function updateUnit(s, u, sq, dt) {
   }
   const o = effOrder(s, sq), retreat = sq.retreating || o.type === 'retreat';
   const anchor = retreat ? homeOf(s, sq) : o;
-  const onHill = u.hill, range = T.range * (onHill ? HILL_RANGE : 1), sight = T.sight * (onHill ? HILL_SIGHT : 1);
+  const up = 1 + ELEV_BONUS * (u.lvl || 0), range = T.range * up, sight = T.sight * up; // higher ground: further
   const leash = o.r * TRAITS[sq.trait].leash;
   let best = null, bd = Infinity, bw = Infinity, near = null, nd = Infinity;
   for (const e of s.units) {
@@ -112,19 +112,19 @@ function updateUnit(s, u, sq, dt) {
     if (n) {
       u.engaged = true; n.hp -= T.dmg * NODE_MULT[u.type]; u.cd = T.cd; if (T.ammo) u.ammo--;
       u.aim = Math.atan2(n.y - u.y, n.x - u.x); u.lastFire = s.t;
-      s.shots.push({ x1: u.x, y1: u.y, x2: n.x, y2: n.y, life: 0.15, side: u.side, kind: u.type });
-      s.fx.push({ x: n.x, y: n.y, life: IMPACT[u.type].life, max: IMPACT[u.type].life, size: IMPACT[u.type].size });
+      shot(s, u, n);
+      s.fx.push({ x: n.x, y: n.y, life: IMPACT[u.type].life, max: IMPACT[u.type].life, size: IMPACT[u.type].size, wait: SHOT_TIME[u.type] });
     }
   }
   if (tgt) {
     u.engaged = true;
     if (u.cd === 0) {
       const hit = friendlyFire(s, u, sq, tgt) || tgt;
-      hit.hp -= T.dmg * MULT[u.type][hit.type] * (hit.hill ? HILL_ARMOR : 1); u.cd = T.cd; if (T.ammo) u.ammo--;
+      hit.hp -= T.dmg * MULT[u.type][hit.type]; u.cd = T.cd; if (T.ammo) u.ammo--;
       const fx = IMPACT[u.type];
-      s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size });
+      s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[u.type] });
       u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
-      s.shots.push({ x1: u.x, y1: u.y, x2: hit.x, y2: hit.y, life: 0.15, side: u.side, kind: u.type });
+      shot(s, u, hit);
     }
   }
   let tx, ty;
@@ -135,7 +135,10 @@ function updateUnit(s, u, sq, dt) {
   if (!T.air && s.lakes.length) ({ x: tx, y: ty } = wade(s, u, tx, ty));
   const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy);
   if (d > 2) {
-    const sp = T.speed * (onHill ? HILL_SLOW : 1) * (retreat ? 1.15 : 1) * dt, k = Math.min(1, sp / d);
+    // uphill slower, downhill faster (ground units): by how many lines the next few steps climb or drop
+    let slope = 1;
+    if (!T.air) { const L = 6, e0 = elevAt(s, u), e1 = elevAt(s, { x: u.x + vx / d * L, y: u.y + vy / d * L }); slope = 1 - clamp((e1 - e0) / L * SLOPE_K, -SLOPE_MAX, SLOPE_MAX); }
+    const sp = T.speed * slope * (retreat ? 1.15 : 1) * dt, k = Math.min(1, sp / d);
     u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
   }
 }
@@ -176,3 +179,6 @@ function wade(s, u, tx, ty) {
   const sx = -oy / o * k * 0.85 + ox / o * 0.15, sy = ox / o * k * 0.85 + oy / o * 0.15;
   return { x: u.x + sx * LAKE_LOOK, y: u.y + sy * LAKE_LOOK };
 }
+
+// a shot in flight, for the picture: from the shooter to where it lands, SHOT_TIME[kind] long (then a brief fade)
+const shot = (s, u, to) => s.shots.push({ x1: u.x, y1: u.y, x2: to.x, y2: to.y, dur: SHOT_TIME[u.type], life: SHOT_TIME[u.type] + 0.12, side: u.side, kind: u.type });

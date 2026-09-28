@@ -1,30 +1,32 @@
 // Sim: game constants and tunables (no DOM; also loaded by the Node tests)
 const H = 640;
-// map size (DESIGN.md §5): the small map is H high; the big one 2× wide and 2× high. Big maps get about one hill per
-// HILL_AREA of ground, none within HILL_CLEAR of either edge (the bases) and HILL_GAP apart.
-// On a hill (ground units): range +20%, sight +30%, damage taken −30%, speed −20%.
-const MAP_H_MAX = 1400, MAP_W_MAX = 3000, HILL_AREA = 100000, HILL_CLEAR = 240, HILL_GAP = 30;
+// map size (DESIGN.md §5): the small map is H high; the big one 2× wide and 2× high. No hill within HILL_CLEAR of
+// either edge (the bases).
+const MAP_H_MAX = 1400, MAP_W_MAX = 3000, HILL_CLEAR = 240;
+// height, in contour lines (0 = the plain, hills up to HILL_LEVELS), on a grid every ELEV_CELL. A ground unit gets
+// ELEV_BONUS more range and sight per line it stands on; climbing slows it and going down speeds it up, by
+// SLOPE_K per line climbed per unit walked, at most SLOPE_MAX. Aircraft don't care.
+const HILL_LEVELS = 10, ELEV_CELL = 8, ELEV_BONUS = 0.1, SLOPE_K = 9, SLOPE_MAX = 0.5;
 // random maps: the enemy's half is our half's twin, each feature moved up to MAP_JITTER and resized up to MAP_RESIZE;
 // lakes keep LAKE_GAP between them
 const MAP_JITTER = 30, MAP_RESIZE = 0.12, LAKE_GAP = 60, SHAPE_AMP = 0.14;
-// hills may touch: centres at least HILL_TOUCH of their radii apart; HILL_RIDGE of them grow off another into a ridge;
-// the highest has HILL_LEVELS contour lines. Lakes reach LAKE_MAX across (half-width).
-const HILL_TOUCH = 0.8, HILL_RIDGE = 0.5, HILL_LEVELS = 10, LAKE_MAX = 110;
 // lakes: ground units go around them (only aircraft fly over); nothing is built within LAKE_PAD of one.
 // A ground unit looks LAKE_LOOK ahead and slides along the shore when the way is wet.
 const LAKE_PAD = 20, LAKE_LOOK = 28;
-const HILL_RANGE = 1.2, HILL_SIGHT = 1.3, HILL_ARMOR = 0.7, HILL_SLOW = 0.8;
 const TYPES = {
-  inf:  { name: 'חי"ר',  hp: 60,  speed: 30, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 5, rein: 7, cost: 1 },
-  tank: { name: 'טנקים', hp: 150, speed: 44, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 8, rein: 12, cost: 2 },
-  air:  { name: 'מטוסים', hp: 90, speed: 95, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 7, rein: 15, air: true, ammo: 10, cost: 2 },
-  aa:   { name: 'נ"מ',   hp: 70,  speed: 34, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 6, rein: 9, cost: 1 },
-  jeep: { name: "ג'יפים", hp: 80,  speed: 70, range: 60,  dmg: 6,  cd: 0.7, sight: 170, r: 6, rein: 8, cost: 1 },
+  inf:  { name: 'חי"ר',  hp: 60,  speed: 26, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 5, rein: 7, cost: 1 },
+  tank: { name: 'טנקים', hp: 150, speed: 37, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 8, rein: 12, cost: 2 },
+  air:  { name: 'מטוסים', hp: 90, speed: 80, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 7, rein: 15, air: true, ammo: 10, cost: 2 },
+  aa:   { name: 'נ"מ',   hp: 70,  speed: 29, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 6, rein: 9, cost: 1 },
+  jeep: { name: "ג'יפים", hp: 80,  speed: 60, range: 60,  dmg: 6,  cd: 0.7, sight: 170, r: 6, rein: 8, cost: 1 },
 };
 // power (for collapse) per full-health unit
 const UNIT_VALUE = { inf: 1, aa: 1.5, jeep: 1.5, tank: 3, air: 4 };
 // Damage multiplier MULT[attacker][target]. Range order: aa > air > tank > inf
 // impact explosion per attacker: big for tanks/aircraft, smaller for AA, tiny for infantry
+// how long a shot flies (s): bullets (infantry, jeeps) are quick, shells slower, missiles (aircraft, AA) slowest;
+// its blast shows when it lands. Only a look: the damage is dealt when fired.
+const SHOT_TIME = { inf: 0.1, jeep: 0.1, tank: 0.25, air: 0.45, aa: 0.5 };
 const IMPACT = { tank: { size: 18, life: 0.5 }, air: { size: 18, life: 0.5 }, aa: { size: 10, life: 0.35 }, inf: { size: 4, life: 0.22 }, jeep: { size: 6, life: 0.25 } };
 // only AA can hit aircraft (and drones): every other air column is 0, and 0 means "can't target"
 const MULT = {

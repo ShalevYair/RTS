@@ -12,56 +12,88 @@ function makeBase(x, x0, x1, h) {
 // The ground, new every game (from the seed, on its own random stream so it doesn't shift the rest of the game).
 // Our half is made first; the enemy's is its twin — mirrored left-right or turned half a circle (picked per map),
 // each feature nudged by up to MAP_JITTER and resized by up to MAP_RESIZE: close to fair, never identical.
-// A few hills sit on the centre line. Hills may touch and run into ridges, and stand 1-HILL_LEVELS contour lines
-// high (bigger ones higher). Nothing within `clear` of either edge (the bases); lakes stay apart from all else.
+// Mountains come as chains curling round a basin (with passes into it, and a lake in the hollow), plus a few long
+// single ridges and hills on the centre line. Each hill is a long, uneven dome `lv` contour lines high; the height
+// of the whole map is a grid (s.elev) made from them. Nothing within `clear` of either edge (the bases).
 function makeTerrain(s) {
   const W = s.W, h = s.H, cx = W / 2, big = h > H, r = rng(s.seed ^ 0x5bd1e995);
   const clear = big ? HILL_CLEAR : clamp(0.2 * W, 140, HILL_CLEAR), J = big ? MAP_JITTER * 1.5 : MAP_JITTER;
   const turn = r() < 0.5, jit = () => (r() * 2 - 1) * J, size = v => v * (1 + (r() * 2 - 1) * MAP_RESIZE);
-  const twin = f => ({ ...f, x: W - f.x + jit(), y: (turn ? h - f.y : f.y) + jit() });
+  const twin = f => ({ ...f, x: W - f.x + jit(), y: (turn ? h - f.y : f.y) + jit(), a: turn ? f.a : Math.PI - f.a });
   const lakes = [], hills = [];
-  // a rim of a few waves (the outline wanders up to about ±SHAPE_AMP of the radius); room is kept for the widest point
+  // a rim of a few waves (the outline wanders up to about ±SHAPE_AMP of the radius)
   const shape = () => [[SHAPE_AMP * (0.5 + r() * 0.5), 2, r() * 7], [SHAPE_AMP * 0.6 * r(), 3, r() * 7], [SHAPE_AMP * 0.35 * r(), 5, r() * 7]];
-  const inside = (f, R) => (R *= 1 + SHAPE_AMP * 1.5, f.x - R >= clear) && f.x + R <= W - clear && f.y - R >= 10 && f.y + R <= h - 10;
-  const lakeFree = (f, R) => inside(f, R) && lakes.every(l => Math.hypot(l.x - f.x, l.y - f.y) > l.rx + R + LAKE_GAP);
-  const hillFree = (f, R) => inside(f, R) && hills.every(o => Math.hypot(o.x - f.x, o.y - f.y) > (o.r + R) * HILL_TOUCH) &&
-    lakes.every(l => Math.hypot(l.x - f.x, l.y - f.y) > (l.rx + R) * (1 + SHAPE_AMP) + HILL_GAP);
-  // lakes: pairs (and on a big map sometimes one on the centre line)
-  const lakePairs = big ? 2 + Math.floor(r() * 2) : W >= 1100 && r() < 0.5 ? 2 : 1;
-  // lakes are big, up to about a third of the room between a base and the centre
-  const LR = clamp((cx - clear) * 0.32, 45, LAKE_MAX);
-  for (let i = 0, n = 0; i < 400 && n < lakePairs; i++) {
-    const rx = LR * (0.65 + r() * 0.35), ry = rx * (0.4 + r() * 0.3), a = (r() - 0.5) * 1.2;
-    const f = { x: clear + rx + r() * (cx - clear - 2 * rx - 20), y: ry + 20 + r() * (h - 2 * ry - 40), rx, ry, a };
-    const g = { ...twin(f), rx: size(rx), ry: size(ry), a: turn ? a : -a };
-    if (lakeFree(f, rx) && lakeFree(g, g.rx) && Math.hypot(f.x - g.x, f.y - g.y) > rx + g.rx + LAKE_GAP) { lakes.push(f, g); n++; }
+  const onMap = (f, R) => f.x - R >= clear && f.x + R <= W - clear && f.y - R >= 0 && f.y + R <= h;
+  const dry = (f, R) => lakes.every(l => Math.hypot(l.x - f.x, l.y - f.y) > l.rx * 1.15 + R);
+  // a long hill: major half-length `len`, width `wid` (as a share), along angle a, `lv` lines high
+  const hill = (x, y, len, wid, a, lv) => ({ x, y, r: len, e: wid, a, lv: clamp(Math.round(lv), 1, HILL_LEVELS) });
+  const addPair = (f, check = true) => {
+    const g = { ...twin(f), r: size(f.r), lv: clamp(f.lv + Math.round(r() * 2 - 1), 1, HILL_LEVELS) };
+    const R = f.r * f.e;
+    if (check && !(onMap(f, R) && onMap(g, R) && dry(f, f.r * 0.7) && dry(g, g.r * 0.7))) return false;
+    hills.push(f, g); return true;
+  };
+  // basins: a ring of ridges round a hollow, broken by passes; a lake in the middle
+  const nb = big ? 2 : 1, room = cx - clear;
+  for (let b = 0, tries = 0; b < nb && tries < 60; tries++) {
+    const Rb = clamp(room * (big ? 0.3 : 0.5), 100, 300) * (0.85 + r() * 0.25);
+    const c = { x: clear + Rb * 0.8 + r() * Math.max(1, room - Rb * 1.3), y: Rb + r() * Math.max(1, h - 2 * Rb) };
+    if (hills.some(o => Math.hypot(o.x - c.x, o.y - c.y) < Rb * 1.5)) continue;
+    const span = Math.PI * (1.2 + r() * 0.5), a0 = r() * 7, len = Rb * (0.5 + r() * 0.15), n = Math.max(3, Math.round(span * Rb / (len * 1.15)));
+    const pass = 1 + Math.floor(r() * (n - 2)); // one more gap inside the arc, besides its open side
+    const lk = { x: c.x, y: c.y, rx: Rb * (0.42 + r() * 0.12), ry: 0, a: r() * 3 };
+    lk.ry = lk.rx * (0.55 + r() * 0.3);
+    const lg = { ...twin(lk), rx: size(lk.rx), ry: size(lk.ry) };
+    if (!onMap(lk, lk.rx + 20) || !onMap(lg, lg.rx + 20)) continue;
+    lakes.push(lk, lg); b++;
+    for (let i = 0; i < n; i++) {
+      if (i === pass) continue;
+      const t = n > 1 ? i / (n - 1) : 0.5, ang = a0 + span * t, rad = Rb * (1 + r() * 0.12);
+      const lv = 2 + 6 * Math.sin(Math.PI * t) + r() * 3 - (big ? 0 : 1);
+      addPair(hill(c.x + Math.cos(ang) * rad, c.y + Math.sin(ang) * rad, len * (0.9 + r() * 0.3), 0.45 + r() * 0.25, ang + Math.PI / 2 + (r() - 0.5) * 0.35, lv), false);
+    }
   }
-  if (big && r() < 0.5) for (let i = 0; i < 50; i++) {
-    const f = { x: cx, y: 80 + r() * (h - 160), rx: 40 + r() * 20, ry: 70 + r() * 35, a: (r() - 0.5) * 0.4 };
-    if (lakeFree(f, f.ry)) { lakes.push(f); break; }
+  // a few long single ridges and low hills elsewhere, clear of the basins
+  const singles = big ? 6 : 2 + Math.floor(r() * 2);
+  for (let i = 0, n = 0; i < 400 && n < singles; i++) {
+    const len = (big ? 90 : 60) + r() * (big ? 100 : 60), f = hill(clear + len * 0.6 + r() * Math.max(1, room - len), len * 0.5 + r() * (h - len), len, 0.35 + r() * 0.3, r() * Math.PI, 1 + Math.pow(r(), 1.5) * 7);
+    if (hills.some(o => Math.hypot(o.x - f.x, o.y - f.y) < (o.r + len) * 0.75)) continue;
+    if (addPair(f)) n++;
   }
-  // hills: one to three on the centre line, then pairs up to about one per HILL_AREA (small map: 6-8 in all)
-  const mids = big ? 3 : 1 + Math.floor(r() * 2);
-  for (let i = 0, n = 0; i < 200 && n < mids; i++) {
-    const R = 50 + r() * 25, f = { x: cx + (r() - 0.5) * J, y: R + 20 + r() * (h - 2 * R - 40), r: R };
-    if (hillFree(f, R)) { hills.push(f); n++; }
-  }
-  const want = big ? Math.round(W * h / HILL_AREA) : 6 + Math.floor(r() * 3);
-  for (let i = 0; i < 3000 && hills.length < want; i++) {
-    const R = (big ? 40 : 45) + r() * (big ? 40 : 25);
-    // about half grow off a hill already on our side, into a ridge
-    const ours = hills.filter(o => o.x < cx - 40), o = ours.length && r() < HILL_RIDGE ? ours[Math.floor(r() * ours.length)] : null, ang = r() * 7;
-    const f = o ? { x: o.x + Math.cos(ang) * (o.r + R) * 0.9, y: o.y + Math.sin(ang) * (o.r + R) * 0.9, r: R }
-      : { x: clear + R + r() * (cx - clear - 2 * R - 30), y: R + 10 + r() * (h - 2 * R - 20), r: R };
-    if (f.x > cx - R * 0.5) continue;
-    const g = { ...twin(f), r: size(R) };
-    if (hillFree(f, R) && hillFree(g, g.r) && Math.hypot(f.x - g.x, f.y - g.y) > R + g.r + HILL_GAP) hills.push(f, g);
+  // on the centre line (they're their own twin)
+  for (let i = 0, n = 0, want = big ? 2 : 1; i < 100 && n < want; i++) {
+    const len = 50 + r() * 60, f = hill(cx + (r() - 0.5) * J, len + r() * (h - 2 * len), len, 0.35 + r() * 0.3, Math.PI / 2 + (r() - 0.5) * 0.8, 1 + r() * 5);
+    if (!dry(f, len) || hills.some(o => Math.hypot(o.x - f.x, o.y - f.y) < (o.r + len) * 0.6)) continue;
+    hills.push(f); n++;
   }
   for (const f of [...lakes, ...hills]) f.w = shape(); // twins get their own outline
-  // height in contour lines: bigger hills tend to be higher
-  // (most are low: a line or three; only big ones reach HILL_LEVELS)
-  for (const f of hills) f.lv = clamp(1 + Math.floor((HILL_LEVELS - 1) * Math.pow(r(), 1.6) * (0.55 + (f.r - 40) / 60)), 1, HILL_LEVELS);
   s.lakes = lakes; s.hills = hills; s.turn = turn;
+  makeElevation(s);
+}
+// height of one hill at (x, y), in contour lines: a dome that rises to lv + 0.6 (so a 1-line hill has a top)
+function hillHeight(f, x, y) {
+  const c = Math.cos(f.a), sn = Math.sin(f.a), dx = x - f.x, dy = y - f.y;
+  const u = (dx * c + dy * sn) / f.r, v = (-dx * sn + dy * c) / (f.r * f.e), q = Math.hypot(u, v);
+  if (q >= 1.3) return 0;
+  const t = q / wobble(f.w, Math.atan2(v, u));
+  return t >= 1 ? 0 : (f.lv + 0.6) * (1 - Math.pow(t, 1.25));
+}
+// the height grid (every ELEV_CELL): the highest hill at each point
+function makeElevation(s) {
+  const gw = Math.ceil(s.W / ELEV_CELL) + 1, gh = Math.ceil(s.H / ELEV_CELL) + 1, g = new Float32Array(gw * gh);
+  for (const f of s.hills) {
+    const R = f.r * 1.3, i0 = Math.max(0, Math.floor((f.x - R) / ELEV_CELL)), i1 = Math.min(gw - 1, Math.ceil((f.x + R) / ELEV_CELL));
+    const j0 = Math.max(0, Math.floor((f.y - R) / ELEV_CELL)), j1 = Math.min(gh - 1, Math.ceil((f.y + R) / ELEV_CELL));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const e = hillHeight(f, i * ELEV_CELL, j * ELEV_CELL); if (e > g[j * gw + i]) g[j * gw + i] = e; }
+  }
+  // lakes are flat; the ground flattens out toward either edge, so the bases always stand on the plain
+  const clear = s.H > H ? HILL_CLEAR : clamp(0.2 * s.W, 140, HILL_CLEAR);
+  for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+    const k = j * gw + i, x = i * ELEV_CELL; if (!g[k]) continue;
+    if (lakeAt(s, { x, y: j * ELEV_CELL }, 4)) { g[k] = 0; continue; }
+    const edge = Math.min(x, s.W - x); if (edge < clear) g[k] *= clamp((edge - clear * 0.5) / (clear * 0.5), 0, 1);
+  }
+  s.elev = { w: gw, h: gh, g };
 }
 
 // a squad with its commander; `home` is the building that raises and refills it (null: no refills)

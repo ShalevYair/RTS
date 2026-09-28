@@ -1,11 +1,11 @@
 // UI: toolbar, selection, HUD, intro / end screens and the replay
 // ---- selection & commands ----
 const blueIds = () => blueSquads().map(q => q.id);
-const selIds = () => sel === 'all' ? blueIds() : [sel];
+const selIds = () => sel === 'all' ? blueIds() : Array.isArray(sel) ? sel : [sel];
 function select(id) { sel = id; syncButtons(); updateHud(); }
 function issue(type, x, y) {
   const all = sel === 'all';
-  const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id) : [sel];
+  const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id) : selIds();
   let ok = false;
   for (const id of ids) ok = Sim.order(s, id, type, x, y, all) || ok;
   if (ok && all) Sim.note(s, 'כל הכוחות: ' + (type === 'hold' ? 'מחזיקים עמדה' : type === 'attack' ? 'תוקפים את האזור' : 'נסוגים הביתה'));
@@ -15,7 +15,7 @@ function setPlaying(p) { if (s.over) p = false; playing = p; syncButtons(); }
 
 function syncButtons() {
   $('all').setAttribute('aria-pressed', String(sel === 'all'));
-  document.querySelectorAll('[data-sq]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sq === sel)));
+  document.querySelectorAll('[data-sq]').forEach(b => b.setAttribute('aria-pressed', String(sel !== 'all' && isSel(b.dataset.sq))));
   document.querySelectorAll('[data-diff]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.diff === diff)));
   document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
   const traitOf = id => (s.outbox.find(m => m.id === id && m.kind === 'trait') || s.squads.find(q => q.id === id)).trait;
@@ -83,7 +83,7 @@ function updateHud() {
   const cd = s.cd.blue, N = Sim.NODES;
   $('eyeN').textContent = cd.drone > 0 ? Math.ceil(cd.drone) : ''; $('eye').disabled = cd.drone > 0 && !eyeArmed;
   $('eye').style.setProperty('--p', (1 - cd.drone / N.drone.every).toFixed(2));
-  const bsq = sel !== 'all' && s.squads.find(q => q.id === sel);
+  const bsq = oneSel() && s.squads.find(q => q.id === oneSel());
   $('fhqN').textContent = cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').disabled = !Sim.canBuildFhq(s, bsq);
   $('fhq').style.setProperty('--p', (1 - cd.fhq / N.fhq.every).toFixed(2));
   $('bb').hidden = Sim.boost(s, 'blue') < 0.05;
@@ -143,7 +143,8 @@ function renderSquadButtons() {
     b.addEventListener('click', () => { if (sel === q.id && !q.dead) { const p = pos(q); if (p) lookAt(p.x, p.y); } select(q.id); });
     box.appendChild(b);
   });
-  if (sel !== 'all' && !list.some(q => q.id === sel)) sel = 'all';
+  if (Array.isArray(sel)) { sel = sel.filter(id => list.some(q => q.id === id)); if (sel.length < 2) sel = sel[0] || 'all'; }
+  else if (sel !== 'all' && !list.some(q => q.id === sel)) sel = 'all';
   syncButtons();
 }
 const FOE_GUESS = 6;
@@ -242,7 +243,7 @@ let eyeArmed = false;
 function toggleEye() { eyeArmed = !eyeArmed && s.fog && s.cd.blue.drone <= 0; syncButtons(); }
 $('eye').addEventListener('click', toggleEye);
 // forward HQ: the selected tank/jeep squad sets one up where it stands (the order travels like any other)
-function buildHere() { if (sel !== 'all' && Sim.buildFhq(s, sel)) updateHud(); }
+function buildHere() { if (oneSel() && Sim.buildFhq(s, oneSel())) updateHud(); }
 $('fhq').addEventListener('click', buildHere);
 const answerCall = choice => { if (Sim.answer(s, +$('call').dataset.id, choice)) updateHud(); };
 $('callHold').addEventListener('click', () => answerCall('hold'));
