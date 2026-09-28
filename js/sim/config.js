@@ -63,6 +63,12 @@ const NODES = {
 const Q_FLOOR = 0.15, FHQ_BUILDERS = ['tank', 'jeep'];
 // what Q sets: order delay 1 + 7·(1−Q); report every 4 + 12·(1−Q) s; position noise ±80·(1−Q), strength ±0.3·(1−Q)
 const DELAY_MIN = 1, DELAY_SPAN = 7, REPORT_MIN = 4, REPORT_SPAN = 12, NOISE_POS = 80, NOISE_STR = 0.3;
+// identifying the enemy (our Q where it stands): >= ID_FULL type and number, >= ID_CLASS ground/air, else just "movement".
+// A track followed with gaps no longer than TRACK_GAP keeps what was already made out.
+const ID_FULL = 0.7, ID_CLASS = 0.4, TRACK_GAP = 3;
+// executing "roughly": the commander goes to the target + a random offset within SPREAD·(1−Q)^SPREAD_POW;
+// a bold one also overshoots by BOLD_STRETCH of that radius
+const SPREAD = 120, SPREAD_POW = 1.5, BOLD_STRETCH = 0.6;
 // damage to structures by attacker type (AA is the only thing that can hit a drone)
 const NODE_MULT = { inf: 0.6, tank: 1.5, air: 1.2, aa: 1.5, jeep: 0.8 };
 const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;

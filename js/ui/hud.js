@@ -61,7 +61,7 @@ function showEnd() {
     let err = 0, n = 0;
     for (const h of H) for (const q of h.sq) if (q.truth && q.belief) { err += Math.hypot(q.truth[0] - q.belief[0], q.truth[1] - q.belief[1]); n++; }
     const L = s.log2;
-    $('endStats').textContent = `טעות ממוצעת בתמונה: ${n ? Math.round(err / n) : 0} · פקודות: ${L.orders}, בדרך בממוצע ${L.orders ? (L.delay / L.orders).toFixed(1) : 0} ש׳ · שיחות: ענית ${L.answered}, החליטו לבד ${L.missed}`;
+    $('endStats').textContent = `טעות ממוצעת בתמונה: ${n ? Math.round(err / n) : 0} · פקודות: ${L.orders}, בדרך בממוצע ${L.orders ? (L.delay / L.orders).toFixed(1) : 0} ש׳, סטייה בביצוע ${L.offN ? Math.round(L.off / L.offN) : 0} · שיחות: ענית ${L.answered}, החליטו לבד ${L.missed}`;
     drawReplay(0);
   }
 }
@@ -137,10 +137,12 @@ function renderSquadButtons() {
   if (sel !== 'all' && !list.some(q => q.id === sel)) sel = 'all';
   syncButtons();
 }
+const FOE_GUESS = 6;
 // what blue believes the power balance is: its own power vs what it has seen of the enemy
 function believedShare() {
   let foe = 0;
-  for (const q of s.squads) { const m = q.side === 'red' && s.mem.blue[q.id]; if (m && s.t - m.t < 60) foe += (m.n || 1) * Sim.UNIT_VALUE[q.type]; }
+  // unidentified sightings count as a typical squad (FOE_GUESS): the estimate is only as good as the identification
+  for (const q of s.squads) { const m = q.side === 'red' && s.mem.blue[q.id]; if (m && s.t - m.t < 60) foe += m.type ? m.n * Sim.UNIT_VALUE[m.type] : FOE_GUESS; }
   for (const id in s.memNodes.blue) foe += Sim.STRUCTS[s.memNodes.blue[id].kind].value;
   const me = s.power.blue; return me + foe > 0 ? me / (me + foe) : 0.5;
 }
