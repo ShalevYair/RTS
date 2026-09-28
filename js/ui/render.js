@@ -26,17 +26,59 @@ function makeDecor(s) {
   for (let i = 0; i < Math.round(K / 40); i++) patches.push({ p: blob(r() * W, r() * s.H, 30 + r() * 100, 20 + r() * 60), u: r(), t: tone(0.06) });
   const tufts = Array.from({ length: TUFT_SHADES }, () => new Path2D());
   for (let i = 0; i < Math.round(K / 3); i++) { const x = r() * W, y = r() * s.H, k = Math.floor(r() * TUFT_SHADES); if (!inLake(x, y)) { tufts[k].moveTo(x + 1.6, y); tufts[k].arc(x, y, 0.8 + r() * 1.2, 0, Math.PI * 2); } }
-  const fields = [], trees = [], rocks = [];
+  const roads = makeRoads(s, r), fields = [];
+  // where roads run (a coarse mask): nothing grows on them
+  const RC = 10, rw = Math.ceil(W / RC) + 1, onRoad = new Uint8Array(rw * (Math.ceil(s.H / RC) + 1));
+  for (const pts of roads) for (let i = 1; i < pts.length; i++) {
+    const a0 = pts[i - 1], b0 = pts[i], n = Math.ceil(Math.hypot(b0.x - a0.x, b0.y - a0.y) / 4);
+    for (let k = 0; k <= n; k++) { const x = a0.x + (b0.x - a0.x) * k / n, y = a0.y + (b0.y - a0.y) * k / n; onRoad[Math.round(y / RC) * rw + Math.round(x / RC)] = 1; }
+  }
+  const road = (x, y) => onRoad[Math.round(y / RC) * rw + Math.round(x / RC)] === 1;
   for (let i = 0; i < Math.round(K / 220); i++) {
     const x = 100 + r() * (W - 200), y = 30 + r() * (s.H - 60);
-    if (ok(x, 30) && !inLake(x, y)) fields.push({ x, y, w: 50 + r() * 40, h: 30 + r() * 20, a: (r() - 0.5) * 0.8, t: tone(0.1), gap: 6 + r() * 4 });
+    if (ok(x, 30) && !inLake(x, y) && Sim.elevAt(s, { x, y }) < 1) fields.push({ x, y, w: 50 + r() * 40, h: 30 + r() * 20, a: (r() - 0.5) * 0.8, t: tone(0.1), gap: 6 + r() * 4 });
   }
-  for (let i = 0; i < Math.round(K / 55); i++) {
-    const cx = 100 + r() * (W - 200), cy = 20 + r() * (s.H - 40), m = 3 + Math.floor(r() * 6), t0 = tone(0.1);
-    for (let j = 0; j < m; j++) { const x = cx + (r() - 0.5) * 50, y = cy + (r() - 0.5) * 40; if (ok(x) && !inLake(x, y)) trees.push({ x, y, r: 3.5 + r() * 5, t: t0 + tone(0.06) }); }
+  const inField = (x, y) => fields.some(f => Math.abs(x - f.x) < f.w * 0.6 && Math.abs(y - f.y) < f.w * 0.6);
+  const free = (x, y) => x > 70 && x < W - 70 && y > 4 && y < s.H - 4 && !inLake(x, y) && !road(x, y) && !inField(x, y);
+  // shade buckets: one path per shade, so thousands of trees, bushes and stones are a handful of fills
+  const B = 6, bucket = () => Math.floor(r() * B), paths = () => Array.from({ length: B }, () => new Path2D());
+  const treeBody = paths(), treeTop = paths(), treeShadow = new Path2D(), bush = paths(), rock = paths(), rockHi = new Path2D(), rockShadow = new Path2D();
+  const addTree = (x, y, R) => {
+    const k = bucket();
+    treeShadow.moveTo(x + 2 + R, y + 3); treeShadow.ellipse(x + 2, y + 3, R, R * 0.8, 0, 0, Math.PI * 2);
+    treeBody[k].moveTo(x + R, y); treeBody[k].arc(x, y, R, 0, Math.PI * 2);
+    treeTop[k].moveTo(x - R * 0.3 + R * 0.5, y - R * 0.3); treeTop[k].arc(x - R * 0.3, y - R * 0.3, R * 0.5, 0, Math.PI * 2);
+  };
+  // woods: clusters in the low ground and on the lower slopes
+  for (let i = 0; i < Math.round(K / 70); i++) {
+    const cx = 80 + r() * (W - 160), cy = r() * s.H, R = 25 + r() * 60, n = Math.round(R * (0.25 + r() * 0.3));
+    if (Sim.elevAt(s, { x: cx, y: cy }) > 4) continue;
+    for (let j = 0; j < n; j++) { const a = r() * 7, d = R * Math.sqrt(r()), x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d * 0.8; if (free(x, y) && Sim.elevAt(s, { x, y }) < 5) addTree(x, y, 3.5 + r() * 4); }
   }
-  for (let i = 0; i < Math.round(K / 60); i++) { const x = 60 + r() * (W - 120), y = 20 + r() * (s.H - 40); if (!inLake(x, y)) rocks.push({ x, y, r: 1.2 + r() * 2.8, t: tone(0.12) }); }
-  trees.sort((p, q) => p.y - q.y);
+  // lone trees and small groves anywhere but high up
+  for (let i = 0; i < Math.round(K / 17); i++) {
+    const x = 80 + r() * (W - 160), y = r() * s.H, m = 1 + Math.floor(Math.pow(r(), 2) * 4);
+    for (let j = 0; j < m; j++) { const px = x + (r() - 0.5) * 22, py = y + (r() - 0.5) * 18; if (free(px, py) && Sim.elevAt(s, { x: px, y: py }) < 6) addTree(px, py, 3 + r() * 4.5); }
+  }
+  // bushes: little clumps of two or three blobs
+  for (let i = 0; i < Math.round(K / 2.5); i++) {
+    const x = 70 + r() * (W - 140), y = r() * s.H; if (!free(x, y) || Sim.elevAt(s, { x, y }) > 7) continue;
+    const k = bucket(), m = 2 + Math.floor(r() * 2);
+    for (let j = 0; j < m; j++) { const R = 1.3 + r() * 1.7, px = x + (r() - 0.5) * 5, py = y + (r() - 0.5) * 4; bush[k].moveTo(px + R, py); bush[k].arc(px, py, R, 0, Math.PI * 2); }
+  }
+  // stones and boulders: a few on the plain, many more up the hills (the higher, the rockier)
+  const addRock = (x, y, R) => {
+    const k = bucket(), w = [[0.2, 2, r() * 7], [0.12, 3, r() * 7]];
+    const at = (px, py, s0) => { const p = new Path2D(); for (let q = 0; q <= 8; q++) { const th = q / 8 * Math.PI * 2, f = R * s0 * Sim.wobble(w, th); if (q) p.lineTo(px + Math.cos(th) * f, py + Math.sin(th) * f * 0.8); else p.moveTo(px + Math.cos(th) * f, py + Math.sin(th) * f * 0.8); } p.closePath(); return p; };
+    rockShadow.addPath(at(x + 1.2, y + 1.6, 1)); rock[k].addPath(at(x, y, 1)); rockHi.addPath(at(x - R * 0.25, y - R * 0.25, 0.45));
+  };
+  for (let i = 0; i < Math.round(K / 2); i++) {
+    const x = 70 + r() * (W - 140), y = r() * s.H, e = Sim.elevAt(s, { x, y });
+    if (!free(x, y) || r() > 0.12 + e * 0.09) continue;
+    const m = r() < 0.3 ? 2 + Math.floor(r() * 4) : 1;
+    for (let j = 0; j < m; j++) addRock(x + (r() - 0.5) * 14, y + (r() - 0.5) * 10, 1 + r() * (e > 3 ? 4 : 2.5));
+  }
+  const trees = { treeBody, treeTop, treeShadow, bush }, rocks = { rock, rockHi, rockShadow };
   // hills: contour lines traced from the sim's height grid (so what's drawn is what counts); the colouring is made
   // when drawn, from the theme (see relief)
   const hills = { contours: contours(s.elev), relief: null, theme: '' };
@@ -45,7 +87,7 @@ function makeDecor(s) {
     const shp = f => outline(l.x, l.y, th => { const q = f * Sim.wobble(l.w, Math.atan2(Math.sin(th) / l.ry, Math.cos(th) / l.rx)); return [Math.cos(th) * l.rx * q, Math.sin(th) * l.ry * q]; }, 56, l.a);
     return { l, edge: shp(1.08), body: shp(1), deep: shp(0.55), t: tone(0.08) };
   });
-  return { patches, tufts, fields, lakes, hills, trees, rocks, roads: makeRoads(s, r) };
+  return { patches, tufts, fields, lakes, hills, trees, rocks, roads };
 }
 function makeRoads(s, r) {
   const W = s.W, H = s.H, n = H > Sim.H ? 5 : 3 + (r() < 0.5 ? 1 : 0);
@@ -83,7 +125,7 @@ function makeRoads(s, r) {
     for (let i = 0; i <= m; i++) {
       const k = i / m, p = bez(P, k), q = bez(P, Math.min(1, k + 0.01)), o = bez(P, Math.max(0, k - 0.01));
       const dx = q.x - o.x, dy = q.y - o.y, d = Math.hypot(dx, dy) || 1, sway = (Math.sin(k * 9 + f1) * 4 + Math.sin(k * 23 + f2) * 1.5) * Math.sin(Math.PI * k);
-      pts.push({ x: p.x - dy / d * sway, y: p.y + dx / d * sway, w: 8 + Math.sin(k * 13 + f3) * 1.8 + Math.sin(k * 31 + f1) * 0.8 });
+      pts.push({ x: p.x - dy / d * sway, y: p.y + dx / d * sway, w: 4.2 + Math.sin(k * 13 + f3) * 1 + Math.sin(k * 31 + f1) * 0.4 });
     }
     return pts;
   });
@@ -157,11 +199,19 @@ const ELEV = 8; // the sim's height grid step (ELEV_CELL)
 // the height grid as a picture, one pixel per grid point, drawn stretched (smoothly) over the map: transparent on
 // the plain, then from the grass's green through the hill's earth to its light top as it climbs; each point lit by
 // how it faces a light in the north-west (so slopes read as slopes)
+const rgbOf = h => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+const lerp3 = (a, b, u) => a.map((v, i) => v + (b[i] - v) * u);
+// the colour of the land at height e (lines): the grass on the plain, then as in the relief
+function landRGB(e) {
+  const grass = lerp3(rgbOf(colors.ground), rgbOf(colors.grass2), 0.5);
+  if (e <= 0) return grass;
+  const q = Math.min(1, e / 10), G = rgbOf(colors.grass2), M = rgbOf(colors.hill), T = rgbOf(colors.hillHi);
+  return lerp3(grass, q < 0.3 ? lerp3(G, M, q / 0.3) : lerp3(M, T, (q - 0.3) / 0.7), Math.min(1, e / 1.2) * 0.92);
+}
 function relief(E) {
   const cv2 = document.createElement('canvas'); cv2.width = E.w; cv2.height = E.h;
   const c = cv2.getContext('2d'), img = c.createImageData(E.w, E.h), d = img.data, g = E.g;
-  const rgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
-  const G = rgb(colors.grass2), M = rgb(colors.hill), T = rgb(colors.hillHi), lerp = (a, b, u) => a.map((v, i) => v + (b[i] - v) * u);
+  const rgb = rgbOf, G = rgb(colors.grass2), M = rgb(colors.hill), T = rgb(colors.hillHi), lerp = lerp3;
   for (let j = 0; j < E.h; j++) for (let i = 0; i < E.w; i++) {
     const k = j * E.w + i, e = g[k]; if (e <= 0) continue;
     const q = Math.min(1, e / 10), col = q < 0.3 ? lerp(G, M, q / 0.3) : lerp(M, T, (q - 0.3) / 0.7);
@@ -208,6 +258,25 @@ function mix(a, b, u, k = 0) {
   const A = parseInt(m[1], 16), B = parseInt(n[1], 16), ch = sh => Math.round(((A >> sh) & 255) * (1 - u) + ((B >> sh) & 255) * u);
   return shade('#' + ((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0'), k);
 }
+// The ground doesn't move, so it's painted once into a picture of the screen plus a margin (at up to 2 device pixels
+// per CSS pixel) and each frame only copies it; it's repainted when the view leaves that margin, the zoom or
+// window changes, a new map starts, or the theme changes.
+const bg = { cv: document.createElement('canvas'), key: '', x0: 0, y0: 0, w: 0, h: 0 }, BG_MARGIN = 160;
+function drawGround(c) {
+  const sc = view.scale, vx0 = -view.ox / sc, vy0 = -view.oy / sc, vw = cv.width / sc, vh = cv.height / sc;
+  const key = [sc.toFixed(4), cv.width, cv.height, colors.ground, colors.hill, colors.tree, s.seed, s.W].join();
+  if (key !== bg.key || vx0 < bg.x0 || vy0 < bg.y0 || vx0 + vw > bg.x0 + bg.w || vy0 + vh > bg.y0 + bg.h) {
+    const d = Math.min(2, window.devicePixelRatio || 1), k = d / (window.devicePixelRatio || 1); // cache pixels per canvas pixel
+    const m = BG_MARGIN * (window.devicePixelRatio || 1) / sc; // the margin, in world units
+    bg.key = key; bg.x0 = vx0 - m; bg.y0 = vy0 - m; bg.w = vw + 2 * m; bg.h = vh + 2 * m;
+    bg.cv.width = Math.ceil(bg.w * sc * k); bg.cv.height = Math.ceil(bg.h * sc * k);
+    const g = bg.cv.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = colors.ground; g.fillRect(0, 0, bg.cv.width, bg.cv.height);
+    g.setTransform(sc * k, 0, 0, sc * k, -bg.x0 * sc * k, -bg.y0 * sc * k);
+    drawTerrain(g, s.W, s.H, s.W / 2);
+  }
+  c.drawImage(bg.cv, bg.x0, bg.y0, bg.w, bg.h);
+}
 function drawTerrain(c, W, H, mid) {
   c.globalAlpha = 0.75;
   for (const p of decor.patches) { c.fillStyle = mix(colors.ground, colors.grass2, p.u, p.t); c.fill(p.p); }
@@ -237,29 +306,28 @@ function drawTerrain(c, W, H, mid) {
   c.strokeStyle = colors.hillLine; c.lineCap = 'round';
   R.contours.forEach((p, k) => { c.globalAlpha = (k + 1) % 5 ? 0.45 : 0.7; c.lineWidth = (k + 1) % 5 ? 1 : 1.6; c.stroke(p); });
   c.globalAlpha = 1;
-  // roads (over the hills: they climb them): an edge, the dirt (width changes along the way), then faint wheel ruts
+  // roads: thin dirt tracks in the colour of the land they cross, only a little lighter, with a faint darker edge
+  // (colours per stretch, remade when the theme changes)
   c.lineCap = 'round'; c.lineJoin = 'round';
-  // (their colours lean toward the grass, so a road doesn't glare over the land it crosses)
-  for (const [col, extra] of [[mix(colors.roadEdge, colors.grass2, 0.3), 4], [mix(colors.road, colors.ground, 0.25), 0]]) {
-    c.strokeStyle = col;
-    for (const pts of decor.roads) for (let i = 1; i < pts.length; i++) { c.lineWidth = pts[i].w + extra; c.beginPath(); c.moveTo(pts[i - 1].x, pts[i - 1].y); c.lineTo(pts[i].x, pts[i].y); c.stroke(); }
+  const RK = colors.road + colors.ground + colors.hill;
+  if (decor.roadKey !== RK) {
+    decor.roadKey = RK;
+    const dirt = rgbOf(colors.road), css = v => 'rgb(' + v.map(Math.round).join(',') + ')';
+    decor.roadCol = decor.roads.map(pts => pts.map(p => { const land = landRGB(Sim.elevAt(s, p)); return [css(lerp3(land, [0, 0, 0], 0.1)), css(lerp3(land, dirt, 0.38))]; }));
   }
-  c.strokeStyle = shade(colors.roadEdge, -0.05); c.lineWidth = 1; c.globalAlpha = 0.35;
-  for (const pts of decor.roads) for (const side of [-2.2, 2.2]) {
-    c.beginPath();
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
-      const x = pts[i].x - dy / d * side, y = pts[i].y + dx / d * side; if (i) c.lineTo(x, y); else c.moveTo(x, y);
+  for (const pass of [0, 1]) decor.roads.forEach((pts, j) => {
+    for (let i = 1; i < pts.length; i++) {
+      c.strokeStyle = decor.roadCol[j][i][pass]; c.lineWidth = pts[i].w + (pass ? 0 : 1.6);
+      c.beginPath(); c.moveTo(pts[i - 1].x, pts[i - 1].y); c.lineTo(pts[i].x, pts[i].y); c.stroke();
     }
-    c.stroke();
-  }
-  c.globalAlpha = 1;
-  for (const t of decor.trees) {
-    c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(t.x + 2, t.y + 3, t.r, t.r * 0.8, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = shade(colors.tree, t.t); ring(t.x, t.y, t.r); c.fill();
-    c.fillStyle = shade(colors.treeHi, t.t); ring(t.x - t.r * 0.3, t.y - t.r * 0.3, t.r * 0.5); c.fill();
-  }
-  for (const r of decor.rocks) { c.fillStyle = shade(colors.rock, r.t); ring(r.x, r.y, r.r); c.fill(); }
+  });
+  // woods, bushes and stones (a few fills: each shade is one path)
+  const T = decor.trees, Rk = decor.rocks, nb = T.treeBody.length;
+  c.fillStyle = colors.shadow; c.fill(T.treeShadow); c.fill(Rk.rockShadow);
+  for (let k = 0; k < nb; k++) { const u = -0.14 + 0.26 * k / (nb - 1); c.fillStyle = shade(mix(colors.tree, colors.grass2, 0.45), u); c.fill(T.bush[k]); }
+  for (let k = 0; k < nb; k++) { const u = -0.12 + 0.24 * k / (nb - 1); c.fillStyle = shade(colors.tree, u); c.fill(T.treeBody[k]); c.fillStyle = shade(colors.treeHi, u); c.fill(T.treeTop[k]); }
+  for (let k = 0; k < nb; k++) { c.fillStyle = shade(colors.rock, -0.15 + 0.3 * k / (nb - 1)); c.fill(Rk.rock[k]); }
+  c.fillStyle = 'rgba(255,255,255,.22)'; c.fill(Rk.rockHi);
 }
 
 // headquarters: a walled compound with a command building, a radio mast and the side's flag (about 46 × 38, so it
@@ -448,7 +516,7 @@ function draw() {
   c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = colors.ground; c.fillRect(0, 0, cv.width, cv.height);
   c.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
   c.textAlign = 'center';
-  drawTerrain(c, W, H, mid);
+  drawGround(c);
   // player orders
   const labelSpots = [];
   for (const q of s.squads) {
