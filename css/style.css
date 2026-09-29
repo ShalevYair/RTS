@@ -183,3 +183,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 @media (max-width:700px){.bar{left:8px;transform:none}}
 @media (max-width:560px){.hudl #gSq button{min-height:40px;padding:3px 5px}.sqb{min-width:38px}.sqb canvas{width:28px;height:28px}}
 .bar.empty{display:none}
+/* a group's button: a tinted face, set apart from the type buttons after it */
+.sqb.grb{background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.sqb.grb + .sqb:not(.grb){margin-inline-start:6px;border-inline-start-width:2px}
+#grp[hidden]{display:none}

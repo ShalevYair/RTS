@@ -2,15 +2,18 @@
 // ---- selection & commands ----
 const blueIds = () => blueSquads().map(q => q.id);
 const selIds = () => sel === 'all' ? blueIds() : Array.isArray(sel) ? sel : sel ? [sel] : [];
-function select(id) { sel = id; seePaths(); syncButtons(); updateHud(); }
+function select(id) { sel = id; syncButtons(); updateHud(); }
+// a squad picked on the map (or by its building): its whole group, if it's in one
+function pickSquad(id) { const g = groupOf(id); select(g ? g.ids.slice() : id); }
 // fa: the way the front should face (a drag), else toward the enemy
 function issue(type, x, y, fa) {
   const all = sel === 'all';
   const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id) : selIds();
   if (!ids.length) return; // nothing picked: nothing to order
-  // all together: rows facing the enemy (tanks in front … medics and mechanics at the back); otherwise each on its own
+  // several together (all, a group, a type, a rectangle): rows facing the enemy (tanks in front … medics and mechanics
+  // at the back); one alone: its own line
   let ok = false;
-  if (all) ok = Sim.formation(s, ids, type, x, y, true, fa);
+  if (ids.length > 1) ok = Sim.formation(s, ids, type, x, y, true, fa);
   else for (const id of ids) ok = Sim.order(s, id, type, x, y, false, Number.isFinite(fa) ? { fa } : undefined) || ok;
   if (ok && all) Sim.note(s, 'כל הכוחות: ' + (type === 'hold' ? 'מחזיקים עמדה' : type === 'attack' ? 'תוקפים את האזור' : 'נסוגים הביתה'));
   updateHud();
@@ -28,6 +31,10 @@ function syncButtons() {
   $('all').setAttribute('aria-pressed', String(sel === 'all'));
   // a type is pressed when all its squads are picked (★: all of them)
   document.querySelectorAll('[data-ty]').forEach(b => b.setAttribute('aria-pressed', String(typeIds(b.dataset.ty).every(isSel))));
+  document.querySelectorAll('[data-gr]').forEach(b => { const g = groups.find(x => x.id === +b.dataset.gr); b.setAttribute('aria-pressed', String(!!g && g.ids.every(isSel))); });
+  // 🔗 ties the picked squads into a group; ✂ breaks the picked group up
+  const gb = $('grp'), sg = selGroup(), many = sel !== 'all' && selIds().length > 1;
+  gb.hidden = !uiHas('squads') || (!sg && !many); gb.textContent = sg ? '✂' : '🔗'; gb.dataset.tip = sg ? 'tipUngroup' : 'tipGroup'; gb.setAttribute('aria-label', tr(gb.dataset.tip));
   // the orders show only while something is picked
   $('gOrd').hidden = !uiHas('orders') || !selIds().length;
   document.querySelectorAll('[data-diff]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.diff === diff)));
@@ -119,12 +126,12 @@ function updateHud() {
     }
   }
   // each type's strength: the average of its squads (as reported)
-  for (const b of document.querySelectorAll('[data-ty]')) {
-    const l = typeIds(b.dataset.ty).map(id => s.squads.find(q => q.id === id)), st = l.length ? l.reduce((a, q) => a + Math.min(1, pos(q).strength), 0) / l.length : 0;
+  for (const b of document.querySelectorAll('[data-ty],[data-gr]')) {
+    const l = btnIds(b).map(id => s.squads.find(q => q.id === id)), st = l.length ? l.reduce((a, q) => a + Math.min(1, pos(q).strength), 0) / l.length : 0;
     b.style.setProperty('--st', st.toFixed(2));
   }
   const call = s.calls[0], cq = call && s.squads.find(q => q.id === call.sq);
-  $('call').hidden = !cq || s.over;
+  $('call').hidden = !cq || s.over || !s.askHq; // (commanders decide for themselves unless s.askHq)
   if (cq) {
     $('callTxt').textContent = tr('call', bossName(cq.boss), tn(cq.type));
     $('callT').textContent = Math.ceil(call.until - s.t); $('call').dataset.id = call.id;
@@ -135,37 +142,76 @@ function updateHud() {
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { mode = b.dataset.mode; syncButtons(); }));
 document.querySelectorAll('[data-rate]').forEach(b => b.addEventListener('click', () => { rate = +b.dataset.rate; syncButtons(); }));
 $('all').addEventListener('click', () => select('all'));
-// type buttons: one per kind of unit we have, each with its own number (1 tanks, 2 infantry, …); a tap picks all the
-// squads of that type, a second tap brings the camera to them
+// The buttons at the top: first the groups the player made, then one per kind of unit for the squads in no group.
+// They're numbered 1–9 left to right (the keys; more than nine are picked by a tap). A tap picks all of them, a second
+// tap brings the camera there.
+// Groups (this game only, in the UI): squads tied together with 🔗 act as one — picked together (also by tapping any
+// of them on the map), ordered together, in rows facing the enemy; ✂ unties them. A squad is in one group at most;
+// a group down to one squad is gone.
 const TYPE_KEYS = ['tank', 'inf', 'jeep', 'aa', 'air', 'med', 'mech', 'truck'];
-const typeIds = ty => s.squads.filter(q => q.side === 'blue' && !q.dead && q.type === ty).map(q => q.id);
-function pickType(ty) {
-  const ids = typeIds(ty); if (!ids.length) return;
+let groups = [], nextGroup = 1;
+const groupOf = id => groups.find(g => g.ids.includes(id));
+const aliveBlue = () => new Set(s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id));
+const typeIds = ty => s.squads.filter(q => q.side === 'blue' && !q.dead && q.type === ty && !groupOf(q.id)).map(q => q.id);
+const btnIds = b => b.dataset.ty ? typeIds(b.dataset.ty) : (groups.find(g => g.id === +b.dataset.gr) || { ids: [] }).ids;
+// the picked squads are exactly one group
+const selGroup = () => { if (sel === 'all') return null; const l = selIds(); return groups.find(g => g.ids.length === l.length && g.ids.every(isSel)) || null; };
+function pickIds(ids) {
+  if (!ids.length) return;
   if (sel !== 'all' && ids.every(isSel) && selIds().length === ids.length) {
     const ps = ids.map(id => pos(s.squads.find(q => q.id === id))).filter(Boolean);
     if (ps.length) lookAt(ps.reduce((a, p) => a + p.x, 0) / ps.length, ps.reduce((a, p) => a + p.y, 0) / ps.length);
   }
-  select(ids.length === 1 ? ids[0] : ids);
+  select(ids.length === 1 ? ids[0] : ids.slice());
 }
+function toggleGroup() {
+  const g = selGroup();
+  if (g) groups = groups.filter(x => x !== g);
+  else {
+    const alive = aliveBlue(), ids = selIds().filter(id => alive.has(id)); if (sel === 'all' || ids.length < 2) return;
+    for (const x of groups) x.ids = x.ids.filter(id => !ids.includes(id)); // out of any group they were in
+    groups.push({ id: nextGroup++, ids });
+  }
+  renderSquadButtons(); syncButtons();
+}
+$('grp').addEventListener('click', toggleGroup);
 let sqKey = '';
 function renderSquadButtons() {
-  const types = TYPE_KEYS.filter(ty => typeIds(ty).length), key = types.join() + lang;
-  // what's picked stays among the living
-  const alive = new Set(s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id));
+  // what's picked, and the groups, stay among the living
+  const alive = aliveBlue();
   if (Array.isArray(sel)) { const l = sel.filter(id => alive.has(id)); if (l.length !== sel.length) sel = l.length > 1 ? l : l[0] || null; }
   else if (sel && sel !== 'all' && !alive.has(sel)) sel = null;
+  for (const g of groups) g.ids = g.ids.filter(id => alive.has(id));
+  groups = groups.filter(g => g.ids.length > 1);
+  const types = TYPE_KEYS.filter(ty => typeIds(ty).length);
+  const key = groups.map(g => g.id + ':' + g.ids.join('.')).join() + '|' + types.join() + lang;
   if (key === sqKey) return;
   sqKey = key; const box = $('sqs'); box.textContent = '';
-  for (const ty of types) {
-    const n = TYPE_KEYS.indexOf(ty) + 1, b = document.createElement('button'); b.className = 'sqb'; b.dataset.ty = ty;
-    b.innerHTML = '<canvas width="64" height="64"></canvas><kbd></kbd><i></i>';
-    b.querySelector('kbd').textContent = n; b.setAttribute('aria-label', `${tn(ty)} (${n})`);
-    b.dataset.tip = 'sq'; b.tipText = () => `${tn(ty)} ×${typeIds(ty).length} (${n})`;
-    drawSquadIcon(b.querySelector('canvas'), ty);
-    b.addEventListener('click', () => pickType(ty));
+  const typeOf = id => s.squads.find(q => q.id === id).type;
+  const add = (b, n, name, icon, ids) => {
+    b.classList.add('sqb'); b.innerHTML = '<canvas width="64" height="64"></canvas><kbd></kbd><i></i>';
+    b.querySelector('kbd').textContent = n <= 9 ? n : ''; b.setAttribute('aria-label', name() + (n <= 9 ? ` (${n})` : ''));
+    b.dataset.tip = 'sq'; b.tipText = () => name() + (n <= 9 ? ` (${n})` : '');
+    icon(b.querySelector('canvas')); b.addEventListener('click', () => pickIds(ids()));
     box.appendChild(b);
+  };
+  let n = 0;
+  for (const g of groups) {
+    const b = document.createElement('button'); b.dataset.gr = g.id; b.classList.add('grb');
+    const kinds = () => TYPE_KEYS.filter(ty => g.ids.some(id => typeOf(id) === ty));
+    add(b, ++n, () => tr('group') + ': ' + kinds().map(ty => `${tn(ty)} ×${g.ids.filter(id => typeOf(id) === ty).length}`).join(', '), c => drawGroupIcon(c, kinds()), () => g.ids);
+  }
+  for (const ty of types) {
+    const b = document.createElement('button'); b.dataset.ty = ty;
+    add(b, ++n, () => `${tn(ty)} ×${typeIds(ty).length}`, c => drawSquadIcon(c, ty), () => typeIds(ty));
   }
   syncButtons();
+}
+// a group's button: up to three of its kinds of unit, small, side by side
+function drawGroupIcon(cvs, kinds) {
+  const c = cvs.getContext('2d'); c.clearRect(0, 0, 64, 64);
+  const l = kinds.slice(0, 3), at = [[[32, 34]], [[20, 34], [44, 34]], [[16, 42], [48, 42], [32, 22]]][l.length - 1];
+  l.forEach((ty, i) => glyph(c, ty, at[i][0], at[i][1], ty === 'air' ? 15 : 12, colors.blue, colors.outline, ty === 'air' ? -Math.PI / 4 : 0, ty === 'aa' ? -Math.PI / 4 : 0, 1.6));
 }
 // a squad's button: the unit as it looks on the map (our colour, outlined), big
 function drawSquadIcon(cvs, type) {
@@ -329,7 +375,7 @@ const fhqBuilders = () => s.squads.filter(q => q.side === 'blue' && Sim.canBuild
 function buildHere() {
   if (fhqArmed) { fhqArmed = false; syncButtons(); return; }
   if (s.cd.blue.fhq > 0 || Sim.fhqCount(s, 'blue') >= Sim.NODES.fhq.max) return;
-  if (!fhqBuilders().length) { for (const b of document.querySelectorAll('[data-ty="jeep"],[data-ty="tank"]')) blink(b); return; }
+  if (!fhqBuilders().length) { for (const b of document.querySelectorAll('#sqs button')) if (btnIds(b).some(id => ['jeep', 'tank'].includes(s.squads.find(q => q.id === id).type))) blink(b); return; }
   fhqArmed = true; eyeArmed = false; buildArmed = null; $('buildm').hidden = true; syncButtons();
 }
 function placeFhq(x, y) {

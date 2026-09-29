@@ -24,10 +24,10 @@ function tap(e) {
   if (fhqArmed) { placeFhq(x, y); return; }
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
   // tapping one of our buildings selects the squad it raises
-  const home = s.nodes.find(n => n.side === 'blue' && n.squad && Math.hypot(n.x - x, n.y - y) < tapR(18));
-  if (home && s.squads.some(q => q.id === home.squad)) { select(home.squad); return; }
+  const home = s.nodes.find(n => n.side === 'blue' && n.squad && Math.hypot(n.x - x, n.y - y) < tapR(24));
+  if (home && s.squads.some(q => q.id === home.squad)) { pickSquad(home.squad); return; }
   const hit = hitSquad(x, y);
-  if (hit) { select(hit); return; }
+  if (hit) { pickSquad(hit); return; }
   issue(mode, x, y);
 }
 // Mouse: a left click gives the order (or picks the squad under it); left-drag draws a rectangle that picks every squad
@@ -80,6 +80,8 @@ function pickBox(b) {
   const w1 = { x: (Math.max(b.x0, b.x1) - view.cox) / view.css, y: (Math.max(b.y0, b.y1) - view.coy) / view.css };
   const inside = (x, y) => x >= w0.x && x <= w1.x && y >= w0.y && y <= w1.y;
   const ids = blueSquads().filter(q => { if (q.dead) return false; const p = guessAt(q); return p && (inside(p.x, p.y) || inside(p.x, p.y - 26)); }).map(q => q.id);
+  // a squad in a group brings its whole group along
+  for (const id of ids.slice()) { const g = groupOf(id); if (g) for (const x of g.ids) if (!ids.includes(x)) ids.push(x); }
   if (ids.length) select(ids.length === 1 ? ids[0] : ids);
 }
 const lift = e => { touches.delete(e.pointerId); if (drag) clearTimeout(drag.hold); if (!touches.size) drag = null; };
@@ -134,7 +136,8 @@ document.addEventListener('keydown', e => {
   // keys for controls this level doesn't have yet do nothing
   const need = /^\d$/.test(k) ? 'squads' : 'har'.includes(k) ? 'orders' : { d: 'eye', b: 'fhq', g: 'build' }[k];
   if (need && !uiHas(need)) return;
-  if (/^[1-9]$/.test(k)) { const ty = TYPE_KEYS[+k - 1]; if (ty) pickType(ty); }
+  if (/^[1-9]$/.test(k)) { const b = document.querySelectorAll('#sqs button')[+k - 1]; if (b) b.click(); }
+  else if (k === 'l' && uiHas('squads')) toggleGroup();
   else if (k === '0') select('all');
   else if (k === 'h') { mode = 'hold'; syncButtons(); }
   else if (k === 'a') { mode = 'attack'; syncButtons(); }

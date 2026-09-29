@@ -17,7 +17,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.waitForTimeout(700);
     await p.screenshot({ path: `${OUT}/${name}-mail.png` });
     // inject a call through the real sim state
-    await p.evaluate(() => { const o = Sim.step; let done = false; Sim.step = (s, dt) => { if (!done) { done = true; s.calls.push({ id: 999, sq: 'blue1', t: s.t, until: s.t + 10 }); } o(s, dt); }; });
+    await p.evaluate(() => { const o = Sim.step; let done = false; Sim.step = (s, dt) => { if (!done) { done = true; s.askHq = true; s.calls.push({ id: 999, sq: 'blue1', t: s.t, until: s.t + 10 }); } o(s, dt); }; });
     await p.waitForTimeout(600);
     const callVisible = await p.isVisible('#call'); const callTxt = await p.textContent('#callTxt');
     await p.screenshot({ path: `${OUT}/${name}-call.png` });

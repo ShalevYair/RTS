@@ -23,7 +23,8 @@ readColors();
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) { /* old browsers */ }
 new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 const TC = { inf: 'tInf', aa: 'tAa', tank: 'tTank', air: 'tAir', jeep: 'tJeep', med: 'tMed', mech: 'tMech', truck: 'tTruck' }, tcol = t => colors[TC[t]];
-const SIZE = { inf: 9, aa: 10, tank: 9, air: 13, jeep: 8, med: 9, mech: 8, truck: 8 };
+// drawn sizes: tanks big, soldiers (infantry, AA, medics) small
+const SIZE = { inf: 4.5, aa: 5, tank: 18, air: 13, jeep: 8, med: 4.5, mech: 8, truck: 8 };
 
 // ---- viewport: world is sized to the screen's aspect at game start; a camera (centre + zoom) looks at it ----
 // zoom 1 = the whole map fits; zooming in stops at ZOOM_PX screen px per world unit. The big map opens on our base at

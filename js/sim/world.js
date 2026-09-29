@@ -67,6 +67,7 @@ function makeTerrain(s) {
     hills.push(f); n++;
   }
   for (const f of [...lakes, ...hills]) f.w = shape(); // twins get their own outline
+  for (const f of hills) f.r *= HILL_SPREAD; // placed as before, then spread wide (same height)
   s.lakes = lakes; s.hills = hills; s.turn = turn;
   makeElevation(s);
 }

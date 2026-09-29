@@ -6,7 +6,8 @@ const MAP_H_MAX = 1400, MAP_W_MAX = 3000, HILL_CLEAR = 240;
 // height, in contour lines (0 = the plain, hills up to HILL_LEVELS), on a grid every ELEV_CELL. A ground unit gets
 // ELEV_BONUS more range and sight per line it stands on; climbing slows it and going down speeds it up, by
 // SLOPE_K per line climbed per unit walked, at most SLOPE_MAX. Aircraft don't care.
-const HILL_LEVELS = 10, ELEV_CELL = 8, ELEV_BONUS = 0.1, SLOPE_K = 9, SLOPE_MAX = 0.5;
+// HILL_SPREAD: each hill, once placed, is spread over that much more length and width (broad hills, not bumps)
+const HILL_SPREAD = 2, HILL_LEVELS = 10, ELEV_CELL = 8, ELEV_BONUS = 0.1, SLOPE_K = 9, SLOPE_MAX = 0.5;
 // random maps: the enemy's half is our half's twin, each feature moved up to MAP_JITTER and resized up to MAP_RESIZE;
 // lakes keep LAKE_GAP between them
 const MAP_JITTER = 30, MAP_RESIZE = 0.12, LAKE_GAP = 60, SHAPE_AMP = 0.14;
@@ -64,11 +65,11 @@ const ORDER_NAME = { hold: 'מחזיק', attack: 'תוקף', retreat: 'נסוג'
 const BASE_HEAL = 10, HEAL_R = 70, REARM_TIME = 2.5;
 // structures (DESIGN.md §3–4). Production buildings raise one squad each and refill it, one unit per `every` s.
 const STRUCTS = {
-  hq:       { name: 'מפקדה',       icon: '🚩', hp: 1500, value: 10, sight: 180 },
+  hq:       { name: 'מפקדה',       icon: '🏰', hp: 1500, value: 10, sight: 180 },
   fhq:      { name: 'פיקוד קדמי',  icon: '🏕️', hp: 600,  value: 5 },
   drone:    { name: 'רחפן',        icon: '🛸', hp: 30,   value: 0 },
   tent:     { name: 'אוהל',        icon: '⛺', hp: 400,  value: 3, unit: 'inf',  build: 20, every: 20,  size: 6 },
-  aapost:   { name: 'עמדת נ"מ',    icon: '🎯', hp: 450,  value: 4, unit: 'aa',   build: 30, every: 30,  size: 4 },
+  aapost:   { name: 'עמדת נ"מ',    icon: '📡', hp: 450,  value: 4, unit: 'aa',   build: 30, every: 30,  size: 4 },
   jeepshop: { name: "סדנת ג'יפים", icon: '🔧', hp: 450,  value: 4, unit: 'jeep', build: 25, every: 25,  size: 4 },
   tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 45, every: 45,  size: 3 },
   airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2 },
@@ -143,7 +144,7 @@ const AI_PLAN = ['aapost', 'tankshop', 'jeepshop', 'clinic', 'tent', 'depot', 'a
 const AI_STYLES = {
   steady: { name: 'שקול',  icon: '🦉', plan: AI_PLAN, ready: AI_READY },
   rush:   { name: 'מסתער', icon: '⚡', plan: ['jeepshop', 'tent', 'tankshop', 'jeepshop', 'depot', 'aapost', 'clinic', 'airfield', 'garage'], ready: 0.45 },
-  turtle: { name: 'מתבצר', icon: '🏰', plan: ['aapost', 'tankshop', 'depot', 'clinic', 'aapost', 'airfield', 'tankshop', 'garage', 'tent'], ready: 0.7, wait: 5 },
+  turtle: { name: 'מתבצר', icon: '🐢', plan: ['aapost', 'tankshop', 'depot', 'clinic', 'aapost', 'airfield', 'tankshop', 'garage', 'tent'], ready: 0.7, wait: 5 },
   flank:  { name: 'מאגף',  icon: '↪', plan: AI_PLAN, ready: AI_READY, flank: true },
 };
 const AI_HOME_R = 350, AI_FLANK_R = 350, FALLEN_T = 12;

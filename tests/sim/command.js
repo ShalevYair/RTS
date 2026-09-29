@@ -16,7 +16,7 @@ ok(!Sim.answer(s, 999, 'hold') && !Sim.answer(s, 1, 'dance'), 'bad call answers 
 // calls happen in real games and get answered / decided
 let calls = 0, answered = 0, auto = 0;
 for (let i = 0; i < 4; i++) {
-  const g = Sim.create(50 + i, 1100, 'normal'); g.bots = ['red']; const seen = new Set();
+  const g = Sim.create(50 + i, 1100, 'normal'); g.bots = ['red']; g.askHq = true; const seen = new Set();
   // blue: everything attacks the enemy HQ area every 20s, answers every other call
   let t = 0;
   while (!g.over && g.t < 400) { Sim.step(g, 1 / 30); if ((t -= 1 / 30) <= 0) { t = 20; for (const x of g.squads) if (x.side === 'blue') Sim.order(g, x.id, 'attack', g.W - 120, 320, true); }
@@ -24,3 +24,8 @@ for (let i = 0; i < 4; i++) {
   answered += g.log2.answered; auto += g.log2.missed;
 }
 ok(calls > 0 && answered > 0, `calls ${calls}, answered ${answered}, decided by the commander ${auto}`);
+{ // by default commanders don't call: they decide for themselves
+  const g = Sim.create(50, 1100, 'normal'); g.bots = ['red']; let n = 0, t = 0;
+  while (!g.over && g.t < 400) { Sim.step(g, 1 / 30); n += g.calls.filter(c => c.until > c.t).length; if ((t -= 1 / 30) <= 0) { t = 20; for (const x of g.squads) if (x.side === 'blue') Sim.order(g, x.id, 'attack', g.W - 120, 320, true); } }
+  ok(n === 0, 'commanders no longer wait on HQ: they decide by their temper at once');
+}

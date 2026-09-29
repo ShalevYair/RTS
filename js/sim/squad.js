@@ -40,14 +40,13 @@ function updateSquad(s, sq, dt) {
   const r = s.rep[sq.id], q = qualityAt(s, sq);
   const every = q >= 1 ? 0 : (REPORT_MIN + REPORT_SPAN * (1 - q)) * TEMPERS[sq.temper].report * (s.t - sq.lastContact < CONTACT_MEMORY ? 2 : 1);
   if (sq.side === 'blue' && (!r || s.t - r.t >= every)) sendReport(s, sq);
-  // under pressure but not yet breaking: ask HQ
+  // under pressure but not yet breaking: the commander decides — by his temper at once, or (s.askHq) he asks HQ first
   const thr = retreatAt(s, sq);
   if (sq.side === 'blue' && friction(s) && contact && !sq.retreating && !s.calls.length && sq.order.type !== 'retreat' &&
       s.t - sq.lastCall > CALL_COOLDOWN && sq.strength < thr + CALL_BAND && sq.strength >= thr) {
     sq.callOpen = true; sq.lastCall = s.t;
-    s.calls.push({ id: s.nextCall++, sq: sq.id, t: s.t, until: s.t + CALL_TIME });
-    sendReport(s, sq, 'call');
-    report(s, sq, 'לחץ כבד. להחזיק או לסגת?');
+    s.calls.push({ id: s.nextCall++, sq: sq.id, t: s.t, until: s.t + (s.askHq ? CALL_TIME : 0) });
+    if (s.askHq) { sendReport(s, sq, 'call'); report(s, sq, 'לחץ כבד. להחזיק או לסגת?'); }
   }
 }
 

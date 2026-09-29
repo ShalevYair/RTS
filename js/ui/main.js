@@ -7,7 +7,7 @@ function newGame(skipIntro) {
   // the big map opens zoomed in on our base; the small one shows it all
   cam = s.H > Sim.H ? { x: 0, y: s.H / 2, z: -1 } : { x: s.W / 2, y: s.H / 2, z: 1 };
   // in the tutorial a tap on the map attacks (hold / retreat come later)
-  decor = makeDecor(s); sel = 'all'; mode = lvl ? 'attack' : 'hold'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; sqKey = ''; Radio.reset();
+  decor = makeDecor(s); sel = 'all'; mode = lvl ? 'attack' : 'hold'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; sqKey = ''; groups = []; Radio.reset();
   $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
   $('end').hidden = true; $('share').textContent = tr('share');
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);

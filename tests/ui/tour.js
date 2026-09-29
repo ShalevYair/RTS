@@ -1,7 +1,7 @@
 // Words and help: a level's first time opens a tour of what's new (one bubble after another, the game waiting), the
 // settings are short rows with a tooltip each and a way back to the levels, the language switches the whole page
 // (right-to-left ⇄ left-to-right), a right click clears the pick, 🏗 pulses while there's room to build, the order
-// buttons are symbols, the squad buttons show the unit itself, and an order's line fades after a few seconds
+// buttons are symbols, the squad buttons show the unit itself
 const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs');
 const URL = 'file://' + path.join(__dirname, '..', '..', 'index.html');
@@ -61,12 +61,19 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
       const all = await p.evaluate(() => ({ sel, ord: !document.getElementById('gOrd').hidden, types: [...document.querySelectorAll('[data-ty]')].every(b => b.getAttribute('aria-pressed') === 'true') }));
       check(name, none.sel === null && !none.ord && all.sel === 'all' && all.ord && all.types, `right click: none picked, no orders ${JSON.stringify(none)}; again: all, every type lit ${JSON.stringify(all)}`);
       // a number picks every squad of its type
-      await p.keyboard.press('2'); const inf = await p.evaluate(() => selIds().map(id => s.squads.find(q => q.id === id).type).join());
-      check(name, inf === 'inf', `2 picks the infantry (${inf})`);
+      await p.keyboard.press('1'); const inf = await p.evaluate(() => selIds().map(id => s.squads.find(q => q.id === id).type).join());
+      check(name, inf === 'inf', `1 (the first button) picks the infantry (${inf})`);
+      // groups: pick both squads, 🔗 ties them; one button for the group, first; tapping one of them on the map picks
+      // the group; an order moves them in rows; ✂ breaks it up
+      await p.evaluate(() => select('all')); await p.evaluate(() => select(blueSquads().filter(q => !q.dead).map(q => q.id)));
+      await p.click('#grp');
+      const g1 = await p.evaluate(() => ({ groups: groups.length, btns: [...document.querySelectorAll('#sqs button')].map(b => b.dataset.gr ? 'G' : b.dataset.ty).join(), icon: document.getElementById('grp').textContent }));
+      await p.evaluate(() => { select(null); const q = blueSquads()[0], r = cv.getBoundingClientRect(); tap({ clientX: r.left + view.cox + q.cx * view.css, clientY: r.top + view.coy + q.cy * view.css }); });
+      const g2 = await p.evaluate(() => ({ n: selIds().length, pressed: document.querySelector('[data-gr]').getAttribute('aria-pressed') }));
+      await p.screenshot({ path: `${OUT}/${name}-group.png` });
+      await p.click('#grp'); const g3 = await p.evaluate(() => ({ groups: groups.length, btns: [...document.querySelectorAll('#sqs button')].length }));
+      check(name, g1.groups === 1 && g1.btns === 'G' && g1.icon === '✂' && g2.n === 2 && g2.pressed === 'true' && g3.groups === 0 && g3.btns === 2, `groups: tied ${JSON.stringify(g1)}, one tap on the map picks the group ${JSON.stringify(g2)}, broken up ${JSON.stringify(g3)}`);
     }
-    // lines: shown for 6 s after the order, then gone
-    const fade = await p.evaluate(() => { const q = blueSquads()[0]; const a = pathFade(q); for (let i = 0; i < 30 * 7; i++) Sim.step(s, 1 / 30); return [a, pathFade(q)]; });
-    check(name, fade[0] > 0.9 && fade[1] === 0, `an order's line fades after 6 s (${fade})`);
     await p.screenshot({ path: `${OUT}/${name}-bar.png` });
     // level 10: our squads out of the exact picture show faintly where they probably are
     await p.evaluate(() => { lvl = 10; newGame(true); showIntro(false); const q = blueSquads()[0]; Sim.order(s, q.id, 'attack', s.W * 0.7, s.H * 0.5); for (let i = 0; i < 30 * 30; i++) Sim.step(s, 1 / 30); cam = { x: s.W / 2, y: s.H / 2, z: 1 }; applyView(); });

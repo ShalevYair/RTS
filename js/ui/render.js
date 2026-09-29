@@ -23,7 +23,7 @@ function makeDecor(s) {
   // grass: big blotches in a few shades, then small tufts, grouped by shade (one path per shade)
   const patches = [];
   // (each blotch anywhere between the two grass colours, a touch lighter or darker: a continuous range, not two tones)
-  for (let i = 0; i < Math.round(K / 40); i++) patches.push({ p: blob(r() * W, r() * s.H, 30 + r() * 100, 20 + r() * 60), u: r(), t: tone(0.06) });
+  for (let i = 0; i < Math.round(K / 40); i++) patches.push({ p: blob(r() * W, r() * s.H, 30 + r() * 100, 20 + r() * 60), u: r(), t: tone(0.06), dirt: r() < 0.15 });
   const tufts = Array.from({ length: TUFT_SHADES }, () => new Path2D());
   for (let i = 0; i < Math.round(K / 3); i++) { const x = r() * W, y = r() * s.H, k = Math.floor(r() * TUFT_SHADES); if (!inLake(x, y)) { tufts[k].moveTo(x + 1.6, y); tufts[k].arc(x, y, 0.8 + r() * 1.2, 0, Math.PI * 2); } }
   const roads = makeRoads(s, r), fields = [];
@@ -229,19 +229,20 @@ const ELEV = 8; // the sim's height grid step (ELEV_CELL)
 const rgbOf = h => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const lerp3 = (a, b, u) => a.map((v, i) => v + (b[i] - v) * u);
 // the colour of the land at height e (lines): the grass on the plain, then as in the relief
+// a hill's colour at height e: the grass, darker green the higher it climbs
+const hillRGB = e => lerp3(rgbOf(colors.grass2), rgbOf(colors.tree), Math.min(1, e / 9) * 0.85);
 function landRGB(e) {
   const grass = lerp3(rgbOf(colors.ground), rgbOf(colors.grass2), 0.5);
   if (e <= 0) return grass;
-  const q = Math.min(1, e / 10), G = rgbOf(colors.grass2), M = rgbOf(colors.hill), T = rgbOf(colors.hillHi);
-  return lerp3(grass, q < 0.3 ? lerp3(G, M, q / 0.3) : lerp3(M, T, (q - 0.3) / 0.7), Math.min(1, e / 1.2) * 0.92);
+  return lerp3(grass, hillRGB(e), Math.min(1, e / 1.2) * 0.92);
 }
 function relief(E) {
   const cv2 = document.createElement('canvas'); cv2.width = E.w; cv2.height = E.h;
   const c = cv2.getContext('2d'), img = c.createImageData(E.w, E.h), d = img.data, g = E.g;
-  const rgb = rgbOf, G = rgb(colors.grass2), M = rgb(colors.hill), T = rgb(colors.hillHi), lerp = lerp3;
+  const lerp = lerp3;
   for (let j = 0; j < E.h; j++) for (let i = 0; i < E.w; i++) {
     const k = j * E.w + i, e = g[k]; if (e <= 0) continue;
-    const q = Math.min(1, e / 10), col = q < 0.3 ? lerp(G, M, q / 0.3) : lerp(M, T, (q - 0.3) / 0.7);
+    const col = hillRGB(e);
     const dx = (g[k + (i < E.w - 1 ? 1 : 0)] - g[k - (i > 0 ? 1 : 0)]), dy = (g[k + (j < E.h - 1 ? E.w : 0)] - g[k - (j > 0 ? E.w : 0)]);
     const lit = Math.max(-1, Math.min(1, (-dx - dy) * 0.4)), f = lit > 0 ? [255, 255, 240] : [0, 0, 0], amt = Math.abs(lit) * 0.2;
     const o = k * 4, m = lerp(col, f, amt);
@@ -306,7 +307,8 @@ function drawGround(c) {
 }
 function drawTerrain(c, W, H, mid) {
   c.globalAlpha = 0.75;
-  for (const p of decor.patches) { c.fillStyle = mix(colors.ground, colors.grass2, p.u, p.t); c.fill(p.p); }
+  // (a few are bare brown earth)
+  for (const p of decor.patches) { c.fillStyle = p.dirt ? mix(colors.ground, colors.hill, 0.45 + p.u * 0.3, p.t) : mix(colors.ground, colors.grass2, p.u, p.t); c.fill(p.p); }
   c.globalAlpha = 1;
   const n = decor.tufts.length;
   decor.tufts.forEach((p, k) => { c.fillStyle = shade(colors.grass2, -0.2 + 0.32 * k / (n - 1)); c.fill(p); });
@@ -327,11 +329,11 @@ function drawTerrain(c, W, H, mid) {
   }
   // hills: the relief (colour by height, lit from the north-west) blends into the grass; then the contour lines,
   // every fifth a little stronger
-  const R = decor.hills, key = colors.hill + colors.ground + colors.grass2;
+  const R = decor.hills, key = colors.tree + colors.ground + colors.grass2;
   if (R.theme !== key) { R.relief = relief(s.elev); R.theme = key; }
   c.drawImage(R.relief, -ELEV / 2, -ELEV / 2, R.relief.width * ELEV, R.relief.height * ELEV);
-  c.strokeStyle = colors.hillLine; c.lineCap = 'round';
-  R.contours.forEach((p, k) => { c.globalAlpha = (k + 1) % 5 ? 0.45 : 0.7; c.lineWidth = (k + 1) % 5 ? 1 : 1.6; c.stroke(p); });
+  c.strokeStyle = shade(colors.tree, -0.35); c.lineCap = 'round';
+  R.contours.forEach((p, k) => { c.globalAlpha = (k + 1) % 5 ? 0.22 : 0.4; c.lineWidth = (k + 1) % 5 ? 1 : 1.6; c.stroke(p); });
   c.globalAlpha = 1;
   // roads: thin dirt tracks in the colour of the land they cross, only a little lighter, with a faint darker edge
   // (colours per stretch, remade when the theme changes)
@@ -357,38 +359,8 @@ function drawTerrain(c, W, H, mid) {
   c.fillStyle = 'rgba(255,255,255,.22)'; c.fill(Rk.rockHi);
 }
 
-// headquarters: a walled compound with a command building, a radio mast and the side's flag (about 46 × 38, so it
-// fits at the map's edge where the HQ stands)
-function drawHQ(c, x, y, col) {
-  c.save(); c.translate(x, y); c.scale(0.8, 0.8); c.lineJoin = 'round';
-  c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(3, 5, 28, 22, 0, 0, Math.PI * 2); c.fill();
-  // wall with corner towers
-  c.fillStyle = HQ_WALL; c.strokeStyle = colors.outline; c.lineWidth = 1.5;
-  c.beginPath(); c.rect(-24, -19, 48, 38); c.fill(); c.stroke();
-  c.fillStyle = HQ_YARD; c.fillRect(-19, -14, 38, 28);
-  for (const [tx, ty] of [[-24, -19], [24, -19], [-24, 19], [24, 19]]) { c.fillStyle = HQ_WALL; c.beginPath(); c.rect(tx - 5, ty - 5, 10, 10); c.fill(); c.stroke(); }
-  // gate toward the enemy
-  c.fillStyle = HQ_YARD; c.fillRect(x < s.W / 2 ? 19 : -25, -5, 6, 10);
-  // command building in the side's colour, with a roof ridge
-  c.fillStyle = col; c.beginPath(); c.rect(-11, -8, 22, 16); c.fill(); c.stroke();
-  c.strokeStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.moveTo(-11, 0); c.lineTo(11, 0); c.stroke();
-  // radio mast
-  c.strokeStyle = colors.outline; c.lineWidth = 1.5; c.beginPath(); c.moveTo(6, -8); c.lineTo(6, -30); c.stroke();
-  c.beginPath(); c.arc(6, -30, 5, Math.PI * 1.15, Math.PI * 1.85); c.stroke(); c.beginPath(); c.arc(6, -30, 9, Math.PI * 1.2, Math.PI * 1.8); c.stroke();
-  // flag
-  c.beginPath(); c.moveTo(-6, -8); c.lineTo(-6, -38); c.stroke();
-  c.fillStyle = col; c.beginPath(); c.moveTo(-6, -38); c.lineTo(10 * (x < s.W / 2 ? 1 : -1) - 6, -33); c.lineTo(-6, -28); c.closePath(); c.fill(); c.stroke();
-  c.restore();
-}
-const HQ_WALL = '#b8a47a', HQ_YARD = '#9c8b66';
 // drone: a quadcopter from above — four rotors on an X frame
-// what a squad is doing, under its target ring: the order's symbol (as on its button), in one colour for all
-const ORDER_P2D = Object.fromEntries(Object.entries(ORDER_PATH).map(([k, d]) => [k, new Path2D(d)])), AMMO = '#e0b020';
-function orderMark(c, type, x, y) {
-  c.save(); c.translate(x, y); c.scale(0.62, 0.62); c.lineJoin = 'round';
-  c.lineWidth = 4.5; c.strokeStyle = colors.halo; c.stroke(ORDER_P2D[type]); c.fillStyle = colors.blue; c.fill(ORDER_P2D[type]);
-  c.restore();
-}
+const AMMO = '#e0b020';
 function drawDrone(c, x, y, k, col, rot = 0, spin = 0) {
   c.save(); c.translate(x, y); c.rotate(rot); c.lineWidth = k * 0.16; c.strokeStyle = colors.outline;
   c.beginPath(); c.moveTo(-k * 0.7, -k * 0.7); c.lineTo(k * 0.7, k * 0.7); c.moveTo(k * 0.7, -k * 0.7); c.lineTo(-k * 0.7, k * 0.7); c.stroke();
@@ -479,30 +451,31 @@ function drawQuality(c) {
 // structures: HQ, buildings, forward HQs, drones. Ours always; the enemy's while seen, then faded where last seen.
 // Arc: construction / warm-up progress, then a drone's flight time left, or a building's next unit.
 const nodeShown = n => n.side === 'blue' || !s.fog || s.visNodes.blue.has(n.id);
+const STRUCT_PX = 40, HQ_PX = 58; // a building's picture; the HQ's, bigger
 function drawStruct(c, n, ghost) {
-  const S = Sim.STRUCTS[n.kind], N = Sim.NODES[n.kind], col = colors[n.side], on = s.t >= n.ready, big = n.kind === 'hq' ? 1.5 : 1;
+  const S = Sim.STRUCTS[n.kind], N = Sim.NODES[n.kind], col = colors[n.side], on = s.t >= n.ready;
   // under construction: a pegged-out plot, and the building rising out of it (small and faint at first)
   const grow = on || ghost || n.kind === 'hq' || n.kind === 'drone' ? 1 : Math.max(0, Math.min(1, (s.t - n.t0) / Math.max(0.01, n.ready - n.t0)));
   if (grow < 1) {
-    c.strokeStyle = col; c.globalAlpha = 0.6; c.lineWidth = 1.2; c.setLineDash([3, 3]); c.strokeRect(n.x - 15, n.y - 15, 30, 30); c.setLineDash([]);
-    c.globalAlpha = 1; c.save(); c.translate(n.x, n.y); c.scale(0.35 + 0.65 * grow, 0.35 + 0.65 * grow); c.translate(-n.x, -n.y);
+    c.save(); c.translate(n.x, n.y); c.scale(0.35 + 0.65 * grow, 0.35 + 0.65 * grow); c.translate(-n.x, -n.y);
   }
   c.globalAlpha = ghost ? 0.45 : 1;
   if (!ghost && n.kind !== 'hq' && n.kind !== 'drone' && !on) {
     const k = (s.t - n.t0) / Math.max(0.01, n.ready - n.t0);
-    c.strokeStyle = col; c.lineWidth = 3; c.beginPath(); c.arc(n.x, n.y, 16 * big, -Math.PI / 2, -Math.PI / 2 + Math.max(0, Math.min(1, k)) * Math.PI * 2); c.stroke();
+    c.strokeStyle = col; c.lineWidth = 3; c.beginPath(); c.arc(n.x, n.y, 28, -Math.PI / 2, -Math.PI / 2 + Math.max(0, Math.min(1, k)) * Math.PI * 2); c.stroke();
   }
-  if (n.kind === 'hq') drawHQ(c, n.x, n.y, col);
-  else if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.35 : 0.55; drawDrone(c, n.x, n.y, 11, col, s.t * 0.35 + n.id, on ? s.t * 25 : 0); }
+  if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.2 : 0.32; drawDrone(c, n.x, n.y, 8, col, s.t * 0.35 + n.id, on ? s.t * 25 : 0); }
   else {
-    c.fillStyle = colors.halo; ring(n.x, n.y, 13 * big); c.fill(); c.lineWidth = 1.5; c.strokeStyle = col; c.stroke();
-    c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.25 + 0.6 * grow; c.font = `${Math.round(16 * big)}px sans-serif`; c.fillText(S.icon, n.x, n.y + 6 * big);
+    const px = n.kind === 'hq' ? HQ_PX : STRUCT_PX, k = px / STRUCT_PX;
+    c.globalAlpha = ghost ? 0.3 : 0.4; c.fillStyle = col; c.beginPath(); c.ellipse(n.x + 2, n.y + 15 * k, 22 * k, 7 * k, 0, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.25 + 0.6 * grow; c.font = `${px}px sans-serif`; c.textBaseline = 'middle'; c.fillText(S.icon, n.x, n.y); c.textBaseline = 'alphabetic';
   }
   if (grow < 1) c.restore();
   c.globalAlpha = 1;
   if (ghost) return;
-  if (!on) label(String(Math.ceil(n.ready - s.t)), n.x, n.y - 20 * big, col);
-  if (n.hp < S.hp) { c.fillStyle = colors.shadow; c.fillRect(n.x - 14, n.y + 19 * big, 28, 3); c.fillStyle = col; c.fillRect(n.x - 14, n.y + 19 * big, 28 * Math.max(0, n.hp / S.hp), 3); }
+  const top = n.kind === 'hq' ? 38 : n.kind === 'drone' ? 16 : 30, bot = n.kind === 'hq' ? 34 : n.kind === 'drone' ? 14 : 24;
+  if (!on) label(String(Math.ceil(n.ready - s.t)), n.x, n.y - top, col);
+  if (n.hp < S.hp) { c.fillStyle = colors.shadow; c.fillRect(n.x - 14, n.y + bot, 28, 3); c.fillStyle = col; c.fillRect(n.x - 14, n.y + bot, 28 * Math.max(0, n.hp / S.hp), 3); }
 }
 function drawNodes(c) {
   for (const n of s.nodes) if (nodeShown(n)) drawStruct(c, n, false);
@@ -517,13 +490,13 @@ function drawBuildArea(c) {
   // will open for building, around the pointer
   for (const q of s.squads) if (q.side === 'blue' && q.fhqAt && !q.dead) {
     const p = pos(q), f = q.fhqAt;
-    c.globalAlpha = 0.55; c.font = '16px sans-serif'; c.fillText('🏕️', f.x, f.y + 6); c.globalAlpha = 1;
+    c.globalAlpha = 0.45; c.font = `${STRUCT_PX}px sans-serif`; c.fillText('🏕️', f.x, f.y + 14); c.globalAlpha = 1;
   }
   if (fhqArmed && mouseAt) {
     const r = cv.getBoundingClientRect(), w = { x: (mouseAt.x - r.left - view.cox) / view.css, y: (mouseAt.y - r.top - view.coy) / view.css };
     c.fillStyle = 'rgba(80,200,90,.16)'; c.strokeStyle = 'rgba(60,170,70,.7)'; c.lineWidth = 1.5; c.setLineDash([6, 5]);
     ring(w.x, w.y, FHQ_BUILD_R); c.fill(); c.stroke(); c.setLineDash([]);
-    c.globalAlpha = 0.7; c.font = '18px sans-serif'; c.fillText('🏕️', w.x, w.y + 6); c.globalAlpha = 1;
+    c.globalAlpha = 0.7; c.font = `${STRUCT_PX}px sans-serif`; c.fillText('🏕️', w.x, w.y + 14); c.globalAlpha = 1;
   }
   if (!buildArmed) return;
   const G = 20; c.fillStyle = 'rgba(80,200,90,.22)';
@@ -531,21 +504,15 @@ function drawBuildArea(c) {
 }
 // event reports appear where they happened, pop in and fade out
 const MARK = { ack: '👌', contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕️', nodeLost: '💥', ff: '⚠' };
-// orders still on their way: an envelope runs from HQ toward the squad; the target shows the order's symbol, blinking
+// orders still on their way: an envelope runs from HQ toward the squad
 function drawMail(c) {
   const hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq') || { x: s.bases.blue.x, y: s.H / 2 };
-  const seen = new Set();
   for (const m of s.outbox) {
     const q = m.side === 'blue' && s.squads.find(x => x.id === m.id);
     if (!q || q.dead) continue;
     const p = guessAt(q), k = Math.min(1, (s.t - m.sent) / Math.max(0.01, m.at - m.sent));
     c.globalAlpha = 0.8; c.font = '13px sans-serif';
     c.fillText('✉', hq.x + (p.x - hq.x) * k, hq.y + (p.y - 26 - hq.y) * k + 4);
-    // an order still on its way: its symbol at the target, blinking, until the squad has it
-    if (m.kind === 'order' && !seen.has(m.type + Math.round(m.x) + ',' + Math.round(m.y))) {
-      seen.add(m.type + Math.round(m.x) + ',' + Math.round(m.y));
-      c.globalAlpha = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(performance.now() / 160)); orderMark(c, m.type, m.x, m.y);
-    }
   }
   c.globalAlpha = 1;
 }
@@ -645,8 +612,8 @@ function drawUnits(c, show) {
     if (u.resup && !u.care) { c.fillStyle = colors.halo; ring(u.x + k * 0.8, u.y - k * 0.9, 4.5); c.fill(); c.fillStyle = AMMO; c.fillRect(u.x + k * 0.8 - 2.5, u.y - k * 0.9 - 2.5, 5, 5); }
     if (u.care) { c.fillStyle = colors.halo; ring(u.x + k * 0.8, u.y - k * 0.9, 4.5); c.fill(); c.fillStyle = colors.red; c.fillRect(u.x + k * 0.8 - 1, u.y - k * 0.9 - 3, 2, 6); c.fillRect(u.x + k * 0.8 - 3, u.y - k * 0.9 - 1, 6, 2); }
     if (u.side === 'blue' && isSel(u.squad)) {
-      c.strokeStyle = colors.ink; c.lineWidth = 1.2; ring(u.x, u.y, k + 3); c.stroke();
-      if (sel !== 'all') { c.globalAlpha = 0.16; c.strokeStyle = colors.blue; ring(u.x, u.y, T.range); c.stroke(); c.globalAlpha = 1; }
+      // picked: a faint light ring close round the unit
+      c.globalAlpha = 0.55; c.strokeStyle = colors.halo; c.lineWidth = 1; ring(u.x, u.y, k * (u.type === 'tank' ? 0.95 : 1) + 2.5); c.stroke(); c.globalAlpha = 1;
     }
     if (u.hp < T.hp) {
       c.fillStyle = colors.shadow; c.fillRect(u.x - 8, u.y - k - 7, 16, 3);
@@ -661,18 +628,6 @@ function draw() {
   c.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
   c.textAlign = 'center';
   drawGround(c);
-  // player orders: only the order's symbol where it points, for a few seconds after the order (or after picking the
-  // squad) — no route lines or target rings (too much on the map)
-  const labelSpots = [];
-  for (const q of s.squads) {
-    if (q.side !== 'blue' || q.dead) continue;
-    const fade = pathFade(q); if (fade <= 0) continue;
-    let o = q.retreating ? { ...Sim.homeOf(s, q), type: 'retreat' } : Sim.effOrder(s, q);
-    if (o.target) o = { ...o, x: guessAt(o.target).x, y: guessAt(o.target).y };
-    const stack = labelSpots.filter(p => Math.hypot(p.x - o.x, p.y - o.y) < 24).length; labelSpots.push(o);
-    c.globalAlpha = fade * (isSel(q.id) ? 0.9 : 0.55); orderMark(c, o.type, o.x, o.y - stack * 15);
-    c.globalAlpha = 1;
-  }
   // shots in flight: bullets (a quick bright dot), shells (a glowing round with a short streak), missiles (a body
   // with a smoke trail back to where it was fired)
   c.save(); c.lineCap = 'round';
@@ -726,10 +681,10 @@ function draw() {
       if (!m.length) continue;
       let top = Infinity, cx = 0; for (const u of m) { top = Math.min(top, u.y - SIZE[u.type]); cx += u.x; } cx /= m.length;
       const y = top - 12, bars = [];
-      if (q.strength < 0.98 || on) bars.push([colors.blue, Math.min(1, q.strength)]);
+      if (q.strength < 0.98) bars.push([colors.blue, Math.min(1, q.strength)]);
       const A = Sim.TYPES[q.type].ammo;
-      if (s.supply && Sim.SUPPLY[q.type]) { const k = m.reduce((a, u) => a + u.sup, 0) / m.length; if (k < 0.98 || on) bars.push([AMMO, k]); }
-      if (A) { const k = m.reduce((a, u) => a + (u.rearm ? 0 : u.ammo / A), 0) / m.length; if (k < 0.98 || on) bars.push([AMMO, k]); }
+      if (s.supply && Sim.SUPPLY[q.type]) { const k = m.reduce((a, u) => a + u.sup, 0) / m.length; if (k < 0.98) bars.push([AMMO, k]); }
+      if (A) { const k = m.reduce((a, u) => a + (u.rearm ? 0 : u.ammo / A), 0) / m.length; if (k < 0.98) bars.push([AMMO, k]); }
       bars.forEach(([col, k], i) => { c.fillStyle = colors.shadow; c.fillRect(cx - 12, y + i * 4, 24, 3); c.fillStyle = col; c.fillRect(cx - 12, y + i * 4, 24 * k, 3); });
       // why it's heading back: 🩹 to heal, 📦 for ammunition, ⟳ aircraft rearming
       const why = [q.retreating && '🩹', m.some(u => u.resup) && '📦', m.some(u => u.rearm) && '⟳'].filter(Boolean);
@@ -766,20 +721,10 @@ function drawGuess(c, q, p, on) {
     const row = Math.floor(i / 6), col = i % 6, cols = Math.min(6, n - row * 6), off = (col - (cols - 1) / 2) * gap;
     const x = p.x + ux * off - Math.cos(hd) * row * gap, y = p.y + uy * off - Math.sin(hd) * row * gap;
     glyph(c, q.type, x, y, k, colors.blue, colors.outline, hd, q.type === 'aa' ? idleAim('aa', 'blue') : hd, 1.2, step + i);
-    if (on) { c.strokeStyle = colors.ink; c.lineWidth = 1.2; ring(x, y, k + 3); c.stroke(); }
+    if (on) { c.strokeStyle = colors.halo; c.lineWidth = 1; ring(x, y, k + 2.5); c.stroke(); }
   }
   c.globalAlpha = 1;
 }
-// the order lines: when each squad's order (or pick) was last seen new
-const paths = new Map(), PATH_T = 6;
-function pathFade(q) {
-  const key = q.retreating ? 'R' : q.support ? 'S' + q.support : q.order;
-  let e = paths.get(q.id);
-  if (!e || e.k !== key || e.s !== s) { e = { k: key, t: s.t, s }; paths.set(q.id, e); }
-  const age = s.t - e.t; return age >= PATH_T ? 0 : Math.min(1, (PATH_T - age) / 1.5);
-}
-// picking squads shows their lines again
-function seePaths() { for (const [id, e] of paths) if (isSel(id)) e.t = s.t; }
 
 // minimap (shown when the map doesn't fit on screen): terrain, our squads and structures, what we know of the
 // enemy, fresh reports, and the part on screen. Tap / drag it to look there.
@@ -792,10 +737,11 @@ function drawMini() {
   if (m.width !== w || m.height !== h) { m.width = w; m.height = h; m.style.setProperty('--ar', (s.W / s.H).toFixed(3)); }
   const c = m.getContext('2d'); c.setTransform(k, 0, 0, k, 0, 0);
   c.fillStyle = colors.ground; c.fillRect(0, 0, s.W, s.H);
-  c.fillStyle = colors.hill; for (const hl of s.hills) { c.beginPath(); c.arc(hl.x, hl.y, hl.r, 0, Math.PI * 2); c.fill(); }
+  c.fillStyle = hexA(colors.tree, 0.35); for (const hl of s.hills) { c.beginPath(); c.ellipse(hl.x, hl.y, hl.r, hl.r * hl.e, hl.a, 0, Math.PI * 2); c.fill(); }
+  c.fillStyle = colors.water; for (const l of s.lakes) { c.beginPath(); c.ellipse(l.x, l.y, l.rx, l.ry, l.a, 0, Math.PI * 2); c.fill(); }
   if (s.fog) { c.fillStyle = hexA(colors.blue, 0.12); for (const n of s.nodes) if (n.side === 'blue' && Sim.NODES[n.kind] && s.t >= n.ready) { c.beginPath(); c.arc(n.x, n.y, Sim.NODES[n.kind].r0, 0, Math.PI * 2); c.fill(); } }
   const dot = (x, y, r, col, sq) => { c.fillStyle = col; c.beginPath(); if (sq) c.rect(x - r, y - r, 2 * r, 2 * r); else c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
-  for (const n of s.nodes) if (nodeShown(n)) dot(n.x, n.y, 14, colors[n.side], true);
+  for (const n of s.nodes) if (nodeShown(n)) { if (n.kind === 'drone') { c.globalAlpha = 0.35; dot(n.x, n.y, 7, colors[n.side]); c.globalAlpha = 1; } else dot(n.x, n.y, 14, colors[n.side], true); }
   if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { c.globalAlpha = 0.5; const n = s.memNodes.blue[id]; dot(n.x, n.y, 14, colors.red, true); c.globalAlpha = 1; }
   for (const q of s.squads) {
     if (q.dead) continue;
