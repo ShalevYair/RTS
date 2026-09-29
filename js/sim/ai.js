@@ -57,7 +57,7 @@ function aiForward(s, side, mine, setOrder) {
     else if (sq.arrived && !pending(s, sq.id, 'order') && buildFhq(s, sq.id)) s.aiFhq[side] = null;
     return;
   }
-  if (s.cd[side].fhq > 0 || fhqCount(s, side) >= NODES.fhq.max) return;
+  if (s.cd[side].fhq > 0 || fhqCount(s, side) >= fhqMax(s)) return;
   const nodes = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq'), foe = s.bases[foeOf(side)];
   const hills = s.hills.filter(h => quality(s, side, h, true) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
     nodes.some(n => dist(n, h) < nodeSpec(n.kind).r1 + AI_FHQ_REACH) && !threatAt(s, side, h, AI_NEAR));
@@ -151,9 +151,11 @@ function think(s, side, level) {
       if (sq.flankKey !== key) { sq.flankKey = key; sq.flanked = false; sq.flankY = (nth++ % 2 ? 0.12 : 0.88) * s.H; }
       const wp = { x: Math.round((c.x + best.x) / 2), y: Math.round(sq.flankY) };
       if (!sq.flanked && dist(c, wp) < 120) sq.flanked = true;
-      if (!sq.flanked) { setOrder(sq, 'attack', wp.x, wp.y); continue; }
+      if (!sq.flanked) { setOrder(sq, 'attack', wp.x, wp.y); if (D.mass && friction(s)) silence(s, sq.id, true, true); continue; }
     }
     setOrder(sq, 'attack', best.x, best.y);
+    // hard: a squad going far (or round a flank) keeps radio silence on the way; near home it talks
+    if (D.mass && friction(s)) silence(s, sq.id, dist(c, best) > AI_SILENT_R, true);
   }
   // posture (hard): press when losing, play safe when winning
   if (D.traits) {

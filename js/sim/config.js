@@ -178,7 +178,8 @@ const AI_STYLES = {
   turtle: { name: 'מתבצר', icon: '🐢', plan: ['aapost', 'tankshop', 'atpost', 'depot', 'clinic', 'jeepaa', 'airfield', 'tankshop', 'garage', 'tent'], ready: 0.7, wait: 5 },
   flank:  { name: 'מאגף',  icon: '↪', plan: AI_PLAN, ready: AI_READY, flank: true },
 };
-const AI_HOME_R = 350, AI_FLANK_R = 350, FALLEN_T = 12;
+// AI_SILENT_R: the hard AI sends squads going farther than this in radio silence
+const AI_HOME_R = 350, AI_FLANK_R = 350, FALLEN_T = 12, AI_SILENT_R = 500;
 
 // radio silence: a silent squad sends no reports (only the full-control ring still shows it), moves at SILENT_SPEED
 // and raises no dust. A talking squad is heard by the enemy: each of its check-ins gives the enemy a vague fix

@@ -18,16 +18,16 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // level 1, first time: ▶ opens the tour; the game waits until it's done
     await p.click('#go'); await p.waitForTimeout(200);
     const t1 = await p.evaluate(() => ({ tip: !document.getElementById('tip').hidden, text: document.getElementById('tipT').textContent, n: document.getElementById('tipN').textContent, playing }));
-    check(name, t1.tip && !t1.playing && /1\/4/.test(t1.n), `level 1 tour: "${t1.text}" ${t1.n}, paused`);
+    check(name, t1.tip && !t1.playing && /1\/5/.test(t1.n), `level 1 tour: "${t1.text}" ${t1.n}, paused`);
     await p.screenshot({ path: `${OUT}/${name}-tour1.png` });
-    for (let i = 0; i < 2; i++) await p.click('#tipNext');
+    for (let i = 0; i < 3; i++) await p.click('#tipNext');
     await p.screenshot({ path: `${OUT}/${name}-tour3.png` });
     await p.click('#tipNext'); await p.click('#tipNext'); await p.waitForTimeout(100);
     const t2 = await p.evaluate(() => ({ tip: !document.getElementById('tip').hidden, playing, seen: localStorage.getItem('irts-tour') }));
     check(name, !t2.tip && t2.playing && t2.seen === '1', `after the tour the fight starts ${JSON.stringify(t2)}`);
     // a later level: its new things
     const tour = await p.evaluate(() => [3, 9, 10, 11].map(n => { lvl = n; newGame(true); return n + ':' + levelTour(n).length; }).join(' '));
-    check(name, /3:2 9:1 10:1 11:1/.test(tour), `tours per level: ${tour}`);
+    check(name, /3:3 9:2 10:2 11:2/.test(tour), `tours per level: ${tour}`);
     // the full game: settings, language, right click, the build nudge, symbols, lines that fade
     await p.evaluate(() => { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); lvl = 0; toured = 99; newGame(true); showIntro(false); setPlaying(true); });
     await p.click('#gear'); await p.waitForTimeout(100);
@@ -83,6 +83,10 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const g = await p.evaluate(() => { const q = blueSquads()[0], p = guessAt(q); return { shown: sqShown(q), off: Math.round(Math.hypot(p.x - q.cx, p.y - q.cy)) }; });
     check(name, !g.shown && g.off < 150, `out of the exact picture: a guess ${g.off} from the truth`);
     await p.screenshot({ path: `${OUT}/${name}-guess.png` });
+    // a level played again (another visit): its tour shows again; the full game has its own (the HQ, what's new)
+    const again = await p.evaluate(() => { tourSeen.clear(); toured = 11; lvl = 1; newGame(true); document.getElementById('go').click(); const a = !document.getElementById('tip').hidden; tourNext(true);
+      localStorage.removeItem('irts-fixedhq'); lvl = 0; newGame(true); document.getElementById('go').click(); const f = tour ? tour.steps.map(st => typeof st.el === 'string' ? st.el : 'map').join() : ''; tourNext(true); return { a, f }; });
+    check(name, again.a && /hqb/.test(again.f) && /silent/.test(again.f), `the tour shows again on another visit; the full game's: ${again.f}`);
     check(name, !errs.length, `no errors ${JSON.stringify(errs)}`);
     await ctx.close();
   }

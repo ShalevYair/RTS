@@ -110,14 +110,14 @@ function updateHud() {
   $('hqb').hidden = !hqToPlace(); $('hqb').classList.toggle('nudge', hqToPlace() && !hqPlanned() && !hqArmed);
   if (hqToPlace() && !hqPlanned() && playing && !hqTold && fit) { hqTold = true; const [a, b] = Sim.hqBand(s, 'blue'), p = onScreen((a + b) / 2, s.H / 2); toast(tr('placeHq'), Math.max(120, p.x), Math.min(fit.top + fit.h - 60, Math.max(fit.top + 60, p.y))); }
   // and 🏕️ pulses whenever a forward HQ can be set up
-  $('fhq').classList.toggle('nudge', uiHas('fhq') && !!s.t && playing && !fhqArmed && s.cd.blue.fhq <= 0 && Sim.fhqCount(s, 'blue') < Sim.NODES.fhq.max && fhqBuilders().length > 0);
+  $('fhq').classList.toggle('nudge', uiHas('fhq') && !!s.t && playing && !fhqArmed && s.cd.blue.fhq <= 0 && Sim.fhqCount(s, 'blue') < Sim.fhqMax(s) && fhqBuilders().length > 0);
   renderSquadButtons();
   // drones: how many in hand, and a bar until the next one; forward HQ: seconds until the next, and a refill bar
   const cd = s.cd.blue, N = Sim.NODES, D = s.drones.blue;
   $('eyeN').textContent = D.stock || ''; $('eye').disabled = D.stock < 1 && !eyeArmed;
   $('eye').style.setProperty('--p', D.stock + Sim.dronesUp(s, 'blue') >= N.drone.max ? '1' : (1 - D.next / N.drone.every).toFixed(2));
   const bsq = oneSel() && s.squads.find(q => q.id === oneSel());
-  $('fhqN').textContent = Sim.fhqCount(s, 'blue') >= N.fhq.max ? N.fhq.max + '/' + N.fhq.max : cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').setAttribute('aria-disabled', String(!Sim.canBuildFhq(s, bsq)));
+  $('fhqN').textContent = Sim.fhqCount(s, 'blue') >= Sim.fhqMax(s) ? Sim.fhqMax(s) + '/' + Sim.fhqMax(s) : cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').setAttribute('aria-disabled', String(!Sim.canBuildFhq(s, bsq)));
   if (s.fog !== fogWas) { fogWas = s.fog; syncButtons(); } // the tutorial's fog comes down mid-level
   $('fhq').style.setProperty('--p', (1 - cd.fhq / N.fhq.every).toFixed(2));
   $('bb').hidden = Sim.boost(s, 'blue') < 0.05; $('moon').hidden = Sim.nightAt(s) < 0.5;
@@ -311,12 +311,13 @@ function renderLevels() {
 $('go').addEventListener('click', () => {
   if (fsWant && fsCan()) fullScreen(true);
   showIntro(false);
-  // a level's first time: its new things, one by one, then the fight
-  if (lvl && lvl > toured && !s.t) { toured = lvl; try { localStorage.setItem('irts-tour', String(toured)); } catch (e) { /* ignore */ } runTour(levelTour(lvl), () => setPlaying(true)); }
+  // each level (and the full game), once per visit: the goal in a few words and what's new, one by one, then the fight
+  // (irts-tour = 99: never — the UI tests)
+  if (toured !== 99 && !s.t && !tourSeen.has(lvl)) { tourSeen.add(lvl); toured = Math.max(toured, lvl); try { localStorage.setItem('irts-tour', String(toured)); } catch (e) { /* ignore */ } runTour(lvl ? levelTour(lvl) : freeTour(), () => setPlaying(true)); }
   else setPlaying(true);
 });
 // the tour: what each level step brings, pointing at its control (or at a spot on the map for what has none)
-let toured = 0;
+let toured = 0; const tourSeen = new Set();
 try { toured = +localStorage.getItem('irts-tour') || 0; } catch (e) { /* storage unavailable */ }
 const pctLose = () => Math.round((s.collapseAt ?? 0.15) * 100);
 // a spot on the map, on the screen (for the tour's bubble)
@@ -338,13 +339,24 @@ const TOUR = {
   fhq: () => [{ el: 'fhq', t: tr('t_fhq') }],
 };
 function levelTour(n) {
-  if (n === 1) return [{ el: ourSquad, t: tr('t_you') }, { el: 'power', t: tr('t_power', pctLose()) }, { el: foeSquad, t: tr('t_click') }, { el: 'gear', t: tr('t_play') }];
+  // level 1: the goal, your force and the enemy's, the power bar, a tap on the map, pausing
+  if (n === 1) return [{ el: midMap, t: tr('t_goal1') }, { el: ourSquad, t: tr('t_you') }, { el: 'power', t: tr('t_power', pctLose()) }, { el: foeSquad, t: tr('t_click') }, { el: 'gear', t: tr('t_play') }];
   const fresh = Sim.levelUi(n).filter(k => !Sim.levelUi(n - 1).includes(k));
-  const out = fresh.flatMap(k => TOUR[k] ? TOUR[k]() : []);
+  // every other level opens with its number, the goal and what it adds, then points at each new thing
+  const out = [{ el: midMap, t: tr('t_level', n, Sim.LEVELS, !!s.nodes.some(k => k.side === 'red' && k.kind === 'hq'), pctLose()) }, ...fresh.flatMap(k => TOUR[k] ? TOUR[k]() : [])];
   if (fresh.includes('squads')) out.push({ el: ourSquad, t: tr('t_face') });
   return out;
 }
 // ❔: everything this game has, in one tour (paused meanwhile)
+// the full game: the goal, placing the HQ, what's new (fake HQ, radio silence, night), the bigger maps
+function freeTour() {
+  const out = [{ el: midMap, t: tr('t_free', pctLose()) }];
+  if (hqToPlace()) out.push({ el: 'hqb', t: tr('t_placeHq') });
+  out.push({ el: 'bld', t: tr('t_decoy') }, { el: 'silent', t: tr('t_silent') }, { el: 'power', t: tr('t_night') });
+  if (s.scale > 1) out.push({ el: 'fhq', t: tr('t_scale', s.scale) });
+  out.push({ el: 'gear', t: tr('t_play') });
+  return out;
+}
 function fullTour() {
   setPlaying(false);
   const steps = [{ el: 'power', t: tr('t_power', pctLose()) }, { el: ourSquad, t: tr('t_click') }];
@@ -399,7 +411,7 @@ function placeHq(x, y) {
 const fhqBuilders = () => s.squads.filter(q => q.side === 'blue' && Sim.canBuildFhq(s, q));
 function buildHere() {
   if (fhqArmed) { fhqArmed = false; syncButtons(); return; }
-  if (s.cd.blue.fhq > 0 || Sim.fhqCount(s, 'blue') >= Sim.NODES.fhq.max) return;
+  if (s.cd.blue.fhq > 0 || Sim.fhqCount(s, 'blue') >= Sim.fhqMax(s)) return;
   if (!fhqBuilders().length) { for (const b of document.querySelectorAll('#sqs button')) if (btnIds(b).some(id => ['jeep', 'ajeep', 'tjeep', 'tank'].includes(s.squads.find(q => q.id === id).type))) blink(b); return; }
   fhqArmed = true; eyeArmed = false; buildArmed = null; $('buildm').hidden = true; syncButtons();
 }

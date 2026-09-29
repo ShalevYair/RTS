@@ -134,6 +134,8 @@ function create(seed = 1, W = 1000, diff = 'normal', mapH = H) {
     nodes: [], nextNode: 1, visNodes: { blue: new Set(), red: new Set() }, cd: { blue: { fhq: 0 }, red: { fhq: 0 } }, drones: { blue: { stock: 1, next: NODES.drone.every }, red: { stock: 1, next: NODES.drone.every } },
     diff: diff in DIFFS ? diff : 'normal', bots: ['red'], botDiff: 'normal', aiFhq: { blue: null, red: null }, supply: true, fallen: [], night: true };
   s.log2.unclear = 0;
+  // bigger maps allow more: the big one 2× the buildings and forward HQs, the huge one 4×
+  s.scale = h > 2 * H * 1.5 ? 4 : h > H ? 2 : 1;
   // the enemy's style: from the seed, on its own stream
   const st = ['rush', 'turtle', 'flank', 'steady'];
   s.style = { blue: 'steady', red: st[Math.floor(rng(seed ^ 0x2545f491)() * st.length)] };

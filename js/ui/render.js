@@ -748,6 +748,9 @@ function draw() {
       // why it's heading back: 🩹 to heal, 📦 for ammunition, ⟳ aircraft rearming
       const why = [q.retreating && '🩹', m.some(u => u.resup) && '📦', m.some(u => u.rearm) && '⟳'].filter(Boolean);
       c.font = '14px sans-serif'; why.forEach((w, i) => c.fillText(w, cx + (i - (why.length - 1) / 2) * 16, y - 6));
+      // a seasoned commander, while his squad is picked: ⭐ / ⭐⭐ (and 🤫 when silent)
+      const rk = Sim.rankOf(q), tag = (rk ? '⭐'.repeat(rk) : '') + (q.silent ? '🤫' : '');
+      if (on && sel !== 'all' && tag) { c.font = '11px sans-serif'; c.fillText(tag, cx, y - (why.length ? 22 : 5)); }
       continue;
     }
     drawGuess(c, q, guessAt(q), on);

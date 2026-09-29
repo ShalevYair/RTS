@@ -12,7 +12,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   const check = (name, c, m) => { if (!c) bad = true; console.log(name, c ? 'ok  ' : 'FAIL', m); };
   for (const [name, vp, touch, scheme] of [['desk', { width: 1400, height: 800 }, false, 'light'], ['phone', { width: 844, height: 390 }, true, 'dark']]) {
     const ctx = await b.newContext({ viewport: vp, hasTouch: touch, isMobile: touch, colorScheme: scheme });
-    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-fixedhq', '1'); } catch (e) { /* ignore */ } });
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); } catch (e) { /* ignore */ } });
     const p = await ctx.newPage(); const errs = [];
     p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(400);
@@ -118,7 +118,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   {
     // a phone held upright: the type buttons at the top fit (wrapping under the power bar), the corner holds the settings
     const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-fixedhq', '1'); } catch (e) { /* ignore */ } });
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); } catch (e) { /* ignore */ } });
     const p = await ctx.newPage(); await p.goto(URL); await p.waitForTimeout(400); await p.click('#go'); await p.waitForTimeout(300);
     const lay = await p.evaluate(() => { const r = e => document.getElementById(e).getBoundingClientRect(); return { types: document.querySelectorAll('[data-ty]').length, fits: r('gSq').right <= innerWidth && r('gSq').left >= 0, gear: innerWidth - r('gear').right < 20 && innerHeight - r('gear').bottom < 20, overlap: r('bar').right > r('corner').left && r('bar').bottom > r('corner').top }; });
     await p.screenshot({ path: `${OUT}/portrait-squads.png` });

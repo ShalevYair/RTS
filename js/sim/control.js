@@ -52,7 +52,9 @@ function droneSupply(s, dt) {
 // at most NODES.fhq.max standing (or on their way, as a message) per side
 const fhqCount = (s, side) => s.nodes.filter(n => n.side === side && n.kind === 'fhq' && n.hp > 0).length + s.outbox.filter(m => m.side === side && m.kind === 'build').length +
   s.squads.filter(q => q.side === side && q.fhqAt).length;
-const canBuildFhq = (s, sq) => !!sq && !sq.dead && FHQ_BUILDERS.includes(sq.type) && s.cd[sq.side].fhq <= 0 && fhqCount(s, sq.side) < NODES.fhq.max;
+// (× s.scale on the bigger maps)
+const fhqMax = s => NODES.fhq.max * (s.scale || 1);
+const canBuildFhq = (s, sq) => !!sq && !sq.dead && FHQ_BUILDERS.includes(sq.type) && s.cd[sq.side].fhq <= 0 && fhqCount(s, sq.side) < fhqMax(s);
 function buildFhq(s, squadId) {
   const sq = s.squads.find(q => q.id === squadId);
   if (s.over || !canBuildFhq(s, sq)) return false;

@@ -6,7 +6,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
   for (const [name, vp, touch] of [['desk', { width: 1400, height: 800 }, false], ['phone', { width: 390, height: 844 }, true], ['phoneL', { width: 844, height: 390 }, true]]) {
     const ctx = await b.newContext({ viewport: vp, hasTouch: touch, isMobile: touch }); await ctx.grantPermissions(['clipboard-read','clipboard-write']);
-    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); } catch (e) { /* no storage */ } }); // the full game, not the tutorial
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); } catch (e) { /* no storage */ } }); // the full game, not the tutorial
     // no system share sheet (on Windows Chrome it opens a native dialog that crashes headless): test the clipboard path
     await ctx.addInitScript(() => { delete Navigator.prototype.share; });
     const p = await ctx.newPage(); const errs = [];
