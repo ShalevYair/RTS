@@ -20,55 +20,44 @@
 </head>
 <body>
 <div class="stage" id="stage">
-  <canvas id="cv" aria-label="מפת הקרב"></canvas>
-  <canvas id="mini" class="glass" aria-label="מפה קטנה: לחץ כדי להסתכל שם" hidden></canvas>
+  <canvas id="cv" data-al="map"></canvas>
+  <canvas id="mini" class="glass" data-al="mini" hidden></canvas>
   <div class="hudl">
-    <div class="score blue glass" title="עוצמה: החלק שלך מהכוח של שני הצדדים (בערפל: לפי הערכה). מתחת ל-15% — קריסה והפסד"><b id="pwN">50%</b><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="bb" title="החלש מבין הצדדים: ייצור מהיר יותר" hidden>⚡</i></div>
-    <div class="score slots glass" id="slots" title="מבנים: בנויים / מכסה. המפקדה נותנת 4, וכל 🏕 פיקוד קדמי עוד 2">🏗 <b id="slotN">1/4</b></div>
+    <div class="score blue glass" id="power"><b id="pwN">50%</b><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="bb" data-tip="boost" hidden>⚡</i></div>
+    <div class="seg glass" id="gSq" role="group">
+      <button id="all" class="icon" aria-pressed="false" data-al="all" data-tip="all">★</button>
+      <span id="sqs" class="seg"></span>
+    </div>
+    <div class="score slots glass" id="slots" data-tip="slots">🏗 <b id="slotN">1/4</b></div>
   </div>
+  <button id="paused" class="glass" data-al="play" data-tip="play" hidden>⏸</button>
   <ol class="log" id="log" aria-live="polite" hidden></ol>
-  <div class="buildm glass" id="buildm" hidden role="menu" aria-label="בנייה"></div>
+  <div class="buildm glass" id="buildm" hidden role="menu" aria-label="🏗"></div>
   <div class="call glass" id="call" hidden role="alertdialog" aria-live="assertive">
     <span id="callTxt"></span>
-    <button id="callHold">⚓ להחזיק</button><button id="callBack">↩ לסגת</button><b id="callT"></b>
+    <button id="callHold" class="icon" data-tip="tipHold" data-al="hold"></button><button id="callBack" class="icon" data-tip="tipRetreat" data-al="retreat"></button><b id="callT"></b>
   </div>
   <div class="menu glass" id="menu" hidden>
-    <div class="mrow"><span>מהירות</span><button data-rate="0.5">איטי</button><button data-rate="1">רגיל</button><button data-rate="2">מהיר</button></div>
-    <div class="mrow"><span>מוזיקה</span><button id="music" class="icon" aria-pressed="true" aria-label="מוזיקה">♪</button><input id="vol" type="range" min="0" max="100" value="35" aria-label="עוצמת מוזיקה"></div>
-    <div class="mrow"><span>קשר</span><button id="radio" class="icon" aria-pressed="true" aria-label="דיווחי קשר בקול">📻</button><small id="radioNote" class="legend"></small></div>
-    <div class="mrow"><span>פיצוצים</span><button id="sfx" class="icon" aria-pressed="true" aria-label="קולות פיצוצים">💥</button><input id="sfxvol" type="range" min="0" max="100" value="60" aria-label="עוצמת פיצוצים"></div>
-    <button id="help">❔ הסבר</button>
-    <button id="restart">משחק חדש</button>
-    <p class="legend">לחץ על כוח במפה או על המבנה שלו כדי לבחור אותו, או ★ לכל הכוחות. בחר פקודה ולחץ על היעד.<br>רק נ"מ פוגע במטוסים ורחפנים; מטוסים חזקים מול טנקים וג'יפים, טנקים מול חי"ר, נ"מ וג'יפים. מטוסים חוזרים לחימוש לשדה תעופה או למפקדה.<br>💪 ניצחון בקריסה: פחות מ-15% מהעוצמה המשותפת. 🏗 מבנים: ⛺ חי"ר (20 ש׳), 🎯 נ"מ (30), 🔧 ג'יפים (25), 🏭 טנקים (45), 🛫 מטוסים (60, מטוס כל 2 דק׳), 🏥 חובשים (20), 🛠 מכונאים (25), 📦 משאיות אספקה (25). כל מבנה = כוח עם מפקד שהוא ממלא; ליד מבנים מתרפאים. מכסה: 4 מבנים, ועוד 2 לכל 🏕 פיקוד קדמי.<br>🩹 יחידה פגועה קשה יוצאת לבד מהקרב אל החובש (חי"ר, נ"מ) או המכונאי (ג'יפים, טנקים) הקרוב, ואם אין — הביתה. היא לא יורה עד שהחלימה. 📦 כך גם יחידה שנגמרה לה התחמושת: אל משאית האספקה הקרובה או הביתה (הפס הצהוב מתחת לכוח = תחמושת).<br>גרירה בכפתור הימני (בטלפון: לחיצה ארוכה ואז גרירה) = פקודה עם כיוון: החזית פונה לאן שגררת.<br>🗺 בערפל: כוחות לפי הדיווח האחרון, אויב ככתם שגדל ככל שהתצפית ישנה; ⚔ 💥 ✓ 🚩 = דיווחים על המפה.<br>🔷 איכות שליטה (הכחול, בטבעות 100% → 80% → 60% → 40% → 20%): קובעת כמה מהר מגיעה פקודה (1–8 שניות), כמה מדויק היא מבוצעת ואת קצב ודיוק הדיווחים. בטבעת המלאה הכל כמו בלי ערפל. רחפן (D): רחפן חדש כל דקה, עד 10; נשאר באוויר עד שנ"מ מפיל אותו; רואה בטבעות (במרכז הכל, בשוליים רק קרקע/אוויר). לא נותן לבנות. 🏕 פיקוד קדמי (B, ואז לחיצה על המקום; ג'יפים/טנקים נוסעים ומקימים): מגדיל את השליטה ואת השטח שאפשר לבנות בו, עובד אחרי 30 ש׳, אחד כל 3 דקות, עד 3, +2 מבנים כל אחד, אפשר להשמיד.<br>★ כל הכוחות יחד: מסתדרים בשורות מול האויב — טנקים, ג'יפים, חי"ר, נ"מ, ומאחור חובשים ומכונאים; מטוסים מעל. כוח לבד עומד בשורה מול האויב. 📻 דיווחים בקול (בתפריט).<br>✉ בערפל פקודות מגיעות באיחור לפי איכות השליטה. 📞 שיחה: מפקד בלחץ שואל להחזיק או לסגת; בלי תשובה מחליט לפי האופי (🦁 נועז: מחזיק, ממעיט באבדות; 🦉 שקול; 🐇 חרד: נסוג, מגזים באבדות ומדווח יותר).<br>⚡ הצד החלש מייצר מהר יותר (עד 30%).<br>⛰ גובה: כל קו גובה +10% ראייה וטווח; בעלייה איטי, בירידה מהיר. ⚠ ירי על כוחותינו: כוח שלנו ליד המטרה, איפה שהשליטה חלשה.<br>מקלדת: 1–9 כוח, 0 כולם (במבנה), H/A/R פקודות, רווח עצירה, חיצים והזזה, +/− זום, F מסך מלא.</p>
+    <div class="mrow"><span data-t="speed"></span><button data-rate="0.5" data-t="slow"></button><button data-rate="1" data-t="normalRate"></button><button data-rate="2" data-t="fast"></button></div>
+    <div class="mrow"><span data-t="music"></span><button id="music" class="icon" aria-pressed="true" data-al="music" data-tip="music">♪</button><input id="vol" type="range" min="0" max="100" value="35" data-al="vol"></div>
+    <div class="mrow"><span data-t="radio"></span><button id="radio" class="icon" aria-pressed="true" data-al="tipRadio" data-tip="tipRadio">📻</button><small id="radioNote" class="legend"></small></div>
+    <div class="mrow"><span data-t="sfx"></span><button id="sfx" class="icon" aria-pressed="true" data-al="sfx" data-tip="sfx">💥</button><input id="sfxvol" type="range" min="0" max="100" value="60" data-al="sfxVol"></div>
+    <div class="mrow" id="fsRow"><span data-t="fsName"></span><button id="fs" class="icon" aria-pressed="false" data-al="fs" data-tip="fs">⛶</button></div>
+    <div class="mrow"><span data-t="language"></span><button data-lang="he">עברית</button><button data-lang="en">English</button></div>
+    <div class="mrow"><button id="help" data-t="help" data-tip="tipHelp"></button><button id="home" data-t="home" data-tip="tipHome"></button><button id="restart" data-t="restart" data-tip="tipRestart"></button></div>
   </div>
   <div class="intro" id="intro">
     <div class="card glass" role="dialog" aria-labelledby="introT">
-      <h1 id="introT">פיקוד על כוונה</h1>
-      <div class="levels" id="levels" role="group" aria-label="שלב"></div>
-      <div id="rules" hidden>
-      <p class="sub">אתה לא מזיז חיילים. אתה נותן למפקדים כוונה, והם מחליטים איך לבצע.</p>
-      <ol>
-        <li><span>💪</span><span>המטרה: קריסת האויב. מי שנשאר עם פחות מ-15% מהכוח של שני הצדדים (יחידות ומבנים) מפסיד.</span></li>
-        <li><span>🏗</span><span>בנה מבנים (🏗): כל מבנה מקים כוח עם מפקד וממלא אותו — ⛺ חי"ר, 🎯 נ"מ, 🔧 ג'יפים, 🏭 טנקים, 🛫 מטוסים, 🏥 חובשים, 🛠 מכונאים. בונים רק איפה שהשליטה חזקה. המכסה: 4, ועוד 2 לכל 🏕 פיקוד קדמי.</span></li>
-        <li><span>🩹</span><span>יחידה פגועה קשה יוצאת לבד מהקרב אל החובש (חי"ר, נ"מ) או המכונאי (ג'יפים, טנקים) הקרוב — ואם אין, הביתה — ולא יורה עד שהחלימה.</span></li>
-        <li><span>👆</span><span>בחר כוח: בכפתורים למטה, לחיצה עליו במפה, או מקשים <kbd>1</kbd> עד <kbd>9</kbd>. מקש <kbd>0</kbd> בוחר את כולם.</span></li>
-        <li><span>📍</span><span>בחר <b>⚓ להחזיק</b> (לעמוד במקום ולהגן עליו) או <b>⚔ לתקוף</b> (לתפוס את האזור ולרדוף אחרי אויב שם) ולחץ על היעד במפה. <b>↩ לסגת</b> מחזיר הביתה, למבנה של הכוח, להתרפא ולהתמלא.</span></li>
-        <li><span>🗺</span><span>ערפל: אתה רואה דיווחים, לא את השטח. הכוחות שלך מופיעים לפי הדיווח האחרון (❓ = לא דיווח מזמן), האויב ככתמים שמתפשטים עם הזמן.</span></li>
-        <li><span>🔷</span><span>שליטה: הכחול על המפה, בטבעות. בטבעת המלאה ליד המפקדה הכל מדויק ובזמן אמת; ככל שמתרחקים פקודות מגיעות לאט ומבוצעות "בערך", והדיווחים מתיישנים. רחפן (D, אחד חדש כל דקה, עד 10, נשאר עד שנ"מ מפיל) ו-🏕 פיקוד קדמי (B, ג'יפים או טנקים) מרחיבים אותה.</span></li>
-        <li><span>✉</span><span>פקודה היא הודעה: היא מגיעה באיחור, יותר ככל שהשליטה במקום של הכוח חלשה. 📞 מפקד בלחץ מתקשר לשאול; בלי תשובה הוא מחליט לפי האופי שלו (🦁 נועז, 🦉 שקול, 🐇 חרד).</span></li>
-        <li><span>⚡</span><span>החלש מבין הצדדים מייצר מהר יותר. אף משחק לא אבוד מוקדם.</span></li>
-        <li><span>✂</span><span>רק נ"מ פוגע במטוסים ורחפנים. מטוסים מנצחים טנקים וג'יפים, טנקים מנצחים חי"ר, נ"מ וג'יפים, ג'יפים מנצחים חי"ר.</span></li>
-        <li><span>🗺</span><span>מפה גדולה: גרירה מזיזה, גלגלת או צביטה מקרבות, והמפה הקטנה בפינה מקפיצה. לחיצה שנייה על כוח נבחר מביאה אליו. ⛰ על הר רואים ויורים רחוק יותר (+10% לכל קו גובה). ⛶ מסך מלא; בטלפון אפשר גם "הוסף למסך הבית" ולפתוח כאפליקציה.</span></li>
-        <li><span>⏸</span><span>עצירה בכל רגע: <kbd>רווח</kbd> או ⏸. אפשר לתת פקודות גם בעצירה.</span></li>
-      </ol>
-      </div>
+      <div class="langs"><button data-lang="he">עב</button><button data-lang="en">EN</button></div>
+      <h1 id="introT" data-t="title"></h1>
+      <div class="levels" id="levels" role="group"></div>
       <div id="freeOpts">
-      <div class="mrow"><span>ערפל</span><button data-fog="1">פעיל</button><button data-fog="0">כבוי</button></div>
-      <div class="mrow"><span>מפה</span><button data-map="big">גדולה</button><button data-map="small">קטנה</button></div>
-      <div class="mrow"><span>קושי</span><button data-diff="easy">קל</button><button data-diff="normal">רגיל</button><button data-diff="hard">קשה</button></div>
+      <div class="mrow"><span data-t="fog"></span><button data-fog="1" data-t="on" data-tip="tipFogOn"></button><button data-fog="0" data-t="off" data-tip="tipFogOff"></button></div>
+      <div class="mrow"><span data-t="mapSize"></span><button data-map="big" data-t="big" data-tip="tipBig"></button><button data-map="small" data-t="small" data-tip="tipSmall"></button></div>
+      <div class="mrow"><span data-t="diff"></span><button data-diff="easy"></button><button data-diff="normal"></button><button data-diff="hard"></button></div>
       </div>
-      <p class="turn" aria-label="סובב את הטלפון לרוחב">📱↻</p>
-      <button id="go" aria-label="התחל">▶</button>
+      <p class="turn" data-al="turn">📱↻</p>
+      <button id="go" data-al="go">▶</button>
     </div>
   </div>
   <div class="intro" id="end" hidden>
@@ -76,33 +65,29 @@
       <h1 id="endT"></h1>
       <p class="stats"><b class="me" id="endMe"></b> : <b class="foe" id="endFoe"></b> · <span id="endInfo"></span></p>
       <div id="replayBox" hidden>
-        <canvas id="replay" aria-label="שחזור: מה ידעת מול מה קרה"></canvas>
-        <div class="mrow"><span id="replayT">0:00</span><input id="scrub" type="range" min="0" max="0" value="0" aria-label="זמן בשחזור"></div>
-        <p class="legend">● מה קרה באמת · ○ מה ידעת · <span id="endStats"></span></p>
+        <canvas id="replay" data-al="replay"></canvas>
+        <div class="mrow"><span id="replayT">0:00</span><input id="scrub" type="range" min="0" max="0" value="0" data-al="replayT"></div>
+        <p class="legend"><span data-t="replayKey"></span> · <span id="endStats"></span></p>
       </div>
-      <div class="btns"><button id="again">שוב ▶</button><button id="share">שתף 🔗</button><button id="settings">הגדרות</button></div>
+      <div class="btns"><button id="again"></button><button id="share" data-t="share"></button><button id="settings" data-t="levels"></button></div>
     </div>
   </div>
-  <div class="bar glass" id="bar" role="toolbar" aria-label="פקודות">
-    <button id="play" class="icon" aria-label="התחל">▶</button>
-    <button id="gear" class="icon" aria-label="הגדרות" aria-expanded="false">⚙</button>
-    <button id="fs" class="icon" aria-label="מסך מלא (F)" title="מסך מלא (F)" hidden>⛶</button>
-    <span class="sep"></span>
-    <div class="seg" id="gSq" role="group" aria-label="בחירת כוח">
-      <button id="sqT" class="icon" aria-label="כוחות" title="כוחות">👥<b></b></button>
-      <button id="all" class="icon" aria-label="כל הכוחות (0)" aria-pressed="false">★</button>
-      <span id="sqs" class="seg"></span>
-    </div>
-    <span class="sep"></span>
-    <div class="grp" id="gOrd" role="group" aria-label="פקודה">
-    <button class="ord" data-mode="hold" aria-pressed="true" aria-label="להחזיק" title="להחזיק (H): לעמוד במקום שתבחר ולהגן עליו"><span class="lg">להחזיק</span><span class="sm" aria-hidden="true">⚓</span></button>
-    <button class="ord" data-mode="attack" aria-pressed="false" aria-label="לתקוף" title="לתקוף (A): לתפוס את האזור שתבחר ולרדוף אחרי אויב שם"><span class="lg">לתקוף</span><span class="sm" aria-hidden="true">⚔</span></button>
-    <button class="ord" id="retreat" aria-label="לסגת" title="לסגת (R): לחזור הביתה, להתרפא ולהתמלא"><span class="lg">לסגת</span><span class="sm" aria-hidden="true">↩</span></button>
-    </div>
-    <button id="eye" class="icon node" aria-pressed="false" title="רחפן: לחץ ואז בחר מקום במפה (D). רחפן חדש כל דקה, עד 10. נשאר באוויר עד שנ&quot;מ מפיל אותו; רואה ושולט בטבעות סביבו" aria-label="רחפן"><svg class="ico" viewBox="-12 -12 24 24" aria-hidden="true"><path d="M-7-7L7 7M7-7L-7 7" stroke="currentColor" stroke-width="2"/><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="-7" cy="-7" r="4.2"/><circle cx="7" cy="-7" r="4.2"/><circle cx="-7" cy="7" r="4.2"/><circle cx="7" cy="7" r="4.2"/></g><rect x="-3" y="-3" width="6" height="6" rx="1.5" fill="currentColor"/></svg><b id="eyeN"></b><i></i></button>
-    <button id="bld" class="icon" aria-expanded="false" title="בנייה (G): בחר מבנה ואז מקום במפה, איפה שהשליטה חזקה" aria-label="בנייה">🏗</button>
-    <button id="fhq" class="icon node" title="פיקוד קדמי (B): לחץ ואז על המקום במפה — כוח ג'יפים או טנקים (הנבחר, או הקרוב) נוסע לשם ומקים אותו. מגדיל את השטח שאפשר לבנות בו. +2 מבנים במכסה ושליטה סביבו; מתחיל לעבוד אחרי 30 שניות. אחד כל 3 דקות, עד 3" aria-label="פיקוד קדמי">🏕<b id="fhqN"></b><i></i></button>
+  <div class="bar glass" id="bar" role="toolbar">
+    <button id="eye" class="icon node" aria-pressed="false" data-al="eye" data-tip="eye"><svg class="ico" viewBox="-12 -12 24 24" aria-hidden="true"><path d="M-7-7L7 7M7-7L-7 7" stroke="currentColor" stroke-width="2"/><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="-7" cy="-7" r="4.2"/><circle cx="7" cy="-7" r="4.2"/><circle cx="-7" cy="7" r="4.2"/><circle cx="7" cy="7" r="4.2"/></g><rect x="-3" y="-3" width="6" height="6" rx="1.5" fill="currentColor"/></svg><b id="eyeN"></b><i></i></button>
+    <button id="bld" class="icon" aria-expanded="false" data-al="bld" data-tip="bld">🏗</button>
+    <button id="fhq" class="icon node" data-al="fhq" data-tip="fhq">🏕<b id="fhqN"></b><i></i></button>
   </div>
+  <!-- bottom right: the orders (only while something is picked) and the settings in the corner -->
+  <div class="corner" id="corner">
+    <div class="grp glass" id="gOrd" role="group">
+    <button class="ord icon" id="ordHold" data-mode="hold" aria-pressed="true" data-al="hold" data-tip="tipHold"></button>
+    <button class="ord icon" id="ordAttack" data-mode="attack" aria-pressed="false" data-al="attack" data-tip="tipAttack"></button>
+    <button class="ord icon" id="retreat" data-al="retreat" data-tip="tipRetreat"></button>
+    </div>
+    <button id="gear" class="icon glass" data-al="gear" data-tip="gear" aria-expanded="false">⚙</button>
+  </div>
+  <div id="tourBg" hidden></div>
+  <div class="tip glass" id="tip" role="tooltip" hidden><span id="tipT"></span><div class="tipNav" id="tipNav" hidden><small id="tipN"></small><button id="tipSkip"></button><button id="tipNext"></button></div></div>
 </div>
 
 <script src="js/sim/config.js"></script>
@@ -117,6 +102,7 @@
 <script src="js/sim/levels.js"></script>
 <script src="js/sim/step.js"></script>
 <script src="js/ui/core.js"></script>
+<script src="js/ui/lang.js"></script>
 <script src="js/ui/render.js"></script>
 <script src="js/ui/audio.js"></script>
 <script src="js/ui/hud.js"></script>

@@ -20,7 +20,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const level = n => p.evaluate(n => { rate = 1; lvl = n; newGame(true); showIntro(false); setPlaying(false); }, n);
     const run = sec => p.evaluate(sec => { for (let i = 0; i < 30 * sec && !s.over; i++) Sim.step(s, 1 / 30); updateHud(); }, sec);
     // the bar: words for the orders, no posture, a manifest for installing
-    const bar = await p.evaluate(() => ({ ord: [...document.querySelectorAll('#gOrd .lg')].map(e => e.textContent).join(' '), trait: !!document.querySelector('[data-trait]'),
+    const bar = await p.evaluate(() => ({ ord: [...document.querySelectorAll('#gOrd button')].map(e => e.getAttribute('aria-label')).join(' '), trait: !!document.querySelector('[data-trait]'),
       manifest: !!document.querySelector('link[rel=manifest]') }));
     check(name, bar.ord === 'להחזיק לתקוף לסגת' && !bar.trait && bar.manifest, `orders "${bar.ord}", no posture buttons, installable ${JSON.stringify(bar)}`);
     // level 6: medics and mechanics in the build menu, new ones pulsing
@@ -37,7 +37,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
       const inf = s.units.find(u => u.side === 'blue' && u.type === 'inf'); inf.hp = 12; Sim.step(s, 1 / 30);
       const med = s.units.find(u => u.type === 'med' && u.side === 'blue');
       Sim.step(s, 0.5); cam = { x: (inf.x + med.x) / 2, y: (inf.y + med.y) / 2, z: zoomMax() }; applyView(); updateHud();
-      return { care: !!inf.care, med: !!med, btn: [...document.querySelectorAll('[data-sq]')].length };
+      return { care: !!inf.care, med: !!med, btn: [...document.querySelectorAll('[data-ty]')].length };
     });
     await p.waitForTimeout(200);
     check(name, cared.care && cared.med, `a hurt infantryman goes for the medics ${JSON.stringify(cared)}`);
@@ -65,9 +65,9 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     check(name, r10.friction && r10.rings && r10.live, `level 10: command friction, control rings drawn, near HQ the picture is live ${JSON.stringify(r10)}`);
     await p.evaluate(() => { cam.z = 1; applyView(); });
     await p.screenshot({ path: `${OUT}/${name}-st-lv10-rings.png` });
-    // a unit that leaves the exact picture doesn't vanish: it fades out where it was last drawn
-    const ghost = await p.evaluate(() => { const u = s.units.find(x => x.side === 'blue' && anim.last.has(x.id)); if (!u) return null; u.x = s.W - 300; u.y = 60; Sim.step(s, 1); draw(); const g = anim.last.get(u.id); return g ? +(s.t - g.t).toFixed(1) : null; });
-    check(name, ghost !== null && ghost > 0 && ghost < 10, `a unit gone out of the full-control ring fades out where it was (seen ${ghost} s ago)`);
+    // our squad out of the exact picture doesn't vanish: faint units where it probably is, and its badge
+    const ghost = await p.evaluate(() => { const q = s.squads.find(x => x.side === 'blue' && !x.dead); for (const u of s.units) if (u.squad === q.id) { u.x = s.W - 300; u.y = 60; } q.cx = s.W - 300; q.cy = 60; Sim.step(s, 1); draw(); const g = guessAt(q); return { shown: sqShown(q), g: !!g && Number.isFinite(g.x) }; });
+    check(name, !ghost.shown && ghost.g, `our squad out of the full-control ring shows where it probably is ${JSON.stringify(ghost)}`);
     // level 11: the quota is full; pressing 🏗 blinks the counter and 🏕; 🏕 with no jeep/tank picked blinks the squads that can
     await level(11); await p.waitForTimeout(250);
     await p.click('#bld', { force: true }); await p.waitForTimeout(100);
@@ -110,22 +110,19 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // a fight up close: the fallen stay a while, vehicles leave tracks
     const fx = await p.evaluate(() => { const u = s.units.find(x => x.side === 'blue' && x.type === 'inf'); u.hp = 0; for (let i = 0; i < 60; i++) Sim.step(s, 1 / 30); for (let i = 0; i < 20; i++) draw(); return { fallen: s.fallen.length, tracks: tracks.length }; });
     check(name, fx.fallen >= 1 && fx.tracks > 0, `the fallen lie there a while, vehicles leave tracks ${JSON.stringify(fx)}`);
-    // the full screen button (Chrome has the API; not shown when already full screen / installed)
-    check(name, await shown('#fs'), 'a full screen button ⛶');
+    // full screen is in the settings (Chrome has the API; not shown when installed)
+    await p.evaluate(() => openMenu()); check(name, await shown('#fs'), 'a full screen switch ⛶ in the settings'); await p.evaluate(() => closeMenu(false));
     check(name, !errs.length, `no errors ${JSON.stringify(errs)}`);
     await ctx.close();
   }
   {
-    // a phone held upright: the squad buttons fold into 👥, which opens them
+    // a phone held upright: the type buttons at the top fit (wrapping under the power bar), the corner holds the settings
     const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
     await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); } catch (e) { /* ignore */ } });
     const p = await ctx.newPage(); await p.goto(URL); await p.waitForTimeout(400); await p.click('#go'); await p.waitForTimeout(300);
-    const vis = sel => p.evaluate(sel => { const e = document.querySelector(sel); return !!e && e.offsetParent !== null && getComputedStyle(e).display !== 'none'; }, sel);
-    const closed = { t: await vis('#sqT'), sqs: await vis('#sqs') };
-    await p.click('#sqT'); await p.waitForTimeout(150); const open = await vis('#sqs');
+    const lay = await p.evaluate(() => { const r = e => document.getElementById(e).getBoundingClientRect(); return { types: document.querySelectorAll('[data-ty]').length, fits: r('gSq').right <= innerWidth && r('gSq').left >= 0, gear: innerWidth - r('gear').right < 20 && innerHeight - r('gear').bottom < 20, overlap: r('bar').right > r('corner').left && r('bar').bottom > r('corner').top }; });
     await p.screenshot({ path: `${OUT}/portrait-squads.png` });
-    await p.click('[data-sq]'); await p.waitForTimeout(150); const after = await vis('#sqs');
-    check('portrait', closed.t && !closed.sqs && open && !after, `upright phone: squads fold into 👥 (${JSON.stringify(closed)}), open on a tap (${open}), close after picking one (${after})`);
+    check('portrait', lay.types === 2 && lay.fits && lay.gear && !lay.overlap, `upright phone: ${JSON.stringify(lay)}`);
     await ctx.close();
   }
   await b.close();

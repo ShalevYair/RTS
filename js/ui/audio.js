@@ -355,12 +355,17 @@ const Radio = (() => {
   const PRI = { lost: 3, hit: 3, flagLost: 3, call: 3, nodeLost: 3, ff: 3, contact: 2, flag: 2, fhq: 1, ok: 1 };
   const TEXT = { fhq: w => `${w}, מקימים פיקוד קדמי`, nodeLost: w => w === 'drone' ? 'הרחפן הופל' : `${Sim.STRUCTS[w].name} הושמד`, call: w => `${w}, לחץ כבד. להחזיק או לסגת?`, contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`, ff: w => `${w}, ירי על כוחותינו!`,
     ok: w => `${w}, הגענו`, flag: w => `כבשנו את ${w}`, flagLost: w => `איבדנו את ${w}` };
+  const TEXT_EN = { fhq: w => `${w}, setting up forward HQ`, nodeLost: w => w === 'drone' ? 'Drone down' : `${EN_STRUCTS[w]} destroyed`, call: w => `${w}, heavy pressure. Hold or retreat?`, contact: w => `${w}, contact`, hit: w => `${w}, heavy losses, falling back`, lost: w => `${w}, squad destroyed`, ff: w => `${w}, friendly fire!`,
+    ok: w => `${w}, in position`, flag: w => `We took ${w}`, flagLost: w => `We lost ${w}` };
+  // the sim names squads by their type, in Hebrew
+  const typeOf = n => Object.keys(Sim.TYPES).find(k => Sim.TYPES[k].name === n);
   let on = true, voice = null, pending = null;
-  const pickVoice = () => { try { voice = synth.getVoices().find(v => /^he/i.test(v.lang)) || null; } catch (e) { voice = null; } };
+  const pickVoice = () => { try { voice = synth.getVoices().find(v => lang === 'he' ? /^he/i.test(v.lang) : /^en/i.test(v.lang)) || null; } catch (e) { voice = null; } };
   if (synth) { pickVoice(); try { synth.addEventListener('voiceschanged', pickVoice); } catch (e) { /* old browsers */ } }
   function hear(k) {
     if (!on || !TEXT[k.kind]) return;
-    if (!pending || PRI[k.kind] >= pending.pri) pending = { pri: PRI[k.kind], text: TEXT[k.kind](SAY[k.who] || k.who || ''), at: performance.now() };
+    const en = lang === 'en', ty = typeOf(k.who), who = en ? (ty ? EN_TYPES[ty] : k.who) : SAY[k.who] || k.who;
+    if (!pending || PRI[k.kind] >= pending.pri) pending = { pri: PRI[k.kind], text: (en ? TEXT_EN : TEXT)[k.kind](who || ''), at: performance.now() };
   }
   // called every frame: say the pending report when the channel is free; stale ones are dropped
   function tick() {
@@ -375,13 +380,14 @@ const Radio = (() => {
     pending = null;
   }
   const reset = () => { pending = null; try { synth && synth.cancel(); } catch (e) { /* ignore */ } };
-  return { hear, tick, reset, set: v => { on = v; if (!v) reset(); }, hasVoice: () => !!voice };
+  return { hear, tick, reset, pickVoice, set: v => { on = v; if (!v) reset(); }, hasVoice: () => !!voice };
 })();
 let radioOn = true;
 try { radioOn = localStorage.getItem('irts-radio') !== '0'; } catch (e) { /* storage unavailable */ }
 function syncRadio() {
-  Radio.set(radioOn); $('radio').setAttribute('aria-pressed', String(radioOn));
-  $('radioNote').textContent = Radio.hasVoice() ? '' : 'אין קול עברי במכשיר, רק צליל קשר';
+  Radio.pickVoice(); Radio.set(radioOn); $('radio').setAttribute('aria-pressed', String(radioOn));
+  // no voice for the language: a mark, the reason in its tooltip
+  const rn = $('radioNote'); rn.textContent = Radio.hasVoice() ? '' : '🔇'; rn.dataset.tip = 'noVoice';
 }
 $('radio').addEventListener('click', () => { radioOn = !radioOn; try { localStorage.setItem('irts-radio', radioOn ? '1' : '0'); } catch (e) { /* ignore */ } syncRadio(); });
 syncRadio(); try { speechSynthesis.addEventListener('voiceschanged', syncRadio); } catch (e) { /* no speech */ }

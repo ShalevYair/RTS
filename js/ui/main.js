@@ -8,8 +8,8 @@ function newGame(skipIntro) {
   cam = s.H > Sim.H ? { x: 0, y: s.H / 2, z: -1 } : { x: s.W / 2, y: s.H / 2, z: 1 };
   // in the tutorial a tap on the map attacks (hold / retreat come later)
   decor = makeDecor(s); sel = 'all'; mode = lvl ? 'attack' : 'hold'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; sqKey = ''; Radio.reset();
-  $('buildm').hidden = true;
-  $('end').hidden = true; $('share').textContent = 'שתף 🔗';
+  $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
+  $('end').hidden = true; $('share').textContent = tr('share');
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
 }
 

@@ -155,7 +155,7 @@ function poly(c, pts, k) {
 // unit / facility glyphs: soldier, missile, tank (with barrel), plane
 // step: how far along its stride / tracks the unit is (radians; 0 = standing): legs swing, treads run, bodies bob
 function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step = 0) {
-  const sw = Math.sin(step) * 0.13 * k, bob = step ? Math.abs(Math.sin(step)) * 0.05 * k : 0;
+  const sw = Math.sin(step) * 0.26 * k, bob = step ? Math.abs(Math.sin(step)) * 0.12 * k : 0;
   c.save(); c.translate(x, y - bob); c.lineJoin = 'round'; c.lineCap = 'round';
   const paint = () => { if (outline) { c.lineWidth = lw; c.strokeStyle = outline; c.stroke(); } c.fillStyle = fill; c.fill(); };
   const barrel = (x1, y1, x2, y2, w) => {
@@ -180,8 +180,8 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     c.rotate(hd); c.beginPath(); c.rect(-0.8 * k, -0.55 * k, 1.6 * k, 1.1 * k); paint();
     c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(-0.8 * k, -0.55 * k, 1.6 * k, 0.24 * k); c.fillRect(-0.8 * k, 0.31 * k, 1.6 * k, 0.24 * k);
     // tread links running back as it drives
-    c.fillStyle = 'rgba(255,255,255,.28)';
-    for (let i = 0; i < 5; i++) { const tx = (-0.8 + (((i * 0.32 - step * 0.06) % 1.6) + 1.6) % 1.6) * k; c.fillRect(tx, -0.55 * k, 0.08 * k, 0.24 * k); c.fillRect(tx, 0.31 * k, 0.08 * k, 0.24 * k); }
+    c.fillStyle = step ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.28)';
+    for (let i = 0; i < 5; i++) { const tx = (-0.8 + (((i * 0.32 - step * 0.09) % 1.6) + 1.6) % 1.6) * k; c.fillRect(tx, -0.55 * k, 0.11 * k, 0.24 * k); c.fillRect(tx, 0.31 * k, 0.11 * k, 0.24 * k); }
     c.rotate(aim - hd); barrel(0, 0, 1.3 * k, 0, 0.22 * k);
     c.beginPath(); c.arc(0, 0, 0.36 * k, 0, Math.PI * 2); paint();
   } else if (type === 'truck') {
@@ -209,7 +209,7 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     // jeep: open body, four wheels, a pintle gun on top
     c.rotate(hd); c.beginPath(); c.rect(-0.75 * k, -0.45 * k, 1.5 * k, 0.9 * k); paint();
     c.fillStyle = 'rgba(0,0,0,.45)'; for (const [wx, wy] of [[-0.5, -0.55], [0.35, -0.55], [-0.5, 0.42], [0.35, 0.42]]) c.fillRect(wx * k, wy * k, 0.3 * k, 0.14 * k);
-    if (step) { c.fillStyle = 'rgba(255,255,255,.35)'; const o = (Math.sin(step * 2) + 1) * 0.1 * k; for (const [wx, wy] of [[-0.5, -0.55], [0.35, -0.55], [-0.5, 0.42], [0.35, 0.42]]) c.fillRect(wx * k + o, wy * k, 0.06 * k, 0.14 * k); }
+    if (step) { c.fillStyle = 'rgba(255,255,255,.6)'; const o = (Math.sin(step * 2) + 1) * 0.1 * k; for (const [wx, wy] of [[-0.5, -0.55], [0.35, -0.55], [-0.5, 0.42], [0.35, 0.42]]) c.fillRect(wx * k + o, wy * k, 0.09 * k, 0.14 * k); }
     c.rotate(aim - hd); barrel(0, 0, 0.9 * k, 0, 0.12 * k);
   } else {
     if (Math.cos(hd) < 0) c.scale(-1, 1);
@@ -382,14 +382,22 @@ function drawHQ(c, x, y, col) {
 }
 const HQ_WALL = '#b8a47a', HQ_YARD = '#9c8b66';
 // drone: a quadcopter from above — four rotors on an X frame
-// what a squad is doing, under its target ring: a symbol, not a word
-const ORDER_ICON = { hold: '⚓', attack: '⚔', retreat: '↩', support: '➕' }, AMMO = '#e0b020';
-function drawDrone(c, x, y, k, col) {
-  c.save(); c.translate(x, y); c.lineWidth = k * 0.16; c.strokeStyle = colors.outline;
+// what a squad is doing, under its target ring: the order's symbol (as on its button), in one colour for all
+const ORDER_P2D = Object.fromEntries(Object.entries(ORDER_PATH).map(([k, d]) => [k, new Path2D(d)])), AMMO = '#e0b020';
+function orderMark(c, type, x, y) {
+  c.save(); c.translate(x, y); c.scale(0.62, 0.62); c.lineJoin = 'round';
+  c.lineWidth = 4.5; c.strokeStyle = colors.halo; c.stroke(ORDER_P2D[type]); c.fillStyle = colors.blue; c.fill(ORDER_P2D[type]);
+  c.restore();
+}
+function drawDrone(c, x, y, k, col, rot = 0, spin = 0) {
+  c.save(); c.translate(x, y); c.rotate(rot); c.lineWidth = k * 0.16; c.strokeStyle = colors.outline;
   c.beginPath(); c.moveTo(-k * 0.7, -k * 0.7); c.lineTo(k * 0.7, k * 0.7); c.moveTo(k * 0.7, -k * 0.7); c.lineTo(-k * 0.7, k * 0.7); c.stroke();
   for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
     c.fillStyle = colors.halo; c.beginPath(); c.arc(a * k * 0.7, b * k * 0.7, k * 0.42, 0, Math.PI * 2); c.fill();
     c.lineWidth = k * 0.1; c.strokeStyle = col; c.stroke();
+    // a rotor blade, spinning (each pair the other way)
+    const r = spin * (a * b), bx = Math.cos(r) * k * 0.36, by = Math.sin(r) * k * 0.36;
+    c.lineWidth = k * 0.07; c.strokeStyle = colors.outline; c.beginPath(); c.moveTo(a * k * 0.7 - bx, b * k * 0.7 - by); c.lineTo(a * k * 0.7 + bx, b * k * 0.7 + by); c.stroke();
   }
   c.fillStyle = col; c.beginPath(); c.rect(-k * 0.28, -k * 0.28, k * 0.56, k * 0.56); c.fill(); c.lineWidth = k * 0.08; c.strokeStyle = colors.outline; c.stroke();
   c.restore();
@@ -410,7 +418,8 @@ function drawFog() {
     g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
     f.fillStyle = g; f.beginPath(); f.arc(x, y, r, 0, Math.PI * 2); f.fill();
   };
-  for (const q of s.squads) if (q.side === 'blue' && !q.dead) { const p = pos(q); hole(p.x, p.y, Sim.TYPES[q.type].sight + 30); }
+  // our squads lift the fog around them only where they're drawn (not around a guess)
+  for (const q of s.squads) if (q.side === 'blue' && !q.dead && sqShown(q)) hole(q.cx, q.cy, Sim.TYPES[q.type].sight + 30);
   for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, n.kind === 'drone' ? Sim.DRONE_SIGHT + 15 : n.kind === 'fhq' ? Sim.NODES.fhq.sight : n.kind === 'hq' ? Sim.STRUCTS.hq.sight + 20 : 120);
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = s.fogAt ? Math.min(1, (s.t - s.fogAt) / 3) : 1; ctx.drawImage(fogCv, 0, 0); ctx.restore();
 }
@@ -481,10 +490,12 @@ function drawStruct(c, n, ghost) {
   c.globalAlpha = ghost ? 0.45 : 1;
   if (!ghost && n.kind !== 'hq') {
     const k = !on ? (s.t - n.t0) / Math.max(0.01, n.ready - n.t0) : n.kind === 'drone' ? n.hp / N.hp : S.unit ? n.prog : 1;
-    c.strokeStyle = col; c.lineWidth = 3; c.beginPath(); c.arc(n.x, n.y, 16 * big, -Math.PI / 2, -Math.PI / 2 + Math.max(0, Math.min(1, k)) * Math.PI * 2); c.stroke();
+    const dr = n.kind === 'drone'; c.globalAlpha = dr ? 0.45 : 1;
+    c.strokeStyle = col; c.lineWidth = dr ? 2 : 3; c.beginPath(); c.arc(n.x, n.y, 16 * big, -Math.PI / 2, -Math.PI / 2 + Math.max(0, Math.min(1, k)) * Math.PI * 2); c.stroke();
+    c.globalAlpha = 1;
   }
   if (n.kind === 'hq') drawHQ(c, n.x, n.y, col);
-  else if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.55; drawDrone(c, n.x, n.y, 11, col); }
+  else if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.35 : 0.55; drawDrone(c, n.x, n.y, 11, col, s.t * 0.35 + n.id, on ? s.t * 25 : 0); }
   else {
     c.fillStyle = colors.halo; ring(n.x, n.y, 13 * big); c.fill(); c.lineWidth = 1.5; c.strokeStyle = col; c.stroke();
     c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.25 + 0.6 * grow; c.font = `${Math.round(16 * big)}px sans-serif`; c.fillText(S.icon, n.x, n.y + 6 * big);
@@ -529,7 +540,7 @@ function drawMail(c) {
   for (const m of s.outbox) {
     const q = m.side === 'blue' && s.squads.find(x => x.id === m.id);
     if (!q || q.dead) continue;
-    const p = pos(q), k = Math.min(1, (s.t - m.sent) / Math.max(0.01, m.at - m.sent));
+    const p = guessAt(q), k = Math.min(1, (s.t - m.sent) / Math.max(0.01, m.at - m.sent));
     c.globalAlpha = 0.55; c.strokeStyle = colors.blue; c.lineWidth = 1; c.setLineDash([2, 5]);
     c.beginPath(); c.moveTo(hq.x, hq.y); c.lineTo(p.x, p.y - 26); c.stroke(); c.setLineDash([]);
     c.globalAlpha = 1; c.font = '13px sans-serif';
@@ -558,7 +569,7 @@ function stride(u) {
   if (!a) { a = { x: u.x, y: u.y, ph: 0 }; anim.walk.set(u.id, a); }
   const d = Math.hypot(u.x - a.x, u.y - a.y); a.x = u.x; a.y = u.y;
   if (d > 0.05 && d < 20) a.ph += d * 0.35; else if (d <= 0.05) a.ph = 0;
-  if (d > 0.05) addTrack(u, a);
+  if (d > 0.05) { addTrack(u, a); addDust(u, a, d); }
   return a.ph;
 }
 // the fallen lie where they fell for a while (soldiers on their side, vehicles as dark wrecks), fading
@@ -582,6 +593,25 @@ function addTrack(u, a) {
   a.tx = u.x; a.ty = u.y; tracks.push({ x: u.x, y: u.y, a: u.hd, t: s.t, w: u.type === 'tank' ? 0.55 : 0.45, k: SIZE[u.type] });
   if (tracks.length > TRACK_MAX) tracks.splice(0, tracks.length - TRACK_MAX);
 }
+// dust: little clouds kicked up behind moving vehicles (fewer behind soldiers), swelling and fading in DUST_T s
+const dust = [], DUST_T = 0.9, DUST_MAX = 400;
+function addDust(u, a, d) {
+  const car = u.type === 'tank' || u.type === 'jeep' || u.type === 'mech' || u.type === 'truck';
+  a.dd = (a.dd || 0) + d; if (a.dd < (car ? 6 : 14)) return; a.dd = 0;
+  const k = SIZE[u.type], back = car ? k * 0.9 : k * 0.2, sx = (Math.random() - 0.5) * k * 0.6;
+  dust.push({ x: u.x - Math.cos(u.hd) * back - Math.sin(u.hd) * sx, y: u.y + k * (car ? 0.2 : 0.7) - Math.sin(u.hd) * back + Math.cos(u.hd) * sx, t: s.t, r: car ? (u.type === 'tank' ? 3.2 : 2.4) : 1.4 });
+  if (dust.length > DUST_MAX) dust.splice(0, dust.length - DUST_MAX);
+}
+function drawDust(c) {
+  while (dust.length && s.t - dust[0].t > DUST_T) dust.shift();
+  c.fillStyle = DUST_COL;
+  for (const p of dust) {
+    const a = (s.t - p.t) / DUST_T; if (a < 0) continue;
+    c.globalAlpha = 0.45 * (1 - a); ring(p.x, p.y - a * 3, p.r * (1 + a * 1.6)); c.fill();
+  }
+  c.globalAlpha = 1;
+}
+const DUST_COL = '#cbbd9c';
 function drawTracks(c) {
   while (tracks.length && s.t - tracks[0].t > TRACK_T) tracks.shift();
   c.fillStyle = colors.shadow;
@@ -607,7 +637,7 @@ function drawGhosts(c) {
 function drawUnits(c, show) {
   for (const pass of [false, true]) for (const u of s.units) {
     const T = Sim.TYPES[u.type]; if (!!T.air !== pass || !show(u)) continue;
-    if (s.fog) anim.last.set(u.id, { x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t });
+    if (s.fog && u.side === 'red') anim.last.set(u.id, { x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t });
     const k = SIZE[u.type], recent = s.t - u.lastFire < 3;
     const aim = recent ? u.aim : (u.type === 'aa' ? idleAim('aa', u.side) : u.hd);
     if (T.air) { c.globalAlpha = 0.22; glyph(c, 'air', u.x + 7, u.y + 10, k, '#000', null, u.hd); c.globalAlpha = 1; }
@@ -633,14 +663,15 @@ function draw() {
   c.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
   c.textAlign = 'center';
   drawGround(c);
-  // player orders
+  // player orders: the way and the target, for a few seconds after the order (or after picking the squad)
   const labelSpots = [];
   for (const q of s.squads) {
     if (q.side !== 'blue' || q.dead) continue;
+    const fade = pathFade(q); if (fade <= 0) continue;
     let o = q.retreating ? { ...Sim.homeOf(s, q), r: 30, type: 'retreat' } : Sim.effOrder(s, q);
-    if (o.target) o = { ...o, x: pos(o.target).x, y: pos(o.target).y };
-    const on = isSel(q.id), p = pos(q);
-    c.strokeStyle = colors.blue; c.globalAlpha = on ? 0.9 : 0.35; c.lineWidth = on ? 2 : 1.2;
+    if (o.target) o = { ...o, x: guessAt(o.target).x, y: guessAt(o.target).y };
+    const on = isSel(q.id), p = guessAt(q);
+    c.strokeStyle = colors.blue; c.globalAlpha = (on ? 0.9 : 0.5) * fade; c.lineWidth = on ? 2 : 1.4;
     c.setLineDash(o.type === 'support' ? [2, 4] : [7, 5]); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(o.x, o.y); c.stroke();
     const or = o.form ? 22 : o.r; ring(o.x, o.y, or); c.stroke(); c.setLineDash([]); // (in a formation: a small ring per squad)
     // "roger": the ring is where the commander understood the order; a cross marks what was actually asked
@@ -649,7 +680,7 @@ function draw() {
       c.lineWidth = 2; c.beginPath(); c.moveTo(w.x - 5, w.y - 5); c.lineTo(w.x + 5, w.y + 5); c.moveTo(w.x + 5, w.y - 5); c.lineTo(w.x - 5, w.y + 5); c.stroke();
     }
     const stack = labelSpots.filter(p => Math.hypot(p.x - o.x, p.y - o.y) < 30).length; labelSpots.push(o);
-    label(ORDER_ICON[o.type], o.x, o.y + or + 14 + stack * 15, tcol(q.type));
+    c.globalAlpha = fade; orderMark(c, o.type, o.x, o.y + or + 10 + stack * 15);
     c.globalAlpha = 1;
   }
   // shots in flight: bullets (a quick bright dot), shells (a glowing round with a short streak), missiles (a body
@@ -672,7 +703,7 @@ function draw() {
   c.restore(); c.globalAlpha = 1;
   // units: exact picture without fog; under fog what we see where the picture is exact (see shownAt)
   if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); tracks.length = 0; }
-  drawTracks(c); drawFallen(c);
+  drawTracks(c); drawFallen(c); drawDust(c);
   if (!s.fog) drawUnits(c, () => true);
   else { drawUnits(c, u => (u.side === 'blue' || s.vis.blue.has(u.id)) && shownAt(u)); drawGhosts(c); }
   // explosions: fireball, smoke ring for medium+, sparks for big
@@ -695,42 +726,80 @@ function draw() {
   if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); drawMail(c); }
   drawNodes(c);
   drawBuildArea(c);
-  // squad badges: tap to select; type icon, strength bar, posture. Under fog: at the last report.
+  // our squads. Where the units themselves are drawn: their strength and ammunition over them, no badge. Where they
+  // aren't (out of the exact picture under command friction): faint units where they probably are by now, and a
+  // badge with the type to pick them by — without strength or ammunition, which aren't known there.
   const pulse = 0.55 + 0.25 * Math.sin(performance.now() / 180);
   for (const q of s.squads) {
     if (q.side !== 'blue' || q.dead) continue;
-    const p = pos(q), age = s.t - p.t, stale = Sim.friction(s) && age > STALE;
-    if (Sim.friction(s) && p.prev && age < TRAIL && age > 0.1) {
-      c.globalAlpha = 0.5 * (1 - age / TRAIL); c.strokeStyle = tcol(q.type); c.lineWidth = 2; c.setLineDash([2, 3]);
-      c.beginPath(); c.moveTo(p.prev.x, p.prev.y - 26); c.lineTo(p.x, p.y - 26); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
+    const m = s.units.filter(u => u.squad === q.id), on = isSel(q.id);
+    if (sqShown(q)) {
+      if (!m.length) continue;
+      let top = Infinity, cx = 0; for (const u of m) { top = Math.min(top, u.y - SIZE[u.type]); cx += u.x; } cx /= m.length;
+      const y = top - 12, bars = [];
+      if (q.strength < 0.98 || on) bars.push([colors.blue, Math.min(1, q.strength)]);
+      const A = Sim.TYPES[q.type].ammo;
+      if (s.supply && Sim.SUPPLY[q.type]) { const k = m.reduce((a, u) => a + u.sup, 0) / m.length; if (k < 0.98 || on) bars.push([AMMO, k]); }
+      if (A) { const k = m.reduce((a, u) => a + (u.rearm ? 0 : u.ammo / A), 0) / m.length; if (k < 0.98 || on) bars.push([AMMO, k]); }
+      bars.forEach(([col, k], i) => { c.fillStyle = colors.shadow; c.fillRect(cx - 12, y + i * 4, 24, 3); c.fillStyle = col; c.fillRect(cx - 12, y + i * 4, 24 * k, 3); });
+      // why it's heading back: 🩹 to heal, 📦 for ammunition, ⟳ aircraft rearming
+      const why = [q.retreating && '🩹', m.some(u => u.resup) && '📦', m.some(u => u.rearm) && '⟳'].filter(Boolean);
+      c.font = '14px sans-serif'; why.forEach((w, i) => c.fillText(w, cx + (i - (why.length - 1) / 2) * 16, y - 6));
+      continue;
     }
+    const p = guessAt(q), r = pos(q), age = s.t - r.t, stale = age > STALE;
+    drawGuess(c, q, p);
     if (stale) c.globalAlpha = pulse;
-    const x = p.x, y = p.y - 26, on = isSel(q.id);
+    const x = p.x, y = p.y - 26;
     c.fillStyle = colors.shadow; ring(x + 1.5, y + 2.5, 12); c.fill();
     c.fillStyle = tcol(q.type); ring(x, y, 12); c.fill();
     c.lineWidth = on ? 3 : 1.5; c.strokeStyle = on ? colors.ink : '#fff'; c.stroke();
     glyph(c, q.type, x - (q.type === 'tank' ? 1.5 : 0), y, q.type === 'air' ? 8.5 : 6.5, '#fff', null, 0, q.type === 'aa' ? -Math.PI / 2 : 0);
-    c.fillStyle = colors.shadow; c.fillRect(x - 12, y + 15, 24, 3);
-    c.fillStyle = tcol(q.type); c.fillRect(x - 12, y + 15, 24 * Math.min(1, p.strength), 3);
-    c.font = '11px sans-serif';
-    if (Sim.friction(s)) c.fillText(Sim.TEMPERS[q.temper].icon, x - 20, y + 4);
     if (stale) label('?', x - 17, y - 6, colors.ink);
-    // why it's heading back: 🩹 fell back after heavy losses (to heal at home); aircraft show ammo, ⟳ = going to rearm
     if (q.retreating) { c.font = '15px sans-serif'; c.fillText('🩹', x, y - 18); }
-    if (s.supply && Sim.SUPPLY[q.type]) {
-      const m = s.units.filter(u => u.squad === q.id), k = m.length ? m.reduce((a, u) => a + u.sup, 0) / m.length : 0;
-      c.fillStyle = colors.shadow; c.fillRect(x - 12, y + 19, 24, 3); c.fillStyle = AMMO; c.fillRect(x - 12, y + 19, 24 * k, 3);
-      if (m.some(u => u.resup)) { c.font = '14px sans-serif'; c.fillText('📦', x + (q.retreating ? 16 : 0), y - 18); }
-    }
-    if (Sim.TYPES[q.type].ammo) {
-      const m = s.units.filter(u => u.squad === q.id), A = Sim.TYPES[q.type].ammo;
-      const k = m.length ? m.reduce((a, u) => a + (u.rearm ? 0 : u.ammo / A), 0) / m.length : 0;
-      c.fillStyle = colors.shadow; c.fillRect(x - 12, y + 19, 24, 3); c.fillStyle = AMMO; c.fillRect(x - 12, y + 19, 24 * k, 3);
-      if (m.some(u => u.rearm)) { c.font = '15px sans-serif'; c.fillText('⟳', x, y - 18); }
-    }
     c.globalAlpha = 1;
   }
 }
+// a squad's units are drawn as they are (no command friction, or some of them in the exact picture)
+const sqShown = q => !Sim.friction(s) || s.units.some(u => u.squad === q.id && shownAt(u));
+// where a squad out of the exact picture probably is by now: its last report, carried on toward its order at its
+// speed for the time since (so it's off from the truth as much as the report and the guess are); eased on screen
+const guess = new Map();
+function guessAt(q) {
+  const r = pos(q);
+  if (!r || !Sim.friction(s) || q.side !== 'blue') return r;
+  const o = q.retreating ? Sim.homeOf(s, q) : Sim.effOrder(s, q), T = Sim.TYPES[q.type];
+  const dx = o.x - r.x, dy = o.y - r.y, d = Math.hypot(dx, dy), go = d > 1 ? Math.min(d, T.speed * 0.8 * Math.max(0, s.t - r.t)) : 0;
+  const want = { x: r.x + (d > 1 ? dx / d * go : 0), y: r.y + (d > 1 ? dy / d * go : 0) };
+  let g = guess.get(q.id); const now = performance.now();
+  if (!g || g.s !== s || Math.hypot(g.x - want.x, g.y - want.y) > 250) g = { x: want.x, y: want.y, at: now, s };
+  const k = Math.min(1, (now - g.at) / 1000 * 2.5); g.at = now;
+  g.mx = want.x - g.x; g.my = want.y - g.y; g.x += g.mx * k; g.y += g.my * k; g.moving = go > 2 && go < d - 2; g.hd = d > 1 ? Math.atan2(dy, dx) : (q.face ?? 0);
+  guess.set(q.id, g);
+  return { x: g.x, y: g.y, strength: r.strength, t: r.t, prev: r.prev, moving: g.moving, hd: g.hd };
+}
+// faint units in a line across the way it's going, as many as the last report says
+function drawGuess(c, q, p) {
+  const n = Math.max(1, Math.min(q.size || 1, Math.round((q.size || 1) * Math.min(1, p.strength)))), k = SIZE[q.type];
+  const hd = p.hd, ux = -Math.sin(hd), uy = Math.cos(hd), gap = k * 1.5, step = p.moving ? performance.now() / 120 : 0;
+  c.globalAlpha = 0.24;
+  for (let i = 0; i < n; i++) {
+    const row = Math.floor(i / 6), col = i % 6, cols = Math.min(6, n - row * 6), off = (col - (cols - 1) / 2) * gap;
+    const x = p.x + ux * off - Math.cos(hd) * row * gap, y = p.y + uy * off - Math.sin(hd) * row * gap;
+    glyph(c, q.type, x, y, k, colors.blue, colors.outline, hd, q.type === 'aa' ? idleAim('aa', 'blue') : hd, 1.2, step + i);
+  }
+  c.globalAlpha = 1;
+}
+// the order lines: when each squad's order (or pick) was last seen new
+const paths = new Map(), PATH_T = 6;
+function pathFade(q) {
+  const key = q.retreating ? 'R' : q.support ? 'S' + q.support : q.order;
+  let e = paths.get(q.id);
+  if (!e || e.k !== key || e.s !== s) { e = { k: key, t: s.t, s }; paths.set(q.id, e); }
+  const age = s.t - e.t; return age >= PATH_T ? 0 : Math.min(1, (PATH_T - age) / 1.5);
+}
+// picking squads shows their lines again
+function seePaths() { for (const [id, e] of paths) if (isSel(id)) e.t = s.t; }
 
 // minimap (shown when the map doesn't fit on screen): terrain, our squads and structures, what we know of the
 // enemy, fresh reports, and the part on screen. Tap / drag it to look there.
@@ -750,7 +819,7 @@ function drawMini() {
   if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { c.globalAlpha = 0.5; const n = s.memNodes.blue[id]; dot(n.x, n.y, 14, colors.red, true); c.globalAlpha = 1; }
   for (const q of s.squads) {
     if (q.dead) continue;
-    if (q.side === 'blue') { const p = pos(q); if (p) dot(p.x, p.y, 20, tcol(q.type)); continue; }
+    if (q.side === 'blue') { const p = guessAt(q); if (p) dot(p.x, p.y, 20, colors.blue); continue; }
     const e = s.fog ? s.mem.blue[q.id] : { x: q.cx, y: q.cy, t: s.t };
     if (e && s.t - e.t < 40) { c.globalAlpha = 1 - (s.t - e.t) / 40; dot(e.x, e.y, 20, colors.red); c.globalAlpha = 1; }
   }

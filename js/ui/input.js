@@ -6,16 +6,16 @@ function toWorld(e) {
 
 // tap targets stay finger-sized when zoomed out
 const tapR = r => Math.max(r, 14 / view.css);
+// a squad is picked by its units where they're drawn, else by its badge (over where it probably is)
 function hitSquad(x, y) {
-  for (const q of s.squads) { const p = q.side === 'blue' && !q.dead && pos(q); if (p && Math.hypot(p.x - x, p.y - 26 - y) < tapR(17)) return q.id; }
-  if (s.fog) return null; // individual units aren't on the situation map
+  for (const q of s.squads) { const p = q.side === 'blue' && !q.dead && !sqShown(q) && guessAt(q); if (p && Math.hypot(p.x - x, p.y - 26 - y) < tapR(17)) return q.id; }
   const tol = Math.max(12, 22 / view.css); let best = null, bd = tol;
-  for (const u of s.units) { if (u.side !== 'blue') continue; const d = Math.hypot(u.x - x, u.y - y); if (d < bd) { bd = d; best = u.squad; } }
+  for (const u of s.units) { if (u.side !== 'blue' || (Sim.friction(s) && !shownAt(u))) continue; const d = Math.hypot(u.x - x, u.y - y); if (d < bd) { bd = d; best = u.squad; } }
   return best;
 }
 // a tap on the map: select, place, or give the order
 function tap(e) {
-  if (!menu.hidden) { menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false'); return; }
+  if (!menu.hidden) { closeMenu(); return; }
   if (s.over) return;
   const { x, y } = toWorld(e);
   if (x < 0 || y < 0 || x > s.W || y > s.H) return;
@@ -30,8 +30,9 @@ function tap(e) {
   if (hit) { select(hit); return; }
   issue(mode, x, y);
 }
-// Mouse: left-drag draws a rectangle that picks every squad in it; right-drag gives the order with a facing (from where
-// it starts, the front toward where it's dragged), a right click the plain order; middle-drag pans; the wheel zooms;
+// Mouse: a left click gives the order (or picks the squad under it); left-drag draws a rectangle that picks every squad
+// in it; right-drag gives the order with a facing (from where it starts, the front toward where it's dragged), a right
+// click clears the pick; middle-drag pans; the wheel zooms;
 // the view also slides when the pointer rests at a screen edge. Touch: one finger pans, two pinch; press and hold, then
 // drag, is the order with a facing.
 // A press that moves more than DRAG_PX is not a tap.
@@ -44,7 +45,7 @@ cv.addEventListener('pointerdown', e => {
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
   const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed && !fhqArmed;
   const free = !eyeArmed && !buildArmed && !fhqArmed;
-  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0, face: e.pointerType === 'mouse' && e.button === 2 && free } : { moved: true };
+  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0, face: e.pointerType === 'mouse' && e.button === 2 && free, right: e.pointerType === 'mouse' && e.button === 2 } : { moved: true };
   if (drag.face) { const r = cv.getBoundingClientRect(); faceDrag = { x0: e.clientX - r.left, y0: e.clientY - r.top, x1: e.clientX - r.left, y1: e.clientY - r.top }; }
   // touch: held still for a moment, the drag that follows sets a facing
   if (e.pointerType !== 'mouse' && touches.size === 1 && free) {
@@ -78,7 +79,7 @@ function pickBox(b) {
   const w0 = { x: (Math.min(b.x0, b.x1) - view.cox) / view.css, y: (Math.min(b.y0, b.y1) - view.coy) / view.css };
   const w1 = { x: (Math.max(b.x0, b.x1) - view.cox) / view.css, y: (Math.max(b.y0, b.y1) - view.coy) / view.css };
   const inside = (x, y) => x >= w0.x && x <= w1.x && y >= w0.y && y <= w1.y;
-  const ids = blueSquads().filter(q => !q.dead && pos(q) && (inside(pos(q).x, pos(q).y) || inside(pos(q).x, pos(q).y - 26))).map(q => q.id);
+  const ids = blueSquads().filter(q => { if (q.dead) return false; const p = guessAt(q); return p && (inside(p.x, p.y) || inside(p.x, p.y - 26)); }).map(q => q.id);
   if (ids.length) select(ids.length === 1 ? ids[0] : ids);
 }
 const lift = e => { touches.delete(e.pointerId); if (drag) clearTimeout(drag.hold); if (!touches.size) drag = null; };
@@ -86,14 +87,22 @@ cv.addEventListener('pointerup', e => {
   const d = drag, b = boxSel, f = faceDrag; lift(e); boxSel = null; faceDrag = null;
   if (d && d.face) {
     if (!menu.hidden || s.over) return;
-    if (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) < DRAG_PX * 2) { tap(e); return; } // a plain right click / hold: the order
+    if (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) < DRAG_PX * 2) { if (d.right) unpick(); else tap(e); return; } // a plain right click: clear the pick; a hold: the order
     const w = p => ({ x: (p.x - view.cox) / view.css, y: (p.y - view.coy) / view.css }), a = w({ x: f.x0, y: f.y0 }), z = w({ x: f.x1, y: f.y1 });
     issue(mode, a.x, a.y, Math.atan2(z.y - a.y, z.x - a.x)); return;
   }
   if (d && d.box && d.moved && b) { if (!menu.hidden || s.over) return; pickBox(b); return; }
+  if (d && d.right && !d.moved) { unpick(); return; }
   if (d && !d.moved && d.tapOk && e.isPrimary !== false) tap(e);
 });
 cv.addEventListener('pointercancel', e => { lift(e); boxSel = null; faceDrag = null; });
+// right click: whatever was armed is dropped; else nothing is picked any more, and a second one picks them all
+// (in level 1, with no picking yet, it only drops)
+function unpick() {
+  if (!menu.hidden) { closeMenu(); return; }
+  if (eyeArmed || buildArmed || fhqArmed || !$('buildm').hidden) { eyeArmed = false; buildArmed = null; fhqArmed = false; $('buildm').hidden = true; syncButtons(); return; }
+  if (uiHas('squads')) select(sel === null ? 'all' : null);
+}
 // edge scroll: where the mouse is (null when it has left the window)
 let mouseAt = null;
 window.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') mouseAt = { x: e.clientX, y: e.clientY }; });
@@ -117,6 +126,7 @@ mini.addEventListener('pointerdown', e => { try { mini.setPointerCapture(e.point
 mini.addEventListener('pointermove', e => { if (e.buttons) miniLook(e); });
 document.addEventListener('keydown', e => {
   if (e.target.closest('input,textarea')) return;
+  if (tour) { if (e.key === 'Escape') tourNext(true); else if (e.key === 'Enter' || e.key === ' ' || e.key.startsWith('Arrow')) { e.preventDefault(); tourNext(); } return; }
   if (!$('intro').hidden) { if (e.key === 'Escape') $('go').click(); return; }
   if (!$('end').hidden) return;
   // physical key codes, so the shortcuts also work on a Hebrew keyboard layout
@@ -124,7 +134,7 @@ document.addEventListener('keydown', e => {
   // keys for controls this level doesn't have yet do nothing
   const need = /^\d$/.test(k) ? 'squads' : 'har'.includes(k) ? 'orders' : { d: 'eye', b: 'fhq', g: 'build' }[k];
   if (need && !uiHas(need)) return;
-  if (/^[1-9]$/.test(k)) { const q = blueSquads()[+k - 1]; if (q) select(q.id); }
+  if (/^[1-9]$/.test(k)) { const ty = TYPE_KEYS[+k - 1]; if (ty) pickType(ty); }
   else if (k === '0') select('all');
   else if (k === 'h') { mode = 'hold'; syncButtons(); }
   else if (k === 'a') { mode = 'attack'; syncButtons(); }
@@ -133,8 +143,8 @@ document.addEventListener('keydown', e => {
   else if (k === 'd') toggleEye();
   else if (k === 'b') buildHere();
   else if (k === 'g') toggleBuild();
-  else if (k === 'f') fullScreen();
+  else if (k === 'f') $('fs').click();
   else if (e.key.startsWith('Arrow')) { e.preventDefault(); const d = 120; panBy(e.key === 'ArrowLeft' ? d : e.key === 'ArrowRight' ? -d : 0, e.key === 'ArrowUp' ? d : e.key === 'ArrowDown' ? -d : 0); }
   else if (e.key === '+' || e.key === '=' || e.key === '-') zoomAt(fit.w / 2, fit.top + fit.h / 2, e.key === '-' ? 1 / 1.25 : 1.25);
-  else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; $('buildm').hidden = true; syncButtons(); menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false'); }
+  else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; $('buildm').hidden = true; syncButtons(); closeMenu(); }
 });

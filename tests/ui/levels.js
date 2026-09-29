@@ -19,7 +19,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
       words: document.querySelector('#intro .card').innerText.replace(/\s+/g, ' ').trim() }));
     check(name, /^1\* -2 .* ∞$/.test(intro.levels) && intro.words.length < 60, `first visit: level 1 picked, the rest locked (${intro.levels}); on screen: "${intro.words}"`);
     await p.screenshot({ path: `${OUT}/${name}-lv-intro.png` });
-    await p.click('#go'); await p.waitForTimeout(300);
+    await p.click('#go'); await p.waitForTimeout(300); await p.evaluate(() => tourNext(true)); // (the tour is tests/ui/tour.js)
     const bar1 = { sq: await shown('#gSq'), ord: await shown('#gOrd'), bld: await shown('#bld'), eye: await shown('#eye'), log: await shown('#log'), slots: await shown('#slots') };
     check(name, Object.values(bar1).every(v => !v), `level 1: no squad buttons, orders, building, drone, log ${JSON.stringify(bar1)}`);
     await p.screenshot({ path: `${OUT}/${name}-lv1.png` });

@@ -31,7 +31,7 @@ body{margin:0;height:100%;overflow:hidden;background:var(--c-ground);color:var(-
 .stage{position:relative;width:100%;height:100%;overflow:hidden}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
 .glass{background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--border);box-shadow:0 2px 12px rgb(0 0 0 / .18)}
-.score{position:absolute;top:8px;padding:3px 12px;border-radius:999px;font:24px/1.2 "Secular One",Assistant,sans-serif;font-variant-numeric:tabular-nums;pointer-events:none}
+.score{position:absolute;top:8px;padding:3px 12px;border-radius:999px;font:24px/1.2 "Secular One",Assistant,sans-serif;font-variant-numeric:tabular-nums}
 .res{display:inline-block;margin-inline-start:8px;padding-inline-start:8px;border-inline-start:1px solid var(--border)}
 .res.low{color:var(--c-red)}
 .boost{font-style:normal;font-size:16px;margin-inline-start:4px}
@@ -59,7 +59,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .mrow input{flex:1;accent-color:var(--accent)}
 .legend{margin:0;font-size:13px;color:var(--muted);line-height:1.5}
 .sqb{position:relative;min-width:44px;padding:4px 6px}
-.sqb canvas{position:static;width:26px;height:26px;display:block;margin:auto;cursor:inherit}
+.sqb canvas{position:static;width:34px;height:34px;display:block;margin:-4px auto;cursor:inherit}
 .sqb kbd{position:absolute;top:1px;inset-inline-end:3px;font:700 10px Assistant,sans-serif;color:var(--muted)}
 .sqb i{position:absolute;left:5px;right:5px;bottom:3px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--c-blue) calc(var(--st,1)*100%),var(--border) 0)}
 .sqb.dead{opacity:.4}
@@ -103,15 +103,9 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 @keyframes blink{50%{background:var(--c-red);color:#fff}}
 #bld[aria-disabled="true"],#fhq[aria-disabled="true"]{opacity:.45}
 #fs[hidden]{display:none}
-/* phone held upright: the squad buttons fold into 👥, which opens them over the bar */
-#sqT{display:none;position:relative}#sqT b{position:absolute;top:1px;inset-inline-end:3px;font:700 11px Assistant,sans-serif;color:var(--accent)}
 .turn{display:none;margin:0 0 8px;font-size:26px;text-align:center;animation:turn 2.4s ease-in-out infinite}
 @keyframes turn{0%,40%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
-@media (max-width:560px) and (orientation:portrait){
-  #sqT{display:inline-block}#sqs{display:none}
-  .bar.sqOpen #sqs{display:flex;position:absolute;bottom:calc(100% + 6px);inset-inline-start:0;flex-wrap:wrap;gap:4px;padding:6px;border-radius:12px;background:var(--panel);border:1px solid var(--border);max-width:calc(100vw - 16px);box-shadow:0 4px 14px rgb(0 0 0 / .2)}
-  .turn{display:block}
-}
+@media (max-width:560px) and (orientation:portrait){.turn{display:block}}
 @media (prefers-reduced-motion:reduce){.turn{animation:none}}
 .buildm button[hidden]{display:none}
 .pwbar{display:inline-block;position:relative;width:70px;height:8px;margin-inline-start:6px;border-radius:4px;overflow:hidden;background:var(--c-red);vertical-align:middle}
@@ -141,3 +135,51 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .ico{width:1.15em;height:1.15em;vertical-align:-0.2em}
 #go{font-size:26px}
 @media (max-width:420px){.levels{gap:5px}.levels button{width:34px;height:34px;min-height:34px;font-size:17px}}
+/* the order symbols (SVG), also in the call */
+.ord .ico,#callHold .ico,#callBack .ico{width:22px;height:22px;vertical-align:middle}
+.ord{color:var(--ink)}
+/* 🏗 pulses while there's room for another building */
+#bld.nudge{animation:nudge 1.6s ease-in-out infinite}
+@keyframes nudge{0%,100%{box-shadow:0 0 0 0 rgb(60 170 70 / 0)}50%{box-shadow:0 0 0 7px rgb(60 170 70 / .55);background:color-mix(in srgb,#3caa46 22%,var(--panel))}}
+@media (prefers-reduced-motion:reduce){#bld.nudge{animation:none;outline:3px solid #3caa46}}
+/* tooltip, notes and the tour */
+.tip{position:absolute;z-index:20;max-width:min(300px,calc(100% - 16px));padding:7px 11px;border-radius:10px;font-size:14px;line-height:1.35;background:var(--panel);pointer-events:none}
+.tip[hidden]{display:none}
+.tip::after{content:"";position:absolute;left:var(--ax,50%);bottom:-6px;width:10px;height:10px;margin-left:-5px;background:var(--panel);border:1px solid var(--border);border-top:0;border-left:0;transform:rotate(45deg)}
+.tip.below::after{bottom:auto;top:-6px;transform:rotate(225deg)}
+.tipNav{display:flex;align-items:center;gap:6px;margin-top:6px;pointer-events:auto}
+.tipNav[hidden]{display:none}
+.tipNav small{color:var(--muted);margin-inline-end:auto}
+.tipNav button{min-height:32px;padding:3px 10px;font-size:14px}
+#tipNext{background:var(--accent);color:#fff;border-color:var(--accent)}
+#tipSkip[hidden]{display:none}
+.tip:has(.tipNav:not([hidden])){pointer-events:auto;font-size:15px;max-width:min(330px,calc(100% - 16px))}
+#tourBg{position:absolute;inset:0;z-index:15;background:rgb(0 0 0 / .12)}
+#tourBg[hidden]{display:none}
+.tourOn{position:relative;z-index:16;outline:3px solid var(--accent);outline-offset:3px;animation:pulse 1.2s ease-in-out infinite}
+.hudl:has(.tourOn){z-index:16}
+.bar:has(.tourOn){z-index:16}
+/* language on the intro */
+.langs{display:flex;gap:4px;float:inline-end}
+.langs button{min-height:30px;padding:2px 8px;font-size:13px}
+.menu .mrow button{padding:7px 8px}
+@media (max-height:450px){.menu{gap:4px;padding:8px}.menu button{min-height:32px;padding:3px 8px}.menu .icon{font-size:15px}}
+/* top: power, the unit types (a number each), buildings; bottom middle: drone, build, forward HQ; bottom right: the
+   orders (while something is picked) and the settings in the corner */
+.hudl{flex-wrap:wrap;max-width:calc(100% - 16px)}
+.hudl #gSq{pointer-events:auto;border-radius:10px;padding:3px}
+.hudl #gSq button{min-height:44px}
+#gSq[hidden]{display:none}
+.corner{position:absolute;right:8px;bottom:8px;display:flex;gap:6px;align-items:flex-end;direction:ltr}
+.corner #gOrd{padding:5px;border-radius:12px}
+#gear{min-width:52px;min-height:52px;border-radius:12px;font-size:22px}
+.menu{left:auto;right:8px;transform:none}
+#fsRow[hidden]{display:none}
+#paused{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:22px;border-radius:999px;padding:4px 16px;z-index:3}
+#paused[hidden]{display:none}
+#fhq.nudge{animation:nudge 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){#fhq.nudge{animation:none;outline:3px solid #3caa46}}
+.corner:has(.tourOn){z-index:16}
+@media (max-width:700px){.bar{left:8px;transform:none}}
+@media (max-width:560px){.hudl #gSq button{min-height:40px;padding:3px 5px}.sqb{min-width:38px}.sqb canvas{width:28px;height:28px}}
+.bar.empty{display:none}

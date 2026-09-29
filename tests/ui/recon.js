@@ -30,7 +30,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     });
     await p.waitForTimeout(400);
     await p.screenshot({ path: `${OUT}/${name}-recon.png` });
-    await p.click('#play'); await p.waitForTimeout(4000); // running on with the planted state must not throw
+    await p.evaluate(() => setPlaying(true)); await p.waitForTimeout(4000); // running on with the planted state must not throw
     const stats = await p.evaluate(() => s.log2.offN);
     console.log(name, 'order asked', JSON.stringify(res.want), 'understood', res.x, res.y, 'counted', stats, 'errors', errs);
     await ctx.close();

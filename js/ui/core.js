@@ -65,14 +65,16 @@ function zoomAt(px, py, f) {
 const panBy = (dx, dy) => { cam.x -= dx / view.css; cam.y -= dy / view.css; applyView(); };
 const lookAt = (x, y) => { cam.x = x; cam.y = y; applyView(); };
 new ResizeObserver(resize).observe(stage);
-const pads = () => ({ top: 56, bottom: bar.offsetHeight + 16 });
+new ResizeObserver(resize).observe(document.querySelector('.hudl')); // the types can wrap to a second line
+// the map stays clear of the top strip (power, types, buildings) and of the bottom bar and corner
+const pads = () => ({ top: Math.max(56, document.querySelector('.hudl').offsetHeight + 16), bottom: Math.max(bar.offsetHeight, $('corner').offsetHeight) + 16 });
 function worldWidth() {
   const r = stage.getBoundingClientRect(), { top, bottom } = pads(), h = r.height - top - bottom;
   return r.width && h > 100 ? Sim.H * r.width / h : 1000;
 }
 function placeFloating() {
   const b = bar.offsetHeight + 16;
-  menu.style.bottom = b + 'px'; $('call').style.bottom = b + 'px'; $('buildm').style.bottom = b + 'px';
+  menu.style.bottom = $('corner').offsetHeight + 16 + 'px'; $('call').style.bottom = b + 'px'; $('buildm').style.bottom = b + 'px';
 }
 
 // what the player sees of a blue squad: its last report under command friction, the truth otherwise
@@ -82,3 +84,13 @@ const pos = q => Sim.friction(s) ? s.rep[q.id] : { x: q.cx, y: q.cy, strength: q
 // blue squads in button / hotkey order (oldest first)
 const blueSquads = () => s.squads.filter(q => q.side === 'blue');
 const fmtTime = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
+
+// order symbols, the same on the buttons (SVG) and on the map (Path2D): a shield (hold), a sword (attack), a U-turn
+// arrow (retreat), a plus (support); drawn in a 24-unit box around 0
+const ORDER_PATH = {
+  hold: 'M0-10.5L8.5-7.2V-0.5C8.5 5 4.6 8.8 0 10.5C-4.6 8.8-8.5 5-8.5-0.5V-7.2Z',
+  attack: 'M8.1 -8.1L7.5 -4.2L-0.6 4.0L2.3 6.8L0.3 8.8L-2.9 5.5L-4.9 7.5L-4.1 8.3L-6.1 10.2L-10.2 6.1L-8.3 4.1L-7.5 4.9L-5.5 2.9L-8.8 -0.3L-6.8 -2.3L-4.0 0.6L4.2 -7.5L8.1 -8.1Z',
+  retreat: 'M-10-2.5L-3-9.5V-5.5H2C7 -5.5 10-2 10 2.5V9H5.5V3C5.5 0.5 4-1 1.5-1H-3V4.5Z',
+  support: 'M-2.5-9H2.5V-2.5H9V2.5H2.5V9H-2.5V2.5H-9V-2.5H-2.5Z',
+};
+const orderSvg = k => `<svg class="ico" viewBox="-12 -12 24 24" aria-hidden="true"><path d="${ORDER_PATH[k]}" fill="currentColor"/></svg>`;
