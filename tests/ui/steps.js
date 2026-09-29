@@ -93,7 +93,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
       for (const t of ['tank', 'aa', 'med', 'mech', 'air']) { const q = Sim._makeSquad(s, 'blue', t, null, hq.x + 100, hq.y); q.size = 4; Sim._fillSquad(s, q, hq.x + 100, hq.y); }
       cam = { x: hq.x + 400, y: hq.y, z: 1.6 }; applyView(); updateHud(); select('all'); mode = 'hold'; syncButtons();
     });
-    const tapAt = await p.evaluate(() => { const hq = s.nodes.find(n => n.kind === 'hq' && n.side === 'blue'), c = cv.getBoundingClientRect(); let P = { x: hq.x + 420, y: hq.y }; if (Sim.lakeAt(s, P, 120)) P.y -= 200; return { x: c.left + view.cox + P.x * view.css, y: c.top + view.coy + P.y * view.css }; });
+    const tapAt = await p.evaluate(() => { const hq = s.nodes.find(n => n.kind === 'hq' && n.side === 'blue'), c = cv.getBoundingClientRect(); let P = { x: hq.x + 420, y: hq.y }; if (Sim.lakeAt(s, P, 120)) P.y -= 200; while (hitSquad(P.x, P.y) && P.x < s.W - 100) P.x += 40; /* (a tap on a squad would pick it) */ return { x: c.left + view.cox + P.x * view.css, y: c.top + view.coy + P.y * view.css }; });
     await p.mouse.click(tapAt.x, tapAt.y); await run(45); await p.waitForTimeout(300);
     const rows = await p.evaluate(() => { const x = t => { const q = s.squads.find(k => k.side === 'blue' && k.type === t); return Math.round(q.order.x); }; return { tank: x('tank'), jeep: x('jeep'), inf: x('inf'), aa: x('aa'), med: x('med') }; });
     check(name, rows.tank > rows.jeep && rows.jeep > rows.inf && rows.inf > rows.aa && rows.aa > rows.med, `★ + tap: rows toward the enemy ${JSON.stringify(rows)}`);

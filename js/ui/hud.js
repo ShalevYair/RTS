@@ -250,7 +250,8 @@ function initBuildMenu() {
   for (const k of Sim.BUILDABLE) {
     const b = document.createElement('button');
     b.dataset.build = k; b.dataset.tip = 'b_' + k; b.innerHTML = '<span></span><b></b><small></small>';
-    b.querySelector('span').textContent = Sim.STRUCTS[k].icon; if (Sim.STRUCTS[k].badge) { const i = document.createElement('i'); i.textContent = Sim.STRUCTS[k].badge; b.querySelector('span').appendChild(i); }
+    const pic = document.createElement('canvas'); pic.width = pic.height = 84; pic.className = 'bpic'; b.querySelector('span').appendChild(pic); // (drawn in nameBuildMenu, in our colour)
+    if (k === 'decoy') { const i = document.createElement('i'); i.textContent = Sim.STRUCTS[k].badge; b.querySelector('span').appendChild(i); }
     b.addEventListener('click', () => { buildArmed = k; m.hidden = true; hideTip(); syncButtons(); });
     m.appendChild(b);
   }
@@ -259,7 +260,8 @@ function initBuildMenu() {
 function nameBuildMenu() {
   for (const b of document.querySelectorAll('[data-build]')) {
     const S = Sim.STRUCTS[b.dataset.build];
-    b.querySelector('b').textContent = sn(b.dataset.build); b.querySelector('small').textContent = S.unit ? tr('buildItem', S.every, tn(S.unit)) : tr('decoyItem', Sim.DECOY_MAX);
+    b.querySelector('b').textContent = sn(b.dataset.build);
+    const pic = b.querySelector('canvas'); if (pic) { const g = pic.getContext('2d'); g.clearRect(0, 0, 84, 84); const src = buildingPic(b.dataset.build, colors.blue, b.dataset.build === 'decoy' ? 34 : 40); const m = src.width * 0.17; g.drawImage(src, m, m, src.width - 2 * m, src.width - 2 * m, 0, 0, 84, 84); } b.querySelector('small').textContent = S.unit ? tr('buildItem', S.every, tn(S.unit)) : tr('decoyItem', Sim.DECOY_MAX);
   }
 }
 // the menu offers what this game allows (the tutorial adds kinds level by level)
