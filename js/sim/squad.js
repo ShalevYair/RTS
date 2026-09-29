@@ -2,7 +2,13 @@
 function updateSquad(s, sq, dt) {
   const m = s.units.filter(u => u.squad === sq.id);
   sq.count = m.length;
-  if (!m.length) { if (!sq.dead) { sq.dead = true; sq.strength = 0; report(s, sq, 'הכוח הושמד'); sendReport(s, sq, 'lost'); } return; }
+  if (!m.length) {
+    if (!sq.dead) {
+      sq.dead = true; sq.strength = 0; report(s, sq, 'הכוח הושמד'); sq.silent = false; sendReport(s, sq, 'lost');
+      Object.assign(sq, newBoss(s, sq.side)); sq.xp = 0; // the commander fell with his squad; the refills bring a new one
+    }
+    return;
+  }
   let fresh = false;
   if (sq.dead) { sq.dead = false; fresh = true; report(s, sq, sq.born ? 'הכוח הוקם מחדש מהתגבורת' : 'יצאנו לדרך'); sq.born = true; }
   const T = TYPES[sq.type], tr = TRAITS[sq.trait];
@@ -40,6 +46,8 @@ function updateSquad(s, sq, dt) {
   const r = s.rep[sq.id], q = qualityAt(s, sq);
   const every = q >= 1 ? 0 : (REPORT_MIN + REPORT_SPAN * (1 - q)) * TEMPERS[sq.temper].report * (s.t - sq.lastContact < CONTACT_MEMORY ? 2 : 1);
   if (sq.side === 'blue' && (!r || s.t - r.t >= every)) sendReport(s, sq);
+  // a squad on the air is heard by the enemy (either side): a vague fix of where it is
+  if (!sq.silent && s.t - (sq.lastTalk ?? -99) >= Math.max(every, RADIO_EVERY)) { sq.lastTalk = s.t; overheard(s, sq); }
   // under pressure but not yet breaking: the commander decides — by his temper at once, or (s.askHq) he asks HQ first
   const thr = retreatAt(s, sq);
   if (sq.side === 'blue' && friction(s) && contact && !sq.retreating && !s.calls.length && sq.order.type !== 'retreat' &&
@@ -50,6 +58,21 @@ function updateSquad(s, sq, dt) {
   }
 }
 
+// the enemy hears a squad talking on the radio: where it roughly is, nothing more (unless it's already seen)
+function overheard(s, sq) {
+  if (!friction(s)) return;
+  const foe = sq.side === 'blue' ? 'red' : 'blue', m = s.mem[foe][sq.id];
+  if (s.visSq[foe].has(sq.id) || (m && s.t - m.t < 2)) return;
+  const a = s.rand() * Math.PI * 2, d = Math.sqrt(s.rand()) * RADIO_NOISE;
+  const keep = m && s.t - m.t <= TRACK_GAP ? m : null;
+  s.mem[foe][sq.id] = { x: clamp(sq.cx + Math.cos(a) * d, 0, s.W), y: clamp(sq.cy + Math.sin(a) * d, 0, s.H), t: s.t, heard: true,
+    lvl: keep ? keep.lvl : 0, type: keep ? keep.type : null, air: keep ? keep.air : null, n: keep ? keep.n : null, strength: keep ? keep.strength : null };
+}
+// a commander's experience: enemy units his squad destroys; a new rank is reported
+function gainXp(s, sq, v) {
+  const r0 = rankOf(sq); sq.xp += v;
+  if (rankOf(sq) > r0 && sq.side === 'blue') { report(s, sq, rankOf(sq) === 2 ? 'המפקד מנוסה מאוד עכשיו' : 'המפקד צבר ניסיון'); s.marks.push({ x: sq.cx, y: sq.cy, kind: 'promo', t: s.t, who: sq.name }); }
+}
 function effOrder(s, sq) {
   if (sq.support) {
     const t = s.squads.find(q => q.id === sq.support);
@@ -110,6 +133,7 @@ function updateUnit(s, u, sq, dt) {
     else if (u.resup && u.sup >= SUPPLY_DONE) u.resup = false;
   } else u.resup = false;
   if (u.care || u.resup) { const f = careSpot(s, u, sq, u.care ? CARER[u.type] : 'truck'); if (dist(u, f) > CARE_R * 0.6) moveTo(s, u, f.x, f.y, 1.15, dt); return; }
+  u.hush = sq.silent; // (radio silence: quiet driving, no dust)
   const o = effOrder(s, sq), retreat = sq.retreating || o.type === 'retreat';
   const anchor = retreat ? homeOf(s, sq) : o;
   const up = 1 + ELEV_BONUS * (u.lvl || 0), range = T.range * up, sight = T.sight * up; // higher ground: further
@@ -128,7 +152,7 @@ function updateUnit(s, u, sq, dt) {
   if (!tgt && !retreat && u.cd === 0 && !T.care) {
     const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= range);
     if (n) {
-      u.engaged = true; n.hp -= T.dmg * NODE_MULT[u.type]; u.cd = T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= 1 / SUPPLY[u.type];
+      u.engaged = true; n.hp -= T.dmg * NODE_MULT[u.type]; u.cd = T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
       u.aim = Math.atan2(n.y - u.y, n.x - u.x); u.lastFire = s.t;
       shot(s, u, n);
       s.fx.push({ x: n.x, y: n.y, life: IMPACT[u.type].life, max: IMPACT[u.type].life, size: IMPACT[u.type].size, wait: SHOT_TIME[u.type] });
@@ -138,7 +162,7 @@ function updateUnit(s, u, sq, dt) {
     u.engaged = true;
     if (u.cd === 0) {
       const hit = friendlyFire(s, u, sq, tgt) || tgt;
-      hit.hp -= T.dmg * MULT[u.type][hit.type]; u.cd = T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= 1 / SUPPLY[u.type];
+      hit.hp -= T.dmg * MULT[u.type][hit.type]; hit.by = sq.id; u.cd = T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
       const fx = IMPACT[u.type];
       s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[u.type] });
       u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
@@ -146,12 +170,18 @@ function updateUnit(s, u, sq, dt) {
     }
   }
   let tx, ty;
-  if (best && bd > range * 0.9) { tx = best.x; ty = best.y; }
+  // (a tank goes for soldiers it's shooting at, to run them over)
+  if (best && (bd > range * 0.9 || (u.type === 'tank' && FOOT.includes(best.type)))) { tx = best.x; ty = best.y; }
   else if (best) return;
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
   else if (T.air) { const sr = o.r * 0.55; tx = anchor.x + u.sx * sr; ty = anchor.y + u.sy * sr; }
   else { const g = (u.slot || 0) * spacing(u.type), a = sq.face || 0; tx = anchor.x - Math.sin(a) * g; ty = anchor.y + Math.cos(a) * g; } // in the line
-  moveTo(s, u, tx, ty, retreat ? 1.15 : 1, dt);
+  moveTo(s, u, tx, ty, (retreat ? 1.15 : 1) * (sq.silent ? SILENT_SPEED : 1), dt);
+}
+// supply lines: a shot far from any building of the side and from its supply trucks uses more ammunition
+function supplyUse(s, u) {
+  if (s.nodes.some(n => n.side === u.side && n.hp > 0 && n.kind !== 'drone' && n.kind !== 'decoy' && dist(n, u) <= SUPPLY_FAR)) return 1;
+  return s.units.some(m => m.type === 'truck' && m.side === u.side && dist(m, u) <= SUPPLY_NEAR) ? 1 : SUPPLY_FAR_K;
 }
 // a step toward (tx, ty): ground units go round lakes; uphill slower, downhill faster (by how many lines the next
 // few steps climb or drop)
@@ -164,6 +194,7 @@ function moveTo(s, u, tx, ty, fast, dt) {
   if (!T.air) { const L = 6, e0 = elevAt(s, u), e1 = elevAt(s, { x: u.x + vx / d * L, y: u.y + vy / d * L }); slope = 1 - clamp((e1 - e0) / L * SLOPE_K, -SLOPE_MAX, SLOPE_MAX); }
   const k = Math.min(1, T.speed * slope * fast * dt / d);
   u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
+  if (!T.air && !u.hush && d * k >= DUST_FAST * T.speed * dt) u.dustAt = s.t; // (driving fast: dust the enemy can see from afar)
 }
 // where a hurt unit goes: the nearest medic / mechanic of its side that isn't itself being treated, else home
 // (kind: who to go to — a medic / mechanic for treatment, a supply truck for ammunition)

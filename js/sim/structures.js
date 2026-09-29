@@ -14,25 +14,76 @@ const hqOf = (s, side) => s.nodes.find(n => n.side === side && n.kind === 'hq' &
 const buildLimit = (s, side) => BUILD_BASE + BUILD_PER_NODE * alive(s, side, ['hq', 'fhq']).filter(n => s.t >= n.ready).length;
 const buildCount = (s, side) => alive(s, side, PRODUCERS).length;
 // why a building can't go at (x, y): '' when it can; 'q' poor control, 'limit' no free slot, 'gap' too close, 'bad' bad input
-function buildCheck(s, side, x, y) {
+// (kind 'decoy': no slot, but at most DECOY_MAX of them)
+function buildCheck(s, side, x, y, kind) {
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 20 || y < 20 || x > s.W - 20 || y > s.H - 20) return 'bad';
-  if (buildCount(s, side) >= buildLimit(s, side)) return 'limit';
+  if (s.hqPending && s.hqPending[side]) return 'nohq'; // (open field: the HQ first)
+  if (kind === 'decoy' ? alive(s, side, ['decoy']).length >= DECOY_MAX : buildCount(s, side) >= buildLimit(s, side)) return 'limit';
   if (quality(s, side, { x, y }, true) < BUILD_MIN_Q) return 'q'; // drones don't count
   if (lakeAt(s, { x, y }, LAKE_PAD)) return 'bad';
   if (s.nodes.some(n => n.kind !== 'drone' && dist(n, { x, y }) < BUILD_GAP)) return 'gap';
   return '';
 }
 function build(s, side, kind, x, y) {
-  if (s.over || !PRODUCERS.includes(kind) || (s.builds && !s.builds.includes(kind)) || buildCheck(s, side, x, y)) return false;
+  if (s.over || !BUILDABLE.includes(kind) || (s.builds && !s.builds.includes(kind)) || (kind === 'decoy' && s.level) || buildCheck(s, side, x, y, kind)) return false;
   addStruct(s, side, kind, x, y);
   if (side === 'blue') note(s, `מתחילים לבנות ${STRUCTS[kind].name}`);
   return true;
 }
 
+// ---- open field: each side places its own HQ ----
+const cmdSquad = (s, side) => s.squads.find(q => q.side === side && q.cmd && !q.dead);
+// where a side may put its HQ: the first HQ_BAND of the width on its side, any height
+const hqBand = (s, side) => side === 'blue' ? [30, s.W * HQ_BAND] : [s.W * (1 - HQ_BAND), s.W - 30];
+// why the HQ can't go at (x, y): '' when it can; 'band' outside the allowed strip, 'bad' otherwise
+function hqCheck(s, side, x, y) {
+  if (!s.hqPending || !s.hqPending[side] || !cmdSquad(s, side) || s.nodes.some(n => n.side === side && n.kind === 'hq')) return 'bad';
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return 'bad';
+  const [a, b] = hqBand(s, side);
+  if (x < a || x > b || y < 30 || y > s.H - 30) return 'band';
+  return lakeAt(s, { x, y }, LAKE_PAD) ? 'bad' : '';
+}
+// turn a normal opening into an open field: no HQ and no tent; a pair of command tanks by each side's edge
+function openField(s) {
+  s.nodes = s.nodes.filter(n => n.kind !== 'hq' && n.kind !== 'tent');
+  for (const q of s.squads) if (q.home && !s.nodes.some(n => n.id === q.home)) q.home = null;
+  for (const side of ['blue', 'red']) {
+    const b = s.bases[side], dir = side === 'blue' ? 1 : -1, t = makeSquad(s, side, 'tank', null, b.x + dir * 50, s.H / 2);
+    t.size = CMD_TANKS; fillSquad(s, t, t.order.x, t.order.y); t.cmd = true;
+  }
+  s.hqPending = { blue: true, red: true }; s.memNodes = { blue: {}, red: {} };
+  updatePower(s); visibility(s); s.rep = {}; for (const q of s.squads) sendReport(s, q);
+  return s;
+}
+// the command tanks drive to (x, y) and set the HQ up there (another order calls it off: pick again)
+function planHq(s, side, x, y) {
+  if (s.over || hqCheck(s, side, x, y)) return false;
+  const sq = cmdSquad(s, side);
+  order(s, sq.id, 'hold', x, y, true); sq.hqAt = { x, y };
+  report(s, sq, 'יוצאים להקים את המפקדה');
+  return true;
+}
+// every tick: the trip to the HQ's spot, its setting up, and the command tanks lost before it stands (= lost)
+function hqTrips(s) {
+  if (!s.hqPending) return;
+  for (const side of ['blue', 'red']) {
+    if (!s.hqPending[side]) continue;
+    const h = s.nodes.find(n => n.side === side && n.kind === 'hq'), sq = cmdSquad(s, side);
+    if (h) { if (s.t >= h.ready) { s.hqPending[side] = false; if (sq) sq.cmd = false; note(s, side === 'blue' ? 'המפקדה פועלת' : ''); } continue; }
+    if (!sq) { s.hqDown = side; continue; }
+    const p = sq.hqAt; if (!p) continue;
+    const m = pending(s, sq.id, 'order'), o = m || sq.order, w = o.want || o;
+    if (sq.retreating || o.type !== 'hold' || Math.hypot(w.x - p.x, w.y - p.y) > 1) { sq.hqAt = null; continue; }
+    if (!m && (sq.arrived || Math.hypot(sq.cx - p.x, sq.cy - p.y) < 40)) {
+      sq.hqAt = null; const n = addStruct(s, side, 'hq', p.x, p.y); n.ready = s.t + HQ_WARM;
+      report(s, sq, 'מקימים את המפקדה');
+    }
+  }
+}
 // where a squad goes to fall back, heal and refill: its building, else the HQ, else any structure of its side
 function homeOf(s, sq) {
   const h = sq.home && s.nodes.find(n => n.id === sq.home && n.hp > 0);
-  return h || hqOf(s, sq.side) || alive(s, sq.side).find(n => n.kind !== 'drone') || { x: sq.cx, y: sq.cy };
+  return h || hqOf(s, sq.side) || alive(s, sq.side).find(n => n.kind !== 'drone' && n.kind !== 'decoy') || { x: sq.cx, y: sq.cy };
 }
 // aircraft rearm at the nearest working airfield, or at the HQ
 function rearmSpot(s, u) {
@@ -41,7 +92,7 @@ function rearmSpot(s, u) {
   return best || s.bases[u.side];
 }
 // units heal near their own HQ, working buildings and forward HQs
-const healSpot = (s, u) => s.nodes.some(n => n.side === u.side && n.hp > 0 && n.kind !== 'drone' && s.t >= n.ready && dist(n, u) <= HEAL_R);
+const healSpot = (s, u) => s.nodes.some(n => n.side === u.side && n.hp > 0 && n.kind !== 'drone' && n.kind !== 'decoy' && s.t >= n.ready && dist(n, u) <= HEAL_R);
 
 function power(s, side) {
   let p = 0;

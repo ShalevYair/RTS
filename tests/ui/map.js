@@ -9,7 +9,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   const check = (name, c, m) => { if (!c) bad = true; console.log(name, c ? 'ok  ' : 'FAIL', m); };
   for (const [name, vp, touch, scheme] of [['desk', { width: 1400, height: 800 }, false, 'light'], ['phone', { width: 390, height: 844 }, true, 'dark']]) {
     const ctx = await b.newContext({ viewport: vp, hasTouch: touch, isMobile: touch, colorScheme: scheme });
-    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); } catch (e) { /* no storage */ } }); // the full game, not the tutorial
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-fixedhq', '1'); } catch (e) { /* no storage */ } }); // the full game, not the tutorial
     const p = await ctx.newPage(); const errs = [];
     p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(500);
@@ -60,6 +60,13 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const sm = await st();
     check(name, sm.H === 640 && sm.cam.z === 1 && !sm.mini, `small map: ${sm.W}×${sm.H}, whole map on screen, no minimap`);
     await p.screenshot({ path: `${OUT}/${name}-small.png` });
+    // the huge map: 4× the big one; it still runs smoothly (frames counted over 2 s of play)
+    await p.evaluate(() => { setPlaying(false); newGame(); });
+    await p.click('[data-map="huge"]'); await p.waitForTimeout(300);
+    const t0 = await p.evaluate(() => performance.now()); await p.click('#go'); await p.waitForTimeout(400);
+    const hg = await p.evaluate(async () => { let n = 0; const t = performance.now(); await new Promise(r => { const f = () => { n++; if (performance.now() - t < 2000) requestAnimationFrame(f); else r(); }; requestAnimationFrame(f); }); return { W: s.W, H: s.H, fps: Math.round(n / 2), mini: !document.getElementById('mini').hidden, pressed: document.querySelector('[data-map="huge"]').getAttribute('aria-pressed') }; });
+    check(name, hg.W >= 4000 && hg.H === 2560 && hg.mini && hg.fps >= 25, `huge map: ${hg.W}×${hg.H}, ${hg.fps} fps, minimap`);
+    await p.screenshot({ path: `${OUT}/${name}-huge.png` });
     await p.evaluate(() => { try { localStorage.removeItem('irts-map'); } catch (e) { /* ignore */ } });
     check(name, !errs.length, 'no errors ' + JSON.stringify(errs));
     await ctx.close();

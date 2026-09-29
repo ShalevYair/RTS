@@ -12,7 +12,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   const check = (name, c, m) => { if (!c) bad = true; console.log(name, c ? 'ok  ' : 'FAIL', m); };
   for (const [name, vp, touch, scheme] of [['desk', { width: 1400, height: 800 }, false, 'light'], ['phone', { width: 844, height: 390 }, true, 'dark']]) {
     const ctx = await b.newContext({ viewport: vp, hasTouch: touch, isMobile: touch, colorScheme: scheme });
-    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); } catch (e) { /* ignore */ } });
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-fixedhq', '1'); } catch (e) { /* ignore */ } });
     const p = await ctx.newPage(); const errs = [];
     p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(400);
@@ -20,7 +20,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const level = n => p.evaluate(n => { rate = 1; lvl = n; newGame(true); showIntro(false); setPlaying(false); }, n);
     const run = sec => p.evaluate(sec => { for (let i = 0; i < 30 * sec && !s.over; i++) Sim.step(s, 1 / 30); updateHud(); }, sec);
     // the bar: words for the orders, no posture, a manifest for installing
-    const bar = await p.evaluate(() => ({ ord: [...document.querySelectorAll('#gOrd button')].map(e => e.getAttribute('aria-label')).join(' '), trait: !!document.querySelector('[data-trait]'),
+    const bar = await p.evaluate(() => ({ ord: [...document.querySelectorAll('#ordMode')].map(e => e.getAttribute('aria-label')).join(' '), trait: !!document.querySelector('[data-trait]'),
       manifest: !!document.querySelector('link[rel=manifest]') }));
     check(name, bar.ord === 'לתקוף' && !bar.trait && bar.manifest, `orders "${bar.ord}", no posture buttons, installable ${JSON.stringify(bar)}`);
     // level 6: medics and mechanics in the build menu, new ones pulsing
@@ -118,7 +118,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   {
     // a phone held upright: the type buttons at the top fit (wrapping under the power bar), the corner holds the settings
     const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); } catch (e) { /* ignore */ } });
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-fixedhq', '1'); } catch (e) { /* ignore */ } });
     const p = await ctx.newPage(); await p.goto(URL); await p.waitForTimeout(400); await p.click('#go'); await p.waitForTimeout(300);
     const lay = await p.evaluate(() => { const r = e => document.getElementById(e).getBoundingClientRect(); return { types: document.querySelectorAll('[data-ty]').length, fits: r('gSq').right <= innerWidth && r('gSq').left >= 0, gear: innerWidth - r('gear').right < 20 && innerHeight - r('gear').bottom < 20, overlap: r('bar').right > r('corner').left && r('bar').bottom > r('corner').top }; });
     await p.screenshot({ path: `${OUT}/portrait-squads.png` });

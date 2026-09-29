@@ -2,7 +2,15 @@
 // Q (0..1) at a point says how well a side commands there: it sets order delay and report speed/accuracy.
 
 // every structure that currently gives control to `side`: the HQ (while it stands), working forward HQs and drones
-const controlNodes = (s, side) => s.nodes.filter(n => n.side === side && n.hp > 0 && NODES[n.kind] && s.t >= n.ready);
+// (every production building counts too, as a small node: NODES.bld)
+const nodeSpec = kind => NODES[kind] || (STRUCTS[kind] && STRUCTS[kind].unit ? NODES.bld : null);
+// (open field: before the HQ stands, the command tanks count as a node where they are)
+function controlNodes(s, side) {
+  const l = s.nodes.filter(n => n.side === side && n.hp > 0 && nodeSpec(n.kind) && s.t >= n.ready);
+  const c = s.hqPending && s.hqPending[side] && cmdSquad(s, side);
+  if (c) l.push({ id: -1, kind: 'cmd', side, x: c.cx, y: c.cy, hp: 1, ready: 0 });
+  return l;
+}
 // how much of a node's control reaches distance d: all of it inside r0, then Q_STEPS rings (0.8, 0.6, 0.4, 0.2), none past r1
 // (smooth: the plain linear fall, for the picture — the map shows the rings fading into each other)
 function reach(N, d, smooth) {
@@ -14,7 +22,7 @@ function reach(N, d, smooth) {
 // control quality at p: the best node; never below Q_FLOOR. `build`: only what counts for building (no drones)
 function quality(s, side, p, build, smooth) {
   let q = Q_FLOOR;
-  for (const n of controlNodes(s, side)) if (!build || n.kind !== 'drone') q = Math.max(q, NODES[n.kind].q * reach(NODES[n.kind], dist(n, p), smooth));
+  for (const n of controlNodes(s, side)) if (!build || (n.kind !== 'drone' && n.kind !== 'cmd')) { const N = nodeSpec(n.kind); q = Math.max(q, N.q * reach(N, dist(n, p), smooth)); }
   return q;
 }
 // how far a drone sees: out to its DRONE_SEE ring
@@ -81,8 +89,8 @@ function setUpFhq(s, sq, at) {
   report(s, sq, 'מקימים פיקוד קדמי');
   if (sq.side === 'blue') s.marks.push({ x: p.x, y: p.y, kind: 'fhq', t: s.t, who: sq.name });
 }
-// a node is a target for enemy fire: drones only for AA, forward HQs for anyone
-const nodeTargetable = (u, n) => n.side !== u.side && n.hp > 0 && (n.kind === 'drone' ? u.type === 'aa' : true);
+// a node is a target for enemy fire: drones only for AA (soldiers and jeeps), forward HQs for anyone
+const nodeTargetable = (u, n) => n.side !== u.side && n.hp > 0 && (n.kind === 'drone' ? MULT[u.type].air > 0 : true);
 // what a structure can see: drones everything under them, the HQ / forward HQs / buildings around themselves
-const nodeSight = n => n.kind === 'drone' ? DRONE_SIGHT : n.kind === 'fhq' ? NODES.fhq.sight : n.kind === 'hq' ? STRUCTS.hq.sight : STRUCT_SIGHT;
+const nodeSight = n => n.kind === 'decoy' ? 0 : n.kind === 'drone' ? DRONE_SIGHT : n.kind === 'fhq' ? NODES.fhq.sight : n.kind === 'hq' ? STRUCTS.hq.sight : STRUCT_SIGHT;
 const nodeSees = (s, side, e) => s.nodes.some(n => n.side === side && n.hp > 0 && s.t >= n.ready && dist(n, e) <= nodeSight(n));

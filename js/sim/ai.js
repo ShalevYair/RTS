@@ -14,19 +14,24 @@ function edgeAt(s, sq, p) {
   return e;
 }
 // can this squad hurt what it knows of an enemy? unidentified: assume so; known only as aircraft: only AA
-const canHit = (sq, k) => k.type ? MULT[sq.type][k.type] > 0 : k.air ? sq.type === 'aa' : true;
+const canHit = (sq, k) => k.type ? MULT[sq.type][k.type] > 0 : k.air ? MULT[sq.type].air > 0 : true;
 // enemy structures this side knows about: seen ones stay remembered (they don't move); the enemy HQ's
 // place is known from the start
 function knownStructs(s, side) {
   const foe = foeOf(side);
   const list = s.fog ? Object.values(s.memNodes[side]) : s.nodes.filter(n => n.side === foe && n.hp > 0);
   const out = list.filter(n => n.kind !== 'drone');
-  if (!out.some(n => n.kind === 'hq') && hqOf(s, foe)) out.push({ id: 'hq?', kind: 'hq', x: s.bases[foe].x, y: s.H / 2 });
+  // (open field: the HQ could be anywhere in its strip — look along it, a third at a time)
+  if (!out.some(n => n.kind === 'hq') && hqOf(s, foe)) out.push({ id: 'hq?', kind: 'hq', x: s.bases[foe].x, y: s.hqPending ? s.H * [0.5, 0.2, 0.8][Math.floor(s.t / 90) % 3] : s.H / 2 });
   return out;
 }
 
 // put a building of the next planned kind near the most forward control node, toward the enemy
 function aiBuild(s, side, D) {
+  if (D.mass && !s.level && s.fog && !alive(s, side, ['decoy']).length) {
+    const f = alive(s, side, ['fhq']).find(n => s.t >= n.ready), foe = s.bases[foeOf(side)];
+    if (f) for (let i = 0; i < 8; i++) { const a = Math.atan2(foe.y - f.y, foe.x - f.x) + (s.rand() - 0.5) * 2, r = 60 + s.rand() * 50; if (build(s, side, 'decoy', f.x + Math.cos(a) * r, f.y + Math.sin(a) * r)) break; }
+  }
   if (buildCount(s, side) >= buildLimit(s, side)) return;
   if (!D.smart && s.t - (s.lastBuild[side] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
@@ -35,7 +40,7 @@ function aiBuild(s, side, D) {
   for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if (!s.builds || s.builds.includes(k)) { kind = k; s.plan[side] += i; } }
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
-  const anchors = controlNodes(s, side).filter(n => n.kind !== 'drone').sort((a, b) => dist(a, goal) - dist(b, goal));
+  const anchors = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq').sort((a, b) => dist(a, goal) - dist(b, goal));
   for (const a of anchors) for (let i = 0; i < 12; i++) {
     const ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * 2.4, r = 55 + s.rand() * 110;
     const x = a.x + Math.cos(ang) * r, y = a.y + Math.sin(ang) * r;
@@ -53,9 +58,9 @@ function aiForward(s, side, mine, setOrder) {
     return;
   }
   if (s.cd[side].fhq > 0 || fhqCount(s, side) >= NODES.fhq.max) return;
-  const nodes = controlNodes(s, side).filter(n => n.kind !== 'drone'), foe = s.bases[foeOf(side)];
+  const nodes = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq'), foe = s.bases[foeOf(side)];
   const hills = s.hills.filter(h => quality(s, side, h, true) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
-    nodes.some(n => dist(n, h) < NODES[n.kind].r1 + AI_FHQ_REACH) && !threatAt(s, side, h, AI_NEAR));
+    nodes.some(n => dist(n, h) < nodeSpec(n.kind).r1 + AI_FHQ_REACH) && !threatAt(s, side, h, AI_NEAR));
   let best = null, bs = Infinity;
   for (const q of mine) if (FHQ_BUILDERS.includes(q.type) && q.strength >= AI_READY) for (const h of hills) {
     const sc = dist({ x: q.cx, y: q.cy }, h) + 0.5 * Math.abs(h.x - foe.x);
@@ -80,7 +85,13 @@ function careStation(s, sq, mine) {
 
 function think(s, side, level) {
   const D = DIFFS[level] || DIFFS.normal, foe = foeOf(side), taken = new Map();
-  const mine = s.squads.filter(q => q.side === side && !q.dead && !q.retreating);
+  // open field: first the HQ — a spot in our strip (away from the middle of it now and then), the command tanks go
+  const cmd = s.hqPending && s.hqPending[side] && cmdSquad(s, side);
+  if (cmd && !cmd.hqAt && !s.nodes.some(n => n.side === side && n.kind === 'hq')) {
+    const [a, b] = hqBand(s, side);
+    for (let i = 0; i < 30; i++) if (planHq(s, side, a + s.rand() * (b - a), 60 + s.rand() * (s.H - 120))) break;
+  }
+  const mine = s.squads.filter(q => q.side === side && !q.dead && !q.retreating && !(q.cmd && s.hqPending && s.hqPending[side]));
   const setOrder = (sq, type, x, y) => {
     // compare with what was asked, not where the commander understood it (that would resend every time)
     const p = pending(s, sq.id, 'order'), cur = p || sq.order, w = cur.want || cur, k = sq.aiAsk;
@@ -113,7 +124,7 @@ function think(s, side, level) {
       cands.push({ x: k.x, y: k.y, w: 0, edge: true });
     }
     // structures: production and forward HQs matter most; aircraft go for them when there's nothing better
-    if (sq.type !== 'aa') for (const n of structs) cands.push({ x: n.x, y: n.y, w: n.kind === 'hq' ? 120 : n.kind === 'fhq' ? -60 : -30 });
+    if (!(MULT[sq.type].air > 0)) for (const n of structs) cands.push({ x: n.x, y: n.y, w: n.kind === 'hq' ? 120 : n.kind === 'fhq' ? -60 : -30 });
     // staying home: only what comes close; else a guard spot a little out from the HQ, toward the enemy
     if (stayHome) {
       for (let i = cands.length - 1; i >= 0; i--) if (dist(cands[i], home) > AI_HOME_R) cands.splice(i, 1);

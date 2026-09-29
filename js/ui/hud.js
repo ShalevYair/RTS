@@ -40,15 +40,18 @@ function syncButtons() {
   document.querySelectorAll('[data-diff]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.diff === diff)));
   // the one order button shows the order a tap on the map gives (attack: a sword, hold: a shield)
   const ob = $('ordMode'); if (ob.dataset.m !== mode) { ob.dataset.m = mode; ob.innerHTML = orderSvg(mode); } ob.setAttribute('aria-label', tr(mode));
+  // radio silence for the picked squads (where orders travel as messages): 📻 on the air, 🤫 silent
+  const sb = $('silent'), hush = selSilent(); sb.hidden = !Sim.friction(s) || !selIds().length; sb.textContent = hush ? '🤫' : '📻'; sb.setAttribute('aria-pressed', String(hush)); sb.setAttribute('aria-label', tr(hush ? 'silentOn' : 'silentOff'));
   document.querySelectorAll('[data-rate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.rate === rate)));
   $('paused').hidden = playing || !s || s.over || !menu.hidden || !!tour || !$('intro').hidden || !$('end').hidden;
   $('fs').setAttribute('aria-pressed', String(fsOn()));
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
-  document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.map === 'big') === bigMap)));
+  document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.map === (hugeMap ? 'huge' : bigMap ? 'big' : 'small'))));
   $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq');
   $('fsRow').hidden = !fsCan() && !fsOn();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
-  cv.style.cursor = eyeArmed ? 'zoom-in' : buildArmed || fhqArmed ? 'copy' : '';
+  cv.style.cursor = eyeArmed ? 'zoom-in' : buildArmed || fhqArmed || hqArmed ? 'copy' : '';
+  $('hqb').hidden = !hqToPlace(); $('hqb').setAttribute('aria-pressed', String(hqArmed));
   bar.classList.toggle('empty', ![...bar.children].some(c => !c.hidden)); // (the early levels have none of its buttons)
 }
 
@@ -91,7 +94,7 @@ function showEnd() {
     let err = 0, n = 0;
     for (const h of H) for (const q of h.sq) if (q.truth && q.belief) { err += Math.hypot(q.truth[0] - q.belief[0], q.truth[1] - q.belief[1]); n++; }
     const L = s.log2;
-    $('endStats').textContent = tr('endStats', n ? Math.round(err / n) : 0, L.orders, L.orders ? (L.delay / L.orders).toFixed(1) : 0, L.offN ? Math.round(L.off / L.offN) : 0, L.answered, L.missed, L.ff);
+    $('endStats').textContent = tr('endStats', n ? Math.round(err / n) : 0, L.orders, L.orders ? (L.delay / L.orders).toFixed(1) : 0, L.offN ? Math.round(L.off / L.offN) : 0, L.answered, L.missed, L.ff, L.unclear || 0);
     drawReplay(0);
   }
 }
@@ -102,7 +105,10 @@ function updateHud() {
   $('slotN').textContent = Sim.buildCount(s, 'blue') + '/' + Sim.buildLimit(s, 'blue');
   $('bld').setAttribute('aria-disabled', String(buildFull() && !buildArmed));
   // while there's room for another building, 🏗️ pulses: build more
-  $('bld').classList.toggle('nudge', !!s.t && !buildFull() && !buildArmed && $('buildm').hidden && !s.over && playing);
+  $('bld').classList.toggle('nudge', !!s.t && !buildFull() && !buildArmed && $('buildm').hidden && !s.over && playing && !(s.hqPending && s.hqPending.blue));
+  // open field: 🏰 pulses until a spot is picked; the first time, a note on the map says so
+  $('hqb').hidden = !hqToPlace(); $('hqb').classList.toggle('nudge', hqToPlace() && !hqPlanned() && !hqArmed);
+  if (hqToPlace() && !hqPlanned() && playing && !hqTold && fit) { hqTold = true; const [a, b] = Sim.hqBand(s, 'blue'), p = onScreen((a + b) / 2, s.H / 2); toast(tr('placeHq'), Math.max(120, p.x), Math.min(fit.top + fit.h - 60, Math.max(fit.top + 60, p.y))); }
   // and 🏕️ pulses whenever a forward HQ can be set up
   $('fhq').classList.toggle('nudge', uiHas('fhq') && !!s.t && playing && !fhqArmed && s.cd.blue.fhq <= 0 && Sim.fhqCount(s, 'blue') < Sim.NODES.fhq.max && fhqBuilders().length > 0);
   renderSquadButtons();
@@ -114,7 +120,7 @@ function updateHud() {
   $('fhqN').textContent = Sim.fhqCount(s, 'blue') >= N.fhq.max ? N.fhq.max + '/' + N.fhq.max : cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').setAttribute('aria-disabled', String(!Sim.canBuildFhq(s, bsq)));
   if (s.fog !== fogWas) { fogWas = s.fog; syncButtons(); } // the tutorial's fog comes down mid-level
   $('fhq').style.setProperty('--p', (1 - cd.fhq / N.fhq.every).toFixed(2));
-  $('bb').hidden = Sim.boost(s, 'blue') < 0.05;
+  $('bb').hidden = Sim.boost(s, 'blue') < 0.05; $('moon').hidden = Sim.nightAt(s) < 0.5;
   const key = s.log.length + ':' + (s.log.at(-1)?.t ?? '') + ':' + Math.floor(s.t / 2);
   if (key !== logKey) {
     logKey = key; const ol = $('log'); ol.textContent = '';
@@ -141,6 +147,11 @@ function updateHud() {
 }
 
 $('ordMode').addEventListener('click', () => { mode = mode === 'attack' ? 'hold' : 'attack'; hideTip(); syncButtons(); });
+// the picked squads are silent (or have that order on its way)
+const wantSilent = q => { const m = s.outbox.find(k => k.id === q.id && k.kind === 'silent'); return m ? m.on : q.silent; };
+const selSilent = () => { const l = selIds().map(id => s.squads.find(q => q.id === id)).filter(Boolean); return !!l.length && l.every(wantSilent); };
+function toggleSilent() { const on = !selSilent(); for (const id of selIds()) Sim.silence(s, id, on); hideTip(); syncButtons(); }
+$('silent').addEventListener('click', toggleSilent);
 $('ordMode').dataset.tip = 'ord'; $('ordMode').tipText = () => tr(mode === 'attack' ? 'tipAttack' : 'tipHold') + ' · ' + tr('tipSwitch');
 document.querySelectorAll('[data-rate]').forEach(b => b.addEventListener('click', () => { rate = +b.dataset.rate; syncButtons(); }));
 $('all').addEventListener('click', () => select('all'));
@@ -150,7 +161,7 @@ $('all').addEventListener('click', () => select('all'));
 // Groups (this game only, in the UI): squads tied together with 🔗 act as one — picked together (also by tapping any
 // of them on the map), ordered together, in rows facing the enemy; ✂ unties them. A squad is in one group at most;
 // a group down to one squad is gone.
-const TYPE_KEYS = ['tank', 'inf', 'jeep', 'aa', 'air', 'med', 'mech', 'truck'];
+const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'med', 'mech', 'truck'];
 let groups = [], nextGroup = 1;
 const groupOf = id => groups.find(g => g.ids.includes(id));
 const aliveBlue = () => new Set(s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id));
@@ -217,9 +228,9 @@ function drawGroupIcon(cvs, kinds) {
 }
 // a squad's button: the unit as it looks on the map (our colour, outlined), big
 function drawSquadIcon(cvs, type) {
-  const c = cvs.getContext('2d'), k = { air: 28, tank: 21, jeep: 23, mech: 19, truck: 21 }[type] || 28;
+  const c = cvs.getContext('2d'), k = { air: 28, tank: 21, jeep: 23, ajeep: 23, tjeep: 23, mech: 19, truck: 21 }[type] || 28;
   c.clearRect(0, 0, 64, 64);
-  const x = type === 'tank' ? 25 : type === 'mech' ? 40 : type === 'inf' || type === 'aa' ? 29 : 32, y = type === 'inf' || type === 'med' || type === 'aa' ? 35 : 32;
+  const x = type === 'tank' ? 25 : type === 'mech' ? 40 : type === 'inf' || type === 'aa' || type === 'at' ? 29 : 32, y = type === 'inf' || type === 'med' || type === 'aa' || type === 'at' ? 35 : 32;
   glyph(c, type, x, y, k, colors.blue, colors.outline, type === 'air' ? -Math.PI / 4 : 0, type === 'aa' ? -Math.PI / 4 : 0, 2.2);
 }
 const FOE_GUESS = 6;
@@ -236,10 +247,10 @@ function believedShare() {
 // build menu: pick a building, then a spot on the map where control is strong enough
 function initBuildMenu() {
   const m = $('buildm');
-  for (const k of Sim.PRODUCERS) {
+  for (const k of Sim.BUILDABLE) {
     const b = document.createElement('button');
     b.dataset.build = k; b.dataset.tip = 'b_' + k; b.innerHTML = '<span></span><b></b><small></small>';
-    b.querySelector('span').textContent = Sim.STRUCTS[k].icon;
+    b.querySelector('span').textContent = Sim.STRUCTS[k].icon; if (Sim.STRUCTS[k].badge) { const i = document.createElement('i'); i.textContent = Sim.STRUCTS[k].badge; b.querySelector('span').appendChild(i); }
     b.addEventListener('click', () => { buildArmed = k; m.hidden = true; hideTip(); syncButtons(); });
     m.appendChild(b);
   }
@@ -248,13 +259,13 @@ function initBuildMenu() {
 function nameBuildMenu() {
   for (const b of document.querySelectorAll('[data-build]')) {
     const S = Sim.STRUCTS[b.dataset.build];
-    b.querySelector('b').textContent = sn(b.dataset.build); b.querySelector('small').textContent = tr('buildItem', S.build, tn(S.unit));
+    b.querySelector('b').textContent = sn(b.dataset.build); b.querySelector('small').textContent = S.unit ? tr('buildItem', S.every, tn(S.unit)) : tr('decoyItem', Sim.DECOY_MAX);
   }
 }
 // the menu offers what this game allows (the tutorial adds kinds level by level)
 function syncBuildMenu(fresh) {
   for (const b of document.querySelectorAll('[data-build]')) {
-    b.hidden = !!s.builds && !s.builds.includes(b.dataset.build);
+    b.hidden = b.dataset.build === 'decoy' ? !!s.level : !!s.builds && !s.builds.includes(b.dataset.build);
     b.classList.toggle('new', fresh.includes(b.dataset.build));
   }
 }
@@ -263,6 +274,7 @@ const blink = el => { el.classList.remove('blink'); void el.offsetWidth; el.clas
 // no free slot: the button is dimmed, and pressing it anyway flashes it and the way out: 🏕️
 function toggleBuild() {
   const m = $('buildm');
+  if (!buildArmed && m.hidden && s.hqPending && s.hqPending.blue) { blink($('hqb')); const r = $('bld').getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('why').nohq, r.left - st.left + r.width / 2, r.top - st.top - 30); return; }
   if (!buildArmed && m.hidden && buildFull()) { blink($('bld')); if (!$('fhq').hidden) blink($('fhq')); return; }
   if (buildArmed) { buildArmed = null; m.hidden = true; } else m.hidden = !m.hidden;
   syncButtons();
@@ -271,7 +283,7 @@ $('bld').addEventListener('click', toggleBuild);
 // a world point on the screen (stage pixels)
 const onScreen = (x, y) => ({ x: view.cox + x * view.css, y: view.coy + y * view.css });
 function placeBuilding(x, y) {
-  const why = Sim.buildCheck(s, 'blue', x, y);
+  const why = Sim.buildCheck(s, 'blue', x, y, buildArmed);
   if (why) { const p = onScreen(x, y); toast(tr('why')[why], p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y);
   if (!why) buildArmed = null;
   syncButtons(); updateHud();
@@ -345,7 +357,7 @@ function fullTour() {
 // (the radio log #log stays hidden for now: the map says it)
 const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld'], vehicles: ['bld'], care: ['bld'], air: ['bld'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq'] };
 // building kinds each level step brings
-const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage', 'depot'], air: ['aapost', 'airfield'] };
+const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage', 'depot'], air: ['aapost', 'atpost', 'jeepaa', 'jeepat', 'airfield'] };
 // an element shows when any of the level steps that bring it is there
 const UI_EL_ANY = id => Object.keys(UI_EL).some(k => UI_EL[k].includes(id) && uiHas(k));
 function applyUi() {
@@ -359,8 +371,8 @@ function applyUi() {
 document.addEventListener('pointerdown', e => { const n = e.target.closest && e.target.closest('.new'); if (n) n.classList.remove('new'); }, true);
 // map size: a new map is made at once (the intro is still up, nothing has happened yet)
 document.querySelectorAll('[data-map]').forEach(b => b.addEventListener('click', () => {
-  const big = b.dataset.map === 'big'; if (big === bigMap) return;
-  bigMap = big; try { localStorage.setItem('irts-map', big ? 'big' : 'small'); } catch (e) { /* ignore */ }
+  const m = b.dataset.map; if (m === (hugeMap ? 'huge' : bigMap ? 'big' : 'small')) return;
+  bigMap = m !== 'small'; hugeMap = m === 'huge'; try { localStorage.setItem('irts-map', m); } catch (e) { /* ignore */ }
   newGame(true); showIntro(true);
 }));
 document.querySelectorAll('[data-fog]').forEach(b => b.addEventListener('click', () => {
@@ -373,11 +385,22 @@ $('eye').addEventListener('click', toggleEye);
 // forward HQ: 🏕️, then a spot on the map; the selected jeep / tank squad (or the nearest one) drives there and sets it
 // up. With none that can, the squads that could blink (or nothing happens while waiting for the next one).
 let fhqArmed = false;
+// open field: 🏰, then a spot in our strip; the command tanks drive there and set the HQ up (armed at the start)
+let hqArmed = false, hqTold = false;
+const hqToPlace = () => !!(s.hqPending && s.hqPending.blue && !s.nodes.some(n => n.side === 'blue' && n.kind === 'hq') && Sim.cmdSquad(s, 'blue'));
+const hqPlanned = () => { const c = Sim.cmdSquad(s, 'blue'); return !!(c && c.hqAt); };
+function armHq() { hqArmed = !hqArmed && hqToPlace(); if (hqArmed) { eyeArmed = false; buildArmed = null; fhqArmed = false; $('buildm').hidden = true; } syncButtons(); }
+$('hqb').addEventListener('click', armHq);
+function placeHq(x, y) {
+  const why = Sim.hqCheck(s, 'blue', x, y);
+  if (why) { const p = onScreen(x, y); toast(tr('hqWhy')[why] || tr('hqWhy').bad, p.x, p.y); return; }
+  Sim.planHq(s, 'blue', x, y); hqArmed = false; syncButtons(); updateHud();
+}
 const fhqBuilders = () => s.squads.filter(q => q.side === 'blue' && Sim.canBuildFhq(s, q));
 function buildHere() {
   if (fhqArmed) { fhqArmed = false; syncButtons(); return; }
   if (s.cd.blue.fhq > 0 || Sim.fhqCount(s, 'blue') >= Sim.NODES.fhq.max) return;
-  if (!fhqBuilders().length) { for (const b of document.querySelectorAll('#sqs button')) if (btnIds(b).some(id => ['jeep', 'tank'].includes(s.squads.find(q => q.id === id).type))) blink(b); return; }
+  if (!fhqBuilders().length) { for (const b of document.querySelectorAll('#sqs button')) if (btnIds(b).some(id => ['jeep', 'ajeep', 'tjeep', 'tank'].includes(s.squads.find(q => q.id === id).type))) blink(b); return; }
   fhqArmed = true; eyeArmed = false; buildArmed = null; $('buildm').hidden = true; syncButtons();
 }
 function placeFhq(x, y) {

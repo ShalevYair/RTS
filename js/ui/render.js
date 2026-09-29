@@ -163,8 +163,9 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     c.strokeStyle = fill; c.lineWidth = w; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
   };
   if (type === 'air') { c.rotate(hd); c.beginPath(); poly(c, PLANE, k); paint(); }
-  else if (type === 'aa') {
-    // anti-aircraft: a soldier with a launcher tube on his shoulder, pointing where he aims (up, at aircraft)
+  else if (type === 'aa' || type === 'at') {
+    // anti-aircraft: a soldier with a launcher tube on his shoulder, pointing where he aims (up, at aircraft);
+    // anti-tank: the same, level, with a fat warhead
     const flip = Math.cos(aim) < 0; if (flip) c.scale(-1, 1);
     const a = flip ? Math.PI - aim : aim;
     c.beginPath(); c.arc(-0.1 * k, -0.62 * k, 0.24 * k, 0, Math.PI * 2);
@@ -173,7 +174,8 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     paint();
     c.save(); c.translate(0.05 * k, -0.42 * k); c.rotate(a);
     c.beginPath(); c.rect(-0.45 * k, -0.15 * k, 1.35 * k, 0.3 * k); paint();
-    c.beginPath(); c.moveTo(0.9 * k, -0.15 * k); c.lineTo(1.12 * k, 0); c.lineTo(0.9 * k, 0.15 * k); c.closePath(); paint();
+    if (type === 'at') { c.beginPath(); c.arc(0.98 * k, 0, 0.24 * k, 0, Math.PI * 2); paint(); }
+    else { c.beginPath(); c.moveTo(0.9 * k, -0.15 * k); c.lineTo(1.12 * k, 0); c.lineTo(0.9 * k, 0.15 * k); c.closePath(); paint(); }
     c.restore();
   }
   else if (type === 'tank') {
@@ -205,12 +207,15 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     paint();
     c.fillStyle = outline ? '#fff' : tcol('med');
     c.fillRect(-0.07 * k, -0.3 * k, 0.14 * k, 0.44 * k); c.fillRect(-0.2 * k, -0.15 * k, 0.4 * k, 0.14 * k);
-  } else if (type === 'jeep') {
-    // jeep: open body, four wheels, a pintle gun on top
+  } else if (type === 'jeep' || type === 'ajeep' || type === 'tjeep') {
+    // jeep: open body, four wheels, a pintle gun on top (AA jeep: a rack of two missiles; AT jeep: one fat launcher)
     c.rotate(hd); c.beginPath(); c.rect(-0.75 * k, -0.45 * k, 1.5 * k, 0.9 * k); paint();
     c.fillStyle = 'rgba(0,0,0,.45)'; for (const [wx, wy] of [[-0.5, -0.55], [0.35, -0.55], [-0.5, 0.42], [0.35, 0.42]]) c.fillRect(wx * k, wy * k, 0.3 * k, 0.14 * k);
     if (step) { c.fillStyle = 'rgba(255,255,255,.6)'; const o = (Math.sin(step * 2) + 1) * 0.1 * k; for (const [wx, wy] of [[-0.5, -0.55], [0.35, -0.55], [-0.5, 0.42], [0.35, 0.42]]) c.fillRect(wx * k + o, wy * k, 0.09 * k, 0.14 * k); }
-    c.rotate(aim - hd); barrel(0, 0, 0.9 * k, 0, 0.12 * k);
+    c.rotate(aim - hd);
+    if (type === 'ajeep') { barrel(-0.4 * k, -0.17 * k, 0.6 * k, -0.17 * k, 0.17 * k); barrel(-0.4 * k, 0.17 * k, 0.6 * k, 0.17 * k, 0.17 * k); }
+    else if (type === 'tjeep') { barrel(-0.45 * k, 0, 0.6 * k, 0, 0.26 * k); c.beginPath(); c.arc(0.68 * k, 0, 0.19 * k, 0, Math.PI * 2); paint(); }
+    else barrel(0, 0, 0.9 * k, 0, 0.12 * k);
   } else {
     if (Math.cos(hd) < 0) c.scale(-1, 1);
     c.beginPath(); c.arc(0, -0.62 * k, 0.24 * k, 0, Math.PI * 2);
@@ -360,7 +365,7 @@ function drawTerrain(c, W, H, mid) {
 }
 
 // drone: a quadcopter from above — four rotors on an X frame
-const AMMO = '#e0b020', GLOW = { inf: 2.5, aa: 2.5, med: 2.5, jeep: 3 };
+const AMMO = '#e0b020', GLOW = { inf: 2.5, aa: 2.5, at: 2.5, med: 2.5, jeep: 3, ajeep: 3, tjeep: 3 };
 function drawDrone(c, x, y, k, col, rot = 0, spin = 0) {
   c.save(); c.translate(x, y); c.rotate(rot); c.lineWidth = k * 0.16; c.strokeStyle = colors.outline;
   c.beginPath(); c.moveTo(-k * 0.7, -k * 0.7); c.lineTo(k * 0.7, k * 0.7); c.moveTo(k * 0.7, -k * 0.7); c.lineTo(-k * 0.7, k * 0.7); c.stroke();
@@ -391,8 +396,8 @@ function drawFog() {
     f.fillStyle = g; f.beginPath(); f.arc(x, y, r, 0, Math.PI * 2); f.fill();
   };
   // our squads lift the fog around them only where they're drawn (not around a guess)
-  for (const q of s.squads) if (q.side === 'blue' && !q.dead && sqShown(q)) hole(q.cx, q.cy, Sim.TYPES[q.type].sight + 30);
-  for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, n.kind === 'drone' ? Sim.DRONE_SIGHT + 15 : n.kind === 'fhq' ? Sim.NODES.fhq.sight : n.kind === 'hq' ? Sim.STRUCTS.hq.sight + 20 : 120);
+  for (const q of s.squads) if (q.side === 'blue' && !q.dead && sqShown(q)) hole(q.cx, q.cy, Sim.TYPES[q.type].sight * (1 - 0.4 * Sim.nightAt(s)) + 30);
+  for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, n.kind === 'drone' ? Sim.DRONE_SIGHT + 15 : n.kind === 'fhq' ? Sim.NODES.fhq.sight : n.kind === 'hq' ? Sim.STRUCTS.hq.sight + 20 : 170);
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = s.fogAt ? Math.min(1, (s.t - s.fogAt) / 3) : 1; ctx.drawImage(fogCv, 0, 0); ctx.restore();
 }
 
@@ -432,7 +437,7 @@ const shownAt = p => !Sim.friction(s) || Sim.quality(s, 'blue', p) >= 1;
 // nodes change.
 const qual = { cv: document.createElement('canvas'), key: '' }, QC = ELEV;
 function drawQuality(c) {
-  const nodes = s.nodes.filter(n => n.side === 'blue' && Sim.NODES[n.kind] && n.hp > 0 && s.t >= n.ready);
+  const nodes = s.nodes.filter(n => n.side === 'blue' && Sim.nodeSpec(n.kind) && n.hp > 0 && s.t >= n.ready);
   const key = s.seed + ':' + s.W + ':' + nodes.map(n => n.id).join() + ':' + colors.blue;
   if (key !== qual.key) {
     qual.key = key;
@@ -480,7 +485,7 @@ function fromHsl(h, sat, l) {
 }
 const STRUCT_PX = 40, HQ_PX = 58; // a building's picture; the HQ's, bigger
 function drawStruct(c, n, ghost) {
-  const S = Sim.STRUCTS[n.kind], N = Sim.NODES[n.kind], col = colors[n.side], on = s.t >= n.ready;
+  const S = Sim.STRUCTS[n.kind], col = colors[n.side], on = s.t >= n.ready;
   // under construction: a pegged-out plot, and the building rising out of it (small and faint at first)
   const grow = on || ghost || n.kind === 'hq' || n.kind === 'drone' ? 1 : Math.max(0, Math.min(1, (s.t - n.t0) / Math.max(0.01, n.ready - n.t0)));
   if (grow < 1) {
@@ -493,18 +498,25 @@ function drawStruct(c, n, ghost) {
   }
   if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.2 : 0.32; drawDrone(c, n.x, n.y, 8, col, s.t * 0.35 + n.id, on ? s.t * 25 : 0); }
   else {
-    const px = n.kind === 'hq' ? HQ_PX : STRUCT_PX, k = px / STRUCT_PX;
+    const px = n.kind === 'hq' || n.kind === 'decoy' ? HQ_PX : STRUCT_PX, k = px / STRUCT_PX;
     c.globalAlpha = ghost ? 0.3 : 0.4; c.fillStyle = col; c.beginPath(); c.ellipse(n.x + 2, n.y + 15 * k, 22 * k, 7 * k, 0, 0, Math.PI * 2); c.fill();
     c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.25 + 0.6 * grow;
     const pic = sideIcon(S.icon, col, px), w = pic.width / ICON_RES; c.drawImage(pic, n.x - w / 2, n.y - w / 2, w, w);
+    if (S.badge && (n.kind !== 'decoy' || n.side === 'blue')) { c.font = '15px sans-serif'; c.fillText(S.badge, n.x + (n.kind === 'decoy' ? 24 : 15), n.y - 8); }
   }
   if (grow < 1) c.restore();
   c.globalAlpha = 1;
   if (ghost) return;
-  const top = n.kind === 'hq' ? 38 : n.kind === 'drone' ? 16 : 30, bot = n.kind === 'hq' ? 34 : n.kind === 'drone' ? 14 : 24;
+  const big = n.kind === 'hq' || n.kind === 'decoy', top = big ? 38 : n.kind === 'drone' ? 16 : 30, bot = big ? 34 : n.kind === 'drone' ? 14 : 24;
   if (!on) label(String(Math.ceil(n.ready - s.t)), n.x, n.y - top, col);
   if (n.fixing && nodeShown(n)) { c.font = '13px sans-serif'; c.globalAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 150); c.fillText('🔧', n.x + 18, n.y - top + 4); c.globalAlpha = 1; }
   if (n.hp < S.hp) { c.fillStyle = colors.shadow; c.fillRect(n.x - 14, n.y + bot, 28, 3); c.fillStyle = col; c.fillRect(n.x - 14, n.y + bot, 28 * Math.max(0, n.hp / S.hp), 3); }
+  // ours: the next unit coming out — a bar filling up, and the unit's shape beside it
+  if (on && S.unit && n.side === 'blue' && n.prog > 0) {
+    const y = n.y - top - 2; c.fillStyle = colors.halo; c.globalAlpha = 0.8; c.fillRect(n.x - 15, y - 2, 30, 5); c.globalAlpha = 1;
+    c.fillStyle = col; c.fillRect(n.x - 14, y - 1, 28 * Math.min(1, n.prog), 3);
+    const g = Math.min(6, SIZE[S.unit] * 0.55); glyph(c, S.unit, n.x - 21, y, g, col, colors.outline, 0, S.unit === 'aa' ? -Math.PI / 4 : 0, 0.8);
+  }
 }
 function drawNodes(c) {
   for (const n of s.nodes) if (nodeShown(n)) drawStruct(c, n, false);
@@ -521,6 +533,14 @@ function drawBuildArea(c) {
     const p = pos(q), f = q.fhqAt;
     c.globalAlpha = 0.45; c.font = `${STRUCT_PX}px sans-serif`; c.fillText('🏕️', f.x, f.y + 14); c.globalAlpha = 1;
   }
+  // open field: the HQ's spot on its way (a faint 🏰), and while placing it, our strip in green and 🏰 at the pointer
+  const cq = Sim.cmdSquad(s, 'blue');
+  if (cq && cq.hqAt) { c.globalAlpha = 0.45; c.font = `${HQ_PX}px sans-serif`; c.fillText('🏰', cq.hqAt.x, cq.hqAt.y + 20); c.globalAlpha = 1; }
+  if (hqArmed) {
+    const [a, b] = Sim.hqBand(s, 'blue'); c.fillStyle = 'rgba(80,200,90,.16)'; c.fillRect(a, 30, b - a, s.H - 60);
+    c.strokeStyle = 'rgba(60,170,70,.7)'; c.lineWidth = 1.5; c.setLineDash([6, 5]); c.strokeRect(a, 30, b - a, s.H - 60); c.setLineDash([]);
+    if (mouseAt) { const r = cv.getBoundingClientRect(), w = { x: (mouseAt.x - r.left - view.cox) / view.css, y: (mouseAt.y - r.top - view.coy) / view.css }; c.globalAlpha = Sim.hqCheck(s, 'blue', w.x, w.y) ? 0.25 : 0.7; c.font = `${HQ_PX}px sans-serif`; c.fillText('🏰', w.x, w.y + 20); c.globalAlpha = 1; }
+  }
   if (fhqArmed && mouseAt) {
     const r = cv.getBoundingClientRect(), w = { x: (mouseAt.x - r.left - view.cox) / view.css, y: (mouseAt.y - r.top - view.coy) / view.css };
     c.fillStyle = 'rgba(80,200,90,.16)'; c.strokeStyle = 'rgba(60,170,70,.7)'; c.lineWidth = 1.5; c.setLineDash([6, 5]);
@@ -528,11 +548,12 @@ function drawBuildArea(c) {
     c.globalAlpha = 0.7; c.font = `${STRUCT_PX}px sans-serif`; c.fillText('🏕️', w.x, w.y + 14); c.globalAlpha = 1;
   }
   if (!buildArmed) return;
-  const G = 20; c.fillStyle = 'rgba(80,200,90,.22)';
-  for (let y = G / 2; y < s.H; y += G) for (let x = G / 2; x < s.W; x += G) if (!Sim.buildCheck(s, 'blue', x, y)) c.fillRect(x - G / 2, y - G / 2, G, G);
+  const G = 20, v = viewRect() || { x: 0, y: 0, w: s.W, h: s.H }; c.fillStyle = 'rgba(80,200,90,.22)';
+  const x0 = Math.max(G / 2, Math.floor(v.x / G) * G + G / 2), y0 = Math.max(G / 2, Math.floor(v.y / G) * G + G / 2);
+  for (let y = y0; y < Math.min(s.H, v.y + v.h + G); y += G) for (let x = x0; x < Math.min(s.W, v.x + v.w + G); x += G) if (!Sim.buildCheck(s, 'blue', x, y, buildArmed)) c.fillRect(x - G / 2, y - G / 2, G, G);
 }
 // event reports appear where they happened, pop in and fade out
-const MARK = { ack: '👌', contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕️', nodeLost: '💥', ff: '⚠' };
+const MARK = { promo: '⭐', unclear: '❓', ack: '👌', contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕️', nodeLost: '💥', ff: '⚠' };
 // orders still on their way: an envelope runs from HQ toward the squad
 function drawMail(c) {
   const hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq') || { x: s.bases.blue.x, y: s.H / 2 };
@@ -573,7 +594,7 @@ function drawFallen(c) {
     const a = Math.max(0, 1 - age / 12), T = Sim.TYPES[f.type], k = SIZE[f.type];
     if (T.air) { c.globalAlpha = 0.5 * a; c.fillStyle = '#2a2a24'; ring(f.x, f.y, k * 0.9); c.fill(); continue; } // a crash site
     c.globalAlpha = 0.75 * a;
-    if (f.type === 'tank' || f.type === 'jeep' || f.type === 'mech' || f.type === 'truck') glyph(c, f.type, f.x, f.y, k, '#3b3833', colors.outline, f.hd + 0.3, f.hd + 1.2);
+    if (CAR.has(f.type)) glyph(c, f.type, f.x, f.y, k, '#3b3833', colors.outline, f.hd + 0.3, f.hd + 1.2);
     else { c.save(); c.translate(f.x, f.y); c.rotate(Math.PI / 2 * (f.side === 'blue' ? -1 : 1)); glyph(c, f.type, 0, 0, k, shade(colors[f.side], -0.35), colors.outline, 0); c.restore(); }
   }
   c.globalAlpha = 1;
@@ -581,7 +602,7 @@ function drawFallen(c) {
 // tracks: vehicles leave faint marks in the ground as they drive, fading over TRACK_T s
 const tracks = [], TRACK_T = 8, TRACK_MAX = 1500;
 function addTrack(u, a) {
-  if (u.type !== 'tank' && u.type !== 'jeep' && u.type !== 'mech' && u.type !== 'truck') return;
+  if (!CAR.has(u.type)) return;
   const d = Math.hypot(u.x - (a.tx ?? u.x - 99), u.y - (a.ty ?? u.y - 99));
   if (d < 7) return;
   a.tx = u.x; a.ty = u.y; tracks.push({ x: u.x, y: u.y, a: u.hd, t: s.t, w: u.type === 'tank' ? 0.55 : 0.45, k: SIZE[u.type] });
@@ -590,7 +611,7 @@ function addTrack(u, a) {
 // dust: little clouds kicked up behind moving vehicles (fewer behind soldiers), swelling and fading in DUST_T s
 const dust = [], DUST_T = 0.9, DUST_MAX = 400;
 function addDust(u, a, d) {
-  const car = u.type === 'tank' || u.type === 'jeep' || u.type === 'mech' || u.type === 'truck';
+  const car = CAR.has(u.type);
   a.dd = (a.dd || 0) + d; if (a.dd < (car ? 6 : 26)) return; a.dd = 0;
   const k = SIZE[u.type], back = car ? k * 0.9 : k * 0.2, sx = (Math.random() - 0.5) * k * 0.6;
   dust.push({ x: u.x - Math.cos(u.hd) * back - Math.sin(u.hd) * sx, y: u.y + k * (car ? 0.2 : 0.7) - Math.sin(u.hd) * back + Math.cos(u.hd) * sx, t: s.t, r: car ? (u.type === 'tank' ? 3.2 : 2.4) : 0.8, a: car ? 0.45 : 0.18 });
@@ -600,7 +621,7 @@ function drawDust(c) {
   while (dust.length && s.t - dust[0].t > DUST_T) dust.shift();
   c.fillStyle = DUST_COL;
   for (const p of dust) {
-    const a = (s.t - p.t) / DUST_T; if (a < 0) continue;
+    const a = (s.t - p.t) / DUST_T; if (a < 0 || a >= 1) continue; // (never past its fade)
     c.globalAlpha = p.a * (1 - a); ring(p.x, p.y - a * 3, p.r * (1 + a * 1.6)); c.fill();
   }
   c.globalAlpha = 1;
@@ -654,6 +675,11 @@ function drawUnits(c, show) {
   }
 }
 
+// night: the map darkens (a deep blue wash), fading in and out at dusk and dawn
+function drawNight(c) {
+  const k = Sim.nightAt(s); if (!k) return;
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = `rgba(12,20,52,${(0.38 * k).toFixed(3)})`; c.fillRect(0, 0, cv.width, cv.height); c.restore();
+}
 function draw() {
   const c = ctx, W = s.W, H = s.H, mid = W / 2;
   c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = colors.ground; c.fillRect(0, 0, cv.width, cv.height);
@@ -666,11 +692,11 @@ function draw() {
   for (const sh of s.shots) {
     const k = Math.min(1, (sh.dur + 0.12 - sh.life) / sh.dur), x = sh.x1 + (sh.x2 - sh.x1) * k, y = sh.y1 + (sh.y2 - sh.y1) * k;
     const dx = sh.x2 - sh.x1, dy = sh.y2 - sh.y1, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
-    if (sh.kind === 'air' || sh.kind === 'aa') {
+    if (sh.kind === 'air' || sh.kind === 'aa' || sh.kind === 'at' || sh.kind === 'ajeep' || sh.kind === 'tjeep') {
       const back = Math.min(d * k, 40);
       c.globalAlpha = 0.35 * (k < 1 ? 1 : sh.life / 0.12); c.strokeStyle = '#d8d8d0'; c.lineWidth = 2.5;
       c.beginPath(); c.moveTo(x - ux * back, y - uy * back); c.lineTo(x, y); c.stroke();
-      if (k < 1) { c.globalAlpha = 1; c.strokeStyle = sh.kind === 'aa' ? '#fff1a8' : colors[sh.side]; c.lineWidth = 2.2; c.beginPath(); c.moveTo(x - ux * 5, y - uy * 5); c.lineTo(x, y); c.stroke(); c.fillStyle = '#ffb040'; ring(x - ux * 6, y - uy * 6, 1.6); c.fill(); }
+      if (k < 1) { c.globalAlpha = 1; c.strokeStyle = sh.kind !== 'air' ? '#fff1a8' : colors[sh.side]; c.lineWidth = 2.2; c.beginPath(); c.moveTo(x - ux * 5, y - uy * 5); c.lineTo(x, y); c.stroke(); c.fillStyle = '#ffb040'; ring(x - ux * 6, y - uy * 6, 1.6); c.fill(); }
     } else if (k < 1) {
       const tank = sh.kind === 'tank', len = tank ? 9 : 5;
       c.globalAlpha = 1; c.shadowColor = '#ffcf6a'; c.shadowBlur = tank ? 6 : 3; c.strokeStyle = tank ? '#ffe2a0' : '#fff6c8'; c.lineWidth = tank ? 2.6 : 1.4;
@@ -679,7 +705,7 @@ function draw() {
   }
   c.restore(); c.globalAlpha = 1;
   // units: exact picture without fog; under fog what we see where the picture is exact (see shownAt)
-  if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); tracks.length = 0; }
+  if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); tracks.length = 0; dust.length = 0; }
   drawTracks(c); drawFallen(c); drawDust(c);
   if (!s.fog) drawUnits(c, () => true);
   else { drawUnits(c, u => (u.side === 'blue' || s.vis.blue.has(u.id)) && shownAt(u)); drawGhosts(c); }
@@ -700,6 +726,7 @@ function draw() {
       }
     }
   }
+  drawNight(c);
   if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); drawMail(c); }
   drawNodes(c);
   drawBuildArea(c);
@@ -771,7 +798,7 @@ function drawMini() {
   c.fillStyle = colors.ground; c.fillRect(0, 0, s.W, s.H);
   c.fillStyle = hexA(colors.tree, 0.35); for (const hl of s.hills) { c.beginPath(); c.ellipse(hl.x, hl.y, hl.r, hl.r * hl.e, hl.a, 0, Math.PI * 2); c.fill(); }
   c.fillStyle = colors.water; for (const l of s.lakes) { c.beginPath(); c.ellipse(l.x, l.y, l.rx, l.ry, l.a, 0, Math.PI * 2); c.fill(); }
-  if (s.fog) { c.fillStyle = hexA(colors.blue, 0.12); for (const n of s.nodes) if (n.side === 'blue' && Sim.NODES[n.kind] && s.t >= n.ready) { c.beginPath(); c.arc(n.x, n.y, Sim.NODES[n.kind].r0, 0, Math.PI * 2); c.fill(); } }
+  if (s.fog) { c.fillStyle = hexA(colors.blue, 0.12); for (const n of s.nodes) if (n.side === 'blue' && Sim.nodeSpec(n.kind) && s.t >= n.ready) { c.beginPath(); c.arc(n.x, n.y, Sim.nodeSpec(n.kind).r0, 0, Math.PI * 2); c.fill(); } }
   const dot = (x, y, r, col, sq) => { c.fillStyle = col; c.beginPath(); if (sq) c.rect(x - r, y - r, 2 * r, 2 * r); else c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
   for (const n of s.nodes) if (nodeShown(n)) { if (n.kind === 'drone') { c.globalAlpha = 0.35; dot(n.x, n.y, 7, colors[n.side]); c.globalAlpha = 1; } else dot(n.x, n.y, 14, colors[n.side], true); }
   if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { c.globalAlpha = 0.5; const n = s.memNodes.blue[id]; dot(n.x, n.y, 14, colors.red, true); c.globalAlpha = 1; }

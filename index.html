@@ -23,7 +23,7 @@
   <canvas id="cv" data-al="map"></canvas>
   <canvas id="mini" class="glass" data-al="mini" hidden></canvas>
   <div class="hudl">
-    <div class="score blue glass" id="power"><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="bb" data-tip="boost" hidden>⚡</i></div>
+    <div class="score blue glass" id="power"><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="bb" data-tip="boost" hidden>⚡</i><i class="boost" id="moon" data-tip="tipNight" hidden>🌙</i></div>
     <div class="seg glass" id="gSq" role="group">
       <button id="all" class="icon" aria-pressed="false" data-al="all" data-tip="all">★</button>
       <span id="sqs" class="seg"></span>
@@ -53,7 +53,7 @@
       <div class="levels" id="levels" role="group"></div>
       <div id="freeOpts">
       <div class="mrow"><span data-t="fog"></span><button data-fog="1" data-t="on" data-tip="tipFogOn"></button><button data-fog="0" data-t="off" data-tip="tipFogOff"></button></div>
-      <div class="mrow"><span data-t="mapSize"></span><button data-map="big" data-t="big" data-tip="tipBig"></button><button data-map="small" data-t="small" data-tip="tipSmall"></button></div>
+      <div class="mrow"><span data-t="mapSize"></span><button data-map="small" data-t="small" data-tip="tipSmall"></button><button data-map="big" data-t="big" data-tip="tipBig"></button><button data-map="huge" data-t="huge" data-tip="tipHuge"></button></div>
       <div class="mrow"><span data-t="diff"></span><button data-diff="easy"></button><button data-diff="normal"></button><button data-diff="hard"></button></div>
       </div>
       <p class="turn" data-al="turn">📱↻</p>
@@ -73,6 +73,7 @@
     </div>
   </div>
   <div class="bar glass" id="bar" role="toolbar">
+    <button id="hqb" class="icon" data-al="hqb" data-tip="tipHqb" hidden>🏰</button>
     <button id="eye" class="icon node" aria-pressed="false" data-al="eye" data-tip="eye"><svg class="ico" viewBox="-12 -12 24 24" aria-hidden="true"><path d="M-7-7L7 7M7-7L-7 7" stroke="currentColor" stroke-width="2"/><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="-7" cy="-7" r="4.2"/><circle cx="7" cy="-7" r="4.2"/><circle cx="-7" cy="7" r="4.2"/><circle cx="7" cy="7" r="4.2"/></g><rect x="-3" y="-3" width="6" height="6" rx="1.5" fill="currentColor"/></svg><b id="eyeN"></b><i></i></button>
     <button id="bld" class="icon" aria-expanded="false" data-al="bld" data-tip="bld">🏗️<b id="slotN"></b></button>
     <button id="fhq" class="icon node" data-al="fhq" data-tip="fhq">🏕️<b id="fhqN"></b><i></i></button>
@@ -80,6 +81,7 @@
   <!-- bottom left: the order (sword = attack, shield = hold; a tap switches), only while something is picked -->
   <div class="grp glass" id="gOrd" role="group">
     <button class="ord icon" id="ordMode"></button>
+    <button class="ord icon" id="silent" data-tip="tipSilent"></button>
   </div>
   <!-- bottom right: the settings -->
   <div class="corner" id="corner">

@@ -8,8 +8,8 @@ function step(s, dt) {
   for (const u of s.units) { u.lvl = TYPES[u.type].air ? 0 : levelAt(s, u); u.hill = u.lvl >= 1; }
   const bySquad = new Map(s.squads.map(q => [q.id, q]));
   for (const u of s.units) updateUnit(s, u, bySquad.get(u.squad), dt);
-  separate(s);
-  for (const u of s.units) if (u.hp <= 0) { s.fx.push({ x: u.x, y: u.y, life: 0.7, max: 0.7, size: 26 }); s.fallen.push({ x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t }); }
+  separate(s, dt);
+  for (const u of s.units) if (u.hp <= 0) { const k = u.by && s.squads.find(q => q.id === u.by); if (k && k.side !== u.side) gainXp(s, k, UNIT_VALUE[u.type]); s.fx.push({ x: u.x, y: u.y, life: 0.7, max: 0.7, size: 26 }); s.fallen.push({ x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t }); }
   if (s.fallen.length && s.t - s.fallen[0].t > FALLEN_T) s.fallen = s.fallen.filter(f => s.t - f.t <= FALLEN_T); // for the picture
   s.units = s.units.filter(u => u.hp > 0);
   for (const u of s.units) if (!TYPES[u.type].air && healSpot(s, u)) u.hp = Math.min(TYPES[u.type].hp, u.hp + BASE_HEAL * dt);
@@ -30,6 +30,7 @@ function step(s, dt) {
   updateStructs(s, dt);
   deliver(s);
   fhqTrips(s);
+  hqTrips(s);
   calls(s);
   record(s, dt);
   for (const sh of s.shots) sh.life -= dt;
@@ -46,4 +47,4 @@ function step(s, dt) {
   if (!s.over && s.hqDown) s.over = s.hqDown === 'blue' ? 'red' : 'blue';
 }
 
-const Sim = { SUPPLY, AI_STYLES, planFhq, _makeSquad: makeSquad, _fillSquad: fillSquad, formation, fhqCount, friction, dronesUp, DRONE_SIGHT, CARER, create, lakeAt, wobble, inHill, elevAt, levelAt, hillHeight, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+const Sim = { openField, planHq, hqCheck, hqBand, cmdSquad, HQ_BAND, HQ_WARM, _garbled: garbled, _supplyUse: supplyUse, BUILDABLE, DECOY_MAX, silence, nightAt, rankOf, RANK_XP, SILENT_SPEED, SUPPLY, AI_STYLES, planFhq, _makeSquad: makeSquad, _fillSquad: fillSquad, formation, fhqCount, friction, dronesUp, DRONE_SIGHT, CARER, nodeSpec, create, lakeAt, wobble, inHill, elevAt, levelAt, hillHeight, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };

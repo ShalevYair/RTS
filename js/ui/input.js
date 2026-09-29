@@ -22,6 +22,7 @@ function tap(e) {
   if (eyeArmed) { Sim.drone(s, 'blue', x, y); eyeArmed = false; syncButtons(); updateHud(); return; }
   if (buildArmed) { placeBuilding(x, y); return; }
   if (fhqArmed) { placeFhq(x, y); return; }
+  if (hqArmed) { placeHq(x, y); return; }
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
   // tapping one of our buildings selects the squad it raises
   const home = s.nodes.find(n => n.side === 'blue' && n.squad && Math.hypot(n.x - x, n.y - y) < tapR(24));
@@ -43,8 +44,8 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
-  const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed && !fhqArmed;
-  const free = !eyeArmed && !buildArmed && !fhqArmed;
+  const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed;
+  const free = !eyeArmed && !buildArmed && !fhqArmed && !hqArmed;
   drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0, face: e.pointerType === 'mouse' && e.button === 2 && free, right: e.pointerType === 'mouse' && e.button === 2 } : { moved: true };
   if (drag.face) { const r = cv.getBoundingClientRect(); faceDrag = { x0: e.clientX - r.left, y0: e.clientY - r.top, x1: e.clientX - r.left, y1: e.clientY - r.top }; }
   // touch: held still for a moment, the drag that follows sets a facing
@@ -102,7 +103,7 @@ cv.addEventListener('pointercancel', e => { lift(e); boxSel = null; faceDrag = n
 // (in level 1, with no picking yet, it only drops)
 function unpick() {
   if (!menu.hidden) { closeMenu(); return; }
-  if (eyeArmed || buildArmed || fhqArmed || !$('buildm').hidden) { eyeArmed = false; buildArmed = null; fhqArmed = false; $('buildm').hidden = true; syncButtons(); return; }
+  if (eyeArmed || buildArmed || fhqArmed || hqArmed || !$('buildm').hidden) { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; $('buildm').hidden = true; syncButtons(); return; }
   if (uiHas('squads')) select(sel === null ? 'all' : null);
 }
 // edge scroll: where the mouse is (null when it has left the window)
@@ -138,6 +139,7 @@ document.addEventListener('keydown', e => {
   if (need && !uiHas(need)) return;
   if (/^[1-9]$/.test(k)) { const b = document.querySelectorAll('#sqs button')[+k - 1]; if (b) b.click(); }
   else if (k === 'l' && uiHas('squads')) toggleGroup();
+  else if (k === 's' && !$('silent').hidden) toggleSilent();
   else if (k === '0') select('all');
   else if (k === 'h') { mode = 'hold'; syncButtons(); }
   else if (k === 'a') { mode = 'attack'; syncButtons(); }
@@ -149,5 +151,5 @@ document.addEventListener('keydown', e => {
   else if (k === 'f') $('fs').click();
   else if (e.key.startsWith('Arrow')) { e.preventDefault(); const d = 120; panBy(e.key === 'ArrowLeft' ? d : e.key === 'ArrowRight' ? -d : 0, e.key === 'ArrowUp' ? d : e.key === 'ArrowDown' ? -d : 0); }
   else if (e.key === '+' || e.key === '=' || e.key === '-') zoomAt(fit.w / 2, fit.top + fit.h / 2, e.key === '-' ? 1 / 1.25 : 1.25);
-  else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; $('buildm').hidden = true; syncButtons(); closeMenu(); }
+  else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; $('buildm').hidden = true; syncButtons(); closeMenu(); }
 });

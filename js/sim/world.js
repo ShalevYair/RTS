@@ -34,8 +34,9 @@ function makeTerrain(s) {
     hills.push(f, g); return true;
   };
   // basins: a ring of ridges round a hollow, broken by passes; a lake in the middle
-  const nb = big ? 2 : 1, room = cx - clear;
-  for (let b = 0, tries = 0; b < nb && tries < 60; tries++) {
+  // (the huge map, 4× the big one's area: 4× the basins and single ridges)
+  const huge = h > 2 * H * 1.5, nb = huge ? 8 : big ? 2 : 1, room = cx - clear;
+  for (let b = 0, tries = 0; b < nb && tries < 60 * nb; tries++) {
     const Rb = clamp(room * (big ? 0.3 : 0.5), 100, 300) * (0.85 + r() * 0.25);
     const c = { x: clear + Rb * 0.8 + r() * Math.max(1, room - Rb * 1.3), y: Rb + r() * Math.max(1, h - 2 * Rb) };
     if (hills.some(o => Math.hypot(o.x - c.x, o.y - c.y) < Rb * 1.5)) continue;
@@ -54,8 +55,8 @@ function makeTerrain(s) {
     }
   }
   // a few long single ridges and low hills elsewhere, clear of the basins
-  const singles = big ? 6 : 2 + Math.floor(r() * 2);
-  for (let i = 0, n = 0; i < 400 && n < singles; i++) {
+  const singles = huge ? 24 : big ? 6 : 2 + Math.floor(r() * 2);
+  for (let i = 0, n = 0; i < 400 * (huge ? 4 : 1) && n < singles; i++) {
     const len = (big ? 90 : 60) + r() * (big ? 100 : 60), f = hill(clear + len * 0.6 + r() * Math.max(1, room - len), len * 0.5 + r() * (h - len), len, 0.35 + r() * 0.3, r() * Math.PI, 1 + Math.pow(r(), 1.5) * 7);
     if (hills.some(o => Math.hypot(o.x - f.x, o.y - f.y) < (o.r + len) * 0.75)) continue;
     if (addPair(f)) n++;
@@ -98,16 +99,19 @@ function makeElevation(s) {
 }
 
 // a squad with its commander; `home` is the building that raises and refills it (null: no refills)
-function makeSquad(s, side, type, home, x, y, trait = 'balanced') {
-  const temper = side === 'blue' ? Object.keys(TEMPERS)[Math.floor(s.rand() * 3)] : 'steady';
+// a new commander: a name not in use, and (ours) a temper
+function newBoss(s, side) {
   if (!s.names[side].length) s.names[side] = SURNAMES.slice();
-  const boss = s.names[side].splice(Math.floor(s.rand() * s.names[side].length), 1)[0];
+  return { boss: s.names[side].splice(Math.floor(s.rand() * s.names[side].length), 1)[0], temper: side === 'blue' ? Object.keys(TEMPERS)[Math.floor(s.rand() * 3)] : 'steady' };
+}
+function makeSquad(s, side, type, home, x, y, trait = 'balanced') {
+  const { boss, temper } = newBoss(s, side);
   const size = home ? STRUCTS[s.nodes.find(n => n.id === home).kind].size : 4;
   const sq = { id: side + s.nextSq++, side, name: TYPES[type].name, type, size, trait, home,
     order: { type: 'hold', x, y, r: ORDER_R.hold }, prodProg: 0,
     retreating: false, arrived: true, contactCd: 0, wasContact: false, dead: false,
     strength: 1, count: 0, cx: x, cy: y, support: null, supportSince: 0, lastContact: -99, checkIn: 0,
-    temper, boss, firmUntil: -99, lastCall: -99 };
+    temper, boss, firmUntil: -99, lastCall: -99, xp: 0, silent: false };
   s.squads.push(sq);
   return sq;
 }
@@ -128,7 +132,8 @@ function create(seed = 1, W = 1000, diff = 'normal', mapH = H) {
     rep: {}, marks: [], outbox: [], calls: [], nextCall: 1, hist: [], histIn: 0, names: { blue: SURNAMES.slice(), red: SURNAMES.slice() }, lastBuild: {},
     log2: { orders: 0, delay: 0, answered: 0, missed: 0, off: 0, offN: 0, ff: 0 }, ff: [], power: { blue: 0, red: 0 }, peak: { blue: 0, red: 0 }, plan: { blue: 0, red: 0 },
     nodes: [], nextNode: 1, visNodes: { blue: new Set(), red: new Set() }, cd: { blue: { fhq: 0 }, red: { fhq: 0 } }, drones: { blue: { stock: 1, next: NODES.drone.every }, red: { stock: 1, next: NODES.drone.every } },
-    diff: diff in DIFFS ? diff : 'normal', bots: ['red'], botDiff: 'normal', aiFhq: { blue: null, red: null }, supply: true, fallen: [] };
+    diff: diff in DIFFS ? diff : 'normal', bots: ['red'], botDiff: 'normal', aiFhq: { blue: null, red: null }, supply: true, fallen: [], night: true };
+  s.log2.unclear = 0;
   // the enemy's style: from the seed, on its own stream
   const st = ['rush', 'turtle', 'flank', 'steady'];
   s.style = { blue: 'steady', red: st[Math.floor(rng(seed ^ 0x2545f491)() * st.length)] };
@@ -161,7 +166,9 @@ function bodyCenter(m) {
   return { x: g.reduce((a, u) => a + u.x, 0) / g.length, y: g.reduce((a, u) => a + u.y, 0) / g.length };
 }
 
-function separate(s) {
+// units don't stand on each other: overlapping ones are pushed apart; a tank goes over enemy soldiers
+// instead, crushing them. Ground units are pushed out of buildings too.
+function separate(s, dt = 0) {
   const us = s.units;
   for (let i = 0; i < us.length; i++) {
     const a = us[i], ra = TYPES[a.type].r;
@@ -170,12 +177,20 @@ function separate(s) {
       if (!TYPES[a.type].air !== !TYPES[b.type].air) continue; // air and ground don't collide
       const min = ra + TYPES[b.type].r + 2, dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
       if (d2 < min * min) {
+        const crush = a.side !== b.side && (a.type === 'tank' && FOOT.includes(b.type) ? b : b.type === 'tank' && FOOT.includes(a.type) ? a : null);
+        if (crush) { crush.hp -= CRUSH_DPS * dt; crush.by = (crush === a ? b : a).squad; continue; }
         const d = Math.sqrt(d2) || 0.01, p = (min - d) / 2, nx = d2 ? dx / d : 1, ny = d2 ? dy / d : 0;
-        a.x -= nx * p; a.y -= ny * p; b.x += nx * p; b.y += ny * p;
+        const wa = MASS[a.type] || 1, wb = MASS[b.type] || 1, ka = 2 * wb / (wa + wb), kb = 2 * wa / (wa + wb); // the heavier gives way less
+        a.x -= nx * p * ka; a.y -= ny * p * ka; b.x += nx * p * kb; b.y += ny * p * kb;
       }
     }
   }
+  const blocks = s.nodes.filter(n => n.kind !== 'drone' && n.hp > 0);
   for (const u of us) {
+    if (!TYPES[u.type].air) for (const n of blocks) {
+      const r = (n.kind === 'hq' ? HQ_R : STRUCT_R) + TYPES[u.type].r, dx = u.x - n.x, dy = u.y - n.y, d2 = dx * dx + dy * dy;
+      if (d2 < r * r) { const d = Math.sqrt(d2) || 0.01, nx = d2 ? dx / d : (u.side === 'blue' ? 1 : -1), ny = d2 ? dy / d : 0; u.x = n.x + nx * r; u.y = n.y + ny * r; }
+    }
     u.x = clamp(u.x, 5, s.W - 5); u.y = clamp(u.y, 5, s.H - 5);
     if (!TYPES[u.type].air && lakeAt(s, u)) { const d = dryOf(s, u); u.x = d.x; u.y = d.y; } // pushed into a lake: back to the shore
   }

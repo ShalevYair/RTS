@@ -3,11 +3,17 @@ function newGame(skipIntro) {
   const seed = (Date.now() % 1e6) | 0;
   // big: 2× wide and 2× high, never narrower than 2000 (a phone held upright would get a thin strip)
   if (lvl) s = Sim.level(lvl, seed, worldWidth());
-  else { s = bigMap ? Sim.create(seed, 2 * Math.max(1000, worldWidth()), diff, 2 * Sim.H) : Sim.create(seed, worldWidth(), diff); s.fog = fog; }
+  else {
+    const k = hugeMap ? 4 : 2; // big: 2× wide and high; huge: 4×
+    s = bigMap ? Sim.create(seed, k * Math.max(1000, worldWidth()), diff, k * Sim.H) : Sim.create(seed, worldWidth(), diff); s.fog = fog;
+    // the full game opens on an open field: each side picks where its HQ goes (tests may keep the fixed HQ)
+    let fixed = false; try { fixed = localStorage.getItem('irts-fixedhq') === '1'; } catch (e) { /* storage unavailable */ }
+    if (!fixed) Sim.openField(s);
+  }
   // the big map opens zoomed in on our base; the small one shows it all
   cam = s.H > Sim.H ? { x: 0, y: s.H / 2, z: -1 } : { x: s.W / 2, y: s.H / 2, z: 1 };
   // in the tutorial a tap on the map attacks (hold / retreat come later)
-  decor = makeDecor(s); sel = 'all'; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; sqKey = ''; groups = []; Radio.reset();
+  decor = makeDecor(s); sel = 'all'; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; Radio.reset();
   $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
   $('end').hidden = true; $('share').textContent = tr('share');
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);

@@ -13,8 +13,8 @@ ok(Sim.buildCheck(s, 'blue', 900, 320) === 'q', 'no building where control is we
 ok(Sim.buildCheck(s, 'blue', 105, 190) === 'gap', 'no building on top of another');
 ok(!Sim.build(s, 'blue', 'hq', 150, 320) && !Sim.build(s, 'blue', 'fhq', 150, 320), 'only production buildings can be built');
 ok(Sim.build(s, 'blue', 'tankshop', 150, 320), 'tank workshop placed');
-for (let i = 0; i < 30 * 44; i++) Sim.step(s, 1 / 30);
-ok(!s.squads.some(q => q.side === 'blue' && q.type === 'tank'), 'no tank squad before the 45s build');
+for (let i = 0; i < 30 * 49; i++) Sim.step(s, 1 / 30);
+ok(!s.squads.some(q => q.side === 'blue' && q.type === 'tank'), 'no tank squad before the 50s build');
 for (let i = 0; i < 30 * 2; i++) Sim.step(s, 1 / 30);
 const tk = s.squads.find(q => q.side === 'blue' && q.type === 'tank');
 ok(!!tk && tk.home, 'workshop raised a tank squad with a home');

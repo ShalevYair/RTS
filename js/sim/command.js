@@ -3,7 +3,8 @@
 // poor (see control.js). A newer message of the same kind replaces one still on its way, so orders can't
 // arrive out of sequence.
 const hq = (s, side) => hqOf(s, side) || { x: s.bases[side].x, y: s.H / 2 };
-const orderDelay = (s, sq) => DELAY_MIN + DELAY_SPAN * (1 - qualityAt(s, sq));
+// (longer at night; a seasoned commander is quicker)
+const orderDelay = (s, sq) => (DELAY_MIN + DELAY_SPAN * (1 - qualityAt(s, sq))) * (1 + NIGHT_DELAY * nightAt(s)) * (1 - RANK_DELAY * rankOf(sq));
 function send(s, sq, msg) {
   s.outbox = s.outbox.filter(m => !(m.id === sq.id && m.kind === msg.kind));
   const d = orderDelay(s, sq);
@@ -18,12 +19,39 @@ function deliver(s) {
   for (const m of due) {
     const sq = s.squads.find(q => q.id === m.id);
     if (!sq || sq.dead) continue; // the squad is gone; the message is lost
-    if (m.kind === 'order') applyOrder(s, sq, m.type, m.x, m.y, m.quiet, m.form);
+    if (m.kind === 'order') applyOrder(s, sq, garbled(s, sq, m.type), m.x, m.y, m.quiet, m.form);
+    else if (m.kind === 'silent') applySilent(s, sq, m.on, m.quiet);
     else if (m.kind === 'build') setUpFhq(s, sq, m.spot); // (m.at is when it arrives)
     else applyTrait(s, sq, m.trait, m.quiet);
   }
 }
 
+// unclear orders: far from control an order may come through garbled, and the commander makes of it what his temper
+// says (bold: attack; anxious: hold; steady: go on as he was). Seasoned commanders get it right more often.
+function garbled(s, sq, type) {
+  if (!friction(s) || type === 'retreat') return type;
+  const q = qualityAt(s, sq);
+  if (q >= UNCLEAR_Q || s.rand() >= UNCLEAR_K * (UNCLEAR_Q - q) / UNCLEAR_Q * Math.pow(0.5, rankOf(sq))) return type;
+  const read = sq.temper === 'bold' ? 'attack' : sq.temper === 'anxious' ? 'hold' : sq.order.type === 'retreat' ? 'hold' : sq.order.type;
+  if (read === type) return type;
+  if (sq.side === 'blue') { s.log2.unclear++; report(s, sq, 'ההודעה לא ברורה, מבין: ' + (read === 'hold' ? 'להחזיק' : 'לתקוף')); s.marks.push({ x: sq.cx, y: sq.cy, kind: 'unclear', t: s.t, who: sq.name }); }
+  return read;
+}
+// radio silence (sent like an order): the squad stops reporting, moves slower and raises no dust
+function silence(s, squadId, on, quiet) {
+  const sq = s.squads.find(q => q.id === squadId);
+  if (!sq || s.over) return false;
+  const p = pending(s, sq.id, 'silent');
+  if (p ? p.on === !!on : sq.silent === !!on) return false;
+  if (friction(s)) send(s, sq, { kind: 'silent', on: !!on, quiet }); else applySilent(s, sq, !!on, quiet);
+  return true;
+}
+function applySilent(s, sq, on, quiet) {
+  if (sq.silent === on) return;
+  if (on && !quiet) report(s, sq, 'עוברים לשקט אלחוטי');
+  sq.silent = on;
+  if (!on) { if (!quiet) report(s, sq, 'חוזרים לקשר'); sendReport(s, sq); }
+}
 // form: this squad's place in a formation around (x, y) — { depth: behind the middle, lat: to the side }
 function order(s, squadId, type, x, y, quiet, form) {
   const sq = s.squads.find(q => q.id === squadId);
@@ -76,7 +104,7 @@ function placeForm(s, sq, dt) {
 // where the commander understood the order to point: the target plus a random offset that grows as control
 // weakens (none at Q = 1); a bold commander also overshoots, past the target along the way there
 function understood(s, sq, x, y) {
-  const R = SPREAD * Math.pow(1 - qualityAt(s, sq), SPREAD_POW);
+  const R = SPREAD * Math.pow(1 - qualityAt(s, sq), SPREAD_POW) * (1 - RANK_SPREAD * rankOf(sq));
   if (R < 1) return { x, y };
   const a = s.rand() * Math.PI * 2, m = Math.sqrt(s.rand()) * R;
   let dx = Math.cos(a) * m, dy = Math.sin(a) * m;
@@ -162,7 +190,8 @@ function record(s, dt) {
 // Where control is poor the report is off: position by up to NOISE_POS·(1−Q), strength by NOISE_STR·(1−Q).
 function sendReport(s, sq, kind) {
   if (sq.side !== 'blue') return;
-  const r = s.rep[sq.id], miss = 1 - qualityAt(s, sq), jit = () => (s.rand() * 2 - 1) * miss;
+  if (sq.silent && qualityAt(s, sq) < 1) return; // radio silence: nothing on the air (the full-control ring still sees it)
+  const r = s.rep[sq.id], miss = (1 - qualityAt(s, sq)) * (1 - RANK_NOISE * rankOf(sq)), jit = () => (s.rand() * 2 - 1) * miss;
   let said = sq.strength < 1 ? clamp(sq.strength + TEMPERS[sq.temper].rosy, 0.05, 1) : 1; // bold ones play losses down
   said = clamp(said + NOISE_STR * jit(), 0.05, 1);
   s.rep[sq.id] = { x: clamp(sq.cx + NOISE_POS * jit(), 0, s.W), y: clamp(sq.cy + NOISE_POS * jit(), 0, s.H), strength: said, t: s.t, q: 1 - miss, prev: r ? { x: r.x, y: r.y } : null };

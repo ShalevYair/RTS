@@ -29,7 +29,7 @@ function visibility(s) {
     s.visNodes[side] = new Set(s.nodes.filter(n => n.side !== side &&
       (!s.fog || nodeSees(s, side, n) || eyes.some(u => dist(u, n) <= sightOf(s, u)))).map(n => n.id));
     // structures don't move: once seen, remembered until seen destroyed
-    for (const n of s.nodes) if (s.visNodes[side].has(n.id)) s.memNodes[side][n.id] = { id: n.id, x: n.x, y: n.y, kind: n.kind, t: s.t };
+    for (const n of s.nodes) if (s.visNodes[side].has(n.id)) s.memNodes[side][n.id] = { id: n.id, x: n.x, y: n.y, kind: n.kind === 'decoy' && idLevel(s, side, n) < 2 ? 'hq' : n.kind, t: s.t };
     // remember where the seen part of each enemy squad is, not the whole squad (that would leak)
     const acc = {};
     for (const e of s.units) if (v.has(e.id)) { const a = acc[e.squad] || (acc[e.squad] = { x: 0, y: 0, n: 0 }); a.x += e.x; a.y += e.y; a.n++; }
@@ -44,6 +44,16 @@ function visibility(s) {
           n: lvl >= 2 ? a.n : null, strength: lvl >= 2 ? q.strength : null };
       }
       else if (q.dead) delete s.mem[side][q.id];
+      // not seen, but its vehicles raise dust within DUST_SEE of our eyes: "something moves" there
+      else if (s.fog && q.side !== side && DUSTY.includes(q.type)) {
+        let x = 0, y = 0, n = 0;
+        for (const e of s.units) if (e.squad === q.id && s.t - (e.dustAt ?? -9) < 0.5 && (eyes.some(u => dist(u, e) <= DUST_SEE) || s.nodes.some(k => k.side === side && k.hp > 0 && k.kind !== 'decoy' && dist(k, e) <= DUST_SEE))) { x += e.x; y += e.y; n++; }
+        if (n) {
+          const prev = s.mem[side][q.id], keep = prev && s.t - prev.t <= TRACK_GAP ? prev : null, j = () => (s.rand() * 2 - 1) * DUST_NOISE;
+          s.mem[side][q.id] = { x: clamp(x / n + j(), 0, s.W), y: clamp(y / n + j(), 0, s.H), t: s.t, dust: true,
+            lvl: keep ? keep.lvl : 0, type: keep ? keep.type : null, air: keep ? keep.air : false, n: keep ? keep.n : null, strength: keep ? keep.strength : null };
+        }
+      }
     }
   }
 }

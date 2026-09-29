@@ -268,7 +268,7 @@ const Music = (() => {
     }
   }
   // a shot: bullets crack (high, short), shells thump (low), missiles whoosh (a rising hiss). Quieter than blasts.
-  const SHOT = { inf: 'crack', jeep: 'crack', tank: 'thump', air: 'whoosh', aa: 'whoosh' }, SHOT_GAP = { crack: 0.05, thump: 0.12, whoosh: 0.18 }, lastShot = {};
+  const SHOT = { inf: 'crack', jeep: 'crack', tank: 'thump', air: 'whoosh', aa: 'whoosh', at: 'whoosh', ajeep: 'whoosh', tjeep: 'whoosh' }, SHOT_GAP = { crack: 0.05, thump: 0.12, whoosh: 0.18 }, lastShot = {};
   function shot(kind, xFrac) {
     const cls = SHOT[kind];
     if (!cls || !ac || ac.state !== 'running' || sfxVol <= 0 || voices >= MAX_VOICES) return;
@@ -352,11 +352,11 @@ syncMusic(false);
 // ---- radio: event reports read aloud (Web Speech), most urgent first, never a backlog ----
 const Radio = (() => {
   const synth = window.speechSynthesis, SAY = { 'חי"ר': 'חיל רגלים', 'נ"מ': 'נגד מטוסים', 'מכ"ם': 'מכם' };
-  const PRI = { lost: 3, hit: 3, flagLost: 3, call: 3, nodeLost: 3, ff: 3, contact: 2, flag: 2, fhq: 1, ok: 1 };
+  const PRI = { promo: 1, unclear: 2, lost: 3, hit: 3, flagLost: 3, call: 3, nodeLost: 3, ff: 3, contact: 2, flag: 2, fhq: 1, ok: 1 };
   const TEXT = { fhq: w => `${w}, מקימים פיקוד קדמי`, nodeLost: w => w === 'drone' ? 'הרחפן הופל' : `${Sim.STRUCTS[w].name} הושמד`, call: w => `${w}, לחץ כבד. להחזיק או לסגת?`, contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`, ff: w => `${w}, ירי על כוחותינו!`,
-    ok: w => `${w}, הגענו`, flag: w => `כבשנו את ${w}`, flagLost: w => `איבדנו את ${w}` };
+    ok: w => `${w}, הגענו`, promo: w => `${w}, המפקד צבר ניסיון`, unclear: w => `${w}, ההודעה לא ברורה`, flag: w => `כבשנו את ${w}`, flagLost: w => `איבדנו את ${w}` };
   const TEXT_EN = { fhq: w => `${w}, setting up forward HQ`, nodeLost: w => w === 'drone' ? 'Drone down' : `${EN_STRUCTS[w]} destroyed`, call: w => `${w}, heavy pressure. Hold or retreat?`, contact: w => `${w}, contact`, hit: w => `${w}, heavy losses, falling back`, lost: w => `${w}, squad destroyed`, ff: w => `${w}, friendly fire!`,
-    ok: w => `${w}, in position`, flag: w => `We took ${w}`, flagLost: w => `We lost ${w}` };
+    ok: w => `${w}, in position`, promo: w => `${w}, the commander has gained experience`, unclear: w => `${w}, message unclear`, flag: w => `We took ${w}`, flagLost: w => `We lost ${w}` };
   // the sim names squads by their type, in Hebrew
   const typeOf = n => Object.keys(Sim.TYPES).find(k => Sim.TYPES[k].name === n);
   let on = true, voice = null, pending = null;

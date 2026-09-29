@@ -22,15 +22,18 @@ function readColors() {
 readColors();
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) { /* old browsers */ }
 new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-const TC = { inf: 'tInf', aa: 'tAa', tank: 'tTank', air: 'tAir', jeep: 'tJeep', med: 'tMed', mech: 'tMech', truck: 'tTruck' }, tcol = t => colors[TC[t]];
+const TC = { inf: 'tInf', aa: 'tAa', at: 'tAa', tank: 'tTank', air: 'tAir', jeep: 'tJeep', ajeep: 'tJeep', tjeep: 'tJeep', med: 'tMed', mech: 'tMech', truck: 'tTruck' }, tcol = t => colors[TC[t]];
 // drawn sizes: tanks big, soldiers (infantry, AA, medics) small
-const SIZE = { inf: 5, aa: 5.5, tank: 18, air: 13, jeep: 10.5, med: 5, mech: 8, truck: 8 };
+const SIZE = { inf: 5, aa: 5.5, at: 5.5, tank: 18, air: 13, jeep: 10.5, ajeep: 10.5, tjeep: 10.5, med: 5, mech: 8, truck: 8 };
+// vehicles (tracks, dust, wrecks)
+const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck']);
 
 // ---- viewport: world is sized to the screen's aspect at game start; a camera (centre + zoom) looks at it ----
 // zoom 1 = the whole map fits; zooming in stops at ZOOM_PX screen px per world unit. The big map opens on our base at
 // START_PX (about the small map's look on a desktop), whatever the screen.
-let bigMap = true;
-try { bigMap = localStorage.getItem('irts-map') !== 'small'; } catch (e) { /* storage unavailable */ }
+// map size: small / big (the default) / huge (2× the big one each way); hugeMap implies bigMap
+let bigMap = true, hugeMap = false;
+try { const m = localStorage.getItem('irts-map'); bigMap = m !== 'small'; hugeMap = m === 'huge'; } catch (e) { /* storage unavailable */ }
 const START_PX = 1, ZOOM_PX = 2.5;
 let view = { scale: 1, ox: 0, oy: 0, css: 1, cox: 0, coy: 0 }, cam = { x: 0, y: 0, z: 1 }, fit = null;
 function resize() {

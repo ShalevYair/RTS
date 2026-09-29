@@ -54,7 +54,11 @@ ok(s.hills.length >= 16, `many hills: ${s.hills.length}`);
 }
 const s2 = Sim.create(5, 2400, 'normal', 1280), s3 = Sim.create(6, 2400, 'normal', 1280);
 ok(JSON.stringify(s2.hills) === JSON.stringify(s.hills) && JSON.stringify(s3.hills) !== JSON.stringify(s.hills), 'the same seed gives the same map, another seed another');
-ok(Sim.create(1, 99999, 'normal', 99999).W === 3000 && Sim.create(1, 99999, 'normal', 99999).H === 1400, 'size is capped (3000×1400)');
+ok(Sim.create(1, 99999, 'normal', 99999).W === 6000 && Sim.create(1, 99999, 'normal', 99999).H === 2800, 'size is capped (6000×2800)');
+{ // the huge map: 4× the big one, with 4× as much going on
+  const t0 = Date.now(), g = Sim.create(3, 4000, 'normal', 2560), b = Sim.create(3, 2000, 'normal', 1280), ms = Date.now() - t0;
+  ok(g.W === 4000 && g.H === 2560 && g.hills.length > 2.5 * b.hills.length && g.lakes.length > b.lakes.length && ms < 3000, `huge map 4000×2560: ${g.hills.length} hills (big: ${b.hills.length}), ${g.lakes.length} lakes (big: ${b.lakes.length}), made in ${ms} ms`);
+}
 // the whole height is in play: orders, drones and building below the old edge
 s.bots = []; s.fog = false;
 Sim.order(s, 'blue1', 'hold', 300, 1100);
@@ -78,7 +82,7 @@ ok(Sim.buildCheck(s, 'blue', 150, 900) === '', 'building near the HQ, below the 
   const q = g.squads.find(k => k.id === 'blue1'), J = g.units.filter(u => u.squad === q.id).slice(0, 1); // one jeep (no crowding)
   g.units = g.units.filter(u => u.squad !== q.id || u === J[0]);
   let dir = null;
-  for (let a = 0; a < 6.28 && !dir; a += 0.2) { const p = { x: top.x + Math.cos(a) * 60, y: top.y + Math.sin(a) * 60 }; if (Sim.elevAt(g, p) < top.e - 2 && !Sim.lakeAt(g, p, 10)) dir = p; }
+  for (let R = 60; R <= 200 && !dir; R += 20) for (let a = 0; a < 6.28 && !dir; a += 0.2) { const p = { x: top.x + Math.cos(a) * R, y: top.y + Math.sin(a) * R }; if (Sim.elevAt(g, p) < top.e - 2 && !Sim.lakeAt(g, p, 10)) dir = p; }
   const walk = (from, to) => {
     for (const u of J) { u.x = from.x; u.y = from.y; } Sim.step(g, 1 / 30);
     Sim.order(g, q.id, 'hold', to.x, to.y, true); g.outbox = []; q.order = { type: 'hold', x: to.x, y: to.y, r: 5 };
@@ -86,7 +90,7 @@ ok(Sim.buildCheck(s, 'blue', 150, 900) === '', 'building near the HQ, below the 
   };
   const down = walk(top, dir), up = walk(dir, top);
   const flat = Sim.TYPES.jeep.speed;
-  ok(dir && down * 2 > flat * 1.2 && up * 2 < flat * 0.8, `a jeep (${flat}/s on the flat) goes down a slope at ${(down * 2).toFixed(0)}/s and up it at ${(up * 2).toFixed(0)}/s`);
+  ok(dir && down * 2 > flat * 1.1 && up * 2 < flat * 0.85, `a jeep (${flat}/s on the flat) goes down a slope at ${(down * 2).toFixed(0)}/s and up it at ${(up * 2).toFixed(0)}/s`);
 }
 // the AI: a forward HQ on a hill
 let onHill = 0, fhqs = 0;

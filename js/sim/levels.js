@@ -52,7 +52,7 @@ function level(n, seed = 1, W = 1000) {
   const L = LEVELS[n - 1];
   if (!L) return null;
   const s = L.big ? create(seed, 2 * Math.max(1000, W), L.bot || 'easy', 2 * H) : create(seed, W, L.bot || 'easy');
-  s.level = n; s.ui = L.ui.slice(); s.fog = L.ui.includes('fog') && !L.fogAt; s.c2 = L.ui.includes('c2');
+  s.level = n; s.night = false; s.ui = L.ui.slice(); s.fog = L.ui.includes('fog') && !L.fogAt; s.c2 = L.ui.includes('c2');
   if (L.fogAt) s.fogAt = L.fogAt;
   s.supply = L.ui.includes('care'); // ammunition runs out from the level that brings medics, mechanics and supply trucks
   s.style.red = 'steady';
