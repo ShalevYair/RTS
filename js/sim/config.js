@@ -65,7 +65,7 @@ const BASE_HEAL = 10, HEAL_R = 70, REARM_TIME = 2.5;
 // structures (DESIGN.md §3–4). Production buildings raise one squad each and refill it, one unit per `every` s.
 const STRUCTS = {
   hq:       { name: 'מפקדה',       icon: '🚩', hp: 1500, value: 10, sight: 180 },
-  fhq:      { name: 'פיקוד קדמי',  icon: '🏕', hp: 600,  value: 5 },
+  fhq:      { name: 'פיקוד קדמי',  icon: '🏕️', hp: 600,  value: 5 },
   drone:    { name: 'רחפן',        icon: '🛸', hp: 30,   value: 0 },
   tent:     { name: 'אוהל',        icon: '⛺', hp: 400,  value: 3, unit: 'inf',  build: 20, every: 20,  size: 6 },
   aapost:   { name: 'עמדת נ"מ',    icon: '🎯', hp: 450,  value: 4, unit: 'aa',   build: 30, every: 30,  size: 4 },
@@ -73,7 +73,7 @@ const STRUCTS = {
   tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 45, every: 45,  size: 3 },
   airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2 },
   clinic:   { name: 'תחנת חובשים', icon: '🏥', hp: 350,  value: 3, unit: 'med',  build: 20, every: 25,  size: 2 },
-  garage:   { name: 'מוסך',        icon: '🛠', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2 },
+  garage:   { name: 'מוסך',        icon: '🛠️', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2 },
   depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2 },
 };
 const PRODUCERS = Object.keys(STRUCTS).filter(k => STRUCTS[k].unit);

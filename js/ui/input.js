@@ -8,7 +8,7 @@ function toWorld(e) {
 const tapR = r => Math.max(r, 14 / view.css);
 // a squad is picked by its units where they're drawn, else by its badge (over where it probably is)
 function hitSquad(x, y) {
-  for (const q of s.squads) { const p = q.side === 'blue' && !q.dead && !sqShown(q) && guessAt(q); if (p && Math.hypot(p.x - x, p.y - 26 - y) < tapR(17)) return q.id; }
+  for (const q of s.squads) { const p = q.side === 'blue' && !q.dead && !sqShown(q) && guessAt(q); if (p && Math.hypot(p.x - x, p.y - y) < tapR(24)) return q.id; }
   const tol = Math.max(12, 22 / view.css); let best = null, bd = tol;
   for (const u of s.units) { if (u.side !== 'blue' || (Sim.friction(s) && !shownAt(u))) continue; const d = Math.hypot(u.x - x, u.y - y); if (d < bd) { bd = d; best = u.squad; } }
   return best;

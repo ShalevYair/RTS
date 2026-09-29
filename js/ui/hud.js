@@ -93,9 +93,9 @@ function updateHud() {
   $('pwN').textContent = (s.fog ? '≈' : '') + b + '%'; $('pwB').style.width = b + '%';
   $('slotN').textContent = Sim.buildCount(s, 'blue') + '/' + Sim.buildLimit(s, 'blue');
   $('bld').setAttribute('aria-disabled', String(buildFull() && !buildArmed));
-  // while there's room for another building, 🏗 pulses: build more
+  // while there's room for another building, 🏗️ pulses: build more
   $('bld').classList.toggle('nudge', !!s.t && !buildFull() && !buildArmed && $('buildm').hidden && !s.over && playing);
-  // and 🏕 pulses whenever a forward HQ can be set up
+  // and 🏕️ pulses whenever a forward HQ can be set up
   $('fhq').classList.toggle('nudge', uiHas('fhq') && !!s.t && playing && !fhqArmed && s.cd.blue.fhq <= 0 && Sim.fhqCount(s, 'blue') < Sim.NODES.fhq.max && fhqBuilders().length > 0);
   renderSquadButtons();
   // drones: how many in hand, and a bar until the next one; forward HQ: seconds until the next, and a refill bar
@@ -212,7 +212,7 @@ function syncBuildMenu(fresh) {
 }
 const buildFull = () => Sim.buildCount(s, 'blue') >= Sim.buildLimit(s, 'blue');
 const blink = el => { el.classList.remove('blink'); void el.offsetWidth; el.classList.add('blink'); };
-// no free slot: the button is dimmed, and pressing it anyway flashes the slots counter and the way out: 🏕
+// no free slot: the button is dimmed, and pressing it anyway flashes the slots counter and the way out: 🏕️
 function toggleBuild() {
   const m = $('buildm');
   if (!buildArmed && m.hidden && buildFull()) { blink($('slots')); if (!$('fhq').hidden) blink($('fhq')); return; }
@@ -322,7 +322,7 @@ document.querySelectorAll('[data-fog]').forEach(b => b.addEventListener('click',
 let eyeArmed = false, fogWas = null;
 function toggleEye() { eyeArmed = !eyeArmed && s.fog && s.drones.blue.stock > 0; syncButtons(); }
 $('eye').addEventListener('click', toggleEye);
-// forward HQ: 🏕, then a spot on the map; the selected jeep / tank squad (or the nearest one) drives there and sets it
+// forward HQ: 🏕️, then a spot on the map; the selected jeep / tank squad (or the nearest one) drives there and sets it
 // up. With none that can, the squads that could blink (or nothing happens while waiting for the next one).
 let fhqArmed = false;
 const fhqBuilders = () => s.squads.filter(q => q.side === 'blue' && Sim.canBuildFhq(s, q));
