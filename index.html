@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>פיקוד על כוונה · אב-טיפוס</title>
+<title>המפקד</title>
 <!-- installable (Add to Home Screen): opens full screen, like an app -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#a8c97c">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="פיקוד על כוונה">
+<meta name="apple-mobile-web-app-title" content="המפקד">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,13 +23,12 @@
   <canvas id="cv" data-al="map"></canvas>
   <canvas id="mini" class="glass" data-al="mini" hidden></canvas>
   <div class="hudl">
-    <div class="score blue glass" id="power"><b id="pwN">50%</b><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="bb" data-tip="boost" hidden>⚡</i></div>
+    <div class="score blue glass" id="power"><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="bb" data-tip="boost" hidden>⚡</i></div>
     <div class="seg glass" id="gSq" role="group">
       <button id="all" class="icon" aria-pressed="false" data-al="all" data-tip="all">★</button>
       <span id="sqs" class="seg"></span>
       <button id="grp" class="icon" hidden>🔗</button>
     </div>
-    <div class="score slots glass" id="slots" data-tip="slots">🏗️ <b id="slotN">1/4</b></div>
   </div>
   <button id="paused" class="glass" data-al="play" data-tip="play" hidden>⏸</button>
   <ol class="log" id="log" aria-live="polite" hidden></ol>
@@ -75,16 +74,15 @@
   </div>
   <div class="bar glass" id="bar" role="toolbar">
     <button id="eye" class="icon node" aria-pressed="false" data-al="eye" data-tip="eye"><svg class="ico" viewBox="-12 -12 24 24" aria-hidden="true"><path d="M-7-7L7 7M7-7L-7 7" stroke="currentColor" stroke-width="2"/><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="-7" cy="-7" r="4.2"/><circle cx="7" cy="-7" r="4.2"/><circle cx="-7" cy="7" r="4.2"/><circle cx="7" cy="7" r="4.2"/></g><rect x="-3" y="-3" width="6" height="6" rx="1.5" fill="currentColor"/></svg><b id="eyeN"></b><i></i></button>
-    <button id="bld" class="icon" aria-expanded="false" data-al="bld" data-tip="bld">🏗️</button>
+    <button id="bld" class="icon" aria-expanded="false" data-al="bld" data-tip="bld">🏗️<b id="slotN"></b></button>
     <button id="fhq" class="icon node" data-al="fhq" data-tip="fhq">🏕️<b id="fhqN"></b><i></i></button>
   </div>
-  <!-- bottom right: the orders (only while something is picked) and the settings in the corner -->
+  <!-- bottom left: the order (sword = attack, shield = hold; a tap switches), only while something is picked -->
+  <div class="grp glass" id="gOrd" role="group">
+    <button class="ord icon" id="ordMode"></button>
+  </div>
+  <!-- bottom right: the settings -->
   <div class="corner" id="corner">
-    <div class="grp glass" id="gOrd" role="group">
-    <button class="ord icon" id="ordHold" data-mode="hold" aria-pressed="true" data-al="hold" data-tip="tipHold"></button>
-    <button class="ord icon" id="ordAttack" data-mode="attack" aria-pressed="false" data-al="attack" data-tip="tipAttack"></button>
-    <button class="ord icon" id="retreat" data-al="retreat" data-tip="tipRetreat"></button>
-    </div>
     <button id="gear" class="icon glass" data-al="gear" data-tip="gear" aria-expanded="false">⚙</button>
   </div>
   <div id="tourBg" hidden></div>

@@ -27,7 +27,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     check(name, !t2.tip && t2.playing && t2.seen === '1', `after the tour the fight starts ${JSON.stringify(t2)}`);
     // a later level: its new things
     const tour = await p.evaluate(() => [3, 9, 10, 11].map(n => { lvl = n; newGame(true); return n + ':' + levelTour(n).length; }).join(' '));
-    check(name, /3:3 9:1 10:1 11:1/.test(tour), `tours per level: ${tour}`);
+    check(name, /3:2 9:1 10:1 11:1/.test(tour), `tours per level: ${tour}`);
     // the full game: settings, language, right click, the build nudge, symbols, lines that fade
     await p.evaluate(() => { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); lvl = 0; toured = 99; newGame(true); showIntro(false); setPlaying(true); });
     await p.click('#gear'); await p.waitForTimeout(100);
@@ -42,8 +42,8 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
       check(name, tip === 'מוזיקה', `hovering a control shows its line: "${tip}"`);
     }
     await p.click('[data-lang="en"]'); await p.waitForTimeout(100);
-    const en = await p.evaluate(() => ({ dir: document.documentElement.dir, speed: document.querySelector('[data-t="speed"]').textContent, hold: document.getElementById('ordHold').getAttribute('aria-label'), build: document.querySelector('[data-build="tent"] b').textContent }));
-    check(name, en.dir === 'ltr' && en.speed === 'Speed' && en.hold === 'Hold' && en.build === 'Tent', `English: ${JSON.stringify(en)}`);
+    const en = await p.evaluate(() => ({ dir: document.documentElement.dir, speed: document.querySelector('[data-t="speed"]').textContent, hold: document.getElementById('ordMode').getAttribute('aria-label'), build: document.querySelector('[data-build="tent"] b').textContent }));
+    check(name, en.dir === 'ltr' && en.speed === 'Speed' && en.hold === 'Attack' && en.build === 'Tent', `English: ${JSON.stringify(en)}`);
     await p.screenshot({ path: `${OUT}/${name}-menu-en.png` });
     await p.click('[data-lang="he"]'); await p.click('#gear');
     check(name, await p.evaluate(() => playing), 'closing the settings goes on');
@@ -51,7 +51,9 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     check(name, await p.isVisible('#intro') && await p.isVisible('#levels'), '🏠 goes back to the level screen');
     await p.click('#go');
     const bar = await p.evaluate(() => ({ svg: document.querySelectorAll('#gOrd svg').length, words: document.getElementById('gOrd').innerText.trim(), nudge: (updateHud(), document.getElementById('bld').classList.contains('nudge')) }));
-    check(name, bar.svg === 3 && !bar.words && bar.nudge, `orders are symbols, 🏗 pulses with room to build ${JSON.stringify(bar)}`);
+    check(name, bar.svg === 1 && !bar.words && bar.nudge, `orders are symbols, 🏗 pulses with room to build ${JSON.stringify(bar)}`);
+    const tog = await p.evaluate(() => { const b = document.getElementById('ordMode'), m0 = mode; b.click(); const m1 = mode, l1 = b.getAttribute('aria-label'); b.click(); return [m0, m1, l1, mode].join(); });
+    check(name, tog === 'attack,hold,להחזיק,attack', `one order button: sword by default, a tap switches to the shield and back (${tog})`);
     if (!touch) {
       await p.evaluate(() => select(blueSquads()[0].id));
       const box = await p.locator('#cv').boundingBox();

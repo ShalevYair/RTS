@@ -22,7 +22,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // the bar: words for the orders, no posture, a manifest for installing
     const bar = await p.evaluate(() => ({ ord: [...document.querySelectorAll('#gOrd button')].map(e => e.getAttribute('aria-label')).join(' '), trait: !!document.querySelector('[data-trait]'),
       manifest: !!document.querySelector('link[rel=manifest]') }));
-    check(name, bar.ord === 'להחזיק לתקוף לסגת' && !bar.trait && bar.manifest, `orders "${bar.ord}", no posture buttons, installable ${JSON.stringify(bar)}`);
+    check(name, bar.ord === 'לתקוף' && !bar.trait && bar.manifest, `orders "${bar.ord}", no posture buttons, installable ${JSON.stringify(bar)}`);
     // level 6: medics and mechanics in the build menu, new ones pulsing
     await level(6); await p.click('#bld'); await p.waitForTimeout(150);
     const menu6 = await p.evaluate(() => [...document.querySelectorAll('[data-build]')].filter(e => !e.hidden).map(e => e.dataset.build + (e.classList.contains('new') ? '*' : '')).join());
@@ -71,7 +71,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // level 11: the quota is full; pressing 🏗 blinks the counter and 🏕; 🏕 with no jeep/tank picked blinks the squads that can
     await level(11); await p.waitForTimeout(250);
     await p.click('#bld', { force: true }); await p.waitForTimeout(100);
-    const h1 = await p.evaluate(() => ({ slots: document.getElementById('slots').classList.contains('blink'), fhq: document.getElementById('fhq').classList.contains('blink'), newFhq: document.getElementById('fhq').classList.contains('new'), n: document.getElementById('slotN').textContent }));
+    const h1 = await p.evaluate(() => ({ slots: document.getElementById('bld').classList.contains('blink'), fhq: document.getElementById('fhq').classList.contains('blink'), newFhq: document.getElementById('fhq').classList.contains('new'), n: document.getElementById('slotN').textContent }));
     check(name, h1.slots && h1.fhq && h1.newFhq && h1.n === '4/4', `level 11: full quota ${h1.n}; 🏗 blinks the counter and 🏕 (which pulses as new) ${JSON.stringify(h1)}`);
     // 🏕, then a spot on the map: the nearest jeep squad drives there and sets it up; building opens around it
     await p.evaluate(() => select('all'));

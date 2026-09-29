@@ -26,7 +26,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.mouse.move(cx, cy); await p.mouse.down({ button: 'middle' }); await p.mouse.move(cx - 150, cy - 60, { steps: 6 }); await p.mouse.up({ button: 'middle' });
     const d = await st();
     check(name, d.cam.x > a.cam.x + 50 && d.orders === a.orders, `middle-drag pans the camera (x ${a.cam.x.toFixed(0)} → ${d.cam.x.toFixed(0)}) without giving an order`);
-    await p.click('[data-mode="attack"]'); await p.mouse.click(cx, cy); await p.waitForTimeout(100);
+    await p.mouse.click(cx, cy); await p.waitForTimeout(100);
     const t = await st();
     check(name, t.orders > d.orders, 'a tap still gives the order');
     if (!touch) {

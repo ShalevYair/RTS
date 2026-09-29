@@ -11,7 +11,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(500);
     await p.click('#go'); await p.click('#gear'); await p.click('[data-rate="2"]'); await p.click('#gear');
-    await p.click('[data-mode="attack"]'); await p.click('#all');
+    await p.click('#all');
     const box = await p.locator('#cv').boundingBox();
     await p.mouse.click(box.x + box.width / 2, box.y + box.height * 0.45);
     await p.waitForTimeout(700);

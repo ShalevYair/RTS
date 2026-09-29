@@ -24,7 +24,7 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', read
 new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 const TC = { inf: 'tInf', aa: 'tAa', tank: 'tTank', air: 'tAir', jeep: 'tJeep', med: 'tMed', mech: 'tMech', truck: 'tTruck' }, tcol = t => colors[TC[t]];
 // drawn sizes: tanks big, soldiers (infantry, AA, medics) small
-const SIZE = { inf: 4.5, aa: 5, tank: 18, air: 13, jeep: 8, med: 4.5, mech: 8, truck: 8 };
+const SIZE = { inf: 5, aa: 5.5, tank: 18, air: 13, jeep: 10.5, med: 5, mech: 8, truck: 8 };
 
 // ---- viewport: world is sized to the screen's aspect at game start; a camera (centre + zoom) looks at it ----
 // zoom 1 = the whole map fits; zooming in stops at ZOOM_PX screen px per world unit. The big map opens on our base at
@@ -68,7 +68,7 @@ const lookAt = (x, y) => { cam.x = x; cam.y = y; applyView(); };
 new ResizeObserver(resize).observe(stage);
 new ResizeObserver(resize).observe(document.querySelector('.hudl')); // the types can wrap to a second line
 // the map stays clear of the top strip (power, types, buildings) and of the bottom bar and corner
-const pads = () => ({ top: Math.max(56, document.querySelector('.hudl').offsetHeight + 16), bottom: Math.max(bar.offsetHeight, $('corner').offsetHeight) + 16 });
+const pads = () => ({ top: Math.max(56, document.querySelector('.hudl').offsetHeight + 16), bottom: Math.max(bar.offsetHeight, $('corner').offsetHeight, $('gOrd').offsetHeight) + 16 });
 function worldWidth() {
   const r = stage.getBoundingClientRect(), { top, bottom } = pads(), h = r.height - top - bottom;
   return r.width && h > 100 ? Sim.H * r.width / h : 1000;

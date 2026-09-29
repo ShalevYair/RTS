@@ -360,7 +360,7 @@ function drawTerrain(c, W, H, mid) {
 }
 
 // drone: a quadcopter from above — four rotors on an X frame
-const AMMO = '#e0b020';
+const AMMO = '#e0b020', GLOW = { inf: 2.5, aa: 2.5, med: 2.5, jeep: 3 };
 function drawDrone(c, x, y, k, col, rot = 0, spin = 0) {
   c.save(); c.translate(x, y); c.rotate(rot); c.lineWidth = k * 0.16; c.strokeStyle = colors.outline;
   c.beginPath(); c.moveTo(-k * 0.7, -k * 0.7); c.lineTo(k * 0.7, k * 0.7); c.moveTo(k * 0.7, -k * 0.7); c.lineTo(-k * 0.7, k * 0.7); c.stroke();
@@ -451,6 +451,33 @@ function drawQuality(c) {
 // structures: HQ, buildings, forward HQs, drones. Ours always; the enemy's while seen, then faded where last seen.
 // Arc: construction / warm-up progress, then a drone's flight time left, or a building's next unit.
 const nodeShown = n => n.side === 'blue' || !s.fog || s.visNodes.blue.has(n.id);
+// a building's picture in its side's colour: the emoji drawn once off screen, its coloured parts turned to the side's
+// hue (keeping their light and shade; greys, whites and blacks stay), kept per picture, colour and size
+const iconCache = new Map(), ICON_RES = 3;
+function sideIcon(icon, col, px) {
+  const key = icon + col + px; let pic = iconCache.get(key); if (pic) return pic;
+  const w = Math.ceil(px * 1.3 * ICON_RES); pic = document.createElement('canvas'); pic.width = pic.height = w;
+  const c = pic.getContext('2d'); c.font = `${px * ICON_RES}px sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(icon, w / 2, w / 2 + px * 0.06 * ICON_RES);
+  const img = c.getImageData(0, 0, w, w), d = img.data, [hue] = toHsl(...rgbOf(col));
+  for (let i = 0; i < d.length; i += 4) {
+    if (!d[i + 3]) continue;
+    const [, sat, l] = toHsl(d[i], d[i + 1], d[i + 2]);
+    if (sat < 0.25 || l < 0.12 || l > 0.93) continue;
+    const [r, g, b] = fromHsl(hue, Math.min(1, sat * 1.05), l); d[i] = r; d[i + 1] = g; d[i + 2] = b;
+  }
+  c.putImageData(img, 0, 0); iconCache.set(key, pic); return pic;
+}
+function toHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  if (!d) return [0, 0, l];
+  const sat = d / (1 - Math.abs(2 * l - 1)), h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, sat, l];
+}
+function fromHsl(h, sat, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * sat, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+}
 const STRUCT_PX = 40, HQ_PX = 58; // a building's picture; the HQ's, bigger
 function drawStruct(c, n, ghost) {
   const S = Sim.STRUCTS[n.kind], N = Sim.NODES[n.kind], col = colors[n.side], on = s.t >= n.ready;
@@ -468,13 +495,15 @@ function drawStruct(c, n, ghost) {
   else {
     const px = n.kind === 'hq' ? HQ_PX : STRUCT_PX, k = px / STRUCT_PX;
     c.globalAlpha = ghost ? 0.3 : 0.4; c.fillStyle = col; c.beginPath(); c.ellipse(n.x + 2, n.y + 15 * k, 22 * k, 7 * k, 0, 0, Math.PI * 2); c.fill();
-    c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.25 + 0.6 * grow; c.font = `${px}px sans-serif`; c.textBaseline = 'middle'; c.fillText(S.icon, n.x, n.y); c.textBaseline = 'alphabetic';
+    c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.25 + 0.6 * grow;
+    const pic = sideIcon(S.icon, col, px), w = pic.width / ICON_RES; c.drawImage(pic, n.x - w / 2, n.y - w / 2, w, w);
   }
   if (grow < 1) c.restore();
   c.globalAlpha = 1;
   if (ghost) return;
   const top = n.kind === 'hq' ? 38 : n.kind === 'drone' ? 16 : 30, bot = n.kind === 'hq' ? 34 : n.kind === 'drone' ? 14 : 24;
   if (!on) label(String(Math.ceil(n.ready - s.t)), n.x, n.y - top, col);
+  if (n.fixing && nodeShown(n)) { c.font = '13px sans-serif'; c.globalAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 150); c.fillText('🔧', n.x + 18, n.y - top + 4); c.globalAlpha = 1; }
   if (n.hp < S.hp) { c.fillStyle = colors.shadow; c.fillRect(n.x - 14, n.y + bot, 28, 3); c.fillStyle = col; c.fillRect(n.x - 14, n.y + bot, 28 * Math.max(0, n.hp / S.hp), 3); }
 }
 function drawNodes(c) {
@@ -562,9 +591,9 @@ function addTrack(u, a) {
 const dust = [], DUST_T = 0.9, DUST_MAX = 400;
 function addDust(u, a, d) {
   const car = u.type === 'tank' || u.type === 'jeep' || u.type === 'mech' || u.type === 'truck';
-  a.dd = (a.dd || 0) + d; if (a.dd < (car ? 6 : 14)) return; a.dd = 0;
+  a.dd = (a.dd || 0) + d; if (a.dd < (car ? 6 : 26)) return; a.dd = 0;
   const k = SIZE[u.type], back = car ? k * 0.9 : k * 0.2, sx = (Math.random() - 0.5) * k * 0.6;
-  dust.push({ x: u.x - Math.cos(u.hd) * back - Math.sin(u.hd) * sx, y: u.y + k * (car ? 0.2 : 0.7) - Math.sin(u.hd) * back + Math.cos(u.hd) * sx, t: s.t, r: car ? (u.type === 'tank' ? 3.2 : 2.4) : 1.4 });
+  dust.push({ x: u.x - Math.cos(u.hd) * back - Math.sin(u.hd) * sx, y: u.y + k * (car ? 0.2 : 0.7) - Math.sin(u.hd) * back + Math.cos(u.hd) * sx, t: s.t, r: car ? (u.type === 'tank' ? 3.2 : 2.4) : 0.8, a: car ? 0.45 : 0.18 });
   if (dust.length > DUST_MAX) dust.splice(0, dust.length - DUST_MAX);
 }
 function drawDust(c) {
@@ -572,7 +601,7 @@ function drawDust(c) {
   c.fillStyle = DUST_COL;
   for (const p of dust) {
     const a = (s.t - p.t) / DUST_T; if (a < 0) continue;
-    c.globalAlpha = 0.45 * (1 - a); ring(p.x, p.y - a * 3, p.r * (1 + a * 1.6)); c.fill();
+    c.globalAlpha = p.a * (1 - a); ring(p.x, p.y - a * 3, p.r * (1 + a * 1.6)); c.fill();
   }
   c.globalAlpha = 1;
 }
@@ -607,13 +636,16 @@ function drawUnits(c, show) {
     const aim = recent ? u.aim : (u.type === 'aa' ? idleAim('aa', u.side) : u.hd);
     if (T.air) { c.globalAlpha = 0.22; glyph(c, 'air', u.x + 7, u.y + 10, k, '#000', null, u.hd); c.globalAlpha = 1; }
     else { c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(u.x + 2, u.y + 4, k * 0.75, k * 0.35, 0, 0, Math.PI * 2); c.fill(); }
-    glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim, 1.2, T.air ? 0 : stride(u));
+    // soldiers and jeeps are small: a light glow round them, so they stand out from the ground
+    const glow = GLOW[u.type]; if (glow) { c.shadowColor = colors.halo; c.shadowBlur = glow * view.scale; }
+    glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim, glow ? 0.9 : 1.2, T.air ? 0 : stride(u));
+    if (glow) c.shadowBlur = 0;
     if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
     if (u.resup && !u.care) { c.fillStyle = colors.halo; ring(u.x + k * 0.8, u.y - k * 0.9, 4.5); c.fill(); c.fillStyle = AMMO; c.fillRect(u.x + k * 0.8 - 2.5, u.y - k * 0.9 - 2.5, 5, 5); }
     if (u.care) { c.fillStyle = colors.halo; ring(u.x + k * 0.8, u.y - k * 0.9, 4.5); c.fill(); c.fillStyle = colors.red; c.fillRect(u.x + k * 0.8 - 1, u.y - k * 0.9 - 3, 2, 6); c.fillRect(u.x + k * 0.8 - 3, u.y - k * 0.9 - 1, 6, 2); }
-    if (u.side === 'blue' && isSel(u.squad)) {
+    if (u.side === 'blue' && sel !== 'all' && isSel(u.squad)) { // (all of them picked, as at the start: no rings)
       // picked: a faint light ring close round the unit
-      c.globalAlpha = 0.55; c.strokeStyle = colors.halo; c.lineWidth = 1; ring(u.x, u.y, k * (u.type === 'tank' ? 0.95 : 1) + 2.5); c.stroke(); c.globalAlpha = 1;
+      c.globalAlpha = 0.4; c.strokeStyle = colors.halo; c.lineWidth = 1; ring(u.x, u.y, k * (u.type === 'tank' ? 0.95 : 1) + 2.5); c.stroke(); c.globalAlpha = 1;
     }
     if (u.hp < T.hp) {
       c.fillStyle = colors.shadow; c.fillRect(u.x - 8, u.y - k - 7, 16, 3);

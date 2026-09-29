@@ -38,7 +38,8 @@ function syncButtons() {
   // the orders show only while something is picked
   $('gOrd').hidden = !uiHas('orders') || !selIds().length;
   document.querySelectorAll('[data-diff]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.diff === diff)));
-  document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+  // the one order button shows the order a tap on the map gives (attack: a sword, hold: a shield)
+  const ob = $('ordMode'); if (ob.dataset.m !== mode) { ob.dataset.m = mode; ob.innerHTML = orderSvg(mode); } ob.setAttribute('aria-label', tr(mode));
   document.querySelectorAll('[data-rate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.rate === rate)));
   $('paused').hidden = playing || !s || s.over || !menu.hidden || !!tour || !$('intro').hidden || !$('end').hidden;
   $('fs').setAttribute('aria-pressed', String(fsOn()));
@@ -97,7 +98,7 @@ function showEnd() {
 function updateHud() {
   // power share: the truth without fog; under fog the enemy side is only what we know of it
   const b = Math.round(100 * (s.fog ? believedShare() : Sim.share(s, 'blue')));
-  $('pwN').textContent = (s.fog ? '≈' : '') + b + '%'; $('pwB').style.width = b + '%';
+  $('pwB').style.width = b + '%'; $('power').classList.toggle('est', !!s.fog); $('power').style.setProperty('--lose', pctLose() + '%');
   $('slotN').textContent = Sim.buildCount(s, 'blue') + '/' + Sim.buildLimit(s, 'blue');
   $('bld').setAttribute('aria-disabled', String(buildFull() && !buildArmed));
   // while there's room for another building, 🏗️ pulses: build more
@@ -139,7 +140,8 @@ function updateHud() {
   if (s.over && !endShown) { endShown = true; setPlaying(false); showEnd(); }
 }
 
-document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { mode = b.dataset.mode; syncButtons(); }));
+$('ordMode').addEventListener('click', () => { mode = mode === 'attack' ? 'hold' : 'attack'; hideTip(); syncButtons(); });
+$('ordMode').dataset.tip = 'ord'; $('ordMode').tipText = () => tr(mode === 'attack' ? 'tipAttack' : 'tipHold') + ' · ' + tr('tipSwitch');
 document.querySelectorAll('[data-rate]').forEach(b => b.addEventListener('click', () => { rate = +b.dataset.rate; syncButtons(); }));
 $('all').addEventListener('click', () => select('all'));
 // The buttons at the top: first the groups the player made, then one per kind of unit for the squads in no group.
@@ -258,10 +260,10 @@ function syncBuildMenu(fresh) {
 }
 const buildFull = () => Sim.buildCount(s, 'blue') >= Sim.buildLimit(s, 'blue');
 const blink = el => { el.classList.remove('blink'); void el.offsetWidth; el.classList.add('blink'); };
-// no free slot: the button is dimmed, and pressing it anyway flashes the slots counter and the way out: 🏕️
+// no free slot: the button is dimmed, and pressing it anyway flashes it and the way out: 🏕️
 function toggleBuild() {
   const m = $('buildm');
-  if (!buildArmed && m.hidden && buildFull()) { blink($('slots')); if (!$('fhq').hidden) blink($('fhq')); return; }
+  if (!buildArmed && m.hidden && buildFull()) { blink($('bld')); if (!$('fhq').hidden) blink($('fhq')); return; }
   if (buildArmed) { buildArmed = null; m.hidden = true; } else m.hidden = !m.hidden;
   syncButtons();
 }
@@ -313,8 +315,8 @@ const ourHq = mapSpot(() => s.nodes.find(n => n.side === 'blue' && n.kind === 'h
 const midMap = () => fit && { x: fit.w / 2, y: fit.top + fit.h / 2, w: 0, h: 0 };
 const TOUR = {
   squads: () => [{ el: 'gSq', t: tr('t_squads') }],
-  orders: () => [{ el: 'ordHold', t: tr('t_hold') }, { el: 'ordAttack', t: tr('t_attack') }, { el: 'retreat', t: tr('t_retreat') }],
-  build: () => [{ el: 'bld', t: tr('t_build') }, { el: 'slots', t: tr('t_slots') }],
+  orders: () => [{ el: 'ordMode', t: tr('t_order') }, { el: ourHq, t: tr('t_hq') }],
+  build: () => [{ el: 'bld', t: tr('t_build') + ' ' + tr('t_slots') }],
   vehicles: () => [{ el: 'bld', t: tr('t_vehicles') }],
   care: () => [{ el: 'bld', t: tr('t_care') }],
   air: () => [{ el: 'bld', t: tr('t_air') }],
@@ -341,7 +343,7 @@ function fullTour() {
 }
 // only the controls this level has; the ones it adds pulse until first used
 // (the radio log #log stays hidden for now: the map says it)
-const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'slots'], vehicles: ['bld'], care: ['bld'], air: ['bld'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq', 'slots'] };
+const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld'], vehicles: ['bld'], care: ['bld'], air: ['bld'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq'] };
 // building kinds each level step brings
 const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage', 'depot'], air: ['aapost', 'airfield'] };
 // an element shows when any of the level steps that bring it is there
@@ -422,11 +424,9 @@ $('share').addEventListener('click', async () => {
 $('help').addEventListener('click', () => { closeMenu(false); fullTour(); });
 // 🏠: back to the level screen (▶ there goes on with this game; a level starts a new one)
 $('home').addEventListener('click', () => { closeMenu(false); showIntro(true); });
-$('retreat').addEventListener('click', () => issue('retreat'));
 $('gear').addEventListener('click', () => { if (menu.hidden) openMenu(); else closeMenu(); });
 $('restart').addEventListener('click', () => { closeMenu(false); newGame(); });
 // the order symbols (the same as on the map)
-$('ordHold').innerHTML = orderSvg('hold'); $('ordAttack').innerHTML = orderSvg('attack'); $('retreat').innerHTML = orderSvg('retreat');
 $('callHold').innerHTML = orderSvg('hold'); $('callBack').innerHTML = orderSvg('retreat');
 $('power').dataset.tip = 'power'; $('power').tipText = () => tr('power', pctLose());
 // a new language: the words made by the scripts too

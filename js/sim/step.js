@@ -42,6 +42,8 @@ function step(s, dt) {
     const b = share(s, 'blue'), k = s.collapseAt ?? COLLAPSE;
     if (b < k) s.over = 'red'; else if (1 - b < k) s.over = 'blue';
   }
+  // the HQ falls: that side has lost, at once (where there are HQs: the first levels have none)
+  if (!s.over && s.hqDown) s.over = s.hqDown === 'blue' ? 'red' : 'blue';
 }
 
 const Sim = { SUPPLY, AI_STYLES, planFhq, _makeSquad: makeSquad, _fillSquad: fillSquad, formation, fhqCount, friction, dronesUp, DRONE_SIGHT, CARER, create, lakeAt, wobble, inHill, elevAt, levelAt, hillHeight, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };

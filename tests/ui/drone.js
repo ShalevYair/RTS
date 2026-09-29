@@ -12,7 +12,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.goto(URL); await p.waitForTimeout(500);
     await p.click('#go'); await p.click('#gear'); await p.click('[data-rate="2"]');
     const note = await p.textContent('#radioNote'); await p.click('#gear');
-    await p.click('[data-mode="attack"]'); await p.click('#all');
+    await p.click('#all');
     const box = await p.locator('#cv').boundingBox();
     await p.mouse.click(box.x + box.width / 2, box.y + box.height * 0.45);
     await p.waitForTimeout(9000);

@@ -97,8 +97,6 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 @media (max-width:560px){.log{top:50px;width:calc(100% - 24px)}}
 .hudl{position:absolute;top:8px;left:8px;display:flex;gap:6px;align-items:center;pointer-events:none}
 .hudl .score{position:static}
-.score.slots{color:var(--ink)}
-.score.slots.blink{animation:blink .35s ease-in-out 4;pointer-events:none}
 .bar button.blink{animation:blink .35s ease-in-out 4}
 @keyframes blink{50%{background:var(--c-red);color:#fff}}
 #bld[aria-disabled="true"],#fhq[aria-disabled="true"]{opacity:.45}
@@ -109,8 +107,11 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 @media (prefers-reduced-motion:reduce){.turn{animation:none}}
 .buildm button[hidden]{display:none}
 .pwbar{display:inline-block;position:relative;width:70px;height:8px;margin-inline-start:6px;border-radius:4px;overflow:hidden;background:var(--c-red);vertical-align:middle}
-.pwbar i{position:absolute;inset-block:0;inset-inline-start:0;background:var(--c-blue)}
-.pwbar::after{content:"";position:absolute;inset-block:0;inset-inline-start:15%;width:2px;background:var(--ink)}
+.pwbar i{position:absolute;inset-block:0;left:0;background:var(--c-blue)}
+.pwbar::after,.pwbar::before{content:"";position:absolute;inset-block:0;left:var(--lose,15%);width:2px;margin-left:-1px;background:#fff;z-index:1}
+.pwbar::before{left:calc(100% - var(--lose,15%))}
+#power .pwbar{width:110px;height:10px;margin:0}
+#power.est .pwbar{opacity:.8}
 .pwbar.r::after{inset-inline-start:85%}
 .buildm{position:absolute;left:50%;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:6px;padding:8px;border-radius:12px;max-width:calc(100% - 16px)}
 .buildm[hidden]{display:none}
@@ -171,7 +172,10 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .hudl #gSq button{min-height:44px}
 #gSq[hidden]{display:none}
 .corner{position:absolute;right:8px;bottom:8px;display:flex;gap:6px;align-items:flex-end;direction:ltr}
-.corner #gOrd{padding:5px;border-radius:12px}
+#gOrd{position:absolute;left:8px;bottom:8px;padding:5px;border-radius:12px}
+#ordMode{min-width:52px;min-height:52px}
+#ordMode .ico{width:28px;height:28px}
+#bld{position:relative}#bld b{position:absolute;top:1px;inset-inline-end:3px;font:700 11px Assistant,sans-serif;color:var(--accent)}
 #gear{min-width:52px;min-height:52px;border-radius:12px;font-size:22px}
 .menu{left:auto;right:8px;transform:none}
 #fsRow[hidden]{display:none}
@@ -180,7 +184,6 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 #fhq.nudge{animation:nudge 1.6s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){#fhq.nudge{animation:none;outline:3px solid #3caa46}}
 .corner:has(.tourOn){z-index:16}
-@media (max-width:700px){.bar{left:8px;transform:none}}
 @media (max-width:560px){.hudl #gSq button{min-height:40px;padding:3px 5px}.sqb{min-width:38px}.sqb canvas{width:28px;height:28px}}
 .bar.empty{display:none}
 /* a group's button: a tinted face, set apart from the type buttons after it */

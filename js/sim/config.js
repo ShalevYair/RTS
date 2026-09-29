@@ -78,6 +78,10 @@ const STRUCTS = {
   depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2 },
 };
 const PRODUCERS = Object.keys(STRUCTS).filter(k => STRUCTS[k].unit);
+// repairs: a damaged building is mended by its side's ground units within REPAIR_R that have nothing to do (arrived,
+// no shot for REPAIR_QUIET s, not off for care or ammunition): REPAIR_RATE hp/s each (a mechanic REPAIR_MECH times
+// that), counting up to REPAIR_MAX of them
+const REPAIR_R = 70, REPAIR_RATE = 3, REPAIR_MECH = 3, REPAIR_MAX = 8, REPAIR_QUIET = 4;
 const BUILD_MIN_Q = 0.5, BUILD_BASE = 2, BUILD_PER_NODE = 2, BUILD_GAP = 45, STRUCT_SIGHT = 120;
 // collapse: a side whose power falls below COLLAPSE of both sides' total loses (not before COLLAPSE_AFTER s)
 const COLLAPSE = 0.15, COLLAPSE_AFTER = 60;

@@ -56,13 +56,28 @@ const share = (s, side) => { const a = s.power[side], b = s.power[side === 'blue
 // the weaker side produces faster: 0 at an even share, BOOST_MAX at BOOST_FULL or below
 const boost = (s, side) => BOOST_MAX * clamp((0.5 - share(s, side)) / (0.5 - BOOST_FULL), 0, 1);
 
+// idle units near a damaged building of their side mend it (mechanics faster); n.fixing = being mended now
+function repair(s, n, S, idle, dt) {
+  n.fixing = false;
+  if (n.hp >= S.hp || n.kind === 'drone') return;
+  let k = 0;
+  for (const u of idle) {
+    if (u.side !== n.side || Math.hypot(u.x - n.x, u.y - n.y) > REPAIR_R) continue;
+    k += u.type === 'mech' ? REPAIR_MECH : 1;
+    if (k >= REPAIR_MAX) { k = REPAIR_MAX; break; }
+  }
+  if (k) { n.hp = Math.min(S.hp, n.hp + k * REPAIR_RATE * dt); n.fixing = true; }
+}
 function updateStructs(s, dt) {
   for (const side of ['blue', 'red']) for (const k in s.cd[side]) s.cd[side][k] = Math.max(0, s.cd[side][k] - dt);
   droneSupply(s, dt);
+  const arrived = new Set(s.squads.filter(q => q.arrived && !q.dead && !q.retreating).map(q => q.id));
+  const idle = s.units.filter(u => !TYPES[u.type].air && arrived.has(u.squad) && !u.care && !u.resup && !(s.t - u.lastFire < REPAIR_QUIET));
   for (const n of s.nodes) {
     const S = STRUCTS[n.kind];
     if (n.hp <= 0) {
       if (n.gone) continue;
+      if (n.kind === 'hq') s.hqDown = n.side; // (step: that side has lost)
       n.gone = true; s.fx.push({ x: n.x, y: n.y, life: 0.9, max: 0.9, size: n.kind === 'drone' ? 18 : 34 });
       const sq = n.squad && s.squads.find(q => q.id === n.squad); if (sq) sq.home = null; // the squad fights on, without refills
       if (n.side === 'blue') { note(s, `${S.name}: ${n.kind === 'drone' ? 'הופל' : 'הושמד'}`); s.marks.push({ x: n.x, y: n.y, kind: 'nodeLost', t: s.t, who: n.kind }); }
@@ -70,6 +85,7 @@ function updateStructs(s, dt) {
       continue;
     }
     if (s.t < n.ready) continue;
+    repair(s, n, S, idle, dt);
     if (n.kind === 'fhq' && n.side === 'blue' && !n.said) { n.said = true; note(s, 'הפיקוד הקדמי פועל'); }
     if (!S.unit) continue;
     // a finished building raises its squad, then keeps it full

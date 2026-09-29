@@ -20,7 +20,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     check(name, /^1\* -2 .* ∞$/.test(intro.levels) && intro.words.length < 60, `first visit: level 1 picked, the rest locked (${intro.levels}); on screen: "${intro.words}"`);
     await p.screenshot({ path: `${OUT}/${name}-lv-intro.png` });
     await p.click('#go'); await p.waitForTimeout(300); await p.evaluate(() => tourNext(true)); // (the tour is tests/ui/tour.js)
-    const bar1 = { sq: await shown('#gSq'), ord: await shown('#gOrd'), bld: await shown('#bld'), eye: await shown('#eye'), log: await shown('#log'), slots: await shown('#slots') };
+    const bar1 = { sq: await shown('#gSq'), ord: await shown('#gOrd'), bld: await shown('#bld'), eye: await shown('#eye'), log: await shown('#log') };
     check(name, Object.values(bar1).every(v => !v), `level 1: no squad buttons, orders, building, drone, log ${JSON.stringify(bar1)}`);
     await p.screenshot({ path: `${OUT}/${name}-lv1.png` });
     // tap on the enemy squad: ours goes and wins
@@ -50,10 +50,10 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
       updateHud(); return { dis: document.getElementById('bld').getAttribute('aria-disabled'), slots: document.getElementById('slotN').textContent };
     });
     await p.click('#bld', { force: true }); // dimmed, but a finger can still press it
-    const after = await p.evaluate(() => ({ blink: document.getElementById('slots').classList.contains('blink'), menu: !document.getElementById('buildm').hidden }));
+    const after = await p.evaluate(() => ({ blink: document.getElementById('bld').classList.contains('blink'), menu: !document.getElementById('buildm').hidden }));
     check(name, full.dis === 'true' && after.blink && !after.menu, `full (${full.slots}): build button dimmed, pressing it flashes the counter, no menu ${JSON.stringify(after)}`);
-    const left = await p.evaluate(() => { const a = document.getElementById('slots').getBoundingClientRect(), b = document.querySelector('.score.blue').getBoundingClientRect(); return a.right < innerWidth / 2 && Math.abs(a.top - b.top) < 4; });
-    check(name, left, 'the slots counter sits on the left, beside the power bar');
+    const onBld = await p.evaluate(() => document.getElementById('bld').contains(document.getElementById('slotN')) && !document.getElementById('slots'));
+    check(name, onBld, 'the buildings count sits on the build button');
     // music: five pieces, all playable
     const mus = await p.evaluate(() => { const r = Music._debug.playAll(); Music.stop(); const a = Music._debug.song(), b = Music._debug.next(); return { r, change: a !== b }; });
     check(name, mus.r && Object.keys(mus.r).length === 5 && Object.values(mus.r).every(n => n >= 20) && mus.change, `music: ${JSON.stringify(mus.r)}, the next piece is a different one`);
