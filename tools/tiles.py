@@ -43,6 +43,8 @@ def build():
     has = lambda p: os.path.exists(os.path.join(ROOT, *p.split('/')))
     if has('video/menu_poster.jpg'): art['wide'] = art['wide'] or 'video/menu_poster.jpg'
     art['video'] = 'video/menu_loop.mp4' if has('video/menu_loop.mp4') else None
+    # (the end of the full game: video/win.mp4 after a victory, video/lose.mp4 after a defeat, if they're there)
+    for key in ('win', 'lose'): art[key] = f'video/{key}.mp4' if has(f'video/{key}.mp4') else None
     js.append('const MENU_ART = ' + json.dumps(art) + ';')
     open(os.path.join(ROOT, 'js', 'ui', 'tiles.js'), 'w', encoding='utf-8').write('\n'.join(js) + '\n')
 

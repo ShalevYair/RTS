@@ -155,7 +155,7 @@ function updateHud() {
     $('callTxt').textContent = tr('call', bossName(cq.boss), tn(cq.type));
     $('callT').textContent = Math.ceil(call.until - s.t); $('call').dataset.id = call.id;
   }
-  if (s.over && !endShown) { endShown = true; setPlaying(false); showEnd(); }
+  if (s.over && !endShown) { endShown = true; setPlaying(false); startOutro(); }
 }
 
 $('ordMode').addEventListener('click', () => { mode = mode === 'attack' ? 'hold' : 'attack'; hideTip(); syncButtons(); });
@@ -401,6 +401,7 @@ const pctLose = () => Math.round((s.collapseAt ?? 0.15) * 100);
 const mapSpot = f => () => { const w = f(); if (!w) return null; const p = onScreen(w.x, w.y); return { x: p.x, y: p.y, w: 30, h: 30 }; };
 const ourSquad = mapSpot(() => { const q = s.squads.find(q => q.side === 'blue' && !q.dead); return q && { x: q.cx, y: q.cy - 10 }; });
 const foeSquad = mapSpot(() => { const q = s.squads.find(q => q.side === 'red' && !q.dead); return q && { x: q.cx, y: q.cy }; });
+const ourType = type => mapSpot(() => { const q = s.squads.find(q => q.side === 'blue' && !q.dead && q.type === type); return q && { x: q.cx, y: q.cy }; });
 const ourHq = mapSpot(() => s.nodes.find(n => n.side === 'blue' && n.kind === 'hq'));
 const midMap = () => fit && { x: fit.w / 2, y: fit.top + fit.h / 2, w: 0, h: 0 };
 const TOUR = {
@@ -413,7 +414,8 @@ const TOUR = {
   fog: () => [{ el: midMap, t: tr('t_fog', !!s.fogAt && s.t < s.fogAt) }],
   eye: () => [{ el: 'eye', t: tr('t_eye') }],
   c2: () => [{ el: ourHq, t: tr('t_c2') }],
-  fhq: () => [{ el: 'fhq', t: tr('t_fhq') }],
+  fhq: () => [{ el: 'fhq', t: tr(s.dozers ? 't_fhqDz' : 't_fhq') }],
+  support: () => [{ el: 'hqb', t: tr('t_placeDz') }, { el: ourType('dozer'), t: tr('t_dozer') }, { el: ourType('radio'), t: tr('t_radio') }],
 };
 function levelTour(n) {
   // level 1: the goal, your force and the enemy's, the power bar, a tap on the map, pausing
@@ -444,7 +446,7 @@ function fullTour() {
 }
 // only the controls this level has; the ones it adds pulse until first used
 // (the radio log #log stays hidden for now: the map says it)
-const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld'], vehicles: ['bld'], care: ['bld'], air: ['bld'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq'] };
+const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld'], vehicles: ['bld'], care: ['bld'], air: ['bld'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq'], support: [] };
 // building kinds each level step brings
 const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage', 'depot'], air: ['aapost', 'atpost', 'jeepaa', 'jeepat', 'airfield'] };
 // an element shows when any of the level steps that bring it is there

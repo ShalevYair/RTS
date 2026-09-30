@@ -538,7 +538,7 @@ function drawStruct(c, n, ghost) {
   if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.2 : 0.32; drawDrone(c, n.x, n.y, 8, col, s.t * 0.35 + n.id, on ? s.t * 25 : 0); }
   else {
     const px = pxOf(n.kind), k = px / STRUCT_PX;
-    c.globalAlpha = ghost ? 0.45 : on ? 1 : grow * grow * 0.95; // (from fully see-through to solid)
+    c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.16 + grow * grow * 0.8; // (from faint — its spot shows — to solid)
     drawBuilding(c, n.kind, col, n.x, n.y, px);
     if ((n.kind === 'hq' || n.kind === 'decoy') && on && !ghost && !hasBuildingPic(n.kind)) drawFlag(c, n.x, n.y, k, col);
     if (n.kind === 'decoy' && n.side === 'blue') { c.font = '15px sans-serif'; c.fillText(S.badge, n.x + px * 0.35, n.y - px * 0.1); }
@@ -547,7 +547,10 @@ function drawStruct(c, n, ghost) {
   if (ghost) return;
   const R = Sim.STRUCTS[n.kind].r, top = n.kind === 'drone' ? 16 : R + 14, bot = n.kind === 'drone' ? 14 : R + 8;
   // (a site: ⏸ while no bulldozer works it; else the seconds left)
-  if (!on) label(site ? (n.working ? Math.round(grow * 100) + '%' : '⏸') : String(Math.ceil(n.ready - s.t)), n.x, n.y - top, col);
+  // (a site: its % while a bulldozer works it or drives to it; nothing while it waits its turn in a queue — the queue's
+  // number shows; ⏸ when no bulldozer has it at all, or its bulldozer was sent elsewhere)
+  const queued = site && s.squads.some(q => q.type === 'dozer' && !q.dead && !q.paused && (q.jobs || []).includes(n.id));
+  if (!on && !(site && !n.working && !dozerComing(n) && queued)) label(site ? (n.working || dozerComing(n) ? Math.round(grow * 100) + '%' : '⏸') : String(Math.ceil(n.ready - s.t)), n.x, n.y - top, col);
   if (n.fixing && nodeShown(n)) { c.font = '13px sans-serif'; c.globalAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 150); c.fillText('🔧', n.x + 18, n.y - top + 4); c.globalAlpha = 1; }
   if (n.hp < S.hp) { c.fillStyle = colors.shadow; c.fillRect(n.x - 14, n.y + bot, 28, 3); c.fillStyle = col; c.fillRect(n.x - 14, n.y + bot, 28 * Math.max(0, n.hp / S.hp), 3); }
   // ours: the next unit coming out — a bar filling up, and the unit's shape beside it
@@ -561,6 +564,28 @@ function drawNodes(c) {
   for (const n of s.nodes) if (nodeShown(n)) drawStruct(c, n, false);
   if (!s.fog) return;
   for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) drawStruct(c, { ...s.memNodes.blue[id], side: 'red' }, true);
+}
+// our bulldozers' work lists: each site's place in its bulldozer's queue (a small number), a faint dotted line from a
+// bulldozer to the site it's driving to, and ⏸ over one the player sent elsewhere while it still has work
+const dozerComing = n => s.squads.some(q => q.side === n.side && q.type === 'dozer' && !q.dead && !q.paused && Sim.jobOf(s, q) === n);
+function drawDozerJobs(c) {
+  if (!s.dozers) return;
+  for (const q of s.squads) {
+    if (q.side !== 'blue' || q.type !== 'dozer' || q.dead) continue;
+    const list = (q.jobs || []).map(id => s.nodes.find(n => n.id === id)).filter(n => n && n.hp > 0 && Sim.isSite(n) && s.t < n.ready);
+    const u = s.units.find(u => u.squad === q.id), seen = u && sqShown(q), job = list[0];
+    list.forEach((n, i) => {
+      const R = Sim.STRUCTS[n.kind].r, x = n.x - R - 4, y = n.y - R - 2;
+      c.globalAlpha = q.paused ? 0.45 : 0.9; c.fillStyle = hexA(colors.blue, 0.85); ring(x, y, 7); c.fill();
+      c.fillStyle = '#fff'; c.font = '700 9px Rubik, sans-serif'; c.fillText(String(i + 1), x, y + 3.2);
+    });
+    if (seen && job && !q.paused && Math.hypot(u.x - job.x, u.y - job.y) > Sim.STRUCTS[job.kind].r + Sim.DOZER_R + 8) {
+      c.globalAlpha = 0.5; c.strokeStyle = colors.blue; c.lineWidth = 1.5; c.setLineDash([4, 5]);
+      c.beginPath(); c.moveTo(u.x, u.y); c.lineTo(job.x, job.y); c.stroke(); c.setLineDash([]);
+    }
+    if (seen && q.paused && job) { c.globalAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 300); label('⏸', u.x, u.y - SIZE.dozer - 4, colors.blue); }
+    c.globalAlpha = 1;
+  }
 }
 // how far from a forward HQ building is allowed (its control there is at least the building minimum, in the rings)
 const FHQ_BUILD_R = (() => { const N = Sim.NODES.fhq; let d = N.r0; while (d < N.r1 && N.q * (Math.ceil((1 - (d - N.r0) / (N.r1 - N.r0)) * 4) / 5) >= 0.5) d += 2; return d; })();
@@ -779,7 +804,7 @@ function draw() {
   drawSmoke(c); drawFlashes(c); drawClouds(c);
   drawNightLit(c);
   if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); }
-  drawNodes(c);
+  drawNodes(c); drawDozerJobs(c);
   drawBuildArea(c);
   // our squads. Where the units themselves are drawn: their strength and ammunition over them, no badge. Where they
   // aren't (out of the exact picture under command friction): faint units where they probably are by now, and a

@@ -84,6 +84,16 @@ function careStation(s, sq, mine) {
   const d = dist(c, home) || 1, back = Math.min(d, 110), G = 40;
   return { x: Math.round((c.x + (home.x - c.x) / d * back) / G) * G, y: Math.round((c.y + (home.y - c.y) / d * back) / G) * G };
 }
+// where a signals truck goes: a little behind one of our leading squads (the k-th truck behind the k-th furthest
+// forward), so it sees far ahead and gives control out there; back to the middle of our squads if enemies are close
+function radioStation(s, sq, mine, k) {
+  const foe = s.bases[foeOf(sq.side)], home = homeOf(s, sq);
+  const front = mine.filter(q => !TYPES[q.type].care && !TYPES[q.type].air).sort((a, b) => Math.abs(a.cx - foe.x) - Math.abs(b.cx - foe.x));
+  if (!front.length) return careStation(s, sq, mine);
+  const q = front[k % front.length], c = { x: q.cx, y: q.cy }, d = dist(c, home) || 1, back = Math.min(d, AI_RADIO_BACK), G = 40;
+  const p = { x: Math.round((c.x + (home.x - c.x) / d * back) / G) * G, y: Math.round((c.y + (home.y - c.y) / d * back) / G) * G };
+  return threatAt(s, sq.side, p, AI_NEAR) ? careStation(s, sq, mine) : p;
+}
 
 function think(s, side, level) {
   const D = DIFFS[level] || DIFFS.normal, foe = foeOf(side), taken = new Map();
@@ -113,11 +123,11 @@ function think(s, side, level) {
   const St = AI_STYLES[s.style[side]] || AI_STYLES.steady, home = hqOf(s, side) || s.bases[side];
   const fighters = mine.filter(q => !TYPES[q.type].care);
   const stayHome = St.wait && s.t < 300 && !(fighters.length >= St.wait && s.t > 150) && share(s, side) < 0.55; // (never past 5 minutes)
-  let nth = 0;
+  let nth = 0, radios = 0;
   for (const sq of mine) {
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
     // support: bulldozers go where their sites are (on their own); signals trucks stay a little behind the squads
-    if (TYPES[sq.type].support) { if (sq.type === 'radio') { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); } continue; }
+    if (TYPES[sq.type].support) { if (sq.type === 'radio') { const p = radioStation(s, sq, mine, radios++); setOrder(sq, 'hold', p.x, p.y); } continue; }
     if (TYPES[sq.type].care) { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); continue; }
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
@@ -149,10 +159,11 @@ function think(s, side, level) {
     const aim = sq.order.want || sq.order, cur = D.smart && cands.find(p => Math.hypot(p.x - aim.x, p.y - aim.y) < 40);
     if (cur && cur !== best && score(cur) < bs + AI_KEEP) best = cur;
     taken.set(best.x + ',' + best.y, (taken.get(best.x + ',' + best.y) || 0) + 1);
-    // flanking: a far target is reached by way of a point near the top or bottom edge (squads take turns), halfway there
+    // flanking: a far target is reached by way of a point off to one side of it, halfway there — the side toward the
+    // nearer edge, the same for every squad (together, not split between the two edges)
     if (St.flank && !TYPES[sq.type].air && dist(c, best) > AI_FLANK_R) {
       const key = Math.round(best.x / 50) + ',' + Math.round(best.y / 50);
-      if (sq.flankKey !== key) { sq.flankKey = key; sq.flanked = false; sq.flankY = (nth++ % 2 ? 0.12 : 0.88) * s.H; }
+      if (sq.flankKey !== key) { sq.flankKey = key; sq.flanked = false; sq.flankY = clamp(best.y + (best.y < s.H / 2 ? -1 : 1) * AI_FLANK_R, 0.1 * s.H, 0.9 * s.H); }
       const wp = { x: Math.round((c.x + best.x) / 2), y: Math.round(sq.flankY) };
       if (!sq.flanked && dist(c, wp) < 120) sq.flanked = true;
       if (!sq.flanked) { setOrder(sq, 'attack', wp.x, wp.y); if (D.mass && friction(s)) silence(s, sq.id, true, true); continue; }

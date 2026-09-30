@@ -17,7 +17,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const intro = await p.evaluate(() => ({
       levels: [...document.querySelectorAll('#levels button')].map(x => (x.disabled ? '-' : '') + x.textContent + (x.getAttribute('aria-pressed') === 'true' ? '*' : '')).join(' '),
       words: document.querySelector('#intro .card').innerText.replace(/\s+/g, ' ').trim() }));
-    check(name, /^1\* -2 .* -11$/.test(intro.levels) && intro.words.length < 90, `first visit: level 1 picked, the rest locked (${intro.levels}); on screen: "${intro.words}"`);
+    check(name, /^1\* -2 .* -12$/.test(intro.levels) && intro.words.length < 90, `first visit: level 1 picked, the rest locked (${intro.levels}); on screen: "${intro.words}"`);
     await p.screenshot({ path: `${OUT}/${name}-lv-intro.png` });
     // the tutorial: "tutorial" in the side panel, then a level (▶ "start game" is the full game)
     await p.click('#learn'); await p.click('#levels button:first-child'); await p.waitForTimeout(300); await p.evaluate(() => tourNext(true)); // (the tour is tests/ui/tour.js)
@@ -59,7 +59,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const mus = await p.evaluate(() => { const r = Music._debug.playAll(); Music.stop(); const a = Music._debug.song(), b = Music._debug.next(); return { r, change: a !== b }; });
     check(name, mus.r && Object.keys(mus.r).length === 5 && Object.values(mus.r).every(n => n >= 20) && mus.change, `music: ${JSON.stringify(mus.r)}, the next piece is a different one`);
     // last level: fog, drone (a quadcopter, not an emoji) and forward HQ
-    await p.evaluate(() => { lvl = Sim.LEVELS; newGame(true); setPlaying(true); Sim.drone(s, 'blue', s.nodes.find(n => n.kind === 'hq' && n.side === 'blue').x + 160, s.H / 2 - 60); });
+    await p.evaluate(() => { lvl = Sim.LEVELS; newGame(true); setPlaying(true); Sim.drone(s, 'blue', s.bases.blue.x + 300, s.H / 2 - 60); });
     await p.waitForTimeout(600);
     const last = await p.evaluate(() => ({ fog: s.fog, big: s.H > Sim.H, svg: !!document.querySelector('#eye svg'), emoji: document.getElementById('eye').textContent.includes('🛸') }));
     check(name, last.fog && last.big && last.svg && !last.emoji && await shown('#eye') && !(await shown('#log')), `last level: fog, big map, drone button is a picture, no text log ${JSON.stringify(last)}`);

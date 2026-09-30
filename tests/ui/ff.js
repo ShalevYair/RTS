@@ -32,7 +32,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.screenshot({ path: `${OUT}/${name}-ff.png` });
     const st = await p.evaluate(() => ({ marks: s.marks.filter(k => k.kind === 'ff').length, log: s.log.some(e => /ירי על כוחותינו/.test(e.msg)), n: s.log2.ff }));
     await p.evaluate(() => { const o = Sim.step; Sim.step = (s, dt) => { o(s, dt); if (s.t > 7) s.over = 'red'; }; });
-    await p.waitForTimeout(8000);
+    await p.waitForTimeout(8000); await p.waitForFunction(() => !document.getElementById('end').hidden, null, { timeout: 10000 }); // (after the finale)
     const end = await p.evaluate(() => ({ box: !document.getElementById('replayBox').hidden, stats: document.getElementById('endStats').textContent }));
     await p.screenshot({ path: `${OUT}/${name}-ff-end.png` });
     const good = st.marks > 0 && st.log && st.n > 0 && end.box && /ירי על כוחותינו: [1-9]/.test(end.stats) && !errs.length;
