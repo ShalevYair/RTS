@@ -7,7 +7,7 @@ import json, os
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 EVENTS = ['selected', 'on_the_way', 'attacking', 'holding', 'retreating', 'in_position', 'under_attack', 'heavy_losses',
           'squad_lost', 'friendly_fire', 'promoted', 'say_again', 'forward_hq', 'building_lost',
-          'base_attack', 'fhq_attack', 'hq_attack']
+          'base_attack', 'fhq_attack', 'hq_attack', 'drone_lost']
 AUDIO = ('.mp3', '.wav', '.ogg', '.m4a')
 
 def build():

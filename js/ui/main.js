@@ -40,13 +40,12 @@ function frame(now) {
     Radio.hear(k.kind === 'ack' ? { kind: orderSay[k.id] || replyOf(k.type), id: k.id } : k);
   }
   // our buildings under fire: a call when one loses health — the HQ, a forward HQ, any other (the fake HQ is meant to be
-  // hit) — each kind at most once every BASE_CALL_MS
+  // hit)
   for (const n of s.nodes) {
     if (n.side !== 'blue' || n.kind === 'drone' || n.kind === 'decoy') continue;
     const was = nodeHp.get(n.id); nodeHp.set(n.id, n.hp);
     if (!playing || was === undefined || n.hp >= was - 0.5 || n.hp <= 0) continue;
-    const k = n.kind === 'hq' ? 'hqHit' : n.kind === 'fhq' ? 'fhqHit' : 'baseHit';
-    if (now - (baseCalled[k] ?? -Infinity) > BASE_CALL_MS) { baseCalled[k] = now; Radio.hear({ kind: k }); }
+    Radio.hear({ kind: n.kind === 'hq' ? 'hqHit' : n.kind === 'fhq' ? 'fhqHit' : 'baseHit', x: n.x, y: n.y, t: s.t }); // (the radio keeps quiet while the same place keeps being hit)
   }
   Radio.tick();
   if (replayAuto && !$('end').hidden && !$('replayBox').hidden && now - replayAt > 180) {

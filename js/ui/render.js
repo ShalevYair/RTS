@@ -677,6 +677,7 @@ function drawGhosts(c) {
   c.globalAlpha = 1;
 }
 // units: ground first, aircraft (with drop shadows) on top
+const BAR_BODY_R = 70; // (a squad's strength bar: over the units this near its middle)
 function drawUnits(c, show) {
   for (const pass of [false, true]) for (const u of s.units) {
     const T = Sim.TYPES[u.type]; if (!!T.air !== pass || !show(u)) continue;
@@ -765,7 +766,10 @@ function draw() {
     const m = s.units.filter(u => u.squad === q.id), on = isSel(q.id);
     if (sqShown(q)) {
       if (!m.length) continue;
-      let top = Infinity, cx = 0; for (const u of m) { top = Math.min(top, u.y - SIZE[u.type]); cx += u.x; } cx /= m.length;
+      // (over the squad's main body: units far from its middle — off to a medic, on the way out of the base — don't pull it away)
+      const mid = (a, f) => a.map(f).sort((p, r) => p - r)[a.length >> 1], mx = mid(m, u => u.x), my = mid(m, u => u.y);
+      let body = m.filter(u => Math.hypot(u.x - mx, u.y - my) < BAR_BODY_R); if (!body.length) body = m;
+      let top = Infinity, cx = 0; for (const u of body) { top = Math.min(top, u.y - SIZE[u.type]); cx += u.x; } cx /= body.length;
       const y = top - 12, bars = [];
       if (q.strength < 0.98) bars.push([colors.blue, Math.min(1, q.strength)]);
       const A = Sim.TYPES[q.type].ammo;
