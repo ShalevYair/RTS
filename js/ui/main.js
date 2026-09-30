@@ -13,7 +13,7 @@ function newGame(skipIntro) {
   // the big map opens zoomed in on our base; the small one shows it all
   cam = s.H > Sim.H ? { x: 0, y: s.H / 2, z: -1 } : { x: s.W / 2, y: s.H / 2, z: 1 };
   // in the tutorial a tap on the map attacks (hold / retreat come later)
-  decor = makeDecor(s); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; Radio.reset();
+  decor = makeDecor(s); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; Radio.reset();
   $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
   $('end').hidden = true; $('share').textContent = tr('share');
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
@@ -46,6 +46,13 @@ function frame(now) {
     const was = nodeHp.get(n.id); nodeHp.set(n.id, n.hp);
     if (!playing || was === undefined || n.hp >= was - 0.5 || n.hp <= 0) continue;
     Radio.hear({ kind: n.kind === 'hq' ? 'hqHit' : n.kind === 'fhq' ? 'fhqHit' : 'baseHit', x: n.x, y: n.y, t: s.t }); // (the radio keeps quiet while the same place keeps being hit)
+  }
+  // a forward HQ that can be set up now, a drone to fly now: said once when it becomes so, a note by its button
+  if (playing && !s.over) {
+    const fc = uiHas('fhq') && s.cd.blue.fhq <= 0 && Sim.fhqCount(s, 'blue') < Sim.fhqMax(s) && fhqCrews().length > 0, dc = uiHas('eye') && s.fog && s.drones.blue.stock > 0;
+    if (fc && !can.fhq && s.t > 3) { Radio.hear({ kind: 'fhqCan' }); noteBy('fhq', tr('fhqCan')); }
+    if (dc && !can.drone && s.t > 3) { Radio.hear({ kind: 'droneCan' }); noteBy('eye', tr('droneCan')); }
+    can.fhq = fc; can.drone = dc;
   }
   Radio.tick();
   if (replayAuto && !$('end').hidden && !$('replayBox').hidden && now - replayAt > 180) {

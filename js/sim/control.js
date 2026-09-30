@@ -9,6 +9,8 @@ function controlNodes(s, side) {
   const l = s.nodes.filter(n => n.side === side && n.hp > 0 && nodeSpec(n.kind) && s.t >= n.ready);
   const c = s.hqPending && s.hqPending[side] && cmdSquad(s, side);
   if (c) l.push({ id: -1, kind: 'cmd', side, x: c.cx, y: c.cy, hp: 1, ready: 0 });
+  // (signals trucks: a node where each one is)
+  if (s.dozers) for (const u of s.units) if (u.type === 'radio' && u.side === side) l.push({ id: -1000 - u.id, kind: 'radio', side, x: u.x, y: u.y, hp: 1, ready: 0 });
   return l;
 }
 // how much of a node's control reaches distance d: all of it inside r0, then Q_STEPS rings (0.8, 0.6, 0.4, 0.2), none past r1
@@ -22,7 +24,7 @@ function reach(N, d, smooth) {
 // control quality at p: the best node; never below Q_FLOOR. `build`: only what counts for building (no drones)
 function quality(s, side, p, build, smooth) {
   let q = Q_FLOOR;
-  for (const n of controlNodes(s, side)) if (!build || (n.kind !== 'drone' && n.kind !== 'cmd')) { const N = nodeSpec(n.kind); q = Math.max(q, N.q * reach(N, dist(n, p), smooth)); }
+  for (const n of controlNodes(s, side)) if (!build || (n.kind !== 'drone' && n.kind !== 'cmd' && n.kind !== 'radio')) { const N = nodeSpec(n.kind); q = Math.max(q, N.q * reach(N, dist(n, p), smooth)); }
   return q;
 }
 // how far a drone sees: out to its DRONE_SEE ring
@@ -55,7 +57,9 @@ const fhqCount = (s, side) => s.nodes.filter(n => n.side === side && n.kind === 
   s.squads.filter(q => q.side === side && q.fhqAt).length;
 // (× s.scale on the bigger maps)
 const fhqMax = s => NODES.fhq.max * (s.scale || 1);
-const canBuildFhq = (s, sq) => !!sq && !sq.dead && FHQ_BUILDERS.includes(sq.type) && s.cd[sq.side].fhq <= 0 && fhqCount(s, sq.side) < fhqMax(s);
+// who sets up a forward HQ: jeeps and tanks, or with support a bulldozer
+const fhqBuilders = s => s.dozers ? ['dozer'] : FHQ_BUILDERS;
+const canBuildFhq = (s, sq) => !!sq && !sq.dead && fhqBuilders(s).includes(sq.type) && s.cd[sq.side].fhq <= 0 && fhqCount(s, sq.side) < fhqMax(s);
 function buildFhq(s, squadId) {
   const sq = s.squads.find(q => q.id === squadId);
   if (s.over || !canBuildFhq(s, sq)) return false;
@@ -88,7 +92,7 @@ function fhqTrips(s) {
 // at: the spot it was sent to (else where the squad stands)
 function setUpFhq(s, sq, at) {
   const p = at || { x: sq.cx, y: sq.cy };
-  addStruct(s, sq.side, 'fhq', p.x, p.y).ready = s.t + NODES.fhq.warm;
+  if (s.dozers) addSite(s, sq.side, 'fhq', p.x, p.y, NODES.fhq.warm, sq.id); else addStruct(s, sq.side, 'fhq', p.x, p.y).ready = s.t + NODES.fhq.warm;
   report(s, sq, 'מקימים פיקוד קדמי');
   if (sq.side === 'blue') s.marks.push({ x: p.x, y: p.y, kind: 'fhq', t: s.t, who: sq.name, id: sq.id });
 }

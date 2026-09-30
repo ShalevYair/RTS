@@ -36,7 +36,8 @@ function nodeInfo(n) {
   if (n.mem) { out.push(tr('ni_seen', Math.round(s.t - n.t))); return out.join(' · '); }
   if (n.side === 'blue' || !s.fog || Sim.idLevel(s, 'blue', n) >= 2) out.push(Math.max(1, Math.round(100 * n.hp / S.hp)) + '%');
   if (n.side !== 'blue') return out.join(' · ');
-  if (s.t < n.ready) out.push(tr('ni_build', Math.ceil(n.ready - s.t)));
+  if (Sim.isSite(n) && s.t < n.ready) out.push(tr(n.working ? 'ni_site' : 'ni_wait', Math.round(100 * n.work / n.need)));
+  else if (s.t < n.ready) out.push(tr('ni_build', Math.ceil(n.ready - s.t)));
   else if (S.unit) {
     const q = s.squads.find(q => q.id === n.squad && !q.dead), have = q ? s.units.filter(u => u.squad === q.id).length : 0;
     out.push(q && have >= q.size ? tr('ni_full') : tr('ni_next', tn(S.unit), Math.max(1, Math.ceil((1 - (n.prog || 0)) * S.every))));
@@ -58,6 +59,9 @@ function tap(e) {
   if (hit) { pickSquad(hit); return; }
   // tapping one of our buildings picks it (and the squad it raises), its line shown by it
   const home = hitNode(x, y, 'blue');
+  // (a site of ours with a bulldozer picked: it goes to build there, first thing)
+  const dz = home && pickedDozer();
+  if (dz && Sim.isSite(home) && s.t < home.ready && Sim.assignSite(s, s.squads.find(q => q.id === dz), home, true)) { pings.push({ x: home.x, y: home.y, t: performance.now() }); return; }
   if (home) {
     if (home.squad && s.squads.some(q => q.id === home.squad && !q.dead)) pickSquad(home.squad); else select(null);
     selNode = home.id; const r = cv.getBoundingClientRect();

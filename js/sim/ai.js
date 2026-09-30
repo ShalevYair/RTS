@@ -62,7 +62,7 @@ function aiForward(s, side, mine, setOrder) {
   const hills = s.hills.filter(h => quality(s, side, h, true) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
     nodes.some(n => dist(n, h) < nodeSpec(n.kind).r1 + AI_FHQ_REACH) && !threatAt(s, side, h, AI_NEAR));
   let best = null, bs = Infinity;
-  for (const q of mine) if (FHQ_BUILDERS.includes(q.type) && q.strength >= AI_READY) for (const h of hills) {
+  for (const q of mine) if (fhqBuilders(s).includes(q.type) && q.strength >= AI_READY && !(q.type === 'dozer' && (jobOf(s, q) || q.hqAt))) for (const h of hills) {
     const sc = dist({ x: q.cx, y: q.cy }, h) + 0.5 * Math.abs(h.x - foe.x);
     if (sc < bs) { bs = sc; best = { sq: q.id, hill: h }; }
   }
@@ -87,7 +87,7 @@ function think(s, side, level) {
   const D = DIFFS[level] || DIFFS.normal, foe = foeOf(side), taken = new Map();
   // open field: first the HQ — a spot in our strip (away from the middle of it now and then), the command tanks go
   const cmd = s.hqPending && s.hqPending[side] && cmdSquad(s, side);
-  if (cmd && !cmd.hqAt && !s.nodes.some(n => n.side === side && n.kind === 'hq')) {
+  if (cmd && !s.squads.some(q => q.side === side && q.hqAt) && !s.nodes.some(n => n.side === side && n.kind === 'hq')) {
     const [a, b] = hqBand(s, side);
     for (let i = 0; i < 30; i++) if (planHq(s, side, a + s.rand() * (b - a), 60 + s.rand() * (s.H - 120))) break;
   }
@@ -114,6 +114,8 @@ function think(s, side, level) {
   let nth = 0;
   for (const sq of mine) {
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
+    // support: bulldozers go where their sites are (on their own); signals trucks stay a little behind the squads
+    if (TYPES[sq.type].support) { if (sq.type === 'radio') { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); } continue; }
     if (TYPES[sq.type].care) { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); continue; }
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
@@ -174,7 +176,7 @@ function think(s, side, level) {
   }
   // no hill for it: a builder that reached its target, far from our other control nodes, sets one up there
   if (D.smart && can.fhq && s.cd[side].fhq <= 0 && !s.aiFhq[side]) {
-    const b = mine.find(q => FHQ_BUILDERS.includes(q.type) && q.arrived && !pending(s, q.id, 'order') &&
+    const b = mine.find(q => fhqBuilders(s).includes(q.type) && q.arrived && !pending(s, q.id, 'order') &&
       controlNodes(s, side).every(n => dist(n, { x: q.cx, y: q.cy }) > NODES.fhq.r1));
     if (b) buildFhq(s, b.id);
   }

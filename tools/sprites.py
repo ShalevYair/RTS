@@ -18,6 +18,8 @@ SPRITES = {
     'truck':       ('truck.jpg',       'white',   False, None,       256),
     'mech':        ('mech.jpg',        'white',   False, None,       256),
     'air':         ('plane.jpg',       'white',   False, None,       256),
+    'dozer':       ('dozer.jpg',       'white',   False, None,       256),  # (these two: only once they're in art/)
+    'radio':       ('radio.jpg',       'white',   False, None,       256),
 }
 
 # and every building picture in art/ (b_<kind>.jpg / .png: seen at a slant from the south, on white)
@@ -67,6 +69,7 @@ def cut(im, bg):
 def build():
     out, hull_k = {}, None
     for name, (f, bg, flip, pivot, size) in SPRITES.items():
+        if not os.path.exists(os.path.join(ROOT, 'art', f)): print(name, '- no', f, 'yet'); continue
         im = cut(Image.open(os.path.join(ROOT, 'art', f)), bg)
         W = im.size[0]
         bb = im.getbbox(); im = im.crop(bb)

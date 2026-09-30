@@ -13,6 +13,7 @@ function updateSquad(s, sq, dt) {
   if (sq.dead) { sq.dead = false; fresh = true; report(s, sq, sq.born ? 'הכוח הוקם מחדש מהתגבורת' : 'יצאנו לדרך'); sq.born = true; }
   const T = TYPES[sq.type], tr = TRAITS[sq.trait];
   sq.strength = m.reduce((a, u) => a + u.hp, 0) / (sq.size * T.hp);
+  sq.peak = fresh ? sq.strength : Math.max(sq.peak ?? 0, sq.strength); // (the strongest it's been since it was raised)
   const body = bodyCenter(m); sq.cx = body.x; sq.cy = body.y;
   // the line: a place for each unit that isn't away for treatment, facing the enemy (turning toward a new threat)
   const line = m.filter(u => !u.care);
@@ -22,7 +23,8 @@ function updateSquad(s, sq, dt) {
   sq.face = sq.face === undefined ? want : turnTo(sq.face, want, FACE_TURN * dt);
   const c = { x: sq.cx, y: sq.cy };
   if (fresh) sendReport(s, sq);
-  if (!sq.retreating && sq.order.type !== 'retreat' && sq.strength < retreatAt(s, sq)) {
+  // heavy losses: under the line after being above it (a squad still filling up hasn't lost anything)
+  if (!sq.retreating && sq.order.type !== 'retreat' && sq.strength < retreatAt(s, sq) && sq.peak >= retreatAt(s, sq)) {
     sq.retreating = true;
     report(s, sq, `אבדות כבדות (${Math.round(sq.strength * 100)}%), נסוג להתארגנות`); sendReport(s, sq, 'hit');
   }

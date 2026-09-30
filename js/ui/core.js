@@ -1,7 +1,7 @@
 // UI: DOM handles, game/UI state, theme colors, viewport and helpers shared by the UI files
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage'), bar = $('bar'), menu = $('menu');
-const nodeHp = new Map(); // (our buildings' health last frame)
+const nodeHp = new Map(), can = { fhq: true, drone: true }; // (our buildings' health last frame; what could be done last frame)
 let selNode = null, pings = []; // (a picked building's id; the arrows marking where an order went)
 let s, decor, sel = 'all', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0, diff = 'normal', endShown = false, fog = true, buildArmed = null;
 try { fog = localStorage.getItem('irts-fog') !== '0'; } catch (e) { /* storage unavailable */ }
@@ -26,9 +26,9 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', read
 new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 const TC = { inf: 'tInf', aa: 'tAa', at: 'tAa', tank: 'tTank', air: 'tAir', jeep: 'tJeep', ajeep: 'tJeep', tjeep: 'tJeep', med: 'tMed', mech: 'tMech', truck: 'tTruck' }, tcol = t => colors[TC[t]];
 // drawn sizes: tanks big, soldiers (infantry, AA, medics) small
-const SIZE = { inf: 5, aa: 5.5, at: 5.5, tank: 18, air: 13, jeep: 10.5, ajeep: 10.5, tjeep: 10.5, med: 5, mech: 8, truck: 8 };
+const SIZE = { inf: 5, aa: 5.5, at: 5.5, tank: 18, air: 13, jeep: 10.5, ajeep: 10.5, tjeep: 10.5, med: 5, mech: 8, truck: 8, dozer: 10, radio: 9 };
 // vehicles (tracks, dust, wrecks)
-const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck']);
+const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck', 'dozer', 'radio']);
 
 // ---- viewport: world is sized to the screen's aspect at game start; a camera (centre + zoom) looks at it ----
 // zoom 1 = the whole map fits; zooming in stops at ZOOM_PX screen px per world unit. The big map opens on our base at

@@ -30,6 +30,10 @@ const TYPES = {
   med:  { name: 'חובשים', hp: 50,  speed: 30, range: 0,   dmg: 0,  cd: 1,   sight: 110, r: 4, rein: 8, cost: 1, care: true },
   mech: { name: 'מכונאים', hp: 80, speed: 45, range: 0,   dmg: 0,  cd: 1,   sight: 130, r: 6, rein: 8, cost: 1, care: true },
   truck: { name: 'משאיות אספקה', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1,  sight: 120, r: 6, rein: 8, cost: 1, care: true },
+  // support (the full game): a bulldozer builds the HQ, forward HQs and every building (only while it stands by the
+  // site); a signals truck sees far and gives control around it (NODES.radio). Neither fights; both come from the HQ.
+  dozer: { name: 'טרקטורים', hp: 120, speed: 30, range: 0, dmg: 0, cd: 1, sight: 110, r: 8, rein: 8, cost: 1, care: true, support: true },
+  radio: { name: 'משאיות קשר', hp: 90, speed: 42, range: 0, dmg: 0, cd: 1, sight: 510, r: 7, rein: 8, cost: 1, care: true, support: true },
 };
 // logistics: ground fighters carry SUPPLY shots, one used per shot. Low (below SUPPLY_LOW of a load) a unit goes on
 // its own to the nearest supply truck, or home, holding its fire until refilled to SUPPLY_DONE. Within SUPPLY_R of a
@@ -39,10 +43,10 @@ const SUPPLY = { inf: 150, jeep: 150, tank: 60, aa: 60, at: 40, ajeep: 60, tjeep
 // care: a unit below CARE_AT of its health leaves the fight on its own and goes to the nearest unit that treats its
 // kind (CARER), or home if there is none; it doesn't shoot until back at CARE_DONE. Within CARE_R of a medic /
 // mechanic it heals CARE_HEAL per second.
-const CARER = { inf: 'med', aa: 'med', at: 'med', med: 'med', jeep: 'mech', ajeep: 'mech', tjeep: 'mech', tank: 'mech', mech: 'mech', truck: 'mech' };
+const CARER = { inf: 'med', aa: 'med', at: 'med', med: 'med', jeep: 'mech', ajeep: 'mech', tjeep: 'mech', tank: 'mech', mech: 'mech', truck: 'mech', dozer: 'mech', radio: 'mech' };
 const CARE_AT = 0.4, CARE_DONE = 0.9, CARE_R = 30, CARE_HEAL = 9;
 // power (for collapse) per full-health unit
-const UNIT_VALUE = { inf: 1, aa: 1.5, at: 1.5, jeep: 1.5, ajeep: 2.5, tjeep: 2.5, tank: 3, air: 4, med: 1, mech: 1.5, truck: 1.5 };
+const UNIT_VALUE = { inf: 1, aa: 1.5, at: 1.5, jeep: 1.5, ajeep: 2.5, tjeep: 2.5, tank: 3, air: 4, med: 1, mech: 1.5, truck: 1.5, dozer: 1.5, radio: 1.5 };
 // Damage multiplier MULT[attacker][target]. Range order: aa > air > tank > inf
 // impact explosion per attacker: big for tanks/aircraft, smaller for AA, tiny for infantry
 // how long a shot flies (s): bullets (infantry, jeeps) are quick, shells slower, missiles (aircraft, AA) slowest;
@@ -53,17 +57,19 @@ const IMPACT = { tank: { size: 18, life: 0.5 }, air: { size: 18, life: 0.5 }, aa
 // Anti-tank (soldiers and AT jeeps) is strong against vehicles, weak against people
 // (medics are hit like infantry, mechanics like jeeps; care squads hit nothing)
 const MULT = {
-  inf:   { inf: 1, tank: 0.4, air: 0, aa: 1, jeep: 0.8, med: 1, mech: 0.8, truck: 0.8, at: 1, ajeep: 0.8, tjeep: 0.8 },
-  tank:  { inf: 1.0, tank: 1, air: 0, aa: 1.0, jeep: 1.3, med: 1.0, mech: 1.3, truck: 1.3, at: 1.0, ajeep: 1.3, tjeep: 1.3 },
-  air:   { inf: 0.4, tank: 2, air: 0, aa: 0.5, jeep: 1.5, med: 0.4, mech: 1.5, truck: 1.5, at: 0.4, ajeep: 1.5, tjeep: 1.5 },
-  aa:    { inf: 0.25, tank: 0.2, air: 2.2, aa: 0.25, jeep: 0.3, med: 0.25, mech: 0.3, truck: 0.3, at: 0.25, ajeep: 0.3, tjeep: 0.3 },
-  jeep:  { inf: 1.2, tank: 0.3, air: 0, aa: 1, jeep: 1, med: 1.2, mech: 1, truck: 1, at: 1.2, ajeep: 1, tjeep: 1 },
-  at:    { inf: 0.2, tank: 2.2, air: 0, aa: 0.2, jeep: 1.5, med: 0.2, mech: 1.5, truck: 1.5, at: 0.2, ajeep: 1.5, tjeep: 1.5 },
-  ajeep: { inf: 0.25, tank: 0.2, air: 1.7, aa: 0.25, jeep: 0.3, med: 0.25, mech: 0.3, truck: 0.3, at: 0.25, ajeep: 0.3, tjeep: 0.3 },
-  tjeep: { inf: 0.2, tank: 1.9, air: 0, aa: 0.2, jeep: 1.3, med: 0.2, mech: 1.3, truck: 1.3, at: 0.2, ajeep: 1.3, tjeep: 1.3 },
-  med:   { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0 },
-  mech:  { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0 },
-  truck: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0 },
+  inf:   { inf: 1, tank: 0.4, air: 0, aa: 1, jeep: 0.8, med: 1, mech: 0.8, truck: 0.8, at: 1, ajeep: 0.8, tjeep: 0.8, dozer: 0.8, radio: 0.8 },
+  tank:  { inf: 1.0, tank: 1, air: 0, aa: 1.0, jeep: 1.3, med: 1.0, mech: 1.3, truck: 1.3, at: 1.0, ajeep: 1.3, tjeep: 1.3, dozer: 1.3, radio: 1.3 },
+  air:   { inf: 0.4, tank: 2, air: 0, aa: 0.5, jeep: 1.5, med: 0.4, mech: 1.5, truck: 1.5, at: 0.4, ajeep: 1.5, tjeep: 1.5, dozer: 1.5, radio: 1.5 },
+  aa:    { inf: 0.25, tank: 0.2, air: 2.2, aa: 0.25, jeep: 0.3, med: 0.25, mech: 0.3, truck: 0.3, at: 0.25, ajeep: 0.3, tjeep: 0.3, dozer: 0.3, radio: 0.3 },
+  jeep:  { inf: 1.2, tank: 0.3, air: 0, aa: 1, jeep: 1, med: 1.2, mech: 1, truck: 1, at: 1.2, ajeep: 1, tjeep: 1, dozer: 1, radio: 1 },
+  at:    { inf: 0.2, tank: 2.2, air: 0, aa: 0.2, jeep: 1.5, med: 0.2, mech: 1.5, truck: 1.5, at: 0.2, ajeep: 1.5, tjeep: 1.5, dozer: 1.5, radio: 1.5 },
+  ajeep: { inf: 0.25, tank: 0.2, air: 1.7, aa: 0.25, jeep: 0.3, med: 0.25, mech: 0.3, truck: 0.3, at: 0.25, ajeep: 0.3, tjeep: 0.3, dozer: 0.3, radio: 0.3 },
+  tjeep: { inf: 0.2, tank: 1.9, air: 0, aa: 0.2, jeep: 1.3, med: 0.2, mech: 1.3, truck: 1.3, at: 0.2, ajeep: 1.3, tjeep: 1.3, dozer: 1.3, radio: 1.3 },
+  med:   { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0 },
+  mech:  { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0 },
+  truck: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0 },
+  dozer: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0 },
+  radio: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0 },
 };
 const TRAITS = {
   aggressive: { name: 'תוקפני', leash: 1.8, retreatAt: 0.15, support: 420 },
@@ -133,6 +139,8 @@ const NODES = {
   bld:   { q: 1,    r0: 90,  r1: 190 },
   // the command tanks, before the HQ stands (open field): they carry the command with them
   cmd:   { q: 1,    r0: 150, r1: 330 },
+  // a signals truck: three times the area a drone shows (√3 its rings)
+  radio: { q: 1,    r0: 190, r1: 540 },
 };
 const Q_STEPS = 4, DRONE_SEE = 0.6;
 const Q_FLOOR = 0.15, FHQ_BUILDERS = ['tank', 'jeep', 'ajeep', 'tjeep'];
@@ -207,3 +215,7 @@ const UNCLEAR_Q = 0.5, UNCLEAR_K = 0.5;
 // map's width (any height); its CMD_TANKS command tanks drive there and set it up (HQ_WARM s to build). Until it
 // stands the command tanks carry the command (NODES.cmd) and nothing can be built; losing them first loses the game.
 const HQ_BAND = 0.2, HQ_WARM = 20, CMD_TANKS = 2;
+// support (the full game, s.dozers): each side starts with a bulldozer and a signals truck; the HQ sends out another
+// of each every SUPPORT_EVERY s while it has fewer than SUPPORT_CAP. A building goes up only while a bulldozer stands
+// within DOZER_R of it (its work: the building's time, HQ_WARM for the HQ, the forward HQ's warm-up).
+const SUPPORT_EVERY = 120, SUPPORT_CAP = 3, DOZER_R = 38;

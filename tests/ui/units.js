@@ -47,12 +47,13 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.waitForTimeout(300); await p.screenshot({ path: `${OUT}/${name}-night.png` });
     check(name, f.shown && f.before === '📻' && f.after === '🤫' && f.silent && f.decoy && f.moon, `silence button, fake HQ, night ${JSON.stringify(f)}`);
     // open field: no HQ at first; building waits; 🏰 is armed, the strip shows; a tap outside it is refused, inside the
-    // command tanks drive there and set the HQ up
+    // bulldozer drives there and puts the HQ up
     const h0 = await p.evaluate(() => { localStorage.removeItem('irts-fixedhq'); lvl = 0; fog = true; bigMap = true; newGame(true); showIntro(false); setPlaying(true); updateHud();
       return { hq: s.nodes.some(n => n.kind === 'hq'), armed: hqArmed, btn: !document.getElementById('hqb').hidden, build: Sim.buildCheck(s, 'blue', 100, s.H / 2) }; });
     await p.waitForTimeout(200); await p.screenshot({ path: `${OUT}/${name}-placehq.png` });
-    const h1 = await p.evaluate(() => { placeHq(s.W * 0.5, 300); const refused = !Sim.cmdSquad(s, 'blue').hqAt; placeHq(s.W * 0.1, s.H * 0.2); const going = !!Sim.cmdSquad(s, 'blue').hqAt;
-      setPlaying(false); for (let i = 0; i < 30 * 60 && !s.nodes.some(n => n.side === 'blue' && n.kind === 'hq' && s.t >= n.ready); i++) Sim.step(s, 1 / 30);
+    const h1 = await p.evaluate(() => { const carrier = () => s.squads.find(q => q.side === 'blue' && q.hqAt); // (the full game: the bulldozer goes to put it up)
+      placeHq(s.W * 0.5, 300); const refused = !carrier(); placeHq(s.W * 0.1, s.H * 0.2); const going = !!carrier() && carrier().type === 'dozer';
+      setPlaying(false); for (let i = 0; i < 30 * 90 && s.hqPending.blue; i++) Sim.step(s, 1 / 30);
       const h = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq'); updateHud(); syncButtons();
       return { refused, going, at: h && [Math.round(h.x), Math.round(h.y)], t: Math.round(s.t), pending: s.hqPending.blue, btn: !document.getElementById('hqb').hidden, red: s.nodes.some(n => n.side === 'red' && n.kind === 'hq') }; });
     check(name, !h0.hq && h0.armed && h0.btn && h0.build === 'nohq' && h1.refused && h1.going && h1.at && !h1.pending && !h1.btn && h1.red, `the HQ where we pick it ${JSON.stringify({ h0, h1 })}`);

@@ -195,3 +195,135 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .sqb.grb{background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
 .sqb.grb + .sqb:not(.grb){margin-inline-start:6px;border-inline-start-width:2px}
 #grp[hidden]{display:none}
+
+/* ---- the main menu: a picture over the whole screen (art/menu.jpg, and art/menu_tall.jpg for a phone held
+   upright — set as --menuArt / --menuArtTall by hud.js when tools/tiles.py found them;
+   a drawn landscape of contour lines until they're there), the title in metal and gold, one big start ---- */
+#intro.mainmenu{background:#060c08;overflow:hidden;padding:24px 16px;color:#eef2e6;z-index:20}
+.menuBg{position:absolute;inset:-4%;z-index:0;
+  background:
+    var(--menuArt,none) center/cover no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600' viewBox='0 0 600 600'%3E%3Cg fill='none' stroke='%23a8c48a' stroke-opacity='.10' stroke-width='1.4'%3E%3Cpath d='M-50 420c120-60 180 40 300-10s160-150 270-110 120 40 150 30'/%3E%3Cpath d='M-50 460c120-60 200 50 320 0s150-150 260-110 140 50 140 30'/%3E%3Cpath d='M-50 500c140-60 210 60 330 10s150-140 250-100 140 50 150 20'/%3E%3Cellipse cx='420' cy='190' rx='120' ry='70'/%3E%3Cellipse cx='420' cy='190' rx='80' ry='44'/%3E%3Cellipse cx='420' cy='190' rx='40' ry='20'/%3E%3Cellipse cx='130' cy='150' rx='90' ry='60'/%3E%3Cellipse cx='130' cy='150' rx='52' ry='32'/%3E%3C/g%3E%3C/svg%3E") 0 0/600px 600px,
+    radial-gradient(ellipse at 25% 15%,#2a4a2c 0,transparent 55%),radial-gradient(ellipse at 85% 95%,#4a3418 0,transparent 55%),#0b1510;
+  animation:menuDrift 48s ease-in-out infinite alternate}
+@media (orientation:portrait){.menuBg{background:
+    var(--menuArtTall,none) center/cover no-repeat,var(--menuArt,none) center/cover no-repeat,
+    radial-gradient(ellipse at 25% 15%,#2a4a2c 0,transparent 55%),radial-gradient(ellipse at 85% 95%,#4a3418 0,transparent 55%),#0b1510}}
+/* the moving picture over the still one (faded in once it plays), and over both the shading that keeps the title readable */
+.menuVid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.4s}
+.menuVid.on{opacity:1}
+.menuBg::after{content:"";position:absolute;inset:0;background:
+    linear-gradient(180deg,rgb(3 7 5 / .72) 0%,rgb(3 7 5 / .18) 32%,rgb(3 7 5 / .28) 60%,rgb(3 7 5 / .9) 100%),
+    radial-gradient(ellipse at 50% 42%,transparent 0 38%,rgb(0 0 0 / .72) 100%)}
+@keyframes menuDrift{from{transform:scale(1) translate(0,0)}to{transform:scale(1.06) translate(-1.2%,-.8%)}}
+#intro.mainmenu .langs{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));inset-inline-end:16px;z-index:2;float:none}
+#intro.mainmenu .langs button{background:rgb(255 255 255 / .08);color:#e8eedd;border-color:rgb(255 255 255 / .22);backdrop-filter:blur(6px)}
+#intro.mainmenu .langs button[aria-pressed="true"]{background:rgb(201 166 86 / .9);color:#1b1407;border-color:#e6cf8f}
+#intro.mainmenu .card{position:relative;z-index:1;width:min(640px,100%);background:none;padding:0;text-align:center;overflow:visible;
+  display:flex;flex-direction:column;align-items:center;animation:menuRise .9s cubic-bezier(.2,.7,.2,1) both}
+@keyframes menuRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.crest{width:64px;height:72px;filter:drop-shadow(0 6px 16px rgb(0 0 0 / .6));margin-bottom:6px}
+#intro.mainmenu h1{margin:0;font:clamp(52px,11vw,104px)/1 "Secular One",sans-serif;letter-spacing:.02em;
+  background:linear-gradient(180deg,#ffffff 0%,#e6ecdc 42%,#a9b894 72%,#dfe7cf 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 4px 2px rgb(0 0 0 / .55)) drop-shadow(0 10px 30px rgb(0 0 0 / .6))}
+.menuSub{margin:10px 0 26px;display:flex;align-items:center;gap:14px;font:700 13px/1 Assistant,sans-serif;letter-spacing:.55em;text-transform:uppercase;color:#d8bd78;padding-inline-start:.55em}
+.menuSub::before,.menuSub::after{content:"";width:44px;height:1px;background:linear-gradient(90deg,transparent,#d8bd78)}
+.menuSub::after{transform:scaleX(-1)}
+#intro.mainmenu #go{position:relative;overflow:hidden;width:auto;min-width:280px;min-height:62px;padding:10px 34px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;gap:12px;
+  font:26px/1 "Secular One",sans-serif;color:#fff;border:1px solid rgb(255 255 255 / .28);
+  background:linear-gradient(180deg,#3d7bff 0%,#1d4ed8 55%,#1638a6 100%);
+  box-shadow:0 12px 34px rgb(29 78 216 / .45),inset 0 1px 0 rgb(255 255 255 / .35);transition:transform .15s,box-shadow .15s}
+#intro.mainmenu #go span:first-child{font-size:20px}
+#intro.mainmenu #go::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgb(255 255 255 / .35) 50%,transparent 70%);transform:translateX(-120%);animation:menuShine 4.5s ease-in-out 1.2s infinite}
+@keyframes menuShine{0%,70%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+#intro.mainmenu #go:hover{transform:translateY(-2px);box-shadow:0 16px 40px rgb(29 78 216 / .6),inset 0 1px 0 rgb(255 255 255 / .4)}
+#intro.mainmenu #go:active{transform:translateY(1px)}
+.menuPanel{margin-top:26px;width:100%;padding:16px 18px 14px;border-radius:18px;background:rgb(8 16 11 / .55);border:1px solid rgb(255 255 255 / .12);
+  backdrop-filter:blur(12px) saturate(1.2);-webkit-backdrop-filter:blur(12px) saturate(1.2);box-shadow:0 20px 50px rgb(0 0 0 / .45)}
+.menuLabel{font:700 12px/1 Assistant,sans-serif;letter-spacing:.35em;text-transform:uppercase;color:#bfa568;margin-bottom:10px}
+#intro.mainmenu .levels{margin:0 0 6px;gap:7px}
+#intro.mainmenu .levels button{width:42px;height:42px;min-height:42px}
+#intro.mainmenu .levels button{background:rgb(255 255 255 / .06);color:#e8eedd;border:1px solid rgb(255 255 255 / .22);box-shadow:inset 0 1px 0 rgb(255 255 255 / .08)}
+#intro.mainmenu .levels button.won{border-color:#d8bd78;color:#f0d792;background:rgb(216 189 120 / .12)}
+#intro.mainmenu .levels button[aria-pressed="true"]{background:linear-gradient(180deg,#3d7bff,#1d4ed8);border-color:#9dbaff;color:#fff;box-shadow:0 0 0 3px rgb(61 123 255 / .25),0 6px 16px rgb(29 78 216 / .5)}
+#intro.mainmenu .levels button:disabled{opacity:.28}
+#intro.mainmenu #freeOpts{margin-top:12px;display:grid;gap:8px}
+#intro.mainmenu #freeOpts[hidden]{display:none}
+#intro.mainmenu .mrow{margin:0}
+#intro.mainmenu .mrow>span{color:#aebd9c}
+#intro.mainmenu .mrow button{background:rgb(255 255 255 / .05);color:#dfe7d2;border-color:rgb(255 255 255 / .16);min-height:38px}
+#intro.mainmenu .mrow button[aria-pressed="true"]{background:rgb(216 189 120 / .9);color:#1b1407;border-color:#ecd593}
+#intro.mainmenu .turn{color:#e8eedd;margin-top:14px}
+@media (max-height:560px){.crest{display:none}#intro.mainmenu h1{font-size:clamp(40px,8vw,64px)}.menuSub{margin:6px 0 14px}.menuPanel{margin-top:14px;padding:10px 12px}}
+@media (prefers-reduced-motion:reduce){.menuBg,#intro.mainmenu .card,#intro.mainmenu #go::after{animation:none}}
+
+/* ---- main menu, take 2: the name and "start" in the very middle of the screen; the rest in a side panel, right in
+   Hebrew and left in English (inline-start), full height, glass ---- */
+#intro.mainmenu{place-items:center}
+#intro.mainmenu .menuHero{position:absolute;inset:0;margin:auto;width:min(640px,100%);height:max-content;justify-content:center}
+#intro.mainmenu .menuSub{margin:12px 0 28px}
+#intro.mainmenu #go{font-size:24px;min-width:240px;padding:12px 40px}
+.menuSide{position:absolute;z-index:2;top:0;bottom:0;inset-inline-start:0;width:320px;padding:calc(20px + env(safe-area-inset-top,0px)) 18px 20px;
+  display:flex;flex-direction:column;gap:12px;overflow:auto;color:#e8eedd;
+  background:linear-gradient(90deg,rgb(6 12 8 / .82),rgb(6 12 8 / .7));border-inline-end:1px solid rgb(255 255 255 / .1);
+  backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);box-shadow:0 0 50px rgb(0 0 0 / .5);animation:sideIn .6s cubic-bezier(.2,.7,.2,1) both}
+@keyframes sideIn{from{opacity:0;transform:translateX(calc(var(--side-dir,1) * 30px))}to{opacity:1;transform:none}}
+:root[dir="ltr"] .menuSide,html[dir="ltr"] .menuSide{--side-dir:-1}
+.menuSide .sideSec{display:flex;flex-direction:column;gap:10px}
+.menuSide .sideSec[hidden],.menuSide .moreBox[hidden]{display:none}
+.menuSide .mrow{display:grid;grid-template-columns:72px repeat(auto-fit,minmax(0,1fr));gap:6px;align-items:center}
+.menuSide .mrow>span{color:#aebd9c;font-size:14px;min-width:0}
+.menuSide .mrow button{background:rgb(255 255 255 / .05);color:#dfe7d2;border-color:rgb(255 255 255 / .16);min-height:36px;padding:4px 6px;font-size:14px}
+.menuSide .mrow button[aria-pressed="true"]{background:rgb(216 189 120 / .9);color:#1b1407;border-color:#ecd593}
+.menuSide .mrow input{accent-color:#d8bd78}
+.menuSide #freeOpts{display:flex;flex-direction:column;gap:10px}
+.sideBtns{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.sideBtn{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:8px 14px;border-radius:12px;font:600 17px Assistant,sans-serif;text-align:start;
+  background:rgb(255 255 255 / .06);color:#eef2e6;border:1px solid rgb(255 255 255 / .14);transition:background .15s,border-color .15s}
+.sideBtn:hover{background:rgb(216 189 120 / .16);border-color:rgb(216 189 120 / .5)}
+.sideBtn span:first-child{font-size:20px;width:26px;text-align:center}
+.sideBtn[aria-expanded="true"]{border-color:rgb(216 189 120 / .6)}
+.moreBox{display:flex;flex-direction:column;gap:10px;padding:10px;border-radius:12px;background:rgb(0 0 0 / .25)}
+.moreBox .mrow{grid-template-columns:72px 44px 1fr}
+.moreBox .legend{color:#aebd9c}
+.sideHead{display:flex;align-items:center;gap:10px;font:700 18px Assistant,sans-serif}
+.sideHead button{background:rgb(255 255 255 / .06);color:#eef2e6;border-color:rgb(255 255 255 / .16);min-height:36px;width:36px;padding:0;font-size:22px}
+html[dir="rtl"] .sideHead button{transform:scaleX(-1)}
+.sideNote{margin:0;color:#aebd9c;font-size:14px}
+#intro.mainmenu .menuSide .levels{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:4px 0}
+#intro.mainmenu .menuSide .levels button{width:100%;height:auto;aspect-ratio:1;min-height:0}
+/* medium screens: the name centred in the room the panel leaves; narrow ones: the panel below */
+@media (max-width:1180px){#intro.mainmenu .menuHero{inset-inline-start:320px;width:auto;padding:0 16px}}
+@media (max-width:720px){
+  .menuSide{top:auto;width:100%;max-height:52%;border-inline-end:0;border-top:1px solid rgb(255 255 255 / .1);border-radius:18px 18px 0 0;padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px))}
+  #intro.mainmenu .menuHero{inset-inline-start:0;bottom:52%}
+  @keyframes sideIn{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:none}}
+}
+@media (max-height:520px) and (min-width:721px){#intro.mainmenu h1{font-size:56px}}
+/* the in-game settings: "main screen?" */
+.sure{background:rgb(0 0 0 / .06);border-radius:8px;padding:4px 6px}.sure[hidden]{display:none}.sure>span{flex:1}
+/* ---- the guide ---- */
+.wiki{position:absolute;inset:0;z-index:30;display:grid;place-items:center;padding:16px;background:rgb(3 7 5 / .72);backdrop-filter:blur(6px)}
+.wiki[hidden]{display:none}
+.wikiBox{width:min(980px,100%);height:min(720px,100%);display:flex;flex-direction:column;border-radius:18px;overflow:hidden;background:#0d1610;color:#e8eedd;border:1px solid rgb(255 255 255 / .12);box-shadow:0 30px 80px rgb(0 0 0 / .6)}
+.wikiHead{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgb(255 255 255 / .1);font:700 20px "Secular One",sans-serif;color:#f0d792}
+.wikiHead button{background:none;color:#e8eedd;border:1px solid rgb(255 255 255 / .2);width:38px;min-height:38px;padding:0}
+.wikiBody{flex:1;display:flex;min-height:0}
+.wikiNav{flex:0 0 220px;display:flex;flex-direction:column;gap:4px;padding:12px;overflow:auto;border-inline-end:1px solid rgb(255 255 255 / .08);background:rgb(255 255 255 / .02)}
+.wikiNav button{display:flex;gap:10px;align-items:center;text-align:start;background:none;color:#cfd9c1;border:0;border-radius:10px;min-height:40px;padding:6px 10px;font:600 15px Assistant,sans-serif}
+.wikiNav button:hover{background:rgb(255 255 255 / .06)}
+.wikiNav button[aria-current="true"]{background:rgb(216 189 120 / .18);color:#f0d792}
+.wikiText{flex:1;overflow:auto;padding:18px 26px 28px;line-height:1.65;font-size:16px}
+.wikiText h2{margin:0 0 10px;font:28px/1.2 "Secular One",sans-serif;color:#f3f6ec}
+.wikiText h3{margin:18px 0 6px;font:700 17px Assistant,sans-serif;color:#f0d792}
+.wikiText p{margin:0 0 10px;color:#d7e0cb}
+.wikiText ul{margin:0 0 10px;padding-inline-start:20px;color:#d7e0cb}
+.wikiText kbd{font:700 13px Assistant,sans-serif;border:1px solid rgb(255 255 255 / .3);border-radius:4px;padding:0 5px;background:rgb(255 255 255 / .06)}
+.wikiCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.wikiCard{display:flex;gap:12px;padding:10px;border-radius:12px;background:rgb(255 255 255 / .04);border:1px solid rgb(255 255 255 / .08)}
+.wikiCard canvas{position:static;flex:0 0 56px;width:56px;height:56px;border-radius:10px;background:rgb(255 255 255 / .05);cursor:default}
+.wikiCard b{display:block;color:#f3f6ec}
+.wikiCard small{display:block;color:#aebd9c;margin-bottom:2px}
+.wikiCard p{margin:0;font-size:14px;line-height:1.5}
+@media (max-width:720px){.wikiBody{flex-direction:column}.wikiNav{flex:0 0 auto;flex-direction:row;overflow-x:auto;border-inline-end:0;border-bottom:1px solid rgb(255 255 255 / .08)}.wikiNav button{flex:0 0 auto}.wikiText{padding:14px 16px}}
+html[lang="en"] #intro.mainmenu h1{white-space:nowrap;font-size:clamp(44px,7.4vw,96px)}
