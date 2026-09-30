@@ -15,7 +15,7 @@ function newGame(skipIntro) {
   // in the tutorial a tap on the map attacks (hold / retreat come later)
   decor = makeDecor(s); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; Radio.reset();
   $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
-  $('end').hidden = true; $('share').textContent = tr('share');
+  $('end').hidden = true; $('share').textContent = tr('share'); outro = null; $('outro').hidden = true; try { $('outroVid').pause(); } catch (e) { /* no video */ }
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
 }
 
@@ -58,10 +58,59 @@ function frame(now) {
   if (replayAuto && !$('end').hidden && !$('replayBox').hidden && now - replayAt > 180) {
     replayAt = now; const sc = $('scrub'), i = (+sc.value + 1) % (+sc.max + 1); sc.value = i; drawReplay(i);
   }
-  edgeScroll(dt); draw(); drawBox(); drawMini();
+  if (outro) outroTick(now, dt); else edgeScroll(dt);
+  draw(); if (outro) drawOutro(now); drawBox(); drawMini();
   if (now - hudAt > 200) { hudAt = now; updateHud(); }
   requestAnimationFrame(frame);
 }
+// ---- the end of a game: the camera goes to where it was decided (the HQ that fell, else the beaten side), blasts
+// there if it's the enemy's, the word over the map; then, in the full game, the victory / defeat video if there is
+// one (a tap skips); then the end card ----
+let outro = null; const OUTRO_MS = 3200;
+function startOutro() {
+  const win = s.over === 'blue', loser = win ? 'red' : 'blue';
+  const h = s.hqDownAt || s.nodes.find(n => n.side === loser && n.kind === 'hq' && n.hp > 0);
+  const us = s.units.filter(u => u.side === loser);
+  const at = h ? { x: h.x, y: h.y } : us.length ? { x: us.reduce((a, u) => a + u.x, 0) / us.length, y: us.reduce((a, u) => a + u.y, 0) / us.length } : { x: s.W / 2, y: s.H / 2 };
+  outro = { t0: performance.now(), at, win, from: { x: cam.x, y: cam.y, z: cam.z }, boom: 0 };
+  hideTip(); $('buildm').hidden = true; closeMenu(false); hqArmed = fhqArmed = eyeArmed = false; buildArmed = null; syncButtons();
+}
+function outroTick(now, dt) {
+  const o = outro, k = Math.min(1, (now - o.t0) / 1400), e = k * k * (3 - 2 * k);
+  // (the camera: over there, a little closer)
+  cam.x = o.from.x + (o.at.x - o.from.x) * e; cam.y = o.from.y + (o.at.y - o.from.y) * e; cam.z = o.from.z * (1 + 0.25 * e); applyView();
+  // (the picture goes on a little: blasts fade, smoke drifts; a string of blasts where the HQ fell)
+  s.t += dt * 0.5; for (const f of s.fx) if (f.wait > 0) f.wait -= dt; else f.life -= dt * 0.6; s.fx = s.fx.filter(f => f.life > 0);
+  if (now - o.t0 < 2200 && now - o.boom > 260) {
+    o.boom = now; const r = 30 * Math.random(), a = Math.random() * 6.28;
+    s.fx.push({ x: o.at.x + Math.cos(a) * r, y: o.at.y + Math.sin(a) * r, life: 0.9, max: 0.9, size: 26 + Math.random() * 14, heard: false });
+  }
+  if (now - o.t0 >= OUTRO_MS) endOutro();
+}
+function drawOutro(now) {
+  const o = outro, k = Math.min(1, Math.max(0, (now - o.t0 - 700) / 900)), c = ctx;
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = `rgba(0,0,0,${0.35 * k})`; c.fillRect(0, 0, cv.width, cv.height);
+  const px = Math.min(cv.width / 7, cv.height / 4.5), y = cv.height * 0.44;
+  c.globalAlpha = k; c.textAlign = 'center'; c.font = `900 ${Math.round(px)}px Rubik, sans-serif`;
+  c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = px * 0.25;
+  c.fillStyle = o.win ? '#e3c77f' : '#ff6b5b'; c.fillText(tr(o.win ? 'victory' : 'defeat'), cv.width / 2, y + px * 0.35 * (1 - k * 0.2));
+  c.restore();
+}
+// the video after the finale (the full game only, when it's there), else the end card at once
+function endOutro() {
+  outro = null;
+  const src = !lvl && typeof MENU_ART === 'object' && MENU_ART[s.over === 'blue' ? 'win' : 'lose'];
+  if (!src) { showEnd(); return; }
+  const box = $('outro'), v = $('outroVid');
+  box.hidden = false; v.src = src; v.currentTime = 0; Soundtrack.stop();
+  const done = () => { v.onended = v.onerror = null; v.pause(); box.hidden = true; if (musicOn) Soundtrack.start(); showEnd(); };
+  v.onended = done; v.onerror = done; $('outroSkip').onclick = done; box.onclick = e => { if (e.target === v) done(); };
+  v.play().catch(done);
+}
+// (a tap on the map during the finale: straight on)
+cv.addEventListener('pointerdown', () => { if (outro) endOutro(); }, true);
+const skipOutro = () => { if (outro) endOutro(); else if (!$('outro').hidden) $('outroSkip').click(); };
 initBuildMenu(); newGame(); requestAnimationFrame(frame);
 // installable as an app (full screen from the home screen); only over http(s), not from the disk
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});

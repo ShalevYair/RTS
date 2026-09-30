@@ -194,7 +194,8 @@ const AI_STYLES = {
   flank:  { name: 'מאגף',  icon: '↪', plan: AI_PLAN, ready: AI_READY, flank: true },
 };
 // AI_SILENT_R: the hard AI sends squads going farther than this in radio silence
-const AI_HOME_R = 350, AI_FLANK_R = 350, FALLEN_T = 12, AI_SILENT_R = 500;
+// AI_RADIO_BACK: how far behind a leading squad the AI keeps a signals truck
+const AI_RADIO_BACK = 140, AI_HOME_R = 350, AI_FLANK_R = 350, FALLEN_T = 12, AI_SILENT_R = 500;
 
 // radio silence: a silent squad sends no reports (only the full-control ring still shows it), moves at SILENT_SPEED
 // and raises no dust. A talking squad is heard by the enemy: each of its check-ins gives the enemy a vague fix

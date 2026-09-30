@@ -88,8 +88,10 @@ function dozerWork(s, dt) {
   for (const sq of s.squads) {
     if (sq.type !== 'dozer' || sq.dead) continue;
     const n = jobOf(s, sq);
-    if (!n) { sq.jobAt = null; continue; }
-    if (sq.paused) continue;
+    if (!n) { sq.jobAt = null; sq.idleSaid = false; continue; }
+    // (stopped with work left: once it gets where it was sent, it says it's waiting)
+    if (sq.paused) { if (sq.arrived && !sq.idleSaid) { sq.idleSaid = true; if (sq.side === 'blue') s.marks.push({ x: sq.cx, y: sq.cy, kind: 'dozerIdle', t: s.t, who: sq.name, id: sq.id }); } continue; }
+    sq.idleSaid = false;
     if (sq.jobAt !== n.id) { goBuild(s, sq, n); continue; }
     // sent elsewhere by the player (another order): it stops work until given a site again, then goes on in order
     const m = pending(s, sq.id, 'order'), o = m || sq.order, w = o.want || o, p = dozerSpot(s, n);
@@ -223,7 +225,7 @@ function updateStructs(s, dt) {
     const S = STRUCTS[n.kind];
     if (n.hp <= 0) {
       if (n.gone) continue;
-      if (n.kind === 'hq') s.hqDown = n.side; // (step: that side has lost)
+      if (n.kind === 'hq') { s.hqDown = n.side; s.hqDownAt = { x: n.x, y: n.y }; } // (step: that side has lost; the UI's finale looks there)
       n.gone = true; s.fx.push({ x: n.x, y: n.y, life: 0.9, max: 0.9, size: n.kind === 'drone' ? 18 : 34 });
       const sq = n.squad && s.squads.find(q => q.id === n.squad); if (sq) sq.home = null; // the squad fights on, without refills
       if (n.side === 'blue') { note(s, `${S.name}: ${n.kind === 'drone' ? 'הופל' : 'הושמד'}`); s.marks.push({ x: n.x, y: n.y, kind: 'nodeLost', t: s.t, who: n.kind }); }
