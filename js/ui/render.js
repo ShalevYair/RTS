@@ -142,7 +142,7 @@ function hexA(col, a) {
   const n = parseInt(m[1], 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
 }
 function label(txt, x, y, col) {
-  const c = ctx; c.font = '700 13px Assistant, sans-serif'; c.lineWidth = 3; c.strokeStyle = colors.halo;
+  const c = ctx; c.font = '700 13px Rubik, sans-serif'; c.lineWidth = 3; c.strokeStyle = colors.halo;
   c.strokeText(txt, x, y); c.fillStyle = col; c.fillText(txt, x, y);
 }
 // symmetric outlines (top half; mirrored around the x axis), facing +x
@@ -452,19 +452,19 @@ function drawEnemyIntel(c) {
     const speed = m.type ? Sim.TYPES[m.type].speed : m.air ? Sim.TYPES.air.speed : m.air === false ? 50 : 70;
     const k = 1 - age / BLOB_LIFE, r = Math.min(BLOB_MAX, BLOB_R + speed * age * 0.5);
     const g = c.createRadialGradient(m.x, m.y, 0, m.x, m.y, r);
-    g.addColorStop(0, hexA(colors.red, 0.4 * k + 0.1)); g.addColorStop(0.6, hexA(colors.red, 0.2 * k)); g.addColorStop(1, hexA(colors.red, 0));
+    g.addColorStop(0, hexA(colors.red, 0.18 * k + 0.05)); g.addColorStop(0.6, hexA(colors.red, 0.08 * k)); g.addColorStop(1, hexA(colors.red, 0));
     c.fillStyle = g; ring(m.x, m.y, r); c.fill();
-    c.globalAlpha = 0.35 + 0.65 * k;
+    c.globalAlpha = SYMBOL_A * (0.5 + 0.5 * k); // (a symbol only: faint, well under the units themselves)
     // identification (our control where it is): type and size / only ground or air / only "something moves"
-    if (m.lvl >= 1) { c.fillStyle = colors.red; ring(m.x, m.y, 11); c.fill(); c.lineWidth = 1.5; c.strokeStyle = '#fff'; c.stroke(); }
-    else { c.fillStyle = hexA(colors.red, 0.35); ring(m.x, m.y, 11); c.fill(); c.lineWidth = 1.5; c.strokeStyle = colors.red; c.setLineDash([3, 3]); c.stroke(); c.setLineDash([]); }
-    if (m.type) glyph(c, m.type, m.x, m.y, m.type === 'air' ? 8 : 6, '#fff', null, Math.PI, m.type === 'aa' ? -Math.PI / 2 : Math.PI);
-    else if (m.air) glyph(c, 'air', m.x, m.y, 8, '#fff', null, -Math.PI / 2);
+    if (m.lvl >= 1) { c.fillStyle = hexA(colors.red, 0.6); ring(m.x, m.y, SYMBOL_R); c.fill(); c.lineWidth = 1; c.strokeStyle = 'rgba(255,255,255,.75)'; c.stroke(); }
+    else { c.fillStyle = hexA(colors.red, 0.25); ring(m.x, m.y, SYMBOL_R); c.fill(); c.lineWidth = 1; c.strokeStyle = colors.red; c.setLineDash([3, 3]); c.stroke(); c.setLineDash([]); }
+    if (m.type) glyph(c, m.type, m.x, m.y, m.type === 'air' ? 7 : 5, '#fff', null, Math.PI, m.type === 'aa' ? -Math.PI / 2 : Math.PI);
+    else if (m.air) glyph(c, 'air', m.x, m.y, 7, '#fff', null, -Math.PI / 2);
     else if (m.lvl === 1) { c.fillStyle = '#fff'; c.fillRect(m.x - 5, m.y - 3, 10, 6); }
     else label('?', m.x, m.y + 5, colors.red);
     // rough size: 1-3 dots from how many were seen (only when identified)
     const dots = !m.n ? 0 : m.n <= 2 ? 1 : m.n <= 4 ? 2 : 3; c.fillStyle = colors.red;
-    for (let i = 0; i < dots; i++) { ring(m.x - (dots - 1) * 4 + i * 8, m.y + 17, 2.5); c.fill(); }
+    for (let i = 0; i < dots; i++) { ring(m.x - (dots - 1) * 4 + i * 7, m.y + 14, 2); c.fill(); }
     if (age > UNSURE) label('?', m.x + 15, m.y - 8, colors.red);
     c.globalAlpha = 1;
   }
@@ -523,29 +523,29 @@ function fromHsl(h, sat, l) {
   const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
   return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
 }
-const STRUCT_PX = 40, HQ_PX = 58; // a building's picture; the HQ's, bigger
+// a building's picture across: by its footprint (the HQ and the airfield the biggest, the tents the smallest)
+const STRUCT_PX = 40, pxOf = kind => Math.round((Sim.STRUCTS[kind].r || 16) * 2.4), HQ_PX = pxOf('hq');
 function drawStruct(c, n, ghost) {
   const S = Sim.STRUCTS[n.kind], col = colors[n.side], on = s.t >= n.ready;
-  // under construction: the scaffolding goes up piece by piece, and the building shows through it, from nothing to
-  // whole (a bulldozer's site: by the work done; else by the time)
+  // under construction: the building shows, from fully see-through to whole (a bulldozer's site: by the work done;
+  // else by the time)
   const site = Number.isFinite(n.work) && !on;
   const grow = on || ghost || n.kind === 'drone' ? 1 : site ? Math.min(1, n.work / Math.max(0.01, n.need)) : n.kind === 'hq' ? 1 : Math.max(0, Math.min(1, (s.t - n.t0) / Math.max(0.01, n.ready - n.t0)));
   c.globalAlpha = ghost ? 0.45 : 1;
   if (!ghost && n.kind !== 'drone' && !on && (site || n.kind !== 'hq')) {
-    c.strokeStyle = col; c.globalAlpha = 0.8; c.lineWidth = 2; c.beginPath(); c.arc(n.x, n.y, 30, -Math.PI / 2, -Math.PI / 2 + grow * Math.PI * 2); c.stroke(); c.globalAlpha = 1;
+    c.strokeStyle = col; c.globalAlpha = 0.8; c.lineWidth = 2; c.beginPath(); c.arc(n.x, n.y, S.r + 12, -Math.PI / 2, -Math.PI / 2 + grow * Math.PI * 2); c.stroke(); c.globalAlpha = 1;
   }
   if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.2 : 0.32; drawDrone(c, n.x, n.y, 8, col, s.t * 0.35 + n.id, on ? s.t * 25 : 0); }
   else {
-    const px = n.kind === 'hq' || n.kind === 'decoy' ? HQ_PX : STRUCT_PX, k = px / STRUCT_PX;
+    const px = pxOf(n.kind), k = px / STRUCT_PX;
     c.globalAlpha = ghost ? 0.45 : on ? 1 : grow * grow * 0.95; // (from fully see-through to solid)
     drawBuilding(c, n.kind, col, n.x, n.y, px);
     if ((n.kind === 'hq' || n.kind === 'decoy') && on && !ghost && !hasBuildingPic(n.kind)) drawFlag(c, n.x, n.y, k, col);
-    if (n.kind === 'decoy' && n.side === 'blue') { c.font = '15px sans-serif'; c.fillText(S.badge, n.x + (n.kind === 'decoy' ? 24 : 15), n.y - 8); }
+    if (n.kind === 'decoy' && n.side === 'blue') { c.font = '15px sans-serif'; c.fillText(S.badge, n.x + px * 0.35, n.y - px * 0.1); }
   }
-  if (grow < 1 && !ghost) drawScaffold(c, n.x, n.y, n.kind === 'hq' || n.kind === 'decoy' ? 1.35 : 1, grow);
   c.globalAlpha = 1;
   if (ghost) return;
-  const big = n.kind === 'hq' || n.kind === 'decoy', top = big ? 38 : n.kind === 'drone' ? 16 : 30, bot = big ? 34 : n.kind === 'drone' ? 14 : 24;
+  const R = Sim.STRUCTS[n.kind].r, top = n.kind === 'drone' ? 16 : R + 14, bot = n.kind === 'drone' ? 14 : R + 8;
   // (a site: ⏸ while no bulldozer works it; else the seconds left)
   if (!on) label(site ? (n.working ? Math.round(grow * 100) + '%' : '⏸') : String(Math.ceil(n.ready - s.t)), n.x, n.y - top, col);
   if (n.fixing && nodeShown(n)) { c.font = '13px sans-serif'; c.globalAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 150); c.fillText('🔧', n.x + 18, n.y - top + 4); c.globalAlpha = 1; }
@@ -570,7 +570,7 @@ function drawBuildArea(c) {
   // will open for building, around the pointer
   for (const q of s.squads) if (q.side === 'blue' && q.fhqAt && !q.dead) {
     const p = pos(q), f = q.fhqAt;
-    c.globalAlpha = 0.45; drawBuilding(c, 'fhq', colors.blue, f.x, f.y, STRUCT_PX); c.globalAlpha = 1;
+    c.globalAlpha = 0.45; drawBuilding(c, 'fhq', colors.blue, f.x, f.y, pxOf('fhq')); c.globalAlpha = 1;
   }
   // open field: the HQ's spot on its way (a faint 🏰), and while placing it, our strip in green and 🏰 at the pointer
   const cq = s.squads.find(q => q.side === 'blue' && q.hqAt && !q.dead);
@@ -584,12 +584,14 @@ function drawBuildArea(c) {
     const r = cv.getBoundingClientRect(), w = { x: (mouseAt.x - r.left - view.cox) / view.css, y: (mouseAt.y - r.top - view.coy) / view.css };
     c.fillStyle = 'rgba(80,200,90,.16)'; c.strokeStyle = 'rgba(60,170,70,.7)'; c.lineWidth = 1.5; c.setLineDash([6, 5]);
     ring(w.x, w.y, FHQ_BUILD_R); c.fill(); c.stroke(); c.setLineDash([]);
-    c.globalAlpha = 0.7; drawBuilding(c, 'fhq', colors.blue, w.x, w.y, STRUCT_PX); c.globalAlpha = 1;
+    c.globalAlpha = Sim.fhqCheck(s, w.x, w.y) ? 0.25 : 0.7; drawBuilding(c, 'fhq', colors.blue, w.x, w.y, pxOf('fhq')); c.globalAlpha = 1;
   }
   if (!buildArmed) return;
   const G = 20, v = viewRect() || { x: 0, y: 0, w: s.W, h: s.H }; c.fillStyle = 'rgba(80,200,90,.22)';
   const x0 = Math.max(G / 2, Math.floor(v.x / G) * G + G / 2), y0 = Math.max(G / 2, Math.floor(v.y / G) * G + G / 2);
   for (let y = y0; y < Math.min(s.H, v.y + v.h + G); y += G) for (let x = x0; x < Math.min(s.W, v.x + v.w + G); x += G) if (!Sim.buildCheck(s, 'blue', x, y, buildArmed)) c.fillRect(x - G / 2, y - G / 2, G, G);
+  // (the building at the pointer, in its size: faint where it can't go)
+  if (mouseAt) { const r = cv.getBoundingClientRect(), w = { x: (mouseAt.x - r.left - view.cox) / view.css, y: (mouseAt.y - r.top - view.coy) / view.css }; c.globalAlpha = Sim.buildCheck(s, 'blue', w.x, w.y, buildArmed) ? 0.25 : 0.7; drawBuilding(c, buildArmed, colors.blue, w.x, w.y, pxOf(buildArmed)); c.globalAlpha = 1; }
 }
 // event reports appear where they happened, pop in and fade out
 // (not shown: arrived, roger, contact — the voice says them — nor the envelopes of orders on their way)
@@ -756,7 +758,7 @@ function draw() {
   if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); tracks.length = 0; dust.length = 0; }
   drawTracks(c); drawFallen(c); drawDust(c);
   if (!s.fog) drawUnits(c, () => true);
-  else { drawUnits(c, u => (u.side === 'blue' || s.vis.blue.has(u.id)) && shownAt(u)); drawGhosts(c); }
+  else { const whole = new Set(s.squads.filter(q => q.side === 'blue' && sqShown(q)).map(q => q.id)); drawUnits(c, u => (u.side === 'blue' ? whole.has(u.squad) : s.vis.blue.has(u.id)) && shownAt(u)); drawGhosts(c); }
   // explosions: fireball, smoke ring for medium+, sparks for big
   for (const f of s.fx) {
     if (f.wait > 0) continue; // its shot is still flying
@@ -806,8 +808,9 @@ function draw() {
   drawPicked(c); drawPings(c);
   drawVignette(c);
 }
-// a squad's units are drawn as they are (no command friction, or some of them in the exact picture)
-const sqShown = q => !Sim.friction(s) || s.units.some(u => u.squad === q.id && shownAt(u));
+// a squad's units are drawn as they are with no command friction, or while all of them are in the exact picture
+// (else only its symbol, see drawGuess)
+const sqShown = q => !Sim.friction(s) || s.units.every(u => u.squad !== q.id || shownAt(u));
 // where a squad out of the exact picture probably is by now: its last report, carried on toward its order at its
 // speed for the time since (so it's off from the truth as much as the report and the guess are); eased on screen
 const guess = new Map();
@@ -824,20 +827,15 @@ function guessAt(q) {
   guess.set(q.id, g);
   return { x: g.x, y: g.y, strength: r.strength, t: r.t, prev: r.prev, moving: g.moving, hd: g.hd };
 }
-// faint units in a line across the way it's going, as many as the last report says
+// a squad not wholly in the exact picture: only its symbol, faint (like a sighting of the enemy), where it probably is
 function drawGuess(c, q, p, on) {
-  const n = Math.max(1, Math.min(q.size || 1, Math.round((q.size || 1) * Math.min(1, p.strength)))), k = SIZE[q.type];
-  const hd = p.hd, ux = -Math.sin(hd), uy = Math.cos(hd), gap = k * 1.5, step = p.moving ? performance.now() / 120 : 0;
-  c.globalAlpha = 0.24;
-  for (let i = 0; i < n; i++) {
-    const row = Math.floor(i / 6), col = i % 6, cols = Math.min(6, n - row * 6), off = (col - (cols - 1) / 2) * gap;
-    const x = p.x + ux * off - Math.cos(hd) * row * gap, y = p.y + uy * off - Math.sin(hd) * row * gap;
-    if (hasSprite(q.type)) drawUnitPic(c, q.type, x, y, k, colors.blue, hd, hd);
-    else glyph(c, q.type, x, y, k, colors.blue, colors.outline, hd, q.type === 'aa' ? idleAim('aa', 'blue') : hd, 1.2, step + i);
-    if (on) { c.strokeStyle = colors.halo; c.lineWidth = 1; ring(x, y, k + 2.5); c.stroke(); }
-  }
+  c.globalAlpha = SYMBOL_A; c.fillStyle = hexA(colors.blue, 0.6); ring(p.x, p.y, SYMBOL_R); c.fill();
+  c.lineWidth = 1; c.strokeStyle = 'rgba(255,255,255,.75)'; c.stroke();
+  glyph(c, q.type, p.x, p.y, q.type === 'air' ? 7 : 5, '#fff', null, 0, q.type === 'aa' ? -Math.PI / 2 : 0);
+  if (on) { c.globalAlpha = 0.7; c.strokeStyle = colors.halo; c.lineWidth = 1.2; ring(p.x, p.y, SYMBOL_R + 3); c.stroke(); }
   c.globalAlpha = 1;
 }
+const SYMBOL_R = 9, SYMBOL_A = 0.5;
 
 // minimap (shown when the map doesn't fit on screen): terrain, our squads and structures, what we know of the
 // enemy, fresh reports, and the part on screen. Tap / drag it to look there.

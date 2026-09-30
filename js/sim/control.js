@@ -59,7 +59,13 @@ const fhqCount = (s, side) => s.nodes.filter(n => n.side === side && n.kind === 
 const fhqMax = s => NODES.fhq.max * (s.scale || 1);
 // who sets up a forward HQ: jeeps and tanks, or with support a bulldozer
 const fhqBuilders = s => s.dozers ? ['dozer'] : FHQ_BUILDERS;
-const canBuildFhq = (s, sq) => !!sq && !sq.dead && fhqBuilders(s).includes(sq.type) && s.cd[sq.side].fhq <= 0 && fhqCount(s, sq.side) < fhqMax(s);
+// (open field: not before the HQ stands, and FHQ_AFTER_HQ after that)
+const canBuildFhq = (s, sq) => !!sq && !sq.dead && fhqBuilders(s).includes(sq.type) && !(s.hqPending && s.hqPending[sq.side]) && s.cd[sq.side].fhq <= 0 && fhqCount(s, sq.side) < fhqMax(s);
+// why a forward HQ can't go at (x, y): '' when it can; 'gap' on or by another building, 'bad' in a lake or off the map
+function fhqCheck(s, x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x < 10 || y < 10 || x > s.W - 10 || y > s.H - 10 || lakeAt(s, { x, y }, LAKE_PAD)) return 'bad';
+  return crowded(s, 'fhq', x, y) ? 'gap' : '';
+}
 function buildFhq(s, squadId) {
   const sq = s.squads.find(q => q.id === squadId);
   if (s.over || !canBuildFhq(s, sq)) return false;
@@ -74,6 +80,9 @@ function planFhq(s, squadId, x, y) {
   if (s.over || !canBuildFhq(s, sq) || !Number.isFinite(x) || !Number.isFinite(y)) return false;
   let p = { x: clamp(x, 10, s.W - 10), y: clamp(y, 10, s.H - 10) };
   if (lakeAt(s, p)) p = dryOf(s, p, 10);
+  if (fhqCheck(s, p.x, p.y)) return false;
+  // (with support: a site on the bulldozer's list, in turn with the buildings laid before it)
+  if (s.dozers) { s.cd[sq.side].fhq = NODES.fhq.every; setUpFhq(s, sq, p, true); return true; }
   order(s, sq.id, 'hold', p.x, p.y, true);
   sq.fhqAt = { x: p.x, y: p.y, cd: s.cd[sq.side].fhq }; s.cd[sq.side].fhq = NODES.fhq.every;
   report(s, sq, 'יוצאים להקים פיקוד קדמי');
@@ -89,11 +98,12 @@ function fhqTrips(s) {
     if (!m && (sq.arrived || Math.hypot(sq.cx - p.x, sq.cy - p.y) < 40)) { sq.fhqAt = null; const spot = { x: p.x, y: p.y }; if (friction(s)) send(s, sq, { kind: 'build', spot }); else setUpFhq(s, sq, spot); }
   }
 }
-// at: the spot it was sent to (else where the squad stands)
-function setUpFhq(s, sq, at) {
+// at: the spot it was sent to (else where the squad stands); queued: a bulldozer's site, after its other jobs
+function setUpFhq(s, sq, at, queued) {
   const p = at || { x: sq.cx, y: sq.cy };
-  if (s.dozers) addSite(s, sq.side, 'fhq', p.x, p.y, NODES.fhq.warm, sq.id); else addStruct(s, sq.side, 'fhq', p.x, p.y).ready = s.t + NODES.fhq.warm;
-  report(s, sq, 'מקימים פיקוד קדמי');
+  if (s.dozers) { const n = addStruct(s, sq.side, 'fhq', p.x, p.y); n.ready = Infinity; n.work = 0; n.need = NODES.fhq.warm; assignSite(s, sq, n, !queued); }
+  else addStruct(s, sq.side, 'fhq', p.x, p.y).ready = s.t + NODES.fhq.warm;
+  report(s, sq, queued ? 'פיקוד קדמי ברשימת העבודה' : 'מקימים פיקוד קדמי');
   if (sq.side === 'blue') s.marks.push({ x: p.x, y: p.y, kind: 'fhq', t: s.t, who: sq.name, id: sq.id });
 }
 // a node is a target for enemy fire: drones only for AA (soldiers and jeeps), forward HQs for anyone

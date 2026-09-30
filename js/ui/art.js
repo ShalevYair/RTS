@@ -128,23 +128,6 @@ function drawFlag(c, x, y, k, col) {
   for (let i = 6; i >= 0; i--) c.lineTo(px + i * 1.6 * k, py + 5 * k + Math.sin(t + i * 0.8) * 0.9 * k * i / 6);
   c.closePath(); c.fillStyle = col; c.fill(); c.lineWidth = 0.6; c.strokeStyle = 'rgba(0,0,0,.4)'; c.stroke();
 }
-// a building going up: scaffolding poles and planks over its footprint
-function drawScaffold(c, x, y, k, grow) {
-  const w = 30 * k, h = 24 * k, x0 = x - w / 2, y0 = y - h / 2, P = [];
-  // (in the order they go up)
-  for (let j = 0; j < 3; j++) P.push([x0 - 2, y0 + h - j * 3.2, x0 + w + 2, y0 + h - j * 3.2, 2.2]); // planks laid on the ground
-  for (let i = 0; i <= 4; i++) P.push([x0 + w * i / 4, y0 + h, x0 + w * i / 4, y0, 1.2]); // posts
-  for (let j = 1; j <= 3; j++) P.push([x0, y0 + h - h * j / 3, x0 + w, y0 + h - h * j / 3, 1.6]); // planks up the posts
-  P.push([x0, y0 + h, x0 + w * 0.5, y0, 1], [x0 + w * 0.5, y0 + h, x0 + w, y0, 1]); // braces
-  const n = P.length, done = grow * (n + 2), fade = grow > 0.9 ? (1 - grow) / 0.1 : 1; // (it comes down at the end)
-  c.save(); c.strokeStyle = WOOD; c.lineCap = 'round';
-  P.forEach(([a, b, e, f, lw], i) => {
-    const on = Math.min(1, done - i); if (on <= 0) return;
-    c.globalAlpha = 0.9 * on * fade; c.lineWidth = lw; c.beginPath(); c.moveTo(a, b); c.lineTo(a + (e - a) * on, b + (f - b) * on); c.stroke();
-  });
-  c.restore();
-}
-
 // ---- smoke: grey puffs rising and drifting from damaged vehicles and buildings, wrecks, busy factories ----
 const smoke = [], SMOKE_MAX = 500, WIND = { x: 7, y: -2 };
 let artT = null;
@@ -248,17 +231,21 @@ function drawVignette(c) {
 }
 // ---- night: the map dark blue, but light where there's light — our buildings (and the enemy's we can see), fires,
 // explosions — cut out of the dark, with a warm glow ----
-const nightCv = document.createElement('canvas');
+// (NIGHT_DARK: how much of the light the full night takes away)
+const nightCv = document.createElement('canvas'), NIGHT_DARK = 0.72;
 function drawNightLit(c) {
   const k = Sim.nightAt(s); if (!k) return;
   if (nightCv.width !== cv.width || nightCv.height !== cv.height) { nightCv.width = cv.width; nightCv.height = cv.height; }
   const g = nightCv.getContext('2d');
   g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, nightCv.width, nightCv.height);
-  g.fillStyle = `rgba(10,18,48,${(0.5 * k).toFixed(3)})`; g.fillRect(0, 0, nightCv.width, nightCv.height);
+  g.fillStyle = `rgba(8,14,40,${(NIGHT_DARK * k).toFixed(3)})`; g.fillRect(0, 0, nightCv.width, nightCv.height);
   g.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy); g.globalCompositeOperation = 'destination-out';
   const lights = [];
   for (const n of s.nodes) if (n.kind !== 'drone' && nodeShown(n) && s.t >= n.ready) lights.push([n.x, n.y, n.kind === 'hq' ? 90 : 60, 0.8]);
-  for (const f of s.fx) if (!(f.wait > 0) && f.size >= 10) lights.push([f.x, f.y, f.size * 4, f.life / f.max]);
+  // (a blast lights its surroundings softly — no flash of the whole screen)
+  for (const f of s.fx) if (!(f.wait > 0) && f.size >= 10) { const a = f.life / f.max; lights.push([f.x, f.y, f.size * 3, 0.45 * Math.min(1, (1 - a) * 5) * a]); }
+  // (our own units carry a little light: vehicles more than soldiers)
+  for (const u of s.units) if (u.side === 'blue' && !Sim.TYPES[u.type].air && (!s.fog || shownAt(u))) lights.push([u.x, u.y, CAR.has(u.type) ? 28 : 16, 0.5]);
   for (const f of s.fallen) if (CAR.has(f.type) && s.t - f.t < 10 && (!s.fog || shownAt(f))) lights.push([f.x, f.y, 34, 0.7 * (1 - (s.t - f.t) / 10)]);
   for (const [x, y, r, a] of lights) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(nightCv, 0, 0); c.restore();
@@ -324,7 +311,7 @@ function spritePic(k, col) {
   c.putImageData(d, 0, 0); sprite.pic.set(key, p); return p;
 }
 // how long a unit's picture is on the map, in its size k (as long as the drawn glyph)
-const SPRITE_LEN = { jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, air: 2, tank: 1.9, dozer: 1.9, radio: 1.9 }, TURRET_K = 0.86;
+const SPRITE_LEN = { jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, air: 2, tank: 1.9, dozer: 1.9, radio: 1.9, inf: 2.4, at: 2.4, aa: 2.4, med: 2.4 }, TURRET_K = 0.86;
 // a building's picture: art/b_<kind> (the fake HQ looks just like the real one; the armed jeeps' workshops, the jeeps')
 const BUILDING_PIC = new Proxy({}, { get: (_, kind) => { const k = kind === 'decoy' ? 'hq' : kind; return sprite.img['b_' + k] || !/^jeepa[at]$/.test(k) ? 'b_' + k : 'b_jeepshop'; } });
 const hasSprite = type => type === 'tank' ? !!(sprite.img.tank_hull && sprite.img.tank_turret) : !!(SPRITE_LEN[type] && sprite.img[type]);
@@ -442,7 +429,7 @@ function scenKill(it) { it.gone = performance.now(); if (it.im) scen.gone.push(i
 function sceneryTick() {
   if (!decor || !sprite.img.d_tree1) return;
   const now = performance.now(); if (now < scen.next) return; scen.next = now + 120;
-  for (const n of s.nodes) if (!scen.seen.has(n.id) && n.kind !== 'drone' && nodeShown(n)) { scen.seen.add(n.id); scenNear(n.x, n.y, n.kind === 'hq' || n.kind === 'decoy' ? 56 : 42, scenKill); }
+  for (const n of s.nodes) if (!scen.seen.has(n.id) && n.kind !== 'drone' && nodeShown(n)) { scen.seen.add(n.id); scenNear(n.x, n.y, Sim.STRUCTS[n.kind].r * 1.5 + 18, scenKill); }
   for (const u of s.units) if (u.type === 'tank' && (u.side === 'blue' || !s.fog || s.vis.blue.has(u.id))) scenNear(u.x, u.y, SIZE.tank * 0.75, scenKill);
   // (the ground picture is painted again, at most twice a second)
   if (scen.dirty && now - (scen.painted || 0) > 500) { scen.dirty = false; scen.painted = now; bg.key = ''; }

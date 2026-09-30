@@ -67,6 +67,8 @@ function aiForward(s, side, mine, setOrder) {
     if (sc < bs) { bs = sc; best = { sq: q.id, hill: h }; }
   }
   if (!best) return;
+  // (with support: a site on that bulldozer's list; it gets there on its own)
+  if (s.dozers) { planFhq(s, best.sq, best.hill.x, best.hill.y); return; }
   s.aiFhq[side] = { ...best, until: s.t + AI_FHQ_TRIP };
   const h = best.hill; setOrder(s.squads.find(q => q.id === best.sq), 'hold', h.x, h.y);
 }

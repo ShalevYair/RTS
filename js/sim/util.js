@@ -36,11 +36,13 @@ function dryOf(s, p, pad = 0) {
   return q;
 }
 // how far a unit sees: ELEV_BONUS more per contour line it stands on (u.lvl is set once a tick in step(); 0 for aircraft)
-// how dark it is: 0 by day, 1 at night (fading in and out over DUSK s); only where s.night is on
+// how dark it is: 0 by day, 1 in the full night, in quarter steps eased into each other; only where s.night is on
 function nightAt(s) {
   if (!s.night) return 0;
-  const t = s.t % DAY_LEN, start = DAY_LEN - NIGHT_LEN;
-  return t < start - DUSK ? 0 : t < start ? (t - start + DUSK) / DUSK : t > DAY_LEN - DUSK ? (DAY_LEN - t) / DUSK : 1;
+  const L = NIGHT_LEVELS, i = Math.floor(s.t / NIGHT_STEP), f = (s.t - i * NIGHT_STEP) / NIGHT_FADE;
+  const now = L[i % L.length], was = L[(i + L.length - 1) % L.length];
+  if (f >= 1 || i === 0) return now;
+  return was + (now - was) * f * f * (3 - 2 * f);
 }
 const sightOf = (s, u) => TYPES[u.type].sight * (1 + ELEV_BONUS * (u.lvl || 0)) * (1 - NIGHT_SIGHT * nightAt(s));
 // a commander's rank (0, 1, 2) from his experience

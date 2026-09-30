@@ -14,7 +14,8 @@ const replyOf = (type, foe) => foe ? 'attacking' : type === 'retreat' ? 'retreat
 // fa: the way the front should face (a drag), else toward the enemy; foe: the order is at an enemy (a red mark)
 function issue(type, x, y, fa, foe) {
   const all = sel === 'all';
-  const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id) : selIds();
+  // (everyone: not the bulldozers — they'd leave their sites for the front)
+  const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead && q.type !== 'dozer').map(q => q.id) : selIds();
   if (!ids.length) return; // nothing picked: nothing to order
   // several together (all, a group, a type, a rectangle): rows facing the enemy (tanks in front … medics and mechanics
   // at the back); one alone: its own line
@@ -131,7 +132,7 @@ function updateHud() {
   $('fhqN').textContent = Sim.fhqCount(s, 'blue') >= Sim.fhqMax(s) ? Sim.fhqMax(s) + '/' + Sim.fhqMax(s) : cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').setAttribute('aria-disabled', String(!Sim.canBuildFhq(s, bsq)));
   if (s.fog !== fogWas) { fogWas = s.fog; syncButtons(); } // the tutorial's fog comes down mid-level
   $('fhq').style.setProperty('--p', (1 - cd.fhq / N.fhq.every).toFixed(2));
-  $('bb').hidden = Sim.boost(s, 'blue') < 0.05; $('moon').hidden = Sim.nightAt(s) < 0.5;
+  $('moon').hidden = Sim.nightAt(s) < 0.5;
   const key = s.log.length + ':' + (s.log.at(-1)?.t ?? '') + ':' + Math.floor(s.t / 2);
   if (key !== logKey) {
     logKey = key; const ol = $('log'); ol.textContent = '';
@@ -256,32 +257,76 @@ function believedShare() {
   if (!Object.values(s.memNodes.blue).some(n => n.kind === 'hq') && s.nodes.some(n => n.side === 'red' && n.kind === 'hq' && n.hp > 0)) foe += Sim.STRUCTS.hq.value;
   const me = s.power.blue; return me + foe > 0 ? me / (me + foe) : 0.5;
 }
-// build menu: pick a building, then a spot on the map where control is strong enough
+// build menu: first what kind (tents, workshops, the airfield, services), then which one, then a spot on the map where
+// control is strong enough. The pages: BUILD_PAGES (a page's entries: buildings, or 'page:<name>' for a sub-page);
+// BUILD_UP: where ‹ goes back to.
+const BUILD_PAGES = {
+  root: ['page:tents', 'page:shops', 'airfield', 'page:service'],
+  tents: ['tent', 'atpost', 'aapost', 'clinic'],
+  shops: ['tankshop', 'page:jeeps'],
+  jeeps: ['jeepshop', 'jeepat', 'jeepaa'],
+  service: ['garage', 'depot', 'decoy'],
+};
+const BUILD_UP = { tents: 'root', shops: 'root', service: 'root', jeeps: 'shops' };
+// (the picture on a page's button)
+const PAGE_PIC = { tents: 'tent', shops: 'tankshop', jeeps: 'jeepshop', service: 'garage' };
+let buildPage = 'root';
 function initBuildMenu() {
-  const m = $('buildm');
+  const m = $('buildm'), back = document.createElement('button');
+  back.className = 'bback'; back.dataset.al = 'back'; back.textContent = '‹';
+  back.addEventListener('click', () => showBuildPage(BUILD_UP[buildPage] || 'root'));
+  m.appendChild(back);
+  const pic = b => { const p = document.createElement('canvas'); p.width = p.height = 84; p.className = 'bpic'; b.querySelector('span').appendChild(p); }; // (drawn in nameBuildMenu, in our colour)
+  for (const g in PAGE_PIC) {
+    const b = document.createElement('button');
+    b.dataset.page = g; b.innerHTML = '<span></span><b></b><small></small>'; pic(b);
+    b.addEventListener('click', () => showBuildPage(g));
+    m.appendChild(b);
+  }
   for (const k of Sim.BUILDABLE) {
     const b = document.createElement('button');
-    b.dataset.build = k; b.dataset.tip = 'b_' + k; b.innerHTML = '<span></span><b></b><small></small>';
-    const pic = document.createElement('canvas'); pic.width = pic.height = 84; pic.className = 'bpic'; b.querySelector('span').appendChild(pic); // (drawn in nameBuildMenu, in our colour)
+    b.dataset.build = k; b.dataset.tip = 'b_' + k; b.innerHTML = '<span></span><b></b><small></small>'; pic(b);
     if (k === 'decoy') { const i = document.createElement('i'); i.textContent = Sim.STRUCTS[k].badge; b.querySelector('span').appendChild(i); }
     b.addEventListener('click', () => { buildArmed = k; m.hidden = true; hideTip(); syncButtons(); });
     m.appendChild(b);
   }
   nameBuildMenu();
 }
+function drawPic(cv, kind) { const g = cv.getContext('2d'); g.clearRect(0, 0, 84, 84); const src = buildingPic(kind, colors.blue, kind === 'decoy' ? 34 : 40); const m = src.width * 0.17; g.drawImage(src, m, m, src.width - 2 * m, src.width - 2 * m, 0, 0, 84, 84); }
 function nameBuildMenu() {
   for (const b of document.querySelectorAll('[data-build]')) {
     const S = Sim.STRUCTS[b.dataset.build];
     b.querySelector('b').textContent = sn(b.dataset.build);
-    const pic = b.querySelector('canvas'); if (pic) { const g = pic.getContext('2d'); g.clearRect(0, 0, 84, 84); const src = buildingPic(b.dataset.build, colors.blue, b.dataset.build === 'decoy' ? 34 : 40); const m = src.width * 0.17; g.drawImage(src, m, m, src.width - 2 * m, src.width - 2 * m, 0, 0, 84, 84); } b.querySelector('small').textContent = S.unit ? tr('buildItem', S.every, tn(S.unit)) : tr('decoyItem', Sim.DECOY_MAX);
+    const pic = b.querySelector('canvas'); if (pic) drawPic(pic, b.dataset.build);
+    b.querySelector('small').textContent = S.unit ? tr('buildItem', S.every, tn(S.unit)) : tr('decoyItem', Sim.DECOY_MAX);
+  }
+  for (const b of document.querySelectorAll('[data-page]')) {
+    const g = b.dataset.page; b.querySelector('b').textContent = tr('bp_' + g);
+    b.querySelector('small').textContent = tr('bpn_' + g);
+    const pic = b.querySelector('canvas'); if (pic) drawPic(pic, PAGE_PIC[g]);
   }
 }
-// the menu offers what this game allows (the tutorial adds kinds level by level)
+// what this game allows on a page (buildings, and sub-pages with anything allowed in them)
+const buildOk = k => !(k === 'decoy' ? !!s.level : !!s.builds && !s.builds.includes(k));
+const pageItems = g => BUILD_PAGES[g].filter(e => e.startsWith('page:') ? pageItems(e.slice(5)).length > 0 : buildOk(e));
+// open a page (one with a single sub-page in it opens that one instead)
+function showBuildPage(g) {
+  let l = pageItems(g);
+  while (l.length === 1 && l[0].startsWith('page:')) { g = l[0].slice(5); l = pageItems(g); }
+  buildPage = g;
+  const on = new Set(l);
+  for (const b of $('buildm').querySelectorAll('[data-build],[data-page]')) b.classList.toggle('pg', on.has(b.dataset.build || 'page:' + b.dataset.page));
+  const back = $('buildm').querySelector('.bback'); back.hidden = g === 'root' || !BUILD_UP[g] || pageItems(BUILD_UP[g]).length < 2;
+  hideTip();
+}
+// the menu offers what this game allows (the tutorial adds kinds level by level; a page with something new pulses)
 function syncBuildMenu(fresh) {
   for (const b of document.querySelectorAll('[data-build]')) {
-    b.hidden = b.dataset.build === 'decoy' ? !!s.level : !!s.builds && !s.builds.includes(b.dataset.build);
+    b.hidden = !buildOk(b.dataset.build);
     b.classList.toggle('new', fresh.includes(b.dataset.build));
   }
+  const has = g => BUILD_PAGES[g].some(e => e.startsWith('page:') ? has(e.slice(5)) : fresh.includes(e));
+  for (const b of document.querySelectorAll('[data-page]')) b.classList.toggle('new', has(b.dataset.page));
 }
 const buildFull = () => Sim.buildCount(s, 'blue') >= Sim.buildLimit(s, 'blue');
 const blink = el => { el.classList.remove('blink'); void el.offsetWidth; el.classList.add('blink'); };
@@ -291,6 +336,7 @@ function toggleBuild() {
   if (!buildArmed && m.hidden && s.hqPending && s.hqPending.blue) { blink($('hqb')); const r = $('bld').getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('why').nohq, r.left - st.left + r.width / 2, r.top - st.top - 30); return; }
   if (!buildArmed && m.hidden && buildFull()) { blink($('bld')); if (!$('fhq').hidden) blink($('fhq')); return; }
   if (buildArmed) { buildArmed = null; m.hidden = true; } else m.hidden = !m.hidden;
+  if (!m.hidden) showBuildPage('root');
   syncButtons();
 }
 $('bld').addEventListener('click', toggleBuild);
@@ -451,6 +497,8 @@ function buildHere() {
 function placeFhq(x, y) {
   const list = fhqCrews(), picked = list.find(q => isSel(q.id) && sel !== 'all');
   const q = picked || list.sort((a, b) => Math.hypot(pos(a).x - x, pos(a).y - y) - Math.hypot(pos(b).x - x, pos(b).y - y))[0];
+  const why = Sim.fhqCheck(s, x, y);
+  if (why) { const p = onScreen(x, y); toast(tr('why')[why] || tr('why').bad, p.x, p.y); return; } // (still armed: pick again)
   if (q) Sim.planFhq(s, q.id, x, y);
   fhqArmed = false; syncButtons(); updateHud();
 }

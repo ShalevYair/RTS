@@ -177,20 +177,22 @@ function separate(s, dt = 0) {
     for (let j = i + 1; j < us.length; j++) {
       const b = us[j];
       if (!TYPES[a.type].air !== !TYPES[b.type].air) continue; // air and ground don't collide
-      const min = ra + TYPES[b.type].r + 2, dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+      const min = ra + TYPES[b.type].r + UNIT_GAP, dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
       if (d2 < min * min) {
         const crush = a.side !== b.side && (a.type === 'tank' && FOOT.includes(b.type) ? b : b.type === 'tank' && FOOT.includes(a.type) ? a : null);
         if (crush) { crush.hp -= CRUSH_DPS * dt; crush.by = (crush === a ? b : a).squad; continue; }
         const d = Math.sqrt(d2) || 0.01, p = (min - d) / 2, nx = d2 ? dx / d : 1, ny = d2 ? dy / d : 0;
         const wa = MASS[a.type] || 1, wb = MASS[b.type] || 1, ka = 2 * wb / (wa + wb), kb = 2 * wa / (wa + wb); // the heavier gives way less
-        a.x -= nx * p * ka; a.y -= ny * p * ka; b.x += nx * p * kb; b.y += ny * p * kb;
+        // (a little to the side as well, so two meeting head-on slide past each other instead of standing locked)
+        const tx = nx - ny * SLIDE, ty = ny + nx * SLIDE;
+        a.x -= tx * p * ka; a.y -= ty * p * ka; b.x += tx * p * kb; b.y += ty * p * kb;
       }
     }
   }
   const blocks = s.nodes.filter(n => n.kind !== 'drone' && n.hp > 0);
   for (const u of us) {
     if (!TYPES[u.type].air) for (const n of blocks) {
-      const r = (n.kind === 'hq' ? HQ_R : STRUCT_R) + TYPES[u.type].r, dx = u.x - n.x, dy = u.y - n.y, d2 = dx * dx + dy * dy;
+      const r = STRUCTS[n.kind].r + TYPES[u.type].r, dx = u.x - n.x, dy = u.y - n.y, d2 = dx * dx + dy * dy;
       if (d2 < r * r) { const d = Math.sqrt(d2) || 0.01, nx = d2 ? dx / d : (u.side === 'blue' ? 1 : -1), ny = d2 ? dy / d : 0; u.x = n.x + nx * r; u.y = n.y + ny * r; }
     }
     u.x = clamp(u.x, 5, s.W - 5); u.y = clamp(u.y, 5, s.H - 5);

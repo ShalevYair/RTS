@@ -20,6 +20,11 @@ SPRITES = {
     'air':         ('plane.jpg',       'white',   False, None,       256),
     'dozer':       ('dozer.jpg',       'white',   False, None,       256),  # (these two: only once they're in art/)
     'radio':       ('radio.jpg',       'white',   False, None,       256),
+    # soldiers (only once they're in art/): rifleman, anti-tank, anti-air, medic
+    'inf':         ('inf.jpg',         'white',   False, None,       160),
+    'at':          ('at.jpg',          'white',   False, None,       160),
+    'aa':          ('aa.jpg',          'white',   False, None,       160),
+    'med':         ('med.jpg',         'white',   False, None,       160),
 }
 
 # and every building picture in art/ (b_<kind>.jpg / .png: seen at a slant from the south, on white)
