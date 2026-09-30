@@ -27,22 +27,22 @@
 }
 *,*::before,*::after{box-sizing:inherit}
 html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);background:var(--c-ground)}
-body{margin:0;height:100%;overflow:hidden;background:var(--c-ground);color:var(--ink);font:16px/1.4 Assistant,"Segoe UI",Arial,sans-serif}
+body{margin:0;height:100%;overflow:hidden;background:var(--c-ground);color:var(--ink);font:16px/1.4 Rubik,"Segoe UI",Arial,sans-serif}
 .stage{position:relative;width:100%;height:100%;overflow:hidden}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:default}
 .glass{background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--border);box-shadow:0 2px 12px rgb(0 0 0 / .18)}
-.score{position:absolute;top:8px;padding:3px 12px;border-radius:999px;font:24px/1.2 "Secular One",Assistant,sans-serif;font-variant-numeric:tabular-nums}
+.score{position:absolute;top:8px;padding:3px 12px;border-radius:999px;font:24px/1.2 Rubik,Rubik,sans-serif;font-variant-numeric:tabular-nums}
 .res{display:inline-block;margin-inline-start:8px;padding-inline-start:8px;border-inline-start:1px solid var(--border)}
 .res.low{color:var(--c-red)}
 .boost{font-style:normal;font-size:16px;margin-inline-start:4px}
-.score small{font:600 12px Assistant,sans-serif;color:var(--muted);margin-inline-start:3px}
+.score small{font:600 12px Rubik,sans-serif;color:var(--muted);margin-inline-start:3px}
 .score.blue{left:8px;color:var(--c-blue)} .score.red{right:8px;color:var(--c-red)}
 .log{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:min(440px,56%);list-style:none;margin:0;padding:0;font-size:13px;text-align:center;pointer-events:none}
 .log li{border-radius:6px;padding:1px 8px;margin-bottom:3px;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .6s}
 .log b{color:var(--c-blue)}
 .bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:max-content;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px;padding:6px;border-radius:12px;max-width:calc(100% - 16px)}
 .sep{width:1px;align-self:stretch;background:var(--border)}
-button{font:600 15px Assistant,sans-serif;color:var(--ink);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:7px 12px;cursor:pointer;min-height:40px}
+button{font:600 15px Rubik,sans-serif;color:var(--ink);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:7px 12px;cursor:pointer;min-height:40px}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--panel))}
 .icon{min-width:42px;font-size:18px;padding:6px 10px}
@@ -60,7 +60,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .legend{margin:0;font-size:13px;color:var(--muted);line-height:1.5}
 .sqb{position:relative;min-width:44px;padding:4px 6px}
 .sqb canvas{position:static;width:34px;height:34px;display:block;margin:-4px auto;cursor:inherit}
-.sqb kbd{position:absolute;top:1px;inset-inline-end:3px;font:700 10px Assistant,sans-serif;color:var(--muted)}
+.sqb kbd{position:absolute;top:1px;inset-inline-end:3px;font:700 10px Rubik,sans-serif;color:var(--muted)}
 .sqb i{position:absolute;left:5px;right:5px;bottom:3px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--c-blue) calc(var(--st,1)*100%),var(--border) 0)}
 .sqb.dead{opacity:.4}
 .call{position:absolute;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 16px);display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;padding:8px 12px;border-radius:12px;border-color:var(--c-red);font-size:15px}
@@ -68,7 +68,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 #replay{position:static;width:100%;height:auto;aspect-ratio:var(--ar,1.6);border-radius:8px;cursor:default;touch-action:auto;margin-bottom:6px}
 #replayBox[hidden]{display:none}#replayBox .mrow{margin-bottom:4px}
 #eye,#fhq{position:relative}#eye[hidden],#fhq[hidden]{display:none}
-#eye b,#fhq b{position:absolute;top:1px;inset-inline-end:3px;font:700 11px Assistant,sans-serif;color:var(--accent)}
+#eye b,#fhq b{position:absolute;top:1px;inset-inline-end:3px;font:700 11px Rubik,sans-serif;color:var(--accent)}
 #eye i,#fhq i{position:absolute;left:5px;right:5px;bottom:3px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--accent) calc(var(--p,0)*100%),var(--border) 0)}
 #eye:disabled,#fhq:disabled{opacity:.45;cursor:default}
 @media (max-width:560px){.bar .sep{display:none}.bar{gap:4px;padding:5px}.sqb{min-width:40px}}
@@ -76,7 +76,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .sm{display:none}
 @media (max-width:560px){.lg{display:none}.sm{display:inline}.ord{min-width:42px;font-size:18px;padding:6px 8px}}
 .stats{margin:0 0 14px;font-size:17px;color:var(--muted)}
-.stats b{font:26px/1 "Secular One",sans-serif}
+.stats b{font:26px/1 Rubik,sans-serif}
 .stats .me{color:var(--c-blue)} .stats .foe{color:var(--c-red)}
 .btns{display:flex;gap:8px}.btns button{flex:1}
 #again{background:var(--accent);color:#fff;border-color:var(--accent);font-size:17px}
@@ -84,12 +84,12 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .intro{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:16px;background:rgb(0 0 0 / .35)}
 .intro[hidden]{display:none}
 .card{width:min(460px,100%);max-height:100%;overflow:auto;border-radius:14px;padding:16px 18px;background:var(--panel)}
-.card h1{margin:0 0 4px;font:28px/1.2 "Secular One",sans-serif}
+.card h1{margin:0 0 4px;font:28px/1.2 Rubik,sans-serif}
 .card .sub{margin:0 0 12px;color:var(--muted)}
 .card ol{margin:0 0 14px;padding-inline-start:0;list-style:none;display:grid;gap:8px;font-size:15px}
 .card li{display:flex;gap:10px;align-items:baseline}
 .card li>span:first-child{flex:0 0 26px;text-align:center;font-size:18px}
-.card kbd{font:700 13px Assistant,sans-serif;border:1px solid var(--border);border-radius:4px;padding:0 4px}
+.card kbd{font:700 13px Rubik,sans-serif;border:1px solid var(--border);border-radius:4px;padding:0 4px}
 .card .mrow{margin-bottom:12px}
 .intro.short .card ol,.intro.short .sub{display:none}
 #go{width:100%;font-size:18px;background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -105,7 +105,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 @keyframes turn{0%,40%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
 @media (max-width:560px) and (orientation:portrait){.turn{display:block}}
 @media (prefers-reduced-motion:reduce){.turn{animation:none}}
-.buildm button[hidden]{display:none}
+.buildm button[hidden],.buildm button[data-build]:not(.pg),.buildm button[data-page]:not(.pg){display:none}
 .pwbar{display:inline-block;position:relative;width:70px;height:8px;margin-inline-start:6px;border-radius:4px;overflow:hidden;background:var(--c-red);vertical-align:middle}
 .pwbar i{position:absolute;inset-block:0;left:0;background:var(--c-blue)}
 .pwbar::after,.pwbar::before{content:"";position:absolute;inset-block:0;left:var(--lose,15%);width:2px;margin-left:-1px;background:#fff;z-index:1}
@@ -126,7 +126,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 #mini[hidden]{display:none}
 /* tutorial: level path on the intro, controls that just arrived pulse */
 .levels{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0 14px}
-.levels button{width:44px;height:44px;border-radius:50%;padding:0;font:20px/1 "Secular One",sans-serif}
+.levels button{width:44px;height:44px;border-radius:50%;padding:0;font:20px/1 Rubik,sans-serif}
 .levels button.won{border-color:var(--c-blue);color:var(--c-blue)}
 .levels button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 .levels button:disabled{opacity:.35}
@@ -180,7 +180,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 #silent{font-size:22px}
 #hqb[hidden]{display:none}#silent[hidden]{display:none}
 #ordMode .ico{width:28px;height:28px}
-#bld{position:relative}#bld b{position:absolute;top:1px;inset-inline-end:3px;font:700 11px Assistant,sans-serif;color:var(--accent)}
+#bld{position:relative}#bld b{position:absolute;top:1px;inset-inline-end:3px;font:700 11px Rubik,sans-serif;color:var(--accent)}
 #gear{min-width:52px;min-height:52px;border-radius:12px;font-size:22px}
 .menu{left:auto;right:8px;transform:none}
 #fsRow[hidden]{display:none}
@@ -223,14 +223,14 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
   display:flex;flex-direction:column;align-items:center;animation:menuRise .9s cubic-bezier(.2,.7,.2,1) both}
 @keyframes menuRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
 .crest{width:64px;height:72px;filter:drop-shadow(0 6px 16px rgb(0 0 0 / .6));margin-bottom:6px}
-#intro.mainmenu h1{margin:0;font:clamp(52px,11vw,104px)/1 "Secular One",sans-serif;letter-spacing:.02em;
+#intro.mainmenu h1{margin:0;font:clamp(52px,11vw,104px)/1 Rubik,sans-serif;letter-spacing:.02em;
   background:linear-gradient(180deg,#ffffff 0%,#e6ecdc 42%,#a9b894 72%,#dfe7cf 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
   filter:drop-shadow(0 4px 2px rgb(0 0 0 / .55)) drop-shadow(0 10px 30px rgb(0 0 0 / .6))}
-.menuSub{margin:10px 0 26px;display:flex;align-items:center;gap:14px;font:700 13px/1 Assistant,sans-serif;letter-spacing:.55em;text-transform:uppercase;color:#d8bd78;padding-inline-start:.55em}
+.menuSub{margin:10px 0 26px;display:flex;align-items:center;gap:14px;font:700 13px/1 Rubik,sans-serif;letter-spacing:.55em;text-transform:uppercase;color:#d8bd78;padding-inline-start:.55em}
 .menuSub::before,.menuSub::after{content:"";width:44px;height:1px;background:linear-gradient(90deg,transparent,#d8bd78)}
 .menuSub::after{transform:scaleX(-1)}
 #intro.mainmenu #go{position:relative;overflow:hidden;width:auto;min-width:280px;min-height:62px;padding:10px 34px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;gap:12px;
-  font:26px/1 "Secular One",sans-serif;color:#fff;border:1px solid rgb(255 255 255 / .28);
+  font:26px/1 Rubik,sans-serif;color:#fff;border:1px solid rgb(255 255 255 / .28);
   background:linear-gradient(180deg,#3d7bff 0%,#1d4ed8 55%,#1638a6 100%);
   box-shadow:0 12px 34px rgb(29 78 216 / .45),inset 0 1px 0 rgb(255 255 255 / .35);transition:transform .15s,box-shadow .15s}
 #intro.mainmenu #go span:first-child{font-size:20px}
@@ -240,7 +240,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 #intro.mainmenu #go:active{transform:translateY(1px)}
 .menuPanel{margin-top:26px;width:100%;padding:16px 18px 14px;border-radius:18px;background:rgb(8 16 11 / .55);border:1px solid rgb(255 255 255 / .12);
   backdrop-filter:blur(12px) saturate(1.2);-webkit-backdrop-filter:blur(12px) saturate(1.2);box-shadow:0 20px 50px rgb(0 0 0 / .45)}
-.menuLabel{font:700 12px/1 Assistant,sans-serif;letter-spacing:.35em;text-transform:uppercase;color:#bfa568;margin-bottom:10px}
+.menuLabel{font:700 12px/1 Rubik,sans-serif;letter-spacing:.35em;text-transform:uppercase;color:#bfa568;margin-bottom:10px}
 #intro.mainmenu .levels{margin:0 0 6px;gap:7px}
 #intro.mainmenu .levels button{width:42px;height:42px;min-height:42px}
 #intro.mainmenu .levels button{background:rgb(255 255 255 / .06);color:#e8eedd;border:1px solid rgb(255 255 255 / .22);box-shadow:inset 0 1px 0 rgb(255 255 255 / .08)}
@@ -278,7 +278,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .menuSide .mrow input{accent-color:#d8bd78}
 .menuSide #freeOpts{display:flex;flex-direction:column;gap:10px}
 .sideBtns{display:flex;flex-direction:column;gap:8px;margin-top:6px}
-.sideBtn{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:8px 14px;border-radius:12px;font:600 17px Assistant,sans-serif;text-align:start;
+.sideBtn{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:8px 14px;border-radius:12px;font:600 17px Rubik,sans-serif;text-align:start;
   background:rgb(255 255 255 / .06);color:#eef2e6;border:1px solid rgb(255 255 255 / .14);transition:background .15s,border-color .15s}
 .sideBtn:hover{background:rgb(216 189 120 / .16);border-color:rgb(216 189 120 / .5)}
 .sideBtn span:first-child{font-size:20px;width:26px;text-align:center}
@@ -286,7 +286,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .moreBox{display:flex;flex-direction:column;gap:10px;padding:10px;border-radius:12px;background:rgb(0 0 0 / .25)}
 .moreBox .mrow{grid-template-columns:72px 44px 1fr}
 .moreBox .legend{color:#aebd9c}
-.sideHead{display:flex;align-items:center;gap:10px;font:700 18px Assistant,sans-serif}
+.sideHead{display:flex;align-items:center;gap:10px;font:700 18px Rubik,sans-serif}
 .sideHead button{background:rgb(255 255 255 / .06);color:#eef2e6;border-color:rgb(255 255 255 / .16);min-height:36px;width:36px;padding:0;font-size:22px}
 html[dir="rtl"] .sideHead button{transform:scaleX(-1)}
 .sideNote{margin:0;color:#aebd9c;font-size:14px}
@@ -306,19 +306,19 @@ html[dir="rtl"] .sideHead button{transform:scaleX(-1)}
 .wiki{position:absolute;inset:0;z-index:30;display:grid;place-items:center;padding:16px;background:rgb(3 7 5 / .72);backdrop-filter:blur(6px)}
 .wiki[hidden]{display:none}
 .wikiBox{width:min(980px,100%);height:min(720px,100%);display:flex;flex-direction:column;border-radius:18px;overflow:hidden;background:#0d1610;color:#e8eedd;border:1px solid rgb(255 255 255 / .12);box-shadow:0 30px 80px rgb(0 0 0 / .6)}
-.wikiHead{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgb(255 255 255 / .1);font:700 20px "Secular One",sans-serif;color:#f0d792}
+.wikiHead{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgb(255 255 255 / .1);font:700 20px Rubik,sans-serif;color:#f0d792}
 .wikiHead button{background:none;color:#e8eedd;border:1px solid rgb(255 255 255 / .2);width:38px;min-height:38px;padding:0}
 .wikiBody{flex:1;display:flex;min-height:0}
 .wikiNav{flex:0 0 220px;display:flex;flex-direction:column;gap:4px;padding:12px;overflow:auto;border-inline-end:1px solid rgb(255 255 255 / .08);background:rgb(255 255 255 / .02)}
-.wikiNav button{display:flex;gap:10px;align-items:center;text-align:start;background:none;color:#cfd9c1;border:0;border-radius:10px;min-height:40px;padding:6px 10px;font:600 15px Assistant,sans-serif}
+.wikiNav button{display:flex;gap:10px;align-items:center;text-align:start;background:none;color:#cfd9c1;border:0;border-radius:10px;min-height:40px;padding:6px 10px;font:600 15px Rubik,sans-serif}
 .wikiNav button:hover{background:rgb(255 255 255 / .06)}
 .wikiNav button[aria-current="true"]{background:rgb(216 189 120 / .18);color:#f0d792}
 .wikiText{flex:1;overflow:auto;padding:18px 26px 28px;line-height:1.65;font-size:16px}
-.wikiText h2{margin:0 0 10px;font:28px/1.2 "Secular One",sans-serif;color:#f3f6ec}
-.wikiText h3{margin:18px 0 6px;font:700 17px Assistant,sans-serif;color:#f0d792}
+.wikiText h2{margin:0 0 10px;font:28px/1.2 Rubik,sans-serif;color:#f3f6ec}
+.wikiText h3{margin:18px 0 6px;font:700 17px Rubik,sans-serif;color:#f0d792}
 .wikiText p{margin:0 0 10px;color:#d7e0cb}
 .wikiText ul{margin:0 0 10px;padding-inline-start:20px;color:#d7e0cb}
-.wikiText kbd{font:700 13px Assistant,sans-serif;border:1px solid rgb(255 255 255 / .3);border-radius:4px;padding:0 5px;background:rgb(255 255 255 / .06)}
+.wikiText kbd{font:700 13px Rubik,sans-serif;border:1px solid rgb(255 255 255 / .3);border-radius:4px;padding:0 5px;background:rgb(255 255 255 / .06)}
 .wikiCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
 .wikiCard{display:flex;gap:12px;padding:10px;border-radius:12px;background:rgb(255 255 255 / .04);border:1px solid rgb(255 255 255 / .08)}
 .wikiCard canvas{position:static;flex:0 0 56px;width:56px;height:56px;border-radius:10px;background:rgb(255 255 255 / .05);cursor:default}
@@ -327,3 +327,79 @@ html[dir="rtl"] .sideHead button{transform:scaleX(-1)}
 .wikiCard p{margin:0;font-size:14px;line-height:1.5}
 @media (max-width:720px){.wikiBody{flex-direction:column}.wikiNav{flex:0 0 auto;flex-direction:row;overflow-x:auto;border-inline-end:0;border-bottom:1px solid rgb(255 255 255 / .08)}.wikiNav button{flex:0 0 auto}.wikiText{padding:14px 16px}}
 html[lang="en"] #intro.mainmenu h1{white-space:nowrap;font-size:clamp(44px,7.4vw,96px)}
+
+/* ---- the look, take 3: no frames. The HUD floats over the map — icons with a soft shadow, a soft fill for what's
+   picked or pressed; the panels that hold text (settings, build menu, tooltips) are frosted and borderless; one
+   modern type face (Rubik, which has Hebrew) ---- */
+:root{--ui:Rubik,"Segoe UI",Arial,sans-serif;--frost:rgb(12 18 14 / .74);--frost-ink:#eef2e6;--frost-muted:#a9b79a;--soft:rgb(255 255 255 / .12);--soft2:rgb(255 255 255 / .22);--gold:#e3c77f}
+body,button{font-family:var(--ui)}
+button{font-weight:500}
+.hudl .score.glass,#gSq.glass,#gOrd.glass,.bar.glass,#gear.glass,#paused.glass,#mini.glass{background:none;border:0;box-shadow:none}
+#mini.glass{box-shadow:0 4px 18px rgb(0 0 0 / .35);border-radius:10px}
+.hudl button,.bar button,#gOrd button,#gear,#paused{background:none;border:0;border-radius:12px;box-shadow:none;color:#fff;
+  filter:drop-shadow(0 1px 1.5px rgb(0 0 0 / .75)) drop-shadow(0 0 8px rgb(0 0 0 / .3));transition:background .15s}
+.hudl button:hover,.bar button:hover,#gOrd button:hover,#gear:hover,#paused:hover{background:var(--soft)}
+.hudl button[aria-pressed="true"],.bar button[aria-pressed="true"],.bar button[aria-expanded="true"],#gOrd button[aria-pressed="true"],#gear[aria-expanded="true"]{background:var(--soft2);box-shadow:none;border:0}
+#gSq .seg,#gSq{gap:2px}
+.seg button,.seg button:first-child,.seg button:last-child{border-radius:12px;margin:0}
+.sqb.grb{background:var(--soft)}
+.sqb.grb + .sqb:not(.grb){margin-inline-start:8px;border:0}
+.sqb kbd{color:rgb(255 255 255 / .75);font-weight:600}
+.sqb i{height:2px;bottom:2px;background:linear-gradient(90deg,#fff calc(var(--st,1)*100%),rgb(255 255 255 / .25) 0)}
+#all{color:#fff}
+#eye b,#fhq b,#bld b{color:#fff;font-weight:700;text-shadow:0 1px 2px rgb(0 0 0 / .8)}
+#eye i,#fhq i{height:2px;background:linear-gradient(90deg,#fff calc(var(--p,0)*100%),rgb(255 255 255 / .25) 0)}
+.ord{color:#fff}
+/* the power bar alone: thin, rounded, a soft shadow */
+#power{padding:0}
+#power .pwbar{width:130px;height:7px;border-radius:4px;box-shadow:0 1px 4px rgb(0 0 0 / .45)}
+#moon{filter:drop-shadow(0 1px 2px rgb(0 0 0 / .7))}
+/* the panels: frosted, no border */
+#menu.glass,#buildm.glass,.tip.glass,#call.glass,#end .card.glass{background:var(--frost);color:var(--frost-ink);border:0;
+  box-shadow:0 18px 48px rgb(0 0 0 / .4);backdrop-filter:blur(16px) saturate(1.2);-webkit-backdrop-filter:blur(16px) saturate(1.2)}
+#menu,#buildm{border-radius:16px}
+.tip::after{background:var(--frost);border:0}
+.tipNav small,#menu .legend,#end .legend,#end .stats{color:var(--frost-muted)}
+#menu button,#buildm button,.tipNav button,#call button,#end button{background:var(--soft);color:var(--frost-ink);border:0;border-radius:10px;box-shadow:none}
+#menu button:hover,#buildm button:hover,#end button:hover{background:var(--soft2)}
+#menu button[aria-pressed="true"]{background:var(--gold);color:#1b1407}
+#menu .mrow>span{color:var(--frost-muted)}
+#menu input{accent-color:var(--gold)}
+#tipNext,#again{background:var(--accent);color:#fff}
+.sure{background:rgb(255 255 255 / .06)}
+#buildm button{background:none}
+#buildm button:hover{background:var(--soft)}
+#buildm button small{color:var(--frost-muted)}
+#buildm button b{font-weight:600}
+#buildm .bback{min-width:36px;font-size:26px;line-height:1;padding:0 6px;align-self:center;color:var(--frost-muted)}
+#buildm .bback[hidden]{display:none}
+html[dir="rtl"] #buildm .bback{transform:scaleX(-1)}
+.card h1,#end h1{font-weight:800}
+.stats b{font-weight:800}
+/* the main menu: no side panel box — only a shade that deepens toward the edge, and the controls themselves */
+.menuSide{background:linear-gradient(to left,rgb(3 7 5 / .78),rgb(3 7 5 / .5) 60%,transparent);border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;gap:16px}
+html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),rgb(3 7 5 / .5) 60%,transparent)}
+.menuSide .mrow>span{color:#9fae8e;font-size:13px;font-weight:500}
+.menuSide .mrow button{background:none;border:0;border-radius:8px;color:#cfd8c2;font-weight:500}
+.menuSide .mrow button:hover{background:var(--soft)}
+.menuSide .mrow button[aria-pressed="true"]{background:rgb(227 199 127 / .16);color:var(--gold);border:0}
+.sideBtn{background:none;border:0;border-radius:10px;font:500 18px var(--ui);padding:8px 10px}
+.sideBtn:hover{background:var(--soft);border:0}
+.sideBtn[aria-expanded="true"]{color:var(--gold);border:0}
+.moreBox{background:none;padding:0 0 0 0;padding-inline-start:10px}
+.sideHead{font:600 18px var(--ui)}
+.sideHead button{background:none;border:0}
+#intro.mainmenu .menuSide .levels button,#intro.mainmenu .levels button{background:var(--soft);border:0;box-shadow:none;font:600 20px var(--ui)}
+#intro.mainmenu .levels button.won{background:rgb(227 199 127 / .18);color:var(--gold)}
+#intro.mainmenu h1{font-weight:900;letter-spacing:-.01em}
+.menuSub{font-weight:500}
+#intro.mainmenu #go{font:600 24px/1 var(--ui);border:0}
+@media (max-width:720px){.menuSide,html[dir="ltr"] .menuSide{background:linear-gradient(to top,rgb(3 7 5 / .88),rgb(3 7 5 / .6) 75%,transparent);border:0;border-radius:0}}
+.wikiBox{border:0}.wikiHead{font:700 20px var(--ui)}.wikiText h2{font:800 28px/1.2 var(--ui)}.wikiHead button{border:0;background:var(--soft)}
+/* (everyone picked: only ★ shows it, not every type button too) */
+#gSq:has(#all[aria-pressed="true"]) [data-ty][aria-pressed="true"],#gSq:has(#all[aria-pressed="true"]) [data-gr][aria-pressed="true"]{background:none}
+#menu button[aria-pressed="true"]{background:rgb(227 199 127 / .2);color:var(--gold)}
+#intro.mainmenu .menuSide .mrow button{background:none;border:0;color:#cfd8c2;box-shadow:none}
+#intro.mainmenu .menuSide .mrow button:hover{background:var(--soft)}
+#intro.mainmenu .menuSide .mrow button[aria-pressed="true"]{background:rgb(227 199 127 / .16);color:var(--gold);border:0}
+@media (max-width:560px){#buildm:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:calc(100% - 32px)}#buildm .bback{grid-column:1/-1;justify-self:start;min-height:32px}}

@@ -26,7 +26,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // level 6: medics and mechanics in the build menu, new ones pulsing
     await level(6); await p.click('#bld'); await p.waitForTimeout(150);
     const menu6 = await p.evaluate(() => [...document.querySelectorAll('[data-build]')].filter(e => !e.hidden).map(e => e.dataset.build + (e.classList.contains('new') ? '*' : '')).join());
-    check(name, menu6 === 'tent,jeepshop,tankshop,clinic*,garage*,depot*', `level 6 builds: ${menu6}`);
+    check(name, menu6 === 'tent,clinic*,tankshop,jeepshop,garage*,depot*', `level 6 builds: ${menu6}`);
     await p.screenshot({ path: `${OUT}/${name}-st-lv6-menu.png` });
     // build a clinic, raise its medics, hurt an infantryman: he walks to them with a cross over him
     const cared = await p.evaluate(() => {

@@ -10,7 +10,7 @@ const tapR = r => Math.max(r, 14 / view.css);
 function hitSquad(x, y) {
   for (const q of s.squads) { const p = q.side === 'blue' && !q.dead && !sqShown(q) && guessAt(q); if (p && Math.hypot(p.x - x, p.y - y) < tapR(24)) return q.id; }
   const tol = Math.max(12, 22 / view.css); let best = null, bd = tol;
-  for (const u of s.units) { if (u.side !== 'blue' || (Sim.friction(s) && !shownAt(u))) continue; const d = Math.hypot(u.x - x, u.y - y); if (d < bd) { bd = d; best = u.squad; } }
+  for (const u of s.units) { if (u.side !== 'blue' || (Sim.friction(s) && !sqShown(s.squads.find(q => q.id === u.squad) || {}))) continue; const d = Math.hypot(u.x - x, u.y - y); if (d < bd) { bd = d; best = u.squad; } }
   return best;
 }
 // the enemy under a spot, as blue knows it: a unit or building in sight, a remembered building, a sighting under fog
@@ -23,7 +23,7 @@ function hitFoe(x, y) {
 }
 // a building under a spot (side's own, or the enemy's as seen or remembered): the node, or its memory
 function hitNode(x, y, side) {
-  const near = n => Math.hypot(n.x - x, n.y - y) < tapR(n.kind === 'hq' || n.kind === 'decoy' ? 30 : 22);
+  const near = n => Math.hypot(n.x - x, n.y - y) < tapR(Sim.STRUCTS[n.kind].r + 6);
   const n = s.nodes.find(n => n.side === side && n.hp > 0 && n.kind !== 'drone' && nodeShown(n) && near(n));
   if (n || side === 'blue' || !s.fog) return n || null;
   const m = Object.values(s.memNodes.blue).find(m => !s.visNodes.blue.has(m.id) && near(m));

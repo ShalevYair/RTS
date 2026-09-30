@@ -81,24 +81,27 @@ const ORDER_NAME = { hold: 'מחזיק', attack: 'תוקף', retreat: 'נסוג'
 const BASE_HEAL = 10, HEAL_R = 70, REARM_TIME = 2.5;
 const AIR_ORBIT = 45, AIR_LEAD = 0.6; // aircraft circle: the ring round where they are sent, and how far ahead on it they steer
 // structures (DESIGN.md §3–4). Production buildings raise one squad each and refill it, one unit per `every` s.
+// r: its footprint's radius (nothing drives through it; the picture is about 2.4r across): the HQ the biggest, the
+// airfield as big, then the tank workshop, the jeep workshops / garage / depot, and the tents the smallest.
+// cat: where it is in the build menu (tents, workshops — jeep ones in a sub-menu —, the airfield, services)
 const STRUCTS = {
-  hq:       { name: 'מפקדה',       icon: '🏰', hp: 1500, value: 10, sight: 180 },
-  fhq:      { name: 'פיקוד קדמי',  icon: '🏕️', hp: 600,  value: 5 },
-  drone:    { name: 'רחפן',        icon: '🛸', hp: 30,   value: 0 },
-  tent:     { name: 'אוהל',        icon: '⛺', hp: 400,  value: 3, unit: 'inf',  build: 20, every: 15,  size: 6 },
-  atpost:   { name: 'עמדת נ"ט',    icon: '🚀', hp: 450,  value: 4, unit: 'at',   build: 30, every: 30,  size: 4 },
-  aapost:   { name: 'עמדת נ"מ',    icon: '📡', hp: 450,  value: 4, unit: 'aa',   build: 30, every: 30,  size: 4 },
-  jeepshop: { name: "סדנת ג'יפים", icon: '🔧', hp: 450,  value: 4, unit: 'jeep', build: 25, every: 25,  size: 4 },
+  hq:       { name: 'מפקדה',       icon: '🏰', hp: 1500, value: 10, sight: 180, r: 36 },
+  fhq:      { name: 'פיקוד קדמי',  icon: '🏕️', hp: 600,  value: 5, r: 18 },
+  drone:    { name: 'רחפן',        icon: '🛸', hp: 30,   value: 0, r: 0 },
+  tent:     { name: 'אוהל',        icon: '⛺', hp: 400,  value: 3, unit: 'inf',  build: 20, every: 15,  size: 6, r: 16, cat: 'tents' },
+  atpost:   { name: 'אוהל נ"ט',    icon: '🚀', hp: 450,  value: 4, unit: 'at',   build: 30, every: 30,  size: 4, r: 16, cat: 'tents' },
+  aapost:   { name: 'אוהל נ"מ',    icon: '📡', hp: 450,  value: 4, unit: 'aa',   build: 30, every: 30,  size: 4, r: 16, cat: 'tents' },
+  clinic:   { name: 'אוהל חובשים', icon: '🏥', hp: 350,  value: 3, unit: 'med',  build: 20, every: 25,  size: 2, r: 16, cat: 'tents' },
+  tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 50, every: 60,  size: 3, r: 27, cat: 'shops' },
+  jeepshop: { name: "סדנת ג'יפים", icon: '🔧', hp: 450,  value: 4, unit: 'jeep', build: 25, every: 25,  size: 4, r: 21, cat: 'jeeps' },
   // the same workshop, set up for armed jeeps: each takes twice as long (badge: what's on the back)
-  jeepaa:   { name: "סדנת ג'יפי נ\"מ", icon: '🔧', hp: 450, value: 4, unit: 'ajeep', build: 25, every: 50, size: 3, badge: '✈️' },
-  jeepat:   { name: "סדנת ג'יפי נ\"ט", icon: '🔧', hp: 450, value: 4, unit: 'tjeep', build: 25, every: 50, size: 3, badge: '🚀' },
-  tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 50, every: 60,  size: 3 },
-  airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2 },
-  clinic:   { name: 'תחנת חובשים', icon: '🏥', hp: 350,  value: 3, unit: 'med',  build: 20, every: 25,  size: 2 },
-  garage:   { name: 'מוסך',        icon: '🛠️', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2 },
-  depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2 },
+  jeepat:   { name: "סדנת ג'יפי נ\"ט", icon: '🔧', hp: 450, value: 4, unit: 'tjeep', build: 25, every: 50, size: 3, badge: '🚀', r: 21, cat: 'jeeps' },
+  jeepaa:   { name: "סדנת ג'יפי נ\"מ", icon: '🔧', hp: 450, value: 4, unit: 'ajeep', build: 25, every: 50, size: 3, badge: '✈️', r: 21, cat: 'jeeps' },
+  airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2, r: 34, cat: 'air' },
+  garage:   { name: 'מוסך',        icon: '🛠️', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2, r: 21, cat: 'service' },
+  depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 21, cat: 'service' },
   // a fake HQ: cheap, no slot, draws the enemy (under fog it passes for the HQ until made out closely)
-  decoy:    { name: 'מפקדה מזויפת', icon: '🏰', hp: 250,  value: 0.5, build: 15, badge: '🎭' },
+  decoy:    { name: 'מפקדה מזויפת', icon: '🏰', hp: 250,  value: 0.5, build: 15, badge: '🎭', r: 36, cat: 'service' },
 };
 const PRODUCERS = Object.keys(STRUCTS).filter(k => STRUCTS[k].unit);
 // what the player can build: the producers and the fake HQ (at most DECOY_MAX standing, outside the slots; full game only)
@@ -107,12 +110,14 @@ const BUILDABLE = [...PRODUCERS, 'decoy'], DECOY_MAX = 2;
 // no shot for REPAIR_QUIET s, not off for care or ammunition): REPAIR_RATE hp/s each (a mechanic REPAIR_MECH times
 // that), counting up to REPAIR_MAX of them
 const REPAIR_R = 70, REPAIR_RATE = 3, REPAIR_MECH = 3, REPAIR_MAX = 8, REPAIR_QUIET = 4;
-const BUILD_MIN_Q = 0.5, BUILD_BASE = 2, BUILD_PER_NODE = 2, BUILD_GAP = 45, STRUCT_SIGHT = 160;
-// nothing drives through a building: ground units are kept STRUCT_R (the HQ: HQ_R) from its centre.
-// A tank that runs into enemy soldiers (FOOT) crushes them, CRUSH_DPS a second.
-const STRUCT_R = 17, HQ_R = 24, CRUSH_DPS = 90, FOOT = ['inf', 'aa', 'at', 'med'];
+// BUILD_GAP: the room kept between two buildings' footprints
+const BUILD_MIN_Q = 0.5, BUILD_BASE = 2, BUILD_PER_NODE = 2, BUILD_GAP = 12, STRUCT_SIGHT = 160;
+// nothing drives through a building: ground units are kept its STRUCTS r from its centre.
+// Units keep UNIT_GAP between them. A tank that runs into enemy soldiers (FOOT) crushes them, CRUSH_DPS a second.
+const UNIT_GAP = 6, CRUSH_DPS = 90, FOOT = ['inf', 'aa', 'at', 'med'];
 // how hard a unit is to push aside when two bump (soldiers 1)
-const MASS = { tank: 6, jeep: 2, ajeep: 2, tjeep: 2, mech: 2, truck: 2 };
+// (SLIDE: how much of a push goes sideways)
+const MASS = { tank: 6, jeep: 2, ajeep: 2, tjeep: 2, mech: 2, truck: 2, dozer: 3, radio: 2 }, SLIDE = 0.35;
 // collapse: a side whose power falls below COLLAPSE of both sides' total loses (not before COLLAPSE_AFTER s)
 const COLLAPSE = 0.15, COLLAPSE_AFTER = 60;
 // comeback: the weaker side (by power share) produces up to BOOST_MAX faster, fully at share BOOST_FULL
@@ -162,8 +167,9 @@ const NODE_MULT = { inf: 0.6, tank: 1.5, air: 1.2, aa: 1.5, jeep: 0.8, at: 1.5, 
 // HQ), its units LINE_GAP + 2r apart; it turns toward a new threat at FACE_TURN rad/s. Ordering all squads at once
 // lines them up in rows, front to back (FORM_ROW): tanks, jeeps, infantry, AA, medics and mechanics; aircraft over the
 // middle. Rows are ROW_GAP apart, squads in a row SIDE_GAP apart.
-const FACE_R = 320, FACE_TURN = 0.8, LINE_GAP = 6, ROW_GAP = 50, SIDE_GAP = 20;
-const FORM_ROW = { tank: 0, jeep: 1, tjeep: 1, ajeep: 1, air: 1.5, inf: 2, at: 2.5, aa: 3, med: 4, mech: 4, truck: 4 };
+// (the signals truck and the bulldozer at the very back; bulldozers aren't ordered with everyone, though)
+const FACE_R = 320, FACE_TURN = 0.8, LINE_GAP = 16, ROW_GAP = 70, SIDE_GAP = 40;
+const FORM_ROW = { tank: 0, jeep: 1, tjeep: 1, ajeep: 1, air: 1.5, inf: 2, at: 2.5, aa: 3, med: 4, mech: 4, truck: 4, radio: 5, dozer: 5 };
 const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
 // difficulty: how often the AI re-plans and how well it decides (never extra units or vision).
@@ -197,9 +203,10 @@ const SILENT_SPEED = 0.6, RADIO_NOISE = 90, RADIO_EVERY = 6;
 // dust: a vehicle driving fast (over DUST_FAST of its speed) is noticed by the enemy from DUST_SEE away, through the
 // fog, as "movement" within DUST_NOISE
 const DUST_SEE = 420, DUST_NOISE = 40, DUST_FAST = 0.7, DUSTY = ['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck'];
-// night (full game): a day is DAY_LEN s, its last NIGHT_LEN night (DUSK s to fall and to lift). At night units see
-// NIGHT_SIGHT less and orders take NIGHT_DELAY longer; drones and buildings see as by day
-const DAY_LEN = 360, NIGHT_LEN = 120, DUSK = 20, NIGHT_SIGHT = 0.4, NIGHT_DELAY = 0.5;
+// night (full game): the dark changes once every NIGHT_STEP s, by a quarter, along NIGHT_LEVELS (two minutes of day,
+// four to fall, two of night, four to lift), each change eased over NIGHT_FADE s. In the full dark units see
+// NIGHT_SIGHT less and orders take NIGHT_DELAY longer (by how dark it is); drones and buildings see as by day
+const NIGHT_LEVELS = [0, 0, 0.25, 0.5, 0.75, 1, 1, 0.75, 0.5, 0.25], NIGHT_STEP = 60, NIGHT_FADE = 8, NIGHT_SIGHT = 0.4, NIGHT_DELAY = 0.5;
 // supply lines: a shot fired far from home (no building of the side within SUPPLY_FAR, no supply truck within
 // SUPPLY_NEAR) uses SUPPLY_FAR_K times the ammunition
 const SUPPLY_FAR = 350, SUPPLY_NEAR = 150, SUPPLY_FAR_K = 1.7;
@@ -218,4 +225,6 @@ const HQ_BAND = 0.2, HQ_WARM = 20, CMD_TANKS = 2;
 // support (the full game, s.dozers): each side starts with a bulldozer and a signals truck; the HQ sends out another
 // of each every SUPPORT_EVERY s while it has fewer than SUPPORT_CAP. A building goes up only while a bulldozer stands
 // within DOZER_R of it (its work: the building's time, HQ_WARM for the HQ, the forward HQ's warm-up).
-const SUPPORT_EVERY = 120, SUPPORT_CAP = 3, DOZER_R = 38;
+// A bulldozer works from a corner of the site, DOZER_R past its footprint. The first forward HQ may be set up
+// FHQ_AFTER_HQ s after the HQ stands (none before it).
+const SUPPORT_EVERY = 120, SUPPORT_CAP = 3, DOZER_R = 40, FHQ_AFTER_HQ = 60;

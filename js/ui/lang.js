@@ -3,7 +3,7 @@
 let lang = 'he';
 try { const l = localStorage.getItem('irts-lang'); if (l === 'he' || l === 'en') lang = l; } catch (e) { /* storage unavailable */ }
 const EN_TYPES = { inf: 'Infantry', tank: 'Tanks', air: 'Aircraft', aa: 'Anti-air', at: 'Anti-tank', jeep: 'Jeeps', ajeep: 'AA jeeps', tjeep: 'AT jeeps', med: 'Medics', mech: 'Mechanics', truck: 'Supply trucks', dozer: 'Bulldozers', radio: 'Signals trucks' };
-const EN_STRUCTS = { hq: 'HQ', fhq: 'Forward HQ', drone: 'Drone', tent: 'Tent', aapost: 'AA post', atpost: 'AT post', decoy: 'Fake HQ', jeepshop: 'Jeep workshop', jeepaa: 'AA jeep workshop', jeepat: 'AT jeep workshop', tankshop: 'Tank workshop', airfield: 'Airfield', clinic: 'Medic station', garage: 'Garage', depot: 'Supply depot' };
+const EN_STRUCTS = { hq: 'HQ', fhq: 'Forward HQ', drone: 'Drone', tent: 'Tent', aapost: 'AA tent', atpost: 'AT tent', decoy: 'Fake HQ', jeepshop: 'Jeep workshop', jeepaa: 'AA jeep workshop', jeepat: 'AT jeep workshop', tankshop: 'Tank workshop', airfield: 'Airfield', clinic: 'Medic tent', garage: 'Garage', depot: 'Supply depot' };
 const EN_NAMES = { 'כהן': 'Cohen', 'לוי': 'Levi', 'מזרחי': 'Mizrahi', 'פרץ': 'Peretz', 'ביטון': 'Biton', 'אברהם': 'Avraham', 'פרידמן': 'Friedman', 'אזולאי': 'Azoulay', 'דהן': 'Dahan', 'שפירא': 'Shapira' };
 const EN_DIFFS = { easy: 'Easy', normal: 'Normal', hard: 'Hard' };
 const EN_STYLES = { steady: 'Steady', rush: 'Rusher', turtle: 'Turtle', flank: 'Flanker' };
@@ -38,6 +38,7 @@ const STR = {
     call: (boss, name) => `📞 סרן ${boss} (${name}): לחץ כבד. להחזיק או לסגת?`,
     sqTip: (name, boss, home) => `${name} · סרן ${boss}${home ? '' : ' · בלי מבנה, בלי תגבורת'}`,
     buildItem: (sec, unit) => `${unit} · כל ${sec} ש׳`,
+    bp_tents: 'אוהלים', bpn_tents: 'חי"ר, נ"ט, נ"מ, חובשים', bp_shops: 'סדנאות', bpn_shops: "טנקים, ג'יפים", bp_jeeps: "סדנת ג'יפים", bpn_jeeps: 'קל, נ"ט, נ"מ', bp_service: 'שירותים', bpn_service: 'מוסך, אספקה, פיתיון',
     placeHq: 'בחר איפה להקים את המפקדה 🏰 — ברצועה הירוקה. הטרקטור 🚜 ייסע לשם ויקים אותה.', hqWhy: { nodozer: 'אין טרקטור 🚜 שיקים אותה', band: 'רק ברצועה הירוקה בצד שלך', bad: 'אי אפשר כאן' },
     why: { nodozer: 'אין טרקטור 🚜 — הוא בונה את המבנים', nohq: 'קודם מקימים את המפקדה 🏰', q: 'השליטה כאן חלשה מדי לבנייה', limit: 'המכסה מלאה — הקם 🏕️ פיקוד קדמי', gap: 'קרוב מדי למבנה אחר', bad: 'מחוץ למפה' },
     noVoice: 'אין קול עברי במכשיר, רק צליל קשר',
@@ -97,6 +98,7 @@ const STR = {
     call: (boss, name) => `📞 Capt. ${boss} (${name}): heavy pressure. Hold or retreat?`,
     sqTip: (name, boss, home) => `${name} · Capt. ${boss}${home ? '' : ' · no building, no reinforcements'}`,
     buildItem: (sec, unit) => `${unit} · every ${sec} s`,
+    bp_tents: 'Tents', bpn_tents: 'Infantry, AT, AA, medics', bp_shops: 'Workshops', bpn_shops: 'Tanks, jeeps', bp_jeeps: 'Jeep workshop', bpn_jeeps: 'Light, AT, AA', bp_service: 'Services', bpn_service: 'Garage, supply, decoy',
     placeHq: 'Pick where your HQ 🏰 goes, in the green strip. The bulldozer 🚜 drives there and puts it up.', hqWhy: { nodozer: 'No bulldozer 🚜 to put it up', band: 'Only in the green strip on your side', bad: 'Not here' },
     why: { nodozer: 'No bulldozer 🚜 — it puts the buildings up', nohq: 'Set up the HQ 🏰 first', q: 'Control here is too weak to build', limit: 'No free slot — set up a 🏕️ forward HQ', gap: 'Too close to another building', bad: 'Off the map' },
     noVoice: 'No English voice on this device, only a radio sound',
