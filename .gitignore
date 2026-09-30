@@ -1,2 +1,6 @@
 node_modules
 tests/ui/out/
+
+# the old pictures, kept only on the disk
+art/OLD/
+art/Background/OLD/

@@ -214,7 +214,10 @@ document.addEventListener('keydown', e => {
   // keys for controls this level doesn't have yet do nothing
   const need = /^\d$/.test(k) ? 'squads' : 'har'.includes(k) ? 'orders' : { d: 'eye', b: 'fhq', g: 'build' }[k];
   if (need && !uiHas(need)) return;
-  if (/^[1-9]$/.test(k)) { const b = document.querySelectorAll('#sqs button')[+k - 1]; if (b) b.click(); }
+  // Ctrl / Alt + a number: what's picked becomes that group; the number alone: the button with that number (a second
+  // press brings the camera there)
+  if (/^[1-9]$/.test(k) && (e.ctrlKey || e.metaKey || e.altKey)) { e.preventDefault(); keyGroup(+k); }
+  else if (/^[1-9]$/.test(k)) { const kb = document.querySelector(`#sqs kbd[data-k="${k}"]`); if (kb) kb.parentElement.click(); }
   else if (k === 'l' && uiHas('squads')) toggleGroup();
   else if (k === 's' && !$('silent').hidden) toggleSilent();
   else if (k === '0') select('all');

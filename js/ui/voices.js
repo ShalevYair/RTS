@@ -52,6 +52,27 @@ const VOICES = {
   ],
   "hq_attack": [
    "Speak/English/hq_attack/A_1.mp3"
+  ],
+  "drone_lost": [
+   "Speak/English/drone_lost/A_1.mp3"
+  ],
+  "dozer_ready": [
+   "Speak/English/dozer_ready/A_1.mp3"
+  ],
+  "dozer_idle": [
+   "Speak/English/dozer_idle/A_1.mp3"
+  ],
+  "radio_ready": [
+   "Speak/English/radio_ready/A_1.mp3"
+  ],
+  "fhq_ready": [
+   "Speak/English/fhq_ready/A_1.mp3"
+  ],
+  "drone_ready": [
+   "Speak/English/drone_ready/A_1.mp3"
+  ],
+  "place_hq": [
+   "Speak/English/place_hq/A_1.mp3"
   ]
  },
  "Hebrew": {
@@ -105,6 +126,27 @@ const VOICES = {
   ],
   "hq_attack": [
    "Speak/Hebrew/hq_attack/A_1.mp3"
+  ],
+  "drone_lost": [
+   "Speak/Hebrew/drone_lost/A_1.mp3"
+  ],
+  "dozer_ready": [
+   "Speak/Hebrew/dozer_ready/A_1.mp3"
+  ],
+  "dozer_idle": [
+   "Speak/Hebrew/dozer_idle/A_1.mp3"
+  ],
+  "radio_ready": [
+   "Speak/Hebrew/radio_ready/A_1.mp3"
+  ],
+  "fhq_ready": [
+   "Speak/Hebrew/fhq_ready/A_1.mp3"
+  ],
+  "drone_ready": [
+   "Speak/Hebrew/drone_ready/A_1.mp3"
+  ],
+  "place_hq": [
+   "Speak/Hebrew/place_hq/A_1.mp3"
   ]
  }
 };

@@ -18,7 +18,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.screenshot({ path: `${OUT}/${name}-bar.png` });
     // force a win on the next step
     await p.evaluate(() => { const o = Sim.step; Sim.step = (s, dt) => { o(s, dt); s.over = 'blue'; }; });
-    await p.waitForTimeout(800); await p.waitForFunction(() => !document.getElementById('end').hidden, null, { timeout: 10000 }); // (after the finale)
+    await p.waitForTimeout(800); await p.waitForFunction(() => { skipOutro(); return !document.getElementById('end').hidden; }, null, { timeout: 10000 }); // (the finale skipped)
     const end = await p.evaluate(() => ({ hidden: document.getElementById('end').hidden, t: document.getElementById('endT').textContent, info: document.querySelector('.stats').textContent }));
     await p.screenshot({ path: `${OUT}/${name}-end.png` });
     if (!touch) { await p.click('#share'); await p.waitForTimeout(200); }

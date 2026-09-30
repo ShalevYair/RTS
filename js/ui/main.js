@@ -104,7 +104,10 @@ function endOutro() {
   if (!src) { showEnd(); return; }
   const box = $('outro'), v = $('outroVid');
   box.hidden = false; v.src = src; v.currentTime = 0; Soundtrack.stop();
-  const done = () => { v.onended = v.onerror = null; v.pause(); box.hidden = true; if (musicOn) Soundtrack.start(); showEnd(); };
+  let over = false;
+  const done = () => { if (over) return; over = true; clearTimeout(guard); v.onended = v.onerror = null; v.pause(); box.hidden = true; if (musicOn) Soundtrack.start(); showEnd(); };
+  // (a video that won't start — not allowed, or a format this browser can't play — doesn't hold up the end card)
+  const guard = setTimeout(() => { if (v.paused || v.readyState < 2) done(); }, 3000);
   v.onended = done; v.onerror = done; $('outroSkip').onclick = done; box.onclick = e => { if (e.target === v) done(); };
   v.play().catch(done);
 }

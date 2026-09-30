@@ -170,9 +170,11 @@ $('all').addEventListener('click', () => select('all'));
 // The buttons at the top: first the groups the player made, then one per kind of unit for the squads in no group.
 // They're numbered 1–9 left to right (the keys; more than nine are picked by a tap). A tap picks all of them, a second
 // tap brings the camera there.
-// Groups (this game only, in the UI): squads tied together with 🔗 act as one — picked together (also by tapping any
-// of them on the map), ordered together, in rows facing the enemy; ✂ unties them. A squad is in one group at most;
-// a group down to one squad is gone.
+// Groups (this game only, in the UI): squads tied together act as one — picked together (also by tapping any of them
+// on the map), ordered together, in rows facing the enemy. As in other RTS games: Ctrl (or Alt) + a number makes what's
+// picked group <number> (g.key); the number picks it, and pressed again brings the camera to the middle of its squads.
+// 🔗 (L) ties what's picked into a group on the first free number; ✂ unties it. A squad is in one group at most; a group
+// with no squads left is gone (one made with 🔗 once it's down to one squad).
 const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'med', 'mech', 'truck', 'dozer', 'radio'];
 let groups = [], nextGroup = 1;
 const groupOf = id => groups.find(g => g.ids.includes(id));
@@ -194,11 +196,22 @@ function toggleGroup() {
   if (g) groups = groups.filter(x => x !== g);
   else {
     const alive = aliveBlue(), ids = selIds().filter(id => alive.has(id)); if (sel === 'all' || ids.length < 2) return;
-    for (const x of groups) x.ids = x.ids.filter(id => !ids.includes(id)); // out of any group they were in
-    groups.push({ id: nextGroup++, ids });
+    const used = new Set(groups.map(x => x.key)), key = [1, 2, 3, 4, 5, 6, 7, 8, 9].find(k => !used.has(k));
+    setGroup(ids, key, false);
   }
   renderSquadButtons(); syncButtons();
 }
+// what's picked becomes group `key` (Ctrl + the number): any group on that number is replaced, and its squads leave
+// the groups they were in
+function setGroup(ids, key, hard = true) {
+  const alive = aliveBlue(); ids = ids.filter(id => alive.has(id) && (sel !== 'all' || s.squads.find(q => q.id === id).type !== 'dozer')); // (everyone: not the bulldozers)
+  if (!ids.length) return false;
+  groups = groups.filter(x => x.key !== key || !key);
+  for (const x of groups) x.ids = x.ids.filter(id => !ids.includes(id));
+  groups.push({ id: nextGroup++, ids: ids.slice(), key, hard });
+  renderSquadButtons(); syncButtons(); return true;
+}
+function keyGroup(key) { if (setGroup(selIds(), key)) { const b = document.querySelector(`[data-gr] kbd[data-k="${key}"]`); if (b) blink(b.parentElement); } }
 $('grp').addEventListener('click', toggleGroup);
 let sqKey = '';
 function renderSquadButtons() {
@@ -207,28 +220,32 @@ function renderSquadButtons() {
   if (Array.isArray(sel)) { const l = sel.filter(id => alive.has(id)); if (l.length !== sel.length) sel = l.length > 1 ? l : l[0] || null; }
   else if (sel && sel !== 'all' && !alive.has(sel)) sel = null;
   for (const g of groups) g.ids = g.ids.filter(id => alive.has(id));
-  groups = groups.filter(g => g.ids.length > 1);
+  groups = groups.filter(g => g.ids.length > (g.hard ? 0 : 1)); // (a numbered group stays while it has a squad)
+  groups.sort((a, b) => (a.key || 99) - (b.key || 99));
   const types = TYPE_KEYS.filter(ty => typeIds(ty).length);
-  const key = groups.map(g => g.id + ':' + g.ids.join('.')).join() + '|' + types.join() + lang;
+  const key = groups.map(g => g.id + ':' + g.key + ':' + g.ids.join('.')).join() + '|' + types.join() + lang;
   if (key === sqKey) return;
   sqKey = key; const box = $('sqs'); box.textContent = '';
   const typeOf = id => s.squads.find(q => q.id === id).type;
+  // (each button's number key: a group's own; the kinds of unit get the numbers left over, in order)
   const add = (b, n, name, icon, ids) => {
     b.classList.add('sqb'); b.innerHTML = '<canvas width="64" height="64"></canvas><kbd></kbd><i></i>';
-    b.querySelector('kbd').textContent = n <= 9 ? n : ''; b.setAttribute('aria-label', name() + (n <= 9 ? ` (${n})` : ''));
-    b.dataset.tip = 'sq'; b.tipText = () => name() + (n <= 9 ? ` (${n})` : '');
+    const kb = b.querySelector('kbd'); kb.textContent = n && n <= 9 ? n : ''; if (n) kb.dataset.k = n;
+    b.setAttribute('aria-label', name() + (n && n <= 9 ? ` (${n})` : ''));
+    b.dataset.tip = 'sq'; b.tipText = () => name() + (n && n <= 9 ? ` (${n})` : '') + (b.dataset.gr ? '' : ' · ' + tr('tipCtrlGroup'));
     icon(b.querySelector('canvas')); b.addEventListener('click', () => pickIds(ids()));
     box.appendChild(b);
   };
-  let n = 0;
+  const used = new Set(groups.map(g => g.key).filter(Boolean)); let free = 0;
+  const nextFree = () => { do free++; while (used.has(free)); return free; };
   for (const g of groups) {
     const b = document.createElement('button'); b.dataset.gr = g.id; b.classList.add('grb');
     const kinds = () => TYPE_KEYS.filter(ty => g.ids.some(id => typeOf(id) === ty));
-    add(b, ++n, () => tr('group') + ': ' + kinds().map(ty => `${tn(ty)} ×${g.ids.filter(id => typeOf(id) === ty).length}`).join(', '), c => drawGroupIcon(c, kinds()), () => g.ids);
+    add(b, g.key || nextFree(), () => tr('group') + ': ' + kinds().map(ty => `${tn(ty)} ×${g.ids.filter(id => typeOf(id) === ty).length}`).join(', '), c => drawGroupIcon(c, kinds()), () => g.ids);
   }
   for (const ty of types) {
     const b = document.createElement('button'); b.dataset.ty = ty;
-    add(b, ++n, () => `${tn(ty)} ×${typeIds(ty).length}`, c => drawSquadIcon(c, ty), () => typeIds(ty));
+    add(b, nextFree(), () => `${tn(ty)} ×${typeIds(ty).length}`, c => drawSquadIcon(c, ty), () => typeIds(ty));
   }
   syncButtons();
 }
@@ -512,7 +529,8 @@ function fullScreen(on = !fsOn()) {
   try {
     if (on && !fsOn()) {
       const p = (fsEl.requestFullscreen || fsEl.webkitRequestFullscreen).call(fsEl, { navigationUI: 'hide' });
-      if (p && p.then) p.then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (e) { /* not on this device */ } }).catch(() => {});
+      // (full screen: the keys for groups — Ctrl + a number — go to the game, not the browser's tabs)
+      if (p && p.then) p.then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (e) { /* not on this device */ } try { navigator.keyboard && navigator.keyboard.lock(['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9']).catch(() => {}); } catch (e) { /* no keyboard lock */ } }).catch(() => {});
     } else if (!on && fsOn()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
   } catch (e) { /* not allowed here */ }
 }

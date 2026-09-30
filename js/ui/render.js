@@ -249,26 +249,61 @@ const ELEV = 8; // the sim's height grid step (ELEV_CELL)
 const rgbOf = h => { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
 const lerp3 = (a, b, u) => a.map((v, i) => v + (b[i] - v) * u);
 // the colour of the land at height e (lines): the grass on the plain, then as in the relief
-// a hill's colour at height e: the grass, darker green the higher it climbs
-const hillRGB = e => lerp3(rgbOf(colors.grass2), rgbOf(colors.tree), Math.min(1, e / 9) * 0.85);
+// a hill's colour at height e (a map anyone reads: green low, browner and lighter going up, light rock at the top):
+// the grass, then olive by the middle lines, then the light hilltop colour
+function hillRGB(e) {
+  const low = rgbOf(colors.grass2), mid = lerp3(low, rgbOf(colors.hill), 0.55), top = rgbOf(colors.hillHi);
+  return e < HYPSO_MID ? lerp3(low, mid, e / HYPSO_MID) : lerp3(mid, top, Math.min(1, (e - HYPSO_MID) / (HILL_TOP - HYPSO_MID)) * 0.8);
+}
+const HYPSO_MID = 4, HILL_TOP = 10;
 function landRGB(e) {
   const grass = lerp3(rgbOf(colors.ground), rgbOf(colors.grass2), 0.5);
   if (e <= 0) return grass;
   return lerp3(grass, hillRGB(e), Math.min(1, e / 1.2) * 0.92);
 }
+// the hills' colour by height (the tint; the light and shade come separately, over the textures: hillShade)
 function relief(E) {
   const cv2 = document.createElement('canvas'); cv2.width = E.w; cv2.height = E.h;
   const c = cv2.getContext('2d'), img = c.createImageData(E.w, E.h), d = img.data, g = E.g;
-  const lerp = lerp3;
-  for (let j = 0; j < E.h; j++) for (let i = 0; i < E.w; i++) {
-    const k = j * E.w + i, e = g[k]; if (e <= 0) continue;
-    const col = hillRGB(e);
-    const dx = (g[k + (i < E.w - 1 ? 1 : 0)] - g[k - (i > 0 ? 1 : 0)]), dy = (g[k + (j < E.h - 1 ? E.w : 0)] - g[k - (j > 0 ? E.w : 0)]);
-    const lit = Math.max(-1, Math.min(1, (-dx - dy) * 1.3)), f = lit > 0 ? [255, 246, 214] : [18, 28, 38], amt = Math.abs(lit) * (lit > 0 ? 0.3 : 0.38);
-    const o = k * 4, m = lerp(col, f, amt);
+  for (let k = 0; k < g.length; k++) {
+    const e = g[k]; if (e <= 0) continue;
+    const m = hillRGB(e), o = k * 4;
     d[o] = m[0]; d[o + 1] = m[1]; d[o + 2] = m[2]; d[o + 3] = 255 * Math.min(1, e / 1.2) * 0.92;
   }
   c.putImageData(img, 0, 0); return cv2;
+}
+// light and shade on the hills, so high and low read at a glance: each slope lit by the sun from the north-west (the
+// side facing it brighter, the far side darker), and the shadow each hill throws to the south-east. Two layers — a
+// dark one and a light one — from the height grid, worked out once per map. SHADE_Z: how tall a contour line is
+// (world units; more = steeper, stronger shading); SUN_UP: how high the sun stands (its shadows' slope).
+const SHADE_Z = 14, SUN_UP = 0.42, SHADE_DARK = 0.44, SHADE_LITE = 0.3, CAST_DARK = 0.24;
+function hillShade(E) {
+  const W = E.w, H = E.h, g = E.g, dark = document.createElement('canvas'), lite = document.createElement('canvas');
+  dark.width = lite.width = W; dark.height = lite.height = H;
+  const dc = dark.getContext('2d'), lc = lite.getContext('2d'), di = dc.createImageData(W, H), li = lc.createImageData(W, H);
+  const at = (i, j) => g[Math.max(0, Math.min(H - 1, j)) * W + Math.max(0, Math.min(W - 1, i))];
+  const L = [-1, -1, 1.4], Ln = Math.hypot(...L), l = L.map(v => v / Ln), flat = l[2];
+  // (the sun's way across the grid, back toward it: a step to the north-west per cell)
+  const step = Math.SQRT2 * ELEV, rise = SUN_UP * step / SHADE_Z; // (how many lines the ray climbs per step)
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const k = j * W + i, e = g[k];
+    // the slope, over two cells each way (smoother than next-door cells)
+    const dx = (at(i + 2, j) - at(i - 2, j)) * SHADE_Z / (4 * ELEV), dy = (at(i, j + 2) - at(i, j - 2)) * SHADE_Z / (4 * ELEV);
+    const n = Math.hypot(dx, dy, 1), lit = (-dx * l[0] - dy * l[1] + l[2]) / n - flat;
+    let sh = lit < 0 ? Math.min(1, -lit * 1.6) * SHADE_DARK : 0, hi = lit > 0 ? Math.min(1, lit * 2.2) * SHADE_LITE : 0;
+    // cast shadow: something higher between here and the sun
+    let h = e, cast = 0;
+    for (let s2 = 1; s2 < 60; s2++) {
+      h += rise; const t = at(i - s2, j - s2); if (t > h) { cast = Math.min(1, (t - h) * 0.9); break; }
+      if (h > HILL_TOP) break;
+    }
+    sh = Math.min(0.7, sh + cast * CAST_DARK); if (cast) hi *= 0.3;
+    di.data[k * 4 + 3] = 255 * sh; li.data[k * 4 + 3] = 255 * hi;
+    di.data[k * 4] = 14; di.data[k * 4 + 1] = 20; di.data[k * 4 + 2] = 34; // (a cool dark)
+    li.data[k * 4] = 255; li.data[k * 4 + 1] = 244; li.data[k * 4 + 2] = 210; // (a warm light)
+  }
+  dc.putImageData(di, 0, 0); lc.putImageData(li, 0, 0);
+  return { dark, lite };
 }
 // contour lines at 1, 2, … lines high, traced over the height grid (marching squares); one path per height
 function contours(E) {
@@ -351,9 +386,14 @@ function drawTerrain(c, W, H, mid) {
   // lakes: shallow rim, water, a darker middle, a glint
   for (const k of decor.lakes) {
     const mud = tilePat(c, 'mud'); c.fillStyle = mud || shade(colors.waterEdge, 0.35 + k.t); c.globalAlpha = mud ? 0.45 : 0.6; c.fill(k.edge); c.globalAlpha = 1;
-    c.fillStyle = shade(colors.water, k.t); c.fill(k.body);
+    // (with the water texture: it, a touch of the theme's water colour over it)
+    const wat = tilePat(c, 'water');
+    if (wat) { c.fillStyle = wat; c.fill(k.body); c.globalAlpha = 0.12; c.fillStyle = shade(colors.water, k.t); c.fill(k.body); c.globalAlpha = 1; }
+    else { c.fillStyle = shade(colors.water, k.t); c.fill(k.body); }
     c.lineWidth = 2; c.strokeStyle = shade(colors.waterEdge, k.t); c.stroke(k.body);
-    c.fillStyle = shade(colors.waterEdge, -0.1 + k.t); c.globalAlpha = 0.45; c.fill(k.deep); c.globalAlpha = 1;
+    // (the deep middle: lighter over the flat colour, darker over the photo of water)
+    if (wat) { c.fillStyle = 'rgb(4,22,32)'; c.globalAlpha = 0.28; } else { c.fillStyle = shade(colors.waterEdge, -0.1 + k.t); c.globalAlpha = 0.45; }
+    c.fill(k.deep); c.globalAlpha = 1;
     const l = k.l; c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1.5;
     c.beginPath(); c.ellipse(l.x - l.rx * 0.25, l.y - l.ry * 0.3, l.rx * 0.3, l.ry * 0.25, l.a, Math.PI * 1.1, Math.PI * 1.6); c.stroke();
   }
@@ -361,13 +401,17 @@ function drawTerrain(c, W, H, mid) {
   // every fifth a little stronger
   const R = decor.hills, key = colors.tree + colors.ground + colors.grass2;
   if (R.theme !== key) { R.relief = relief(s.elev); R.theme = key; }
+  if (R.shadeOf !== s.elev) { R.shade = hillShade(s.elev); R.shadeOf = s.elev; }
   const rocky = tilePat(c, 'rocky');
   if (rocky) c.globalAlpha = RELIEF_OVER_TILES;
   c.drawImage(R.relief, -ELEV / 2, -ELEV / 2, R.relief.width * ELEV, R.relief.height * ELEV);
   c.globalAlpha = 1;
   if (rocky) drawStony(c, rocky);
+  // (the light and shade over it all, the textures too)
+  c.imageSmoothingEnabled = true;
+  for (const L of [R.shade.dark, R.shade.lite]) c.drawImage(L, -ELEV / 2, -ELEV / 2, L.width * ELEV, L.height * ELEV);
   c.strokeStyle = shade(colors.tree, -0.35); c.lineCap = 'round';
-  R.contours.forEach((p, k) => { c.globalAlpha = (k + 1) % 5 ? 0.22 : 0.4; c.lineWidth = (k + 1) % 5 ? 1 : 1.6; c.stroke(p); });
+  R.contours.forEach((p, k) => { c.globalAlpha = (k + 1) % 5 ? 0.13 : 0.26; c.lineWidth = (k + 1) % 5 ? 0.9 : 1.4; c.stroke(p); });
   c.globalAlpha = 1;
   // roads: thin dirt tracks in the colour of the land they cross, only a little lighter, with a faint darker edge
   // (colours per stretch, remade when the theme changes)
@@ -471,7 +515,17 @@ function drawEnemyIntel(c) {
 }
 // where the picture is exact under fog: the full-control ring (a drone's centre, near the HQ); units there are drawn
 // as they are, and our squads report there all the time. Only the fog without command friction shows every seen unit.
-const shownAt = p => !Sim.friction(s) || Sim.quality(s, 'blue', p) >= 1;
+// (and all that a drone or a signals truck of ours sees — as Sim.clearAt, with the eyes gathered once per tick)
+const eyes = { s: null, t: -1, l: [] };
+function clearEyes() {
+  if (eyes.s === s && eyes.t === s.t) return eyes.l;
+  eyes.s = s; eyes.t = s.t; eyes.l = [];
+  for (const n of s.nodes) if (n.side === 'blue' && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready) eyes.l.push({ x: n.x, y: n.y, r2: Sim.DRONE_SIGHT ** 2 });
+  const rr = Sim.TYPES.radio.sight * (1 - 0.4 * Sim.nightAt(s));
+  for (const u of s.units) if (u.side === 'blue' && u.type === 'radio') eyes.l.push({ x: u.x, y: u.y, r2: rr * rr });
+  return eyes.l;
+}
+const shownAt = p => !Sim.friction(s) || clearEyes().some(e => (e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= e.r2) || Sim.quality(s, 'blue', p) >= 1;
 // control quality: a blue wash, deepest at full control and fading smoothly out to nothing (the rings of the rules
 // blend into each other on the map). Worked out once on a grid (a point every QC units) and redone only when the
 // nodes change.
@@ -741,7 +795,8 @@ function drawUnits(c, show) {
     const glow = GLOW[u.type]; if (glow) { c.shadowColor = colors.halo; c.shadowBlur = glow * view.scale; }
     glyphRecoil = Math.max(0, 1 - (s.t - u.lastFire) / 0.25);
     if (u.side === 'blue') hurt.push(u);
-    if (hasSprite(u.type)) { stride(u); drawUnitPic(c, u.type, u.x, u.y, k, colors[u.side], u.hd, aim, glyphRecoil); } // (its picture)
+    // (its picture; a soldier turns to where he fires)
+    if (hasSprite(u.type)) { stride(u); drawUnitPic(c, u.type, u.x, u.y, k, colors[u.side], SPRITE_ACROSS[u.type] && recent ? u.aim : u.hd, aim, glyphRecoil); }
     else glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim, glow ? 0.9 : 1.2, T.air ? 0 : stride(u));
     glyphRecoil = 0;
     if (glow) c.shadowBlur = 0;

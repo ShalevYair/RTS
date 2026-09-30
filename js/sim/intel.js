@@ -8,8 +8,16 @@ function intel(s, side, q) {
   return m && s.t - m.t <= MEMORY ? m : null;
 }
 // how well a side can make out an enemy at p: 2 type and number, 1 ground/air, 0 only "something moves"
+// everything a drone or a signals truck of the side sees is made out in full (and, in the UI, drawn as it is) — not
+// only its full-control ring
+function clearAt(s, side, p) {
+  for (const n of s.nodes) if (n.side === side && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready && dist(n, p) <= DRONE_SIGHT) return true;
+  for (const u of s.units) if (u.side === side && u.type === 'radio' && dist(u, p) <= sightOf(s, u)) return true;
+  return false;
+}
 function idLevel(s, side, p) {
   if (!friction(s)) return 2;
+  if (clearAt(s, side, p)) return 2;
   const q = quality(s, side, p);
   return q >= ID_FULL ? 2 : q >= ID_CLASS ? 1 : 0;
 }

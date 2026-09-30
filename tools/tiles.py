@@ -7,7 +7,7 @@ import base64, io, json, os
 from PIL import Image, ImageChops
 
 ROOT = os.path.join(os.path.dirname(__file__), '..')
-NAMES = ['grass1', 'grass2', 'dirt', 'rocky', 'mud']
+NAMES = ['grass1', 'grass2', 'dirt', 'rocky', 'mud', 'water']  # (water: the lakes, only once it's there)
 SIZE = 512
 
 def seamless(im):
