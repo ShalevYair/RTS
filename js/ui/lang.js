@@ -2,7 +2,7 @@
 // data-t (text), data-al (aria-label) and data-tip (the short tooltip); the scripts call tr(key, …args).
 let lang = 'he';
 try { const l = localStorage.getItem('irts-lang'); if (l === 'he' || l === 'en') lang = l; } catch (e) { /* storage unavailable */ }
-const EN_TYPES = { inf: 'Infantry', tank: 'Tanks', air: 'Aircraft', aa: 'Anti-air', at: 'Anti-tank', jeep: 'Jeeps', ajeep: 'AA jeeps', tjeep: 'AT jeeps', med: 'Medics', mech: 'Mechanics', truck: 'Supply trucks' };
+const EN_TYPES = { inf: 'Infantry', tank: 'Tanks', air: 'Aircraft', aa: 'Anti-air', at: 'Anti-tank', jeep: 'Jeeps', ajeep: 'AA jeeps', tjeep: 'AT jeeps', med: 'Medics', mech: 'Mechanics', truck: 'Supply trucks', dozer: 'Bulldozers', radio: 'Signals trucks' };
 const EN_STRUCTS = { hq: 'HQ', fhq: 'Forward HQ', drone: 'Drone', tent: 'Tent', aapost: 'AA post', atpost: 'AT post', decoy: 'Fake HQ', jeepshop: 'Jeep workshop', jeepaa: 'AA jeep workshop', jeepat: 'AT jeep workshop', tankshop: 'Tank workshop', airfield: 'Airfield', clinic: 'Medic station', garage: 'Garage', depot: 'Supply depot' };
 const EN_NAMES = { 'כהן': 'Cohen', 'לוי': 'Levi', 'מזרחי': 'Mizrahi', 'פרץ': 'Peretz', 'ביטון': 'Biton', 'אברהם': 'Avraham', 'פרידמן': 'Friedman', 'אזולאי': 'Azoulay', 'דהן': 'Dahan', 'שפירא': 'Shapira' };
 const EN_DIFFS = { easy: 'Easy', normal: 'Normal', hard: 'Hard' };
@@ -26,7 +26,7 @@ const STR = {
     home: '🏠 שלבים', tipHome: 'חזרה למסך השלבים', restart: '↻ משחק חדש', tipRestart: 'להתחיל מחדש',
     fog: 'ערפל', on: 'פעיל', off: 'כבוי', mapSize: 'מפה', big: 'גדולה', small: 'קטנה', huge: 'ענקית', diff: 'קושי',
     tipFogOn: 'רואים רק מה שהכוחות רואים', tipFogOff: 'רואים הכל', tipBig: 'מפה גדולה, עם גלילה', tipSmall: 'כל המפה במסך', tipHuge: 'מפה ענקית, פי 4 מהגדולה: משחק ארוך',
-    go: 'התחל', turn: 'סובב את הטלפון לרוחב', level: n => `שלב ${n}`, full: 'משחק מלא',
+    go: 'התחל', menuSub: 'THE COMMANDER', campaign: 'מערכה', playGame: 'התחל משחק', learn: 'לימוד', learnNote: 'בחר שלב: כל שלב מוסיף דבר אחד.', wiki: 'הדרכה', more: 'הגדרות נוספות', mainScreen: '🏠 מסך ראשי', sureHome: 'לצאת מהמשחק?', yes: 'כן', no: 'לא', back: 'חזרה', close: 'סגור', turn: 'סובב את הטלפון לרוחב', level: n => `שלב ${n}`, full: 'משחק מלא',
     again: 'שוב', share: 'שתף 🔗', copied: 'הועתק ✓', levels: '🏠 שלבים',
     replay: 'שחזור: מה ידעת מול מה קרה', replayT: 'זמן בשחזור', replayKey: '● מה קרה באמת · ○ מה ידעת',
     endStats: (err, n, d, off, a, m, ff, un) => `טעות בתמונה: ${err} · פקודות: ${n}, בדרך ${d} ש׳, סטייה ${off}, לא ברורות ${un} · שיחות: ענית ${a}, החליטו לבד ${m} · ⚠ ירי על כוחותינו: ${ff}`,
@@ -38,8 +38,8 @@ const STR = {
     call: (boss, name) => `📞 סרן ${boss} (${name}): לחץ כבד. להחזיק או לסגת?`,
     sqTip: (name, boss, home) => `${name} · סרן ${boss}${home ? '' : ' · בלי מבנה, בלי תגבורת'}`,
     buildItem: (sec, unit) => `${unit} · כל ${sec} ש׳`,
-    placeHq: 'בחר איפה להקים את המפקדה 🏰 — ברצועה הירוקה. הטנקים ייסעו לשם.', hqWhy: { band: 'רק ברצועה הירוקה בצד שלך', bad: 'אי אפשר כאן' },
-    why: { nohq: 'קודם מקימים את המפקדה 🏰', q: 'השליטה כאן חלשה מדי לבנייה', limit: 'המכסה מלאה — הקם 🏕️ פיקוד קדמי', gap: 'קרוב מדי למבנה אחר', bad: 'מחוץ למפה' },
+    placeHq: 'בחר איפה להקים את המפקדה 🏰 — ברצועה הירוקה. הטרקטור 🚜 ייסע לשם ויקים אותה.', hqWhy: { nodozer: 'אין טרקטור 🚜 שיקים אותה', band: 'רק ברצועה הירוקה בצד שלך', bad: 'אי אפשר כאן' },
+    why: { nodozer: 'אין טרקטור 🚜 — הוא בונה את המבנים', nohq: 'קודם מקימים את המפקדה 🏰', q: 'השליטה כאן חלשה מדי לבנייה', limit: 'המכסה מלאה — הקם 🏕️ פיקוד קדמי', gap: 'קרוב מדי למבנה אחר', bad: 'מחוץ למפה' },
     noVoice: 'אין קול עברי במכשיר, רק צליל קשר',
     b_tent: 'חי"ר: זול ומהיר, מחזיק שטח', b_aapost: 'נ"מ: פוגע במטוסים ורחפנים', b_jeepshop: "ג'יפים: מהירים ורואים רחוק; חזקים מול חי\"ר",
     b_atpost: 'נ"ט: חיילים עם טילים נגד טנקים ורכבים', b_jeepaa: "ג'יפי נ\"מ: מהירים, נגד מטוסים; זמן ייצור כפול", b_jeepat: "ג'יפי נ\"ט: מהירים, נגד טנקים; זמן ייצור כפול",
@@ -49,12 +49,12 @@ const STR = {
     t_goal1: 'המטרה: לשבור את האויב — להשמיד את המפקדה שלו, או להוריד את כל הצבא שלו (כוחות ומבנים) מתחת לקו. נתחיל בפשוט: כוח מול כוח.',
     t_level: (n, of, hq, k) => `שלב ${n} מתוך ${of}. המטרה: ${hq ? 'להשמיד את המפקדה של האויב, או ' : ''}להוריד את האויב מתחת ל-${k}% מהעוצמה. הנה מה שחדש:`,
     t_free: k => `המשחק המלא. המטרה: להשמיד את המפקדה של האויב, או להוריד את כל הצבא שלו מתחת ל-${k}%. יש כאן הכל, ועוד כמה דברים חדשים:`,
-    t_placeHq: 'קודם כל: בחר איפה להקים את המפקדה — איפשהו ברצועה הירוקה בצד שלך. טנקי הפיקוד ייסעו לשם. עד שהיא קמה אין בנייה, ואם הטנקים נופלים — הפסדת.',
+    t_placeHq: 'קודם כל: בחר איפה להקים את המפקדה — איפשהו ברצועה הירוקה בצד שלך. הטרקטור 🚜 ייסע לשם ויקים אותה — וגם כל מבנה אחר, רק כשהוא עומד לידו. עד שהמפקדה קמה אין בנייה, ואם טנקי הפיקוד נופלים — הפסדת. משאית הקשר 📡 רואה רחוק; כל שתי דקות המפקדה שולחת עוד טרקטור ועוד משאית.',
     t_decoy: 'בתפריט הבנייה: 🏰🎭 מפקדה מזויפת. בערפל האויב חושב שזו המפקדה שלך ותוקף אותה.',
     t_silent: '📻 / 🤫 שקט אלחוטי לכוח שבחרת: לא מדווח, נע לאט ובלי אבק — והאויב לא שומע אותו. רכב שנוסע מהר מעלה אבק שנראה מרחוק.',
     t_night: '🌙 כל כמה דקות יורד לילה: רואים פחות והפקודות איטיות. רחפנים ומבנים רואים כרגיל. מפקד ששורד קרבות צובר ניסיון ⭐.',
     t_scale: k => `מפה גדולה: פי ${k} מבנים ופיקודים קדמיים.`,
-    ni_build: n => `בבנייה · עוד ${n} ש׳`, ni_next: (u, n) => `${u} הבא בעוד ${n} ש׳`, ni_full: 'הכוח מלא', ni_seen: n => `נראה לפני ${n} ש׳`,
+    ni_build: n => `בבנייה · עוד ${n} ש׳`, ni_next: (u, n) => `${u} הבא בעוד ${n} ש׳`, ni_full: 'הכוח מלא', ni_site: n => `נבנה · ${n}%`, ni_wait: n => `${n}% · ממתין לטרקטור 🚜`, fhqCan: 'אפשר להקים פיקוד קדמי 🏕️', droneCan: 'אפשר להטיס רחפן', ni_seen: n => `נראה לפני ${n} ש׳`,
     t_you: 'זה הכוח שלך (כחול). האויב — באדום.',
     t_hq: 'המפקדה שלך. אם היא נופלת — הפסדת (וכך גם האויב). חיילים שעומדים לידה בלי קרב מתקנים אותה, וכך כל מבנה.',
     t_power: n => `העוצמה שלך מכל הכוחות במפה. מי שיורד מתחת ל-${n}% — מפסיד. המטרה: לשבור את האויב.`,
@@ -85,7 +85,7 @@ const STR = {
     home: '🏠 Levels', tipHome: 'Back to the level screen', restart: '↻ New game', tipRestart: 'Start over',
     fog: 'Fog', on: 'On', off: 'Off', mapSize: 'Map', big: 'Big', small: 'Small', huge: 'Huge', diff: 'Level',
     tipFogOn: 'You see only what your forces see', tipFogOff: 'You see everything', tipBig: 'A big map, scrolling', tipSmall: 'The whole map on screen', tipHuge: 'A huge map, 4× the big one: a long game',
-    go: 'Start', turn: 'Turn the phone sideways', level: n => `Level ${n}`, full: 'Full game',
+    go: 'Start', menuSub: 'Real-time command', campaign: 'Campaign', playGame: 'Start game', learn: 'Tutorial', learnNote: 'Pick a level: each one adds one thing.', wiki: 'Guide', more: 'More settings', mainScreen: '🏠 Main screen', sureHome: 'Leave this game?', yes: 'Yes', no: 'No', back: 'Back', close: 'Close', turn: 'Turn the phone sideways', level: n => `Level ${n}`, full: 'Full game',
     again: 'Again', share: 'Share 🔗', copied: 'Copied ✓', levels: '🏠 Levels',
     replay: 'Replay: what you knew vs what happened', replayT: 'Replay time', replayKey: '● what happened · ○ what you knew',
     endStats: (err, n, d, off, a, m, ff, un) => `Picture off by: ${err} · orders: ${n}, ${d} s on the way, off by ${off}, unclear ${un} · calls: answered ${a}, decided alone ${m} · ⚠ friendly fire: ${ff}`,
@@ -97,8 +97,8 @@ const STR = {
     call: (boss, name) => `📞 Capt. ${boss} (${name}): heavy pressure. Hold or retreat?`,
     sqTip: (name, boss, home) => `${name} · Capt. ${boss}${home ? '' : ' · no building, no reinforcements'}`,
     buildItem: (sec, unit) => `${unit} · every ${sec} s`,
-    placeHq: 'Pick where your HQ 🏰 goes, in the green strip. The tanks will drive there.', hqWhy: { band: 'Only in the green strip on your side', bad: 'Not here' },
-    why: { nohq: 'Set up the HQ 🏰 first', q: 'Control here is too weak to build', limit: 'No free slot — set up a 🏕️ forward HQ', gap: 'Too close to another building', bad: 'Off the map' },
+    placeHq: 'Pick where your HQ 🏰 goes, in the green strip. The bulldozer 🚜 drives there and puts it up.', hqWhy: { nodozer: 'No bulldozer 🚜 to put it up', band: 'Only in the green strip on your side', bad: 'Not here' },
+    why: { nodozer: 'No bulldozer 🚜 — it puts the buildings up', nohq: 'Set up the HQ 🏰 first', q: 'Control here is too weak to build', limit: 'No free slot — set up a 🏕️ forward HQ', gap: 'Too close to another building', bad: 'Off the map' },
     noVoice: 'No English voice on this device, only a radio sound',
     b_tent: 'Infantry: cheap and quick, holds ground', b_aapost: 'Anti-air: hits aircraft and drones', b_jeepshop: 'Jeeps: fast, see far; strong vs infantry',
     b_atpost: 'Anti-tank: soldiers with missiles against tanks and vehicles', b_jeepaa: 'AA jeeps: fast, against aircraft; twice as long to make', b_jeepat: 'AT jeeps: fast, against tanks; twice as long to make',
@@ -108,12 +108,12 @@ const STR = {
     t_goal1: 'The goal: break the enemy — destroy its HQ, or bring its whole army (forces and buildings) below the line. We start simple: force against force.',
     t_level: (n, of, hq, k) => `Level ${n} of ${of}. The goal: ${hq ? 'destroy the enemy HQ, or ' : ''}bring the enemy below ${k}% of the power. Here's what's new:`,
     t_free: k => `The full game. The goal: destroy the enemy HQ, or bring its whole army below ${k}%. Everything is here, and a few new things:`,
-    t_placeHq: 'First: pick where your HQ goes — anywhere in the green strip on your side. The command tanks drive there. Until it stands there is no building, and if the tanks fall, you lose.',
+    t_placeHq: 'First: pick where your HQ goes — anywhere in the green strip on your side. The bulldozer 🚜 drives there and puts it up — and every other building too, only while it stands by it. Until the HQ stands there is no building, and if the command tanks fall, you lose. The signals truck 📡 sees far; every two minutes the HQ sends another bulldozer and another truck.',
     t_decoy: 'In the build menu: 🏰🎭 a fake HQ. Under fog the enemy takes it for yours and attacks it.',
     t_silent: '📻 / 🤫 radio silence for the picked squad: no reports, slow and dustless — and the enemy can\'t hear it. A vehicle driving fast raises dust seen from afar.',
     t_night: '🌙 Every few minutes night falls: shorter sight, slower orders. Drones and buildings see as usual. A commander who survives fights gains experience ⭐.',
     t_scale: k => `A big map: ${k}× the buildings and forward HQs.`,
-    ni_build: n => `building · ${n}s left`, ni_next: (u, n) => `next ${u} in ${n}s`, ni_full: 'squad full', ni_seen: n => `seen ${n}s ago`,
+    ni_build: n => `building · ${n}s left`, ni_next: (u, n) => `next ${u} in ${n}s`, ni_full: 'squad full', ni_site: n => `going up · ${n}%`, ni_wait: n => `${n}% · waiting for a bulldozer 🚜`, fhqCan: 'A forward HQ 🏕️ can be set up', droneCan: 'A drone is ready to fly', ni_seen: n => `seen ${n}s ago`,
     t_you: 'This is your force (blue). The enemy is red.',
     t_hq: 'Your HQ. If it falls, you have lost (and so has the enemy if theirs does). Soldiers standing by it with no fight repair it, and any building.',
     t_power: n => `Your share of all the power on the map. Whoever drops below ${n}% loses. The goal: break the enemy.`,
@@ -163,6 +163,8 @@ function showTip(text, r, nav) {
 }
 const hideTip = () => { tipEl.hidden = true; tipFor = null; };
 const rectOf = el => el.getBoundingClientRect();
+// a note by a button (its id), for a few seconds
+function noteBy(id, text) { const el = $(id); if (!el || el.hidden || el.offsetParent === null) return; const r = rectOf(el); toast(text, r.left + r.width / 2, r.top, 3500); }
 // a short note at a spot on the screen (why a building can't go there, …)
 function toast(text, x, y, ms = 2200) {
   if (tour) return;

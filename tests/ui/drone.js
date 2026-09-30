@@ -22,13 +22,13 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.mouse.click(box.x + box.width * 0.72, box.y + box.height * 0.5);
     await p.waitForTimeout(12000);
     const after = await p.evaluate(() => document.getElementById('eyeN').textContent);
-    // forward HQ: select the tanks and 🏕 then a spot on the map
-    await p.click('[data-ty="jeep"]'); const fhqEnabled = await p.isEnabled('#fhq'); await p.click('#fhq'); await p.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.6);
+    // forward HQ (the full game: set up by a bulldozer): select it and 🏕 then a spot on the map
+    await p.click('[data-ty="dozer"]'); const fhqEnabled = await p.isEnabled('#fhq'); await p.click('#fhq'); await p.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.6);
     await p.waitForTimeout(400); const fhqCd = await p.textContent('#fhqN');
     await p.click('[data-ty="inf"]'); const fhqInf = await p.isEnabled('#fhq');
     await p.screenshot({ path: `${OUT}/${name}-eye.png` });
     // fog off hides the drone button
-    console.log(name, 'charges', JSON.stringify(before), '->', JSON.stringify(after), 'armed', armed, 'radioNote', JSON.stringify(note), 'fhq enabled for jeeps', fhqEnabled, 'cooldown', JSON.stringify(fhqCd), 'enabled for infantry', fhqInf, 'errors', errs);
+    console.log(name, 'charges', JSON.stringify(before), '->', JSON.stringify(after), 'armed', armed, 'radioNote', JSON.stringify(note), 'fhq enabled for the bulldozer', fhqEnabled, 'cooldown', JSON.stringify(fhqCd), 'enabled for infantry', fhqInf, 'errors', errs);
     await ctx.close();
   }
   await b.close();

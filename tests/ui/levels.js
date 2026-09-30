@@ -1,4 +1,4 @@
-// Tutorial UI: a first visit opens on level 1 with no words; each level shows only its controls and the new ones
+// Tutorial UI: the tutorial's levels (level 1 open on a first visit), few words on the menu; each level shows only its controls and the new ones
 // pulse; winning opens the next level; the HQ and the drone are pictures
 const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs');
@@ -17,9 +17,10 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const intro = await p.evaluate(() => ({
       levels: [...document.querySelectorAll('#levels button')].map(x => (x.disabled ? '-' : '') + x.textContent + (x.getAttribute('aria-pressed') === 'true' ? '*' : '')).join(' '),
       words: document.querySelector('#intro .card').innerText.replace(/\s+/g, ' ').trim() }));
-    check(name, /^1\* -2 .* ∞$/.test(intro.levels) && intro.words.length < 60, `first visit: level 1 picked, the rest locked (${intro.levels}); on screen: "${intro.words}"`);
+    check(name, /^1\* -2 .* -11$/.test(intro.levels) && intro.words.length < 90, `first visit: level 1 picked, the rest locked (${intro.levels}); on screen: "${intro.words}"`);
     await p.screenshot({ path: `${OUT}/${name}-lv-intro.png` });
-    await p.click('#go'); await p.waitForTimeout(300); await p.evaluate(() => tourNext(true)); // (the tour is tests/ui/tour.js)
+    // the tutorial: "tutorial" in the side panel, then a level (▶ "start game" is the full game)
+    await p.click('#learn'); await p.click('#levels button:first-child'); await p.waitForTimeout(300); await p.evaluate(() => tourNext(true)); // (the tour is tests/ui/tour.js)
     const bar1 = { sq: await shown('#gSq'), ord: await shown('#gOrd'), bld: await shown('#bld'), eye: await shown('#eye'), log: await shown('#log') };
     check(name, Object.values(bar1).every(v => !v), `level 1: no squad buttons, orders, building, drone, log ${JSON.stringify(bar1)}`);
     await p.screenshot({ path: `${OUT}/${name}-lv1.png` });

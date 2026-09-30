@@ -31,7 +31,7 @@ function issue(type, x, y, fa, foe) {
 }
 function setPlaying(p) { if (s.over) p = false; playing = p; syncButtons(); }
 // the settings stop the game while they're open, and closing them goes on
-function openMenu() { if (!menu.hidden) return; menu.hidden = false; $('gear').setAttribute('aria-expanded', 'true'); hideTip(); setPlaying(false); placeFloating(); syncButtons(); }
+function openMenu() { if (!menu.hidden) return; menu.hidden = false; $('homeSure').hidden = true; $('gear').setAttribute('aria-expanded', 'true'); hideTip(); setPlaying(false); placeFloating(); syncButtons(); }
 function closeMenu(go = true) {
   if (menu.hidden) return;
   menu.hidden = true; $('gear').setAttribute('aria-expanded', 'false');
@@ -119,9 +119,9 @@ function updateHud() {
   $('bld').classList.toggle('nudge', !!s.t && !buildFull() && !buildArmed && $('buildm').hidden && !s.over && playing && !(s.hqPending && s.hqPending.blue));
   // open field: 🏰 pulses until a spot is picked; the first time, a note on the map says so
   $('hqb').hidden = !hqToPlace(); $('hqb').classList.toggle('nudge', hqToPlace() && !hqPlanned() && !hqArmed);
-  if (hqToPlace() && !hqPlanned() && playing && !hqTold && fit) { hqTold = true; const [a, b] = Sim.hqBand(s, 'blue'), p = onScreen((a + b) / 2, s.H / 2); toast(tr('placeHq'), Math.max(120, p.x), Math.min(fit.top + fit.h - 60, Math.max(fit.top + 60, p.y))); }
+  if (hqToPlace() && !hqPlanned() && playing && !hqTold && fit) { hqTold = true; const [a, b] = Sim.hqBand(s, 'blue'), p = onScreen((a + b) / 2, s.H / 2); Radio.hear({ kind: 'placeHq' }); toast(tr('placeHq'), Math.max(120, p.x), Math.min(fit.top + fit.h - 60, Math.max(fit.top + 60, p.y))); }
   // and 🏕️ pulses whenever a forward HQ can be set up
-  $('fhq').classList.toggle('nudge', uiHas('fhq') && !!s.t && playing && !fhqArmed && s.cd.blue.fhq <= 0 && Sim.fhqCount(s, 'blue') < Sim.fhqMax(s) && fhqBuilders().length > 0);
+  $('fhq').classList.toggle('nudge', uiHas('fhq') && !!s.t && playing && !fhqArmed && s.cd.blue.fhq <= 0 && Sim.fhqCount(s, 'blue') < Sim.fhqMax(s) && fhqCrews().length > 0);
   renderSquadButtons();
   // drones: how many in hand, and a bar until the next one; forward HQ: seconds until the next, and a refill bar
   const cd = s.cd.blue, N = Sim.NODES, D = s.drones.blue;
@@ -172,7 +172,7 @@ $('all').addEventListener('click', () => select('all'));
 // Groups (this game only, in the UI): squads tied together with 🔗 act as one — picked together (also by tapping any
 // of them on the map), ordered together, in rows facing the enemy; ✂ unties them. A squad is in one group at most;
 // a group down to one squad is gone.
-const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'med', 'mech', 'truck'];
+const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'med', 'mech', 'truck', 'dozer', 'radio'];
 let groups = [], nextGroup = 1;
 const groupOf = id => groups.find(g => g.ids.includes(id));
 const aliveBlue = () => new Set(s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id));
@@ -239,7 +239,7 @@ function drawGroupIcon(cvs, kinds) {
 }
 // a squad's button: the unit as it looks on the map (our colour, outlined), big
 function drawSquadIcon(cvs, type) {
-  const c = cvs.getContext('2d'), k = { air: 28, tank: 21, jeep: 23, ajeep: 23, tjeep: 23, mech: 19, truck: 21 }[type] || 28;
+  const c = cvs.getContext('2d'), k = { air: 28, tank: 21, jeep: 23, ajeep: 23, tjeep: 23, mech: 19, truck: 21, dozer: 22, radio: 20 }[type] || 28;
   c.clearRect(0, 0, 64, 64);
   const x = type === 'tank' ? 25 : type === 'mech' ? 40 : type === 'inf' || type === 'aa' || type === 'at' ? 29 : 32, y = type === 'inf' || type === 'med' || type === 'aa' || type === 'at' ? 35 : 32;
   if (hasSprite(type)) { const a = type === 'air' ? -Math.PI / 4 : 0; drawUnitPic(c, type, 32, 32, k * (type === 'air' ? 0.85 : 0.95), colors.blue, a, a); }
@@ -298,7 +298,7 @@ $('bld').addEventListener('click', toggleBuild);
 const onScreen = (x, y) => ({ x: view.cox + x * view.css, y: view.coy + y * view.css });
 function placeBuilding(x, y) {
   const why = Sim.buildCheck(s, 'blue', x, y, buildArmed);
-  if (why) { const p = onScreen(x, y); toast(tr('why')[why], p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y);
+  if (why) { const p = onScreen(x, y); toast(tr('why')[why], p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y, pickedDozer());
   if (!why) buildArmed = null;
   syncButtons(); updateHud();
 }
@@ -307,29 +307,46 @@ document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click'
   syncButtons();
 }));
 // the intro has no words: the level path and ▶ (and the language). The full game (∞) adds its settings.
+// the menu's pictures (when tools/tiles.py found them)
+if (typeof MENU_ART === 'object') for (const [k, v] of [['--menuArt', MENU_ART.wide], ['--menuArtTall', MENU_ART.tall]]) if (v) $('intro').style.setProperty(k, `url("${new URL(v, location.href).href}")`); // (in full: a url() in a variable is read relative to the stylesheet)
+// the moving one: plays only while the menu shows (and not for reduced motion); fades in once it's running
+const menuVid = $('menuVid'), vidOk = typeof MENU_ART === 'object' && MENU_ART.video && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (vidOk) { menuVid.src = MENU_ART.video; menuVid.addEventListener('playing', () => menuVid.classList.add('on')); }
+function menuVideo(on) { if (!vidOk) return; if (on) menuVid.play().catch(() => { /* not allowed yet: the still picture stays */ }); else menuVid.pause(); }
+// music, radio, explosions and full screen live in the in-game settings; on the main menu, under "more settings"
+const SHARED_ROWS = ['music', 'radio', 'sfx', 'fs'].map(id => $(id).closest('.mrow'));
+function moveShared(toMenu) { const box = toMenu ? $('moreBox') : $('menu'), before = toMenu ? null : $('menu').querySelector('[data-lang]').closest('.mrow'); for (const r of SHARED_ROWS) box.insertBefore(r, before); }
 function showIntro(on) {
-  $('intro').hidden = !on; if (!on) return;
-  hideTip(); $('freeOpts').hidden = !!lvl; renderLevels(); setPlaying(false); $('go').focus();
+  $('intro').hidden = !on; Tracks.setMode(on ? 'menu' : 'game'); menuVideo(on); moveShared(on); if (!on) return;
+  hideTip(); sidePage('main'); renderLevels(); setPlaying(false); $('go').focus();
+}
+// the side panel's pages: the settings, or the tutorial's levels
+function sidePage(p) { $('sideMain').hidden = p !== 'main'; $('sideLevels').hidden = p !== 'levels'; }
+$('learn').addEventListener('click', () => { renderLevels(); sidePage('levels'); });
+$('lvBack').addEventListener('click', () => sidePage('main'));
+$('moreBtn').addEventListener('click', () => { const b = $('moreBox'); b.hidden = !b.hidden; $('moreBtn').setAttribute('aria-expanded', String(!b.hidden)); });
+// a game starts: the full one (no tutorial: as if it were skipped), or a tutorial level with its tour
+function startGame(level) {
+  if (fsWant && fsCan()) fullScreen(true);
+  lvl = level; newGame(true); showIntro(false);
+  // a tutorial level, once per visit: the goal in a few words and what's new, one by one, then the fight
+  // (irts-tour = 99: never — the UI tests)
+  if (lvl && toured !== 99 && !tourSeen.has(lvl)) { tourSeen.add(lvl); toured = Math.max(toured, lvl); try { localStorage.setItem('irts-tour', String(toured)); } catch (e) { /* ignore */ } runTour(levelTour(lvl), () => setPlaying(true)); }
+  else setPlaying(true);
 }
 function renderLevels() {
   const box = $('levels'); box.textContent = ''; box.setAttribute('aria-label', tr('level', ''));
   for (let n = 1; n <= Sim.LEVELS + 1; n++) {
-    const k = n > Sim.LEVELS ? 0 : n, b = document.createElement('button');
+    if (n > Sim.LEVELS) break; // (the tutorial's levels only: the full game is "start")
+    const k = n, b = document.createElement('button');
     b.textContent = k ? String(k) : '∞'; b.setAttribute('aria-label', k ? tr('level', k) : tr('full'));
     b.setAttribute('aria-pressed', String(k === lvl)); b.classList.toggle('won', !!k && k <= done);
     b.disabled = !!k && k > done + 1; // a level opens when the one before it is won; the full game is always open
-    b.addEventListener('click', () => { if (k === lvl) return; lvl = k; newGame(); });
+    b.addEventListener('click', () => startGame(k));
     box.appendChild(b);
   }
 }
-$('go').addEventListener('click', () => {
-  if (fsWant && fsCan()) fullScreen(true);
-  showIntro(false);
-  // each level (and the full game), once per visit: the goal in a few words and what's new, one by one, then the fight
-  // (irts-tour = 99: never — the UI tests)
-  if (toured !== 99 && !s.t && !tourSeen.has(lvl)) { tourSeen.add(lvl); toured = Math.max(toured, lvl); try { localStorage.setItem('irts-tour', String(toured)); } catch (e) { /* ignore */ } runTour(lvl ? levelTour(lvl) : freeTour(), () => setPlaying(true)); }
-  else setPlaying(true);
-});
+$('go').addEventListener('click', () => startGame(0));
 // the tour: what each level step brings, pointing at its control (or at a spot on the map for what has none)
 let toured = 0; const tourSeen = new Set();
 try { toured = +localStorage.getItem('irts-tour') || 0; } catch (e) { /* storage unavailable */ }
@@ -414,23 +431,25 @@ let fhqArmed = false;
 // open field: 🏰, then a spot in our strip; the command tanks drive there and set the HQ up (armed at the start)
 let hqArmed = false, hqTold = false;
 const hqToPlace = () => !!(s.hqPending && s.hqPending.blue && !s.nodes.some(n => n.side === 'blue' && n.kind === 'hq') && Sim.cmdSquad(s, 'blue'));
-const hqPlanned = () => { const c = Sim.cmdSquad(s, 'blue'); return !!(c && c.hqAt); };
+const hqPlanned = () => s.squads.some(q => q.side === 'blue' && q.hqAt && !q.dead);
 function armHq() { hqArmed = !hqArmed && hqToPlace(); if (hqArmed) { eyeArmed = false; buildArmed = null; fhqArmed = false; $('buildm').hidden = true; } syncButtons(); }
 $('hqb').addEventListener('click', armHq);
 function placeHq(x, y) {
   const why = Sim.hqCheck(s, 'blue', x, y);
   if (why) { const p = onScreen(x, y); toast(tr('hqWhy')[why] || tr('hqWhy').bad, p.x, p.y); return; }
-  Sim.planHq(s, 'blue', x, y); hqArmed = false; syncButtons(); updateHud();
+  Sim.planHq(s, 'blue', x, y, pickedDozer()); hqArmed = false; syncButtons(); updateHud();
 }
-const fhqBuilders = () => s.squads.filter(q => q.side === 'blue' && Sim.canBuildFhq(s, q));
+// the bulldozer picked (one squad of them), if any: it's the one that goes to build
+const pickedDozer = () => { const id = oneSel(); const q = id && s.squads.find(q => q.id === id); return q && q.type === 'dozer' ? q.id : undefined; };
+const fhqCrews = () => s.squads.filter(q => q.side === 'blue' && Sim.canBuildFhq(s, q));
 function buildHere() {
   if (fhqArmed) { fhqArmed = false; syncButtons(); return; }
   if (s.cd.blue.fhq > 0 || Sim.fhqCount(s, 'blue') >= Sim.fhqMax(s)) return;
-  if (!fhqBuilders().length) { for (const b of document.querySelectorAll('#sqs button')) if (btnIds(b).some(id => ['jeep', 'ajeep', 'tjeep', 'tank'].includes(s.squads.find(q => q.id === id).type))) blink(b); return; }
+  if (!fhqCrews().length) { for (const b of document.querySelectorAll('#sqs button')) if (btnIds(b).some(id => Sim.fhqBuilders(s).includes(s.squads.find(q => q.id === id).type))) blink(b); return; }
   fhqArmed = true; eyeArmed = false; buildArmed = null; $('buildm').hidden = true; syncButtons();
 }
 function placeFhq(x, y) {
-  const list = fhqBuilders(), picked = list.find(q => isSel(q.id) && sel !== 'all');
+  const list = fhqCrews(), picked = list.find(q => isSel(q.id) && sel !== 'all');
   const q = picked || list.sort((a, b) => Math.hypot(pos(a).x - x, pos(a).y - y) - Math.hypot(pos(b).x - x, pos(b).y - y))[0];
   if (q) Sim.planFhq(s, q.id, x, y);
   fhqArmed = false; syncButtons(); updateHud();
@@ -471,10 +490,11 @@ $('share').addEventListener('click', async () => {
   } catch (e) { /* share cancelled or clipboard blocked */ }
 });
 $('help').addEventListener('click', () => { closeMenu(false); fullTour(); });
-// 🏠: back to the level screen (▶ there goes on with this game; a level starts a new one)
-$('home').addEventListener('click', () => { closeMenu(false); showIntro(true); });
+// the main screen, from a game: asked first (the game is left)
+$('home').addEventListener('click', () => { $('homeSure').hidden = false; });
+$('homeNo').addEventListener('click', () => { $('homeSure').hidden = true; });
+$('homeYes').addEventListener('click', () => { $('homeSure').hidden = true; closeMenu(false); newGame(); });
 $('gear').addEventListener('click', () => { if (menu.hidden) openMenu(); else closeMenu(); });
-$('restart').addEventListener('click', () => { closeMenu(false); newGame(); });
 // the order symbols (the same as on the map)
 $('callHold').innerHTML = orderSvg('hold'); $('callBack').innerHTML = orderSvg('retreat');
 $('power').dataset.tip = 'power'; $('power').tipText = () => tr('power', pctLose());

@@ -327,6 +327,42 @@ const Music = (() => {
   }
   return { start, stop, unlock, setVolume, setSfxVolume, boom, shot, squelch, _debug: { render, playAll, tones, song: () => song.name, next: () => { nextSong(); return song.name; }, voices: () => voices } };
 })();
+// ---- the soundtrack: recorded pieces (music/) — the theme on the main menu, the others in the game in random order,
+// one after another with a crossfade. If they can't be played, the generated music above instead ----
+const Tracks = (() => {
+  const MENU = 'music/theme.mp3', GAME = ['music/planning.mp3', 'music/iron_line.mp3', 'music/breakthrough.mp3', 'music/ashes.mp3', 'music/last_stand.mp3'];
+  const FADE = 3; // seconds
+  let mode = 'menu', vol = 0.3, on = false, cur = null, last = '', failed = false;
+  const fade = (a, to, sec, then) => {
+    clearInterval(a.fadeT); const v0 = a.volume, t0 = performance.now();
+    a.fadeT = setInterval(() => { const k = Math.min(1, (performance.now() - t0) / (sec * 1000)); a.volume = Math.max(0, Math.min(1, v0 + (to - v0) * k)); if (k >= 1) { clearInterval(a.fadeT); a.fadeT = 0; then && then(); } }, 50);
+  };
+  const pick = () => { if (mode === 'menu') return MENU; const pool = GAME.filter(f => f !== last); return (last = pool[Math.floor(Math.random() * pool.length)]); };
+  function play(src) {
+    const old = cur, a = new Audio(src); cur = a;
+    a.volume = 0; a.loop = mode === 'menu';
+    a.onerror = () => { if (a === cur) { failed = true; cur = null; if (on) Music.start(); } };
+    // (a few seconds before a piece ends, the next one fades in over it)
+    a.ontimeupdate = () => { if (a === cur && !a.loop && on && a.duration && a.currentTime > a.duration - FADE) play(pick()); };
+    a.play().then(() => fade(a, vol, FADE)).catch(() => { if (a === cur) cur = null; }); // (not allowed before a tap: tried again then)
+    if (old) fade(old, 0, FADE, () => old.pause());
+  }
+  return {
+    ok: () => !failed,
+    start() { on = true; if (failed) return; if (!cur || cur.paused) play(pick()); },
+    stop() { on = false; if (cur) { const a = cur; cur = null; fade(a, 0, 0.6, () => a.pause()); } },
+    setVolume(v) { vol = Math.min(1, v); if (cur && !cur.fadeT) cur.volume = vol; },
+    // the menu's piece or the game's: a change fades from one to the other
+    setMode(m) { if (m === mode) return; mode = m; if (on && !failed) play(pick()); },
+    _debug: () => ({ mode, src: cur && cur.src, vol: cur && cur.volume, failed })
+  };
+})();
+// what plays: the recorded pieces, or the generated music if they can't
+const Soundtrack = {
+  start() { if (Tracks.ok()) Tracks.start(); else Music.start(); },
+  stop() { Tracks.stop(); Music.stop(); },
+  setVolume(v) { Tracks.setVolume(v * 1.6); Music.setVolume(v); },
+};
 let musicOn = true, vol = 35, sfxOn = true, sfxVol = 60;
 try { const m = JSON.parse(localStorage.getItem('irts-audio') || 'null'); if (m) { musicOn = !!m.on; vol = Math.max(0, Math.min(100, +m.vol || 0)); if ('sfxOn' in m) { sfxOn = !!m.sfxOn; sfxVol = Math.max(0, Math.min(100, +m.sfxVol || 0)); } } } catch (e) { /* storage unavailable */ }
 const volEl = $('vol'), musBtn = $('music');
@@ -334,8 +370,8 @@ volEl.value = vol;
 const saveAudio = () => { try { localStorage.setItem('irts-audio', JSON.stringify({ on: musicOn, vol, sfxOn, sfxVol })); } catch (e) { /* ignore */ } };
 function syncMusic(play) {
   musBtn.setAttribute('aria-pressed', String(musicOn));
-  Music.setVolume(Math.pow(vol / 100, 2) * 0.6);
-  if (!musicOn || vol === 0) Music.stop(); else if (play) Music.start();
+  Soundtrack.setVolume(Math.pow(vol / 100, 2) * 0.6);
+  if (!musicOn || vol === 0) Soundtrack.stop(); else if (play) Soundtrack.start();
 }
 const sfxBtn = $('sfx'), sfxEl = $('sfxvol');
 sfxEl.value = sfxVol;
@@ -346,17 +382,17 @@ syncSfx();
 musBtn.addEventListener('click', () => { musicOn = !musicOn; saveAudio(); syncMusic(true); });
 volEl.addEventListener('input', () => { vol = +volEl.value; saveAudio(); syncMusic(true); });
 // browsers only allow audio after a user gesture
-for (const ev of ['pointerdown', 'keydown', 'touchend']) document.addEventListener(ev, () => { Music.unlock(); if (musicOn && vol > 0) Music.start(); });
+for (const ev of ['pointerdown', 'keydown', 'touchend']) document.addEventListener(ev, () => { Music.unlock(); if (musicOn && vol > 0) Soundtrack.start(); });
 syncMusic(false);
 
 // ---- radio: event reports, most urgent first, never a backlog. Recorded lines when there are some (Speak/, listed
 // in js/ui/voices.js by tools/voices.py: many takes per event, in many voices), else read aloud (Web Speech) ----
 const Radio = (() => {
   const synth = window.speechSynthesis, SAY = { 'חי"ר': 'חיל רגלים', 'נ"מ': 'נגד מטוסים', 'מכ"ם': 'מכם' };
-  const PRI = { promo: 1, unclear: 2, lost: 3, hit: 3, flagLost: 3, call: 3, nodeLost: 3, ff: 3, contact: 2, flag: 2, fhq: 1, ok: 1, hqHit: 3, fhqHit: 3, baseHit: 2, droneLost: 2, selected: 0, go: 1, attacking: 1, holding: 1, retreating: 1 };
+  const PRI = { promo: 1, unclear: 2, lost: 3, hit: 3, flagLost: 3, call: 3, nodeLost: 3, ff: 3, contact: 2, flag: 2, fhq: 1, ok: 1, hqHit: 3, fhqHit: 3, baseHit: 2, droneLost: 2, dozerReady: 1, radioReady: 1, fhqCan: 1, droneCan: 1, placeHq: 2, selected: 0, go: 1, attacking: 1, holding: 1, retreating: 1 };
   // an event's folder of recorded lines
   const EVENT = { selected: 'selected', go: 'on_the_way', attacking: 'attacking', holding: 'holding', retreating: 'retreating', ok: 'in_position', contact: 'under_attack',
-    hit: 'heavy_losses', lost: 'squad_lost', ff: 'friendly_fire', promo: 'promoted', unclear: 'say_again', fhq: 'forward_hq', nodeLost: 'building_lost', hqHit: 'hq_attack', fhqHit: 'fhq_attack', baseHit: 'base_attack', droneLost: 'drone_lost' };
+    hit: 'heavy_losses', lost: 'squad_lost', ff: 'friendly_fire', promo: 'promoted', unclear: 'say_again', fhq: 'forward_hq', nodeLost: 'building_lost', hqHit: 'hq_attack', fhqHit: 'fhq_attack', baseHit: 'base_attack', droneLost: 'drone_lost', dozerReady: 'dozer_ready', radioReady: 'radio_ready', fhqCan: 'fhq_ready', droneCan: 'drone_ready', placeHq: 'place_hq' };
   const REC = typeof VOICES === 'object' ? VOICES : {}, recs = () => REC[lang === 'en' ? 'English' : 'Hebrew'] || null;
   const lastTake = {};
   // a take of the event: any of its lines (each recorded once, in one of several voices), not the same one twice running
@@ -366,9 +402,9 @@ const Radio = (() => {
     return (lastTake[ev] = pool[Math.floor(Math.random() * pool.length)]);
   }
   let clip = null; // (the take playing now)
-  const TEXT = { droneLost: () => 'הרחפן הופל', hqHit: () => 'המפקדה תחת התקפה!', fhqHit: () => 'הפיקוד הקדמי תחת התקפה!', baseHit: () => 'הבסיס תחת התקפה!', fhq: w => `${w}, מקימים פיקוד קדמי`, nodeLost: w => w === 'drone' ? 'הרחפן הופל' : `${Sim.STRUCTS[w].name} הושמד`, call: w => `${w}, לחץ כבד. להחזיק או לסגת?`, contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`, ff: w => `${w}, ירי על כוחותינו!`,
+  const TEXT = { placeHq: () => 'יש למקם את המפקדה הראשית', dozerReady: () => 'טרקטור מוכן', radioReady: () => 'משאית קשר מוכנה', fhqCan: () => 'ניתן לבנות פיקוד קדמי', droneCan: () => 'ניתן למקם רחפן', droneLost: () => 'הרחפן הופל', hqHit: () => 'המפקדה תחת התקפה!', fhqHit: () => 'הפיקוד הקדמי תחת התקפה!', baseHit: () => 'הבסיס תחת התקפה!', fhq: w => `${w}, מקימים פיקוד קדמי`, nodeLost: w => w === 'drone' ? 'הרחפן הופל' : `${Sim.STRUCTS[w].name} הושמד`, call: w => `${w}, לחץ כבד. להחזיק או לסגת?`, contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`, ff: w => `${w}, ירי על כוחותינו!`,
     ok: w => `${w}, הגענו`, promo: w => `${w}, המפקד צבר ניסיון`, unclear: w => `${w}, ההודעה לא ברורה`, flag: w => `כבשנו את ${w}`, flagLost: w => `איבדנו את ${w}` };
-  const TEXT_EN = { droneLost: () => 'Drone down', hqHit: () => 'Our HQ is under attack!', fhqHit: () => 'Forward HQ under attack!', baseHit: () => 'Our base is under attack!', fhq: w => `${w}, setting up forward HQ`, nodeLost: w => w === 'drone' ? 'Drone down' : `${EN_STRUCTS[w]} destroyed`, call: w => `${w}, heavy pressure. Hold or retreat?`, contact: w => `${w}, contact`, hit: w => `${w}, heavy losses, falling back`, lost: w => `${w}, squad destroyed`, ff: w => `${w}, friendly fire!`,
+  const TEXT_EN = { placeHq: () => 'Place the main headquarters', dozerReady: () => 'Bulldozer ready', radioReady: () => 'Signals truck ready', fhqCan: () => 'Forward HQ available', droneCan: () => 'Drone ready', droneLost: () => 'Drone down', hqHit: () => 'Our HQ is under attack!', fhqHit: () => 'Forward HQ under attack!', baseHit: () => 'Our base is under attack!', fhq: w => `${w}, setting up forward HQ`, nodeLost: w => w === 'drone' ? 'Drone down' : `${EN_STRUCTS[w]} destroyed`, call: w => `${w}, heavy pressure. Hold or retreat?`, contact: w => `${w}, contact`, hit: w => `${w}, heavy losses, falling back`, lost: w => `${w}, squad destroyed`, ff: w => `${w}, friendly fire!`,
     ok: w => `${w}, in position`, promo: w => `${w}, the commander has gained experience`, unclear: w => `${w}, message unclear`, flag: w => `We took ${w}`, flagLost: w => `We lost ${w}` };
   // the sim names squads by their type, in Hebrew
   const typeOf = n => Object.keys(Sim.TYPES).find(k => Sim.TYPES[k].name === n);
@@ -377,9 +413,10 @@ const Radio = (() => {
   if (synth) { pickVoice(); try { synth.addEventListener('voiceschanged', pickVoice); } catch (e) { /* old browsers */ } }
   // what was heard lately, where: the same thing again in the same area while it keeps happening (each time less
   // than HEARD_T apart) is not said again — only somewhere else, or once it has been quiet there a while
-  const heard = [], HEARD_T = 10, HEARD_R = 260;
+  const heard = [], HEARD_T = 10, HEARD_R = 260, replied = {}, REPLY_MS = 10000;
   function fresh(k) {
-    if (!Number.isFinite(k.x) || !Number.isFinite(k.t)) return true; // (replies to our own clicks: always)
+    // replies to our own clicks (and other calls with no place): each at most once every REPLY_MS
+    if (!Number.isFinite(k.x) || !Number.isFinite(k.t)) { const now = performance.now(); if (now - (replied[k.kind] ?? -Infinity) < REPLY_MS) return false; replied[k.kind] = now; return true; }
     const h = heard.find(h => h.kind === k.kind && Math.hypot(h.x - k.x, h.y - k.y) < HEARD_R && k.t - h.t < HEARD_T && k.t >= h.t);
     if (h) { h.t = k.t; return false; }
     for (let i = heard.length - 1; i >= 0; i--) if (k.t - heard[i].t >= HEARD_T || k.t < heard[i].t) heard.splice(i, 1);

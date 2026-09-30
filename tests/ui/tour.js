@@ -15,8 +15,8 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const p = await ctx.newPage(); const errs = [];
     p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(400);
-    // level 1, first time: ▶ opens the tour; the game waits until it's done
-    await p.click('#go'); await p.waitForTimeout(200);
+    // level 1, first time (the tutorial: "tutorial", then the level): its tour; the game waits until it's done
+    await p.click('#learn'); await p.click('#levels button:first-child'); await p.waitForTimeout(200);
     const t1 = await p.evaluate(() => ({ tip: !document.getElementById('tip').hidden, text: document.getElementById('tipT').textContent, n: document.getElementById('tipN').textContent, playing }));
     check(name, t1.tip && !t1.playing && /1\/5/.test(t1.n), `level 1 tour: "${t1.text}" ${t1.n}, paused`);
     await p.screenshot({ path: `${OUT}/${name}-tour1.png` });
@@ -47,8 +47,8 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.screenshot({ path: `${OUT}/${name}-menu-en.png` });
     await p.click('[data-lang="he"]'); await p.click('#gear');
     check(name, await p.evaluate(() => playing), 'closing the settings goes on');
-    await p.click('#gear'); await p.click('#home'); await p.waitForTimeout(100);
-    check(name, await p.isVisible('#intro') && await p.isVisible('#levels'), '🏠 goes back to the level screen');
+    await p.click('#gear'); await p.click('#home'); const asked = await p.isVisible('#homeSure'); await p.click('#homeYes'); await p.waitForTimeout(100);
+    check(name, asked && await p.isVisible('#intro') && await p.isVisible('#go'), '🏠 asks first, then goes back to the main screen');
     await p.click('#go');
     const bar = await p.evaluate(() => ({ svg: document.querySelectorAll('#gOrd svg').length, words: document.getElementById('gOrd').innerText.trim(), nudge: (updateHud(), document.getElementById('bld').classList.contains('nudge')) }));
     check(name, bar.svg === 1 && !/\p{L}/u.test(bar.words) && bar.nudge, `orders are symbols, 🏗 pulses with room to build ${JSON.stringify(bar)}`);
@@ -84,9 +84,9 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     check(name, !g.shown && g.off < 150, `out of the exact picture: a guess ${g.off} from the truth`);
     await p.screenshot({ path: `${OUT}/${name}-guess.png` });
     // a level played again (another visit): its tour shows again; the full game has its own (the HQ, what's new)
-    const again = await p.evaluate(() => { tourSeen.clear(); toured = 11; lvl = 1; newGame(true); document.getElementById('go').click(); const a = !document.getElementById('tip').hidden; tourNext(true);
-      localStorage.removeItem('irts-fixedhq'); lvl = 0; newGame(true); document.getElementById('go').click(); const f = tour ? tour.steps.map(st => typeof st.el === 'string' ? st.el : 'map').join() : ''; tourNext(true); return { a, f }; });
-    check(name, again.a && /hqb/.test(again.f) && /silent/.test(again.f), `the tour shows again on another visit; the full game's: ${again.f}`);
+    const again = await p.evaluate(() => { tourSeen.clear(); toured = 11; startGame(1); const a = !document.getElementById('tip').hidden; tourNext(true);
+      localStorage.removeItem('irts-fixedhq'); document.getElementById('go').click(); const f = !!tour, armed = hqArmed; if (tour) tourNext(true); return { a, f, armed }; });
+    check(name, again.a && !again.f && again.armed, `the tour shows again on another visit; the full game has none (as if skipped), 🏰 armed at once ${JSON.stringify(again)}`);
     check(name, !errs.length, `no errors ${JSON.stringify(errs)}`);
     await ctx.close();
   }

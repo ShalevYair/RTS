@@ -130,13 +130,19 @@ function drawFlag(c, x, y, k, col) {
 }
 // a building going up: scaffolding poles and planks over its footprint
 function drawScaffold(c, x, y, k, grow) {
-  c.save(); c.globalAlpha = 0.85; c.strokeStyle = WOOD; c.lineWidth = 1.1;
-  const w = 30 * k, h = 24 * k, x0 = x - w / 2, y0 = y - h / 2;
-  c.beginPath();
-  for (let i = 0; i <= 4; i++) { const xx = x0 + w * i / 4; c.moveTo(xx, y0); c.lineTo(xx, y0 + h); }
-  for (let j = 0; j <= 3; j++) { if (j / 3 > grow + 0.34) break; const yy = y0 + h - h * j / 3; c.moveTo(x0, yy); c.lineTo(x0 + w, yy); }
-  c.moveTo(x0, y0 + h); c.lineTo(x0 + w * 0.5, y0);
-  c.stroke(); c.restore();
+  const w = 30 * k, h = 24 * k, x0 = x - w / 2, y0 = y - h / 2, P = [];
+  // (in the order they go up)
+  for (let j = 0; j < 3; j++) P.push([x0 - 2, y0 + h - j * 3.2, x0 + w + 2, y0 + h - j * 3.2, 2.2]); // planks laid on the ground
+  for (let i = 0; i <= 4; i++) P.push([x0 + w * i / 4, y0 + h, x0 + w * i / 4, y0, 1.2]); // posts
+  for (let j = 1; j <= 3; j++) P.push([x0, y0 + h - h * j / 3, x0 + w, y0 + h - h * j / 3, 1.6]); // planks up the posts
+  P.push([x0, y0 + h, x0 + w * 0.5, y0, 1], [x0 + w * 0.5, y0 + h, x0 + w, y0, 1]); // braces
+  const n = P.length, done = grow * (n + 2), fade = grow > 0.9 ? (1 - grow) / 0.1 : 1; // (it comes down at the end)
+  c.save(); c.strokeStyle = WOOD; c.lineCap = 'round';
+  P.forEach(([a, b, e, f, lw], i) => {
+    const on = Math.min(1, done - i); if (on <= 0) return;
+    c.globalAlpha = 0.9 * on * fade; c.lineWidth = lw; c.beginPath(); c.moveTo(a, b); c.lineTo(a + (e - a) * on, b + (f - b) * on); c.stroke();
+  });
+  c.restore();
 }
 
 // ---- smoke: grey puffs rising and drifting from damaged vehicles and buildings, wrecks, busy factories ----
@@ -318,7 +324,7 @@ function spritePic(k, col) {
   c.putImageData(d, 0, 0); sprite.pic.set(key, p); return p;
 }
 // how long a unit's picture is on the map, in its size k (as long as the drawn glyph)
-const SPRITE_LEN = { jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, air: 2, tank: 1.9 }, TURRET_K = 0.86;
+const SPRITE_LEN = { jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, air: 2, tank: 1.9, dozer: 1.9, radio: 1.9 }, TURRET_K = 0.86;
 // a building's picture: art/b_<kind> (the fake HQ looks just like the real one; the armed jeeps' workshops, the jeeps')
 const BUILDING_PIC = new Proxy({}, { get: (_, kind) => { const k = kind === 'decoy' ? 'hq' : kind; return sprite.img['b_' + k] || !/^jeepa[at]$/.test(k) ? 'b_' + k : 'b_jeepshop'; } });
 const hasSprite = type => type === 'tank' ? !!(sprite.img.tank_hull && sprite.img.tank_turret) : !!(SPRITE_LEN[type] && sprite.img[type]);
@@ -378,7 +384,9 @@ function drawScenery(c) {
   const x0 = bg.x0 - 20, y0 = bg.y0 - 20, x1 = bg.x0 + bg.w + 20, y1 = bg.y0 + bg.h + 20;
   for (const it of decor.rocks.items) {
     if (it.x < x0 || it.x > x1 || it.y < y0 || it.y > y1) continue;
-    const L = it.t === 'rock' ? (it.hi ? P.rock : low) : P[it.t], im = L[it.v % L.length], w = it.s, h = w * im.height / im.width;
+    const L = it.t === 'rock' ? (it.hi && it.s >= 10 ? P.rock : low) : P[it.t], // (the slab only big: small, it's a grey square)
+      im = L[it.v % L.length], w = it.s, h = w * im.height / im.width;
+    it.im = im; if (it.gone) continue; // (cleared or run over: see sceneryTick)
     c.drawImage(im, it.x - w / 2, it.y - h / 2, w, h);
   }
   return true;
@@ -412,4 +420,39 @@ function drawStony(c, pat) {
   g.globalCompositeOperation = 'destination-in'; g.imageSmoothingEnabled = true;
   g.drawImage(stony.mask, -ELEV / 2, -ELEV / 2, E.w * ELEV, E.h * ELEV);
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(L, 0, 0); c.restore();
+}
+
+// ---- scenery that's cleared (a building going up there) or run over (a tank): taken out of the ground picture,
+// and drawn on top for a moment, sinking and fading ----
+const scen = { grid: null, of: null, gone: [], seen: new Set(), next: 0, dirty: false }, SCEN_CELL = 64, SCEN_FADE = 1800;
+function scenGrid() {
+  if (scen.of === decor) return scen.grid;
+  const G = new Map();
+  for (const it of decor.rocks.items) { const k = Math.floor(it.x / SCEN_CELL) + ',' + Math.floor(it.y / SCEN_CELL); let l = G.get(k); if (!l) G.set(k, l = []); l.push(it); }
+  scen.grid = G; scen.of = decor; scen.gone = []; scen.seen = new Set(); return G;
+}
+function scenNear(x, y, r, f) {
+  const G = scenGrid();
+  for (let i = Math.floor((x - r) / SCEN_CELL); i <= Math.floor((x + r) / SCEN_CELL); i++) for (let j = Math.floor((y - r) / SCEN_CELL); j <= Math.floor((y + r) / SCEN_CELL); j++) {
+    const l = G.get(i + ',' + j); if (l) for (const it of l) if (!it.gone && Math.hypot(it.x - x, it.y - y) < r) f(it);
+  }
+}
+function scenKill(it) { it.gone = performance.now(); if (it.im) scen.gone.push(it); scen.dirty = true; }
+// every few frames: new buildings clear their ground; tanks crush what they drive over (only with the pictures in)
+function sceneryTick() {
+  if (!decor || !sprite.img.d_tree1) return;
+  const now = performance.now(); if (now < scen.next) return; scen.next = now + 120;
+  for (const n of s.nodes) if (!scen.seen.has(n.id) && n.kind !== 'drone' && nodeShown(n)) { scen.seen.add(n.id); scenNear(n.x, n.y, n.kind === 'hq' || n.kind === 'decoy' ? 56 : 42, scenKill); }
+  for (const u of s.units) if (u.type === 'tank' && (u.side === 'blue' || !s.fog || s.vis.blue.has(u.id))) scenNear(u.x, u.y, SIZE.tank * 0.75, scenKill);
+  // (the ground picture is painted again, at most twice a second)
+  if (scen.dirty && now - (scen.painted || 0) > 500) { scen.dirty = false; scen.painted = now; bg.key = ''; }
+}
+function drawGoneScenery(c) {
+  const now = performance.now();
+  scen.gone = scen.gone.filter(it => now - it.gone < SCEN_FADE);
+  for (const it of scen.gone) {
+    const k = (now - it.gone) / SCEN_FADE, w = it.s * (1 - 0.35 * k), h = w * it.im.height / it.im.width * (1 - 0.5 * k);
+    c.globalAlpha = 1 - k; c.drawImage(it.im, it.x - w / 2, it.y - h / 2 + it.s * 0.15 * k, w, h);
+  }
+  c.globalAlpha = 1;
 }

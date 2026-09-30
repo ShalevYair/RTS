@@ -203,6 +203,16 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0.3 * k, -0.45 * k, 0.45 * k, 0.9 * k);
     barrel(-0.4 * k, 0, -1.15 * k, 0, 0.14 * k);
     c.beginPath(); c.arc(-1.2 * k, 0, 0.17 * k, 0, Math.PI * 2); paint();
+  } else if (type === 'dozer') {
+    c.rotate(hd); c.beginPath(); c.rect(-0.7 * k, -0.45 * k, 1.2 * k, 0.9 * k); paint();
+    c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(-0.7 * k, -0.5 * k, 1.2 * k, 0.16 * k); c.fillRect(-0.7 * k, 0.34 * k, 1.2 * k, 0.16 * k);
+    c.fillStyle = 'rgba(0,0,0,.3)'; c.fillRect(-0.35 * k, -0.25 * k, 0.45 * k, 0.5 * k);
+    barrel(0.72 * k, -0.62 * k, 0.72 * k, 0.62 * k, 0.2 * k); // (the blade)
+  } else if (type === 'radio') {
+    c.rotate(hd); c.beginPath(); c.rect(-0.8 * k, -0.42 * k, 1.6 * k, 0.84 * k); paint();
+    c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0.4 * k, -0.38 * k, 0.4 * k, 0.76 * k);
+    c.strokeStyle = outline || fill; c.lineWidth = 0.1 * k; c.beginPath(); c.arc(-0.25 * k, 0, 0.3 * k, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.moveTo(-0.6 * k, -0.3 * k); c.lineTo(-1.1 * k, -0.9 * k); c.stroke();
   } else if (type === 'med') {
     // medics: a soldier with no rifle and a cross on the chest
     if (Math.cos(hd) < 0) c.scale(-1, 1);
@@ -428,10 +438,15 @@ function drawFog() {
 
 // enemy as blobs of uncertainty: tight when just seen, spreading and fading with the age of the sighting
 const STALE = 12, TRAIL = 8, BLOB_LIFE = 40, BLOB_R = 25, BLOB_MAX = 150, UNSURE = 4;
+const intelAt = new Map(); let intelT = 0; // (where each sighting is drawn: easing toward the latest fix)
 function drawEnemyIntel(c) {
+  const now = performance.now(), ease = 1 - Math.exp(-Math.min(0.1, (now - intelT) / 1000) * 2.5); intelT = now;
   for (const q of s.squads) {
-    const m = q.side === 'red' && s.mem.blue[q.id], age = m ? s.t - m.t : Infinity;
-    if (!m || age > BLOB_LIFE) continue;
+    const m0 = q.side === 'red' && s.mem.blue[q.id], age = m0 ? s.t - m0.t : Infinity;
+    if (!m0 || age > BLOB_LIFE) { intelAt.delete(q.id); continue; }
+    let d = intelAt.get(q.id); if (!d || Math.hypot(d.x - m0.x, d.y - m0.y) > 260) intelAt.set(q.id, d = { x: m0.x, y: m0.y });
+    d.x += (m0.x - d.x) * ease; d.y += (m0.y - d.y) * ease;
+    const m = { ...m0, x: d.x, y: d.y };
     if (age < 0.2 && shownAt(m)) continue; // seen right now where the units themselves are drawn
     // how fast it could have moved since: by type when identified, else by what's known (aircraft / ground / anything)
     const speed = m.type ? Sim.TYPES[m.type].speed : m.air ? Sim.TYPES.air.speed : m.air === false ? 50 : 70;
@@ -511,30 +526,28 @@ function fromHsl(h, sat, l) {
 const STRUCT_PX = 40, HQ_PX = 58; // a building's picture; the HQ's, bigger
 function drawStruct(c, n, ghost) {
   const S = Sim.STRUCTS[n.kind], col = colors[n.side], on = s.t >= n.ready;
-  // under construction: a pegged-out plot, and the building rising out of it (small and faint at first)
-  const grow = on || ghost || n.kind === 'hq' || n.kind === 'drone' ? 1 : Math.max(0, Math.min(1, (s.t - n.t0) / Math.max(0.01, n.ready - n.t0)));
-  if (grow < 1) {
-    c.save(); c.translate(n.x, n.y); c.scale(0.35 + 0.65 * grow, 0.35 + 0.65 * grow); c.translate(-n.x, -n.y);
-  }
+  // under construction: the scaffolding goes up piece by piece, and the building shows through it, from nothing to
+  // whole (a bulldozer's site: by the work done; else by the time)
+  const site = Number.isFinite(n.work) && !on;
+  const grow = on || ghost || n.kind === 'drone' ? 1 : site ? Math.min(1, n.work / Math.max(0.01, n.need)) : n.kind === 'hq' ? 1 : Math.max(0, Math.min(1, (s.t - n.t0) / Math.max(0.01, n.ready - n.t0)));
   c.globalAlpha = ghost ? 0.45 : 1;
-  if (!ghost && n.kind !== 'hq' && n.kind !== 'drone' && !on) {
-    const k = (s.t - n.t0) / Math.max(0.01, n.ready - n.t0);
-    c.strokeStyle = col; c.lineWidth = 3; c.beginPath(); c.arc(n.x, n.y, 28, -Math.PI / 2, -Math.PI / 2 + Math.max(0, Math.min(1, k)) * Math.PI * 2); c.stroke();
+  if (!ghost && n.kind !== 'drone' && !on && (site || n.kind !== 'hq')) {
+    c.strokeStyle = col; c.globalAlpha = 0.8; c.lineWidth = 2; c.beginPath(); c.arc(n.x, n.y, 30, -Math.PI / 2, -Math.PI / 2 + grow * Math.PI * 2); c.stroke(); c.globalAlpha = 1;
   }
   if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.2 : 0.32; drawDrone(c, n.x, n.y, 8, col, s.t * 0.35 + n.id, on ? s.t * 25 : 0); }
   else {
     const px = n.kind === 'hq' || n.kind === 'decoy' ? HQ_PX : STRUCT_PX, k = px / STRUCT_PX;
-    c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.25 + 0.6 * grow;
+    c.globalAlpha = ghost ? 0.45 : on ? 1 : grow * grow * 0.95; // (from fully see-through to solid)
     drawBuilding(c, n.kind, col, n.x, n.y, px);
     if ((n.kind === 'hq' || n.kind === 'decoy') && on && !ghost && !hasBuildingPic(n.kind)) drawFlag(c, n.x, n.y, k, col);
     if (n.kind === 'decoy' && n.side === 'blue') { c.font = '15px sans-serif'; c.fillText(S.badge, n.x + (n.kind === 'decoy' ? 24 : 15), n.y - 8); }
   }
-  if (grow < 1) c.restore();
-  if (grow < 1 && !ghost) drawScaffold(c, n.x, n.y, 1, grow);
+  if (grow < 1 && !ghost) drawScaffold(c, n.x, n.y, n.kind === 'hq' || n.kind === 'decoy' ? 1.35 : 1, grow);
   c.globalAlpha = 1;
   if (ghost) return;
   const big = n.kind === 'hq' || n.kind === 'decoy', top = big ? 38 : n.kind === 'drone' ? 16 : 30, bot = big ? 34 : n.kind === 'drone' ? 14 : 24;
-  if (!on) label(String(Math.ceil(n.ready - s.t)), n.x, n.y - top, col);
+  // (a site: ⏸ while no bulldozer works it; else the seconds left)
+  if (!on) label(site ? (n.working ? Math.round(grow * 100) + '%' : '⏸') : String(Math.ceil(n.ready - s.t)), n.x, n.y - top, col);
   if (n.fixing && nodeShown(n)) { c.font = '13px sans-serif'; c.globalAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 150); c.fillText('🔧', n.x + 18, n.y - top + 4); c.globalAlpha = 1; }
   if (n.hp < S.hp) { c.fillStyle = colors.shadow; c.fillRect(n.x - 14, n.y + bot, 28, 3); c.fillStyle = col; c.fillRect(n.x - 14, n.y + bot, 28 * Math.max(0, n.hp / S.hp), 3); }
   // ours: the next unit coming out — a bar filling up, and the unit's shape beside it
@@ -560,7 +573,7 @@ function drawBuildArea(c) {
     c.globalAlpha = 0.45; drawBuilding(c, 'fhq', colors.blue, f.x, f.y, STRUCT_PX); c.globalAlpha = 1;
   }
   // open field: the HQ's spot on its way (a faint 🏰), and while placing it, our strip in green and 🏰 at the pointer
-  const cq = Sim.cmdSquad(s, 'blue');
+  const cq = s.squads.find(q => q.side === 'blue' && q.hqAt && !q.dead);
   if (cq && cq.hqAt) { c.globalAlpha = 0.45; drawBuilding(c, 'hq', colors.blue, cq.hqAt.x, cq.hqAt.y, HQ_PX); c.globalAlpha = 1; }
   if (hqArmed) {
     const [a, b] = Sim.hqBand(s, 'blue'); c.fillStyle = 'rgba(80,200,90,.16)'; c.fillRect(a, 30, b - a, s.H - 60);
@@ -579,7 +592,8 @@ function drawBuildArea(c) {
   for (let y = y0; y < Math.min(s.H, v.y + v.h + G); y += G) for (let x = x0; x < Math.min(s.W, v.x + v.w + G); x += G) if (!Sim.buildCheck(s, 'blue', x, y, buildArmed)) c.fillRect(x - G / 2, y - G / 2, G, G);
 }
 // event reports appear where they happened, pop in and fade out
-const MARK = { promo: '⭐', unclear: '❓', ack: '👌', contact: '⚔', hit: '💥', lost: '✖', ok: '✓', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕️', nodeLost: '💥', ff: '⚠' };
+// (not shown: arrived, roger, contact — the voice says them — nor the envelopes of orders on their way)
+const MARK = { promo: '⭐', unclear: '❓', hit: '💥', lost: '✖', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕️', nodeLost: '💥', ff: '⚠' };
 // orders still on their way: an envelope runs from HQ toward the squad
 function drawMail(c) {
   const hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq') || { x: s.bases.blue.x, y: s.H / 2 };
@@ -594,6 +608,7 @@ function drawMail(c) {
 }
 function drawMarks(c) {
   for (const k of s.marks) {
+    if (!MARK[k.kind]) continue;
     const a = (s.t - k.t) / Sim.MARK_LIFE, sc = a < 0.15 ? 0.6 + a / 0.15 * 0.6 : 1.2 - Math.min(0.2, a);
     c.globalAlpha = Math.max(0, 1 - a); c.font = `${Math.round(18 * sc)}px sans-serif`;
     c.lineWidth = 3; c.strokeStyle = colors.halo; c.strokeText(MARK[k.kind], k.x, k.y - 44);
@@ -678,7 +693,16 @@ function drawGhosts(c) {
 }
 // units: ground first, aircraft (with drop shadows) on top
 const BAR_BODY_R = 70; // (a squad's strength bar: over the units this near its middle)
+// a hurt unit of ours: a small dot over it — yellow, orange under HURT_MID, red under HURT_LOW (none at full health)
+const HURT_MID = 0.6, HURT_LOW = 0.3;
+function healthDot(c, u) {
+  const k = u.hp / Sim.TYPES[u.type].hp; if (k >= 0.97) return;
+  const r = Math.max(2, 3.2 / view.css), y = u.y - SIZE[u.type] * (Sim.TYPES[u.type].air ? 0.9 : 0.75) - r - 1;
+  c.fillStyle = k < HURT_LOW ? '#e53935' : k < HURT_MID ? '#ff8f1f' : '#ffd43b'; c.lineWidth = Math.max(0.8, 1.2 / view.css); c.strokeStyle = 'rgba(0,0,0,.55)';
+  c.beginPath(); c.arc(u.x, y, r, 0, Math.PI * 2); c.fill(); c.stroke();
+}
 function drawUnits(c, show) {
+  const hurt = [];
   for (const pass of [false, true]) for (const u of s.units) {
     const T = Sim.TYPES[u.type]; if (!!T.air !== pass || !show(u)) continue;
     if (s.fog && u.side === 'red') anim.last.set(u.id, { x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t });
@@ -689,22 +713,19 @@ function drawUnits(c, show) {
     // soldiers and jeeps are small: a light glow round them, so they stand out from the ground
     const glow = GLOW[u.type]; if (glow) { c.shadowColor = colors.halo; c.shadowBlur = glow * view.scale; }
     glyphRecoil = Math.max(0, 1 - (s.t - u.lastFire) / 0.25);
+    if (u.side === 'blue') hurt.push(u);
     if (hasSprite(u.type)) { stride(u); drawUnitPic(c, u.type, u.x, u.y, k, colors[u.side], u.hd, aim, glyphRecoil); } // (its picture)
     else glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim, glow ? 0.9 : 1.2, T.air ? 0 : stride(u));
     glyphRecoil = 0;
     if (glow) c.shadowBlur = 0;
     if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
-    if (u.resup && !u.care) { c.fillStyle = colors.halo; ring(u.x + k * 0.8, u.y - k * 0.9, 4.5); c.fill(); c.fillStyle = AMMO; c.fillRect(u.x + k * 0.8 - 2.5, u.y - k * 0.9 - 2.5, 5, 5); }
-    if (u.care) { c.fillStyle = colors.halo; ring(u.x + k * 0.8, u.y - k * 0.9, 4.5); c.fill(); c.fillStyle = colors.red; c.fillRect(u.x + k * 0.8 - 1, u.y - k * 0.9 - 3, 2, 6); c.fillRect(u.x + k * 0.8 - 3, u.y - k * 0.9 - 1, 6, 2); }
+    // (no ammunition or care marks, no health bar: a hurt unit of ours has its dot, see healthDot)
     if (u.side === 'blue' && sel !== 'all' && isSel(u.squad)) { // (all of them picked, as at the start: no rings)
       // picked: a faint light ring close round the unit
       c.globalAlpha = 0.4; c.strokeStyle = colors.halo; c.lineWidth = 1; ring(u.x, u.y, k * (u.type === 'tank' ? 0.95 : 1) + 2.5); c.stroke(); c.globalAlpha = 1;
     }
-    if (u.hp < T.hp) {
-      c.fillStyle = colors.shadow; c.fillRect(u.x - 8, u.y - k - 7, 16, 3);
-      c.fillStyle = colors[u.side]; c.fillRect(u.x - 8, u.y - k - 7, 16 * Math.max(0, u.hp / T.hp), 3);
-    }
   }
+  for (const u of hurt) healthDot(c, u);
 }
 
 function draw() {
@@ -712,7 +733,7 @@ function draw() {
   c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = colors.ground; c.fillRect(0, 0, cv.width, cv.height);
   c.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
   c.textAlign = 'center';
-  drawGround(c); drawWater(c); drawScorch(c);
+  drawGround(c); sceneryTick(); drawGoneScenery(c); drawWater(c); drawScorch(c);
   // shots in flight: bullets (a quick bright dot), shells (a glowing round with a short streak), missiles (a body
   // with a smoke trail back to where it was fired)
   c.save(); c.lineCap = 'round';
@@ -755,7 +776,7 @@ function draw() {
   }
   drawSmoke(c); drawFlashes(c); drawClouds(c);
   drawNightLit(c);
-  if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); drawMail(c); }
+  if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); }
   drawNodes(c);
   drawBuildArea(c);
   // our squads. Where the units themselves are drawn: their strength and ammunition over them, no badge. Where they
@@ -771,13 +792,9 @@ function draw() {
       let body = m.filter(u => Math.hypot(u.x - mx, u.y - my) < BAR_BODY_R); if (!body.length) body = m;
       let top = Infinity, cx = 0; for (const u of body) { top = Math.min(top, u.y - SIZE[u.type]); cx += u.x; } cx /= body.length;
       const y = top - 12, bars = [];
-      if (q.strength < 0.98) bars.push([colors.blue, Math.min(1, q.strength)]);
-      const A = Sim.TYPES[q.type].ammo;
-      if (s.supply && Sim.SUPPLY[q.type]) { const k = m.reduce((a, u) => a + u.sup, 0) / m.length; if (k < 0.98) bars.push([AMMO, k]); }
-      if (A) { const k = m.reduce((a, u) => a + (u.rearm ? 0 : u.ammo / A), 0) / m.length; if (k < 0.98) bars.push([AMMO, k]); }
-      bars.forEach(([col, k], i) => { c.fillStyle = colors.shadow; c.fillRect(cx - 12, y + i * 4, 24, 3); c.fillStyle = col; c.fillRect(cx - 12, y + i * 4, 24 * k, 3); });
+      // (no bars over the squad: each unit shows its own health, see healthDot)
       // why it's heading back: 🩹 to heal, 📦 for ammunition, ⟳ aircraft rearming
-      const why = [q.retreating && '🩹', m.some(u => u.resup) && '📦', m.some(u => u.rearm) && '⟳'].filter(Boolean);
+      const why = [q.retreating && '🩹', m.some(u => u.rearm) && '⟳'].filter(Boolean);
       c.font = '14px sans-serif'; why.forEach((w, i) => c.fillText(w, cx + (i - (why.length - 1) / 2) * 16, y - 6));
       // a seasoned commander, while his squad is picked: ⭐ / ⭐⭐ (and 🤫 when silent)
       const rk = Sim.rankOf(q), tag = (rk ? '⭐'.repeat(rk) : '') + (q.silent ? '🤫' : '');
