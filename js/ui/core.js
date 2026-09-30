@@ -1,6 +1,8 @@
 // UI: DOM handles, game/UI state, theme colors, viewport and helpers shared by the UI files
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage'), bar = $('bar'), menu = $('menu');
+const nodeHp = new Map(), baseCalled = {}, BASE_CALL_MS = 30000; // (our buildings' health last frame; when each kind last called for help)
+let selNode = null, pings = []; // (a picked building's id; the arrows marking where an order went)
 let s, decor, sel = 'all', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0, diff = 'normal', endShown = false, fog = true, buildArmed = null;
 try { fog = localStorage.getItem('irts-fog') !== '0'; } catch (e) { /* storage unavailable */ }
 try { const d = localStorage.getItem('irts-diff'); if (d in Sim.DIFFS) diff = d; } catch (e) { /* storage unavailable */ }

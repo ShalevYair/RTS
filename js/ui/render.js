@@ -43,8 +43,10 @@ function makeDecor(s) {
   // shade buckets: one path per shade, so thousands of trees, bushes and stones are a handful of fills
   const B = 6, bucket = () => Math.floor(r() * B), paths = () => Array.from({ length: B }, () => new Path2D());
   const treeBody = paths(), treeTop = paths(), treeShadow = new Path2D(), bush = paths(), rock = paths(), rockHi = new Path2D(), rockShadow = new Path2D();
+  // (and each one as an item, for the drawn pictures when there are some: see drawScenery)
+  const items = [], hash = (x, y) => Math.abs(Math.round(x * 7.1 + y * 13.7));
   const addTree = (x, y, R) => {
-    const k = bucket();
+    const k = bucket(); items.push({ t: 'tree', x, y, s: R * 2.7, v: hash(x, y) });
     treeShadow.moveTo(x + 2 + R, y + 3); treeShadow.ellipse(x + 2, y + 3, R, R * 0.8, 0, 0, Math.PI * 2);
     treeBody[k].moveTo(x + R, y); treeBody[k].arc(x, y, R, 0, Math.PI * 2);
     treeTop[k].moveTo(x - R * 0.3 + R * 0.5, y - R * 0.3); treeTop[k].arc(x - R * 0.3, y - R * 0.3, R * 0.5, 0, Math.PI * 2);
@@ -63,12 +65,12 @@ function makeDecor(s) {
   // bushes: little clumps of two or three blobs
   for (let i = 0; i < Math.round(K / 2.5); i++) {
     const x = 70 + r() * (W - 140), y = r() * s.H; if (!free(x, y) || Sim.elevAt(s, { x, y }) > 7) continue;
-    const k = bucket(), m = 2 + Math.floor(r() * 2);
+    const k = bucket(), m = 2 + Math.floor(r() * 2); items.push({ t: 'bush', x, y, s: 4 + m * 0.9, v: hash(x, y) });
     for (let j = 0; j < m; j++) { const R = 1.3 + r() * 1.7, px = x + (r() - 0.5) * 5, py = y + (r() - 0.5) * 4; bush[k].moveTo(px + R, py); bush[k].arc(px, py, R, 0, Math.PI * 2); }
   }
   // stones and boulders: a few on the plain, many more up the hills (the higher, the rockier)
   const addRock = (x, y, R) => {
-    const k = bucket(), w = [[0.2, 2, r() * 7], [0.12, 3, r() * 7]];
+    const k = bucket(), w = [[0.2, 2, r() * 7], [0.12, 3, r() * 7]]; items.push({ t: 'rock', x, y, s: R * 2.5, v: hash(x, y), hi: Sim.elevAt(s, { x, y }) > 3 });
     const at = (px, py, s0) => { const p = new Path2D(); for (let q = 0; q <= 8; q++) { const th = q / 8 * Math.PI * 2, f = R * s0 * Sim.wobble(w, th); if (q) p.lineTo(px + Math.cos(th) * f, py + Math.sin(th) * f * 0.8); else p.moveTo(px + Math.cos(th) * f, py + Math.sin(th) * f * 0.8); } p.closePath(); return p; };
     rockShadow.addPath(at(x + 1.2, y + 1.6, 1)); rock[k].addPath(at(x, y, 1)); rockHi.addPath(at(x - R * 0.25, y - R * 0.25, 0.45));
   };
@@ -78,7 +80,7 @@ function makeDecor(s) {
     const m = r() < 0.3 ? 2 + Math.floor(r() * 4) : 1;
     for (let j = 0; j < m; j++) addRock(x + (r() - 0.5) * 14, y + (r() - 0.5) * 10, 1 + r() * (e > 3 ? 4 : 2.5));
   }
-  const trees = { treeBody, treeTop, treeShadow, bush }, rocks = { rock, rockHi, rockShadow };
+  const trees = { treeBody, treeTop, treeShadow, bush }, rocks = { rock, rockHi, rockShadow, items: items.sort((a, b) => (a.t === 'tree') - (b.t === 'tree') || a.y - b.y) };
   // hills: contour lines traced from the sim's height grid (so what's drawn is what counts); the colouring is made
   // when drawn, from the theme (see relief)
   const hills = { contours: contours(s.elev), relief: null, theme: '' };
@@ -309,6 +311,8 @@ function drawGround(c) {
     const g = bg.cv.getContext('2d');
     g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = colors.ground; g.fillRect(0, 0, bg.cv.width, bg.cv.height);
     g.setTransform(sc * k, 0, 0, sc * k, -bg.x0 * sc * k, -bg.y0 * sc * k);
+    const grass = tilePat(g, 'grass1');
+    if (grass) { g.fillStyle = grass; g.fillRect(bg.x0, bg.y0, bg.w, bg.h); g.globalAlpha = GROUND_TINT; g.fillStyle = colors.ground; g.fillRect(bg.x0, bg.y0, bg.w, bg.h); g.globalAlpha = 1; }
     drawTerrain(g, s.W, s.H, s.W / 2);
   }
   c.drawImage(bg.cv, bg.x0, bg.y0, bg.w, bg.h);
@@ -316,11 +320,18 @@ function drawGround(c) {
 function drawTerrain(c, W, H, mid) {
   c.globalAlpha = 0.75;
   // (a few are bare brown earth)
-  for (const p of decor.patches) { c.fillStyle = p.dirt ? mix(colors.ground, colors.hill, 0.45 + p.u * 0.3, p.t) : mix(colors.ground, colors.grass2, p.u, p.t); c.fill(p.p); }
-  c.globalAlpha = 1;
-  const n = decor.tufts.length;
-  decor.tufts.forEach((p, k) => { c.fillStyle = shade(colors.grass2, -0.2 + 0.32 * k / (n - 1)); c.fill(p); });
-  drawGrain(c, W, H);
+  const dry = tilePat(c, 'grass2'), dirt = tilePat(c, 'dirt');
+  if (dry && dirt) {
+    // (textures: a blotch is dry grass or bare earth, faint where it is only a little of either)
+    for (const p of decor.patches) { c.globalAlpha = p.dirt ? 0.55 : 0.12 + 0.4 * p.u; c.fillStyle = p.dirt ? dirt : dry; c.fill(p.p); }
+    c.globalAlpha = 1;
+  } else {
+    for (const p of decor.patches) { c.fillStyle = p.dirt ? mix(colors.ground, colors.hill, 0.45 + p.u * 0.3, p.t) : mix(colors.ground, colors.grass2, p.u, p.t); c.fill(p.p); }
+    c.globalAlpha = 1;
+    const n = decor.tufts.length;
+    decor.tufts.forEach((p, k) => { c.fillStyle = shade(colors.grass2, -0.2 + 0.32 * k / (n - 1)); c.fill(p); });
+    drawGrain(c, W, H);
+  }
   for (const f of decor.fields) {
     c.save(); c.translate(f.x, f.y); c.rotate(f.a); c.fillStyle = shade(colors.field, f.t); c.fillRect(-f.w / 2, -f.h / 2, f.w, f.h);
     c.strokeStyle = shade(colors.field2, f.t); c.lineWidth = 3;
@@ -329,7 +340,7 @@ function drawTerrain(c, W, H, mid) {
   }
   // lakes: shallow rim, water, a darker middle, a glint
   for (const k of decor.lakes) {
-    c.fillStyle = shade(colors.waterEdge, 0.35 + k.t); c.globalAlpha = 0.6; c.fill(k.edge); c.globalAlpha = 1;
+    const mud = tilePat(c, 'mud'); c.fillStyle = mud || shade(colors.waterEdge, 0.35 + k.t); c.globalAlpha = mud ? 0.45 : 0.6; c.fill(k.edge); c.globalAlpha = 1;
     c.fillStyle = shade(colors.water, k.t); c.fill(k.body);
     c.lineWidth = 2; c.strokeStyle = shade(colors.waterEdge, k.t); c.stroke(k.body);
     c.fillStyle = shade(colors.waterEdge, -0.1 + k.t); c.globalAlpha = 0.45; c.fill(k.deep); c.globalAlpha = 1;
@@ -340,7 +351,11 @@ function drawTerrain(c, W, H, mid) {
   // every fifth a little stronger
   const R = decor.hills, key = colors.tree + colors.ground + colors.grass2;
   if (R.theme !== key) { R.relief = relief(s.elev); R.theme = key; }
+  const rocky = tilePat(c, 'rocky');
+  if (rocky) c.globalAlpha = RELIEF_OVER_TILES;
   c.drawImage(R.relief, -ELEV / 2, -ELEV / 2, R.relief.width * ELEV, R.relief.height * ELEV);
+  c.globalAlpha = 1;
+  if (rocky) drawStony(c, rocky);
   c.strokeStyle = shade(colors.tree, -0.35); c.lineCap = 'round';
   R.contours.forEach((p, k) => { c.globalAlpha = (k + 1) % 5 ? 0.22 : 0.4; c.lineWidth = (k + 1) % 5 ? 1 : 1.6; c.stroke(p); });
   c.globalAlpha = 1;
@@ -353,13 +368,18 @@ function drawTerrain(c, W, H, mid) {
     const dirt = rgbOf(colors.road), css = v => 'rgb(' + v.map(Math.round).join(',') + ')';
     decor.roadCol = decor.roads.map(pts => pts.map(p => { const land = landRGB(Sim.elevAt(s, p)); return [css(lerp3(land, [0, 0, 0], 0.1)), css(lerp3(land, dirt, 0.38))]; }));
   }
+  // (with the textures: a track of bare earth over the grass, a faint darker edge)
+  const track = tilePat(c, 'dirt');
   for (const pass of [0, 1]) decor.roads.forEach((pts, j) => {
+    if (track) c.globalAlpha = pass ? 0.5 : 0.1;
     for (let i = 1; i < pts.length; i++) {
-      c.strokeStyle = decor.roadCol[j][i][pass]; c.lineWidth = pts[i].w + (pass ? 0 : 1.6);
+      c.strokeStyle = track ? (pass ? track : '#000') : decor.roadCol[j][i][pass]; c.lineWidth = pts[i].w + (pass ? 0 : 1.6);
       c.beginPath(); c.moveTo(pts[i - 1].x, pts[i - 1].y); c.lineTo(pts[i].x, pts[i].y); c.stroke();
     }
   });
-  // woods, bushes and stones (a few fills: each shade is one path)
+  c.globalAlpha = 1;
+  // woods, bushes and stones: the pictures (art/Background) when they're in, else a few fills (each shade one path)
+  if (drawScenery(c)) { drawGrade(c, W, H); return; }
   const T = decor.trees, Rk = decor.rocks, nb = T.treeBody.length;
   c.fillStyle = colors.shadow; c.fill(T.treeShadow); c.fill(Rk.rockShadow);
   for (let k = 0; k < nb; k++) { const u = -0.14 + 0.26 * k / (nb - 1); c.fillStyle = shade(mix(colors.tree, colors.grass2, 0.45), u); c.fill(T.bush[k]); }
@@ -506,7 +526,7 @@ function drawStruct(c, n, ghost) {
     const px = n.kind === 'hq' || n.kind === 'decoy' ? HQ_PX : STRUCT_PX, k = px / STRUCT_PX;
     c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.25 + 0.6 * grow;
     drawBuilding(c, n.kind, col, n.x, n.y, px);
-    if ((n.kind === 'hq' || n.kind === 'decoy') && on && !ghost) drawFlag(c, n.x, n.y, k, col);
+    if ((n.kind === 'hq' || n.kind === 'decoy') && on && !ghost && !hasBuildingPic(n.kind)) drawFlag(c, n.x, n.y, k, col);
     if (n.kind === 'decoy' && n.side === 'blue') { c.font = '15px sans-serif'; c.fillText(S.badge, n.x + (n.kind === 'decoy' ? 24 : 15), n.y - 8); }
   }
   if (grow < 1) c.restore();
@@ -600,7 +620,8 @@ function drawFallen(c) {
     const a = Math.max(0, 1 - age / 12), T = Sim.TYPES[f.type], k = SIZE[f.type];
     if (T.air) { c.globalAlpha = 0.5 * a; c.fillStyle = '#2a2a24'; ring(f.x, f.y, k * 0.9); c.fill(); continue; } // a crash site
     c.globalAlpha = 0.75 * a;
-    if (CAR.has(f.type)) glyph(c, f.type, f.x, f.y, k, '#3b3833', colors.outline, f.hd + 0.3, f.hd + 1.2);
+    if (CAR.has(f.type) && hasSprite(f.type)) drawUnitPic(c, f.type, f.x, f.y, k, 'wreck', f.hd + 0.3, f.hd + 1.2);
+    else if (CAR.has(f.type)) glyph(c, f.type, f.x, f.y, k, '#3b3833', colors.outline, f.hd + 0.3, f.hd + 1.2);
     else { c.save(); c.translate(f.x, f.y); c.rotate(Math.PI / 2 * (f.side === 'blue' ? -1 : 1) * Math.min(1, age / 0.35)); glyph(c, f.type, 0, 0, k, shade(colors[f.side], -0.35), colors.outline, 0); c.restore(); }
   }
   c.globalAlpha = 1;
@@ -650,7 +671,8 @@ function drawGhosts(c) {
     if (age < 0.05) continue; // still drawn for real
     if (age > GHOST_T || (!alive.has(id) && age < 0.3)) { anim.last.delete(id); continue; } // gone, or seen dying
     c.globalAlpha = 0.55 * (1 - age / GHOST_T);
-    glyph(c, g.type, g.x, g.y, SIZE[g.type], colors[g.side], colors.outline, g.hd, g.hd);
+    if (hasSprite(g.type)) drawUnitPic(c, g.type, g.x, g.y, SIZE[g.type], colors[g.side], g.hd, g.hd);
+    else glyph(c, g.type, g.x, g.y, SIZE[g.type], colors[g.side], colors.outline, g.hd, g.hd);
   }
   c.globalAlpha = 1;
 }
@@ -666,7 +688,8 @@ function drawUnits(c, show) {
     // soldiers and jeeps are small: a light glow round them, so they stand out from the ground
     const glow = GLOW[u.type]; if (glow) { c.shadowColor = colors.halo; c.shadowBlur = glow * view.scale; }
     glyphRecoil = Math.max(0, 1 - (s.t - u.lastFire) / 0.25);
-    glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim, glow ? 0.9 : 1.2, T.air ? 0 : stride(u));
+    if (hasSprite(u.type)) { stride(u); drawUnitPic(c, u.type, u.x, u.y, k, colors[u.side], u.hd, aim, glyphRecoil); } // (its picture)
+    else glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim, glow ? 0.9 : 1.2, T.air ? 0 : stride(u));
     glyphRecoil = 0;
     if (glow) c.shadowBlur = 0;
     if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
@@ -759,6 +782,7 @@ function draw() {
     }
     drawGuess(c, q, guessAt(q), on);
   }
+  drawPicked(c); drawPings(c);
   drawVignette(c);
 }
 // a squad's units are drawn as they are (no command friction, or some of them in the exact picture)
@@ -787,7 +811,8 @@ function drawGuess(c, q, p, on) {
   for (let i = 0; i < n; i++) {
     const row = Math.floor(i / 6), col = i % 6, cols = Math.min(6, n - row * 6), off = (col - (cols - 1) / 2) * gap;
     const x = p.x + ux * off - Math.cos(hd) * row * gap, y = p.y + uy * off - Math.sin(hd) * row * gap;
-    glyph(c, q.type, x, y, k, colors.blue, colors.outline, hd, q.type === 'aa' ? idleAim('aa', 'blue') : hd, 1.2, step + i);
+    if (hasSprite(q.type)) drawUnitPic(c, q.type, x, y, k, colors.blue, hd, hd);
+    else glyph(c, q.type, x, y, k, colors.blue, colors.outline, hd, q.type === 'aa' ? idleAim('aa', 'blue') : hd, 1.2, step + i);
     if (on) { c.strokeStyle = colors.halo; c.lineWidth = 1; ring(x, y, k + 2.5); c.stroke(); }
   }
   c.globalAlpha = 1;

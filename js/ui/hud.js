@@ -2,11 +2,17 @@
 // ---- selection & commands ----
 const blueIds = () => blueSquads().map(q => q.id);
 const selIds = () => sel === 'all' ? blueIds() : Array.isArray(sel) ? sel : sel ? [sel] : [];
-function select(id) { sel = id; syncButtons(); updateHud(); }
+function select(id) { sel = id; selNode = null; syncButtons(); updateHud(); }
+// "yes, sir" from one of the picked squads
+const sayPicked = ids => { if (ids.length) Radio.hear({ kind: 'selected', id: ids[Math.floor(Math.random() * ids.length)] }); };
 // a squad picked on the map (or by its building): its whole group, if it's in one
-function pickSquad(id) { const g = groupOf(id); select(g ? g.ids.slice() : id); }
-// fa: the way the front should face (a drag), else toward the enemy
-function issue(type, x, y, fa) {
+function pickSquad(id) { const g = groupOf(id); select(g ? g.ids.slice() : id); sayPicked([id]); }
+// what the squads say back to an order: attacking (at an enemy), holding, falling back, else on the way. Under command
+// friction they say it when the message reaches them (the 'ack' report), else at once.
+const orderSay = {};
+const replyOf = (type, foe) => foe ? 'attacking' : type === 'retreat' ? 'retreating' : type === 'hold' ? 'holding' : 'go';
+// fa: the way the front should face (a drag), else toward the enemy; foe: the order is at an enemy (a red mark)
+function issue(type, x, y, fa, foe) {
   const all = sel === 'all';
   const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id) : selIds();
   if (!ids.length) return; // nothing picked: nothing to order
@@ -16,6 +22,11 @@ function issue(type, x, y, fa) {
   if (ids.length > 1) ok = Sim.formation(s, ids, type, x, y, true, fa);
   else for (const id of ids) ok = Sim.order(s, id, type, x, y, false, Number.isFinite(fa) ? { fa } : undefined) || ok;
   if (ok && all) Sim.note(s, 'כל הכוחות: ' + (type === 'hold' ? 'מחזיקים עמדה' : type === 'attack' ? 'תוקפים את האזור' : 'נסוגים הביתה'));
+  if (ok) {
+    if (type !== 'retreat') pings.push({ x, y, t: performance.now(), foe: !!foe }); // four arrows closing on the spot
+    const say = replyOf(type, foe); for (const id of ids) orderSay[id] = say;
+    if (!Sim.friction(s)) Radio.hear({ kind: say, id: ids[Math.floor(Math.random() * ids.length)] });
+  }
   updateHud();
 }
 function setPlaying(p) { if (s.over) p = false; playing = p; syncButtons(); }
@@ -50,7 +61,7 @@ function syncButtons() {
   $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq');
   $('fsRow').hidden = !fsCan() && !fsOn();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
-  cv.style.cursor = eyeArmed ? 'zoom-in' : buildArmed || fhqArmed || hqArmed ? 'copy' : '';
+  if (eyeArmed || buildArmed || fhqArmed || hqArmed) cv.style.cursor = eyeArmed ? DRONE_CUR : 'copy'; // (else the hover sets it)
   $('hqb').hidden = !hqToPlace(); $('hqb').setAttribute('aria-pressed', String(hqArmed));
   bar.classList.toggle('empty', ![...bar.children].some(c => !c.hidden)); // (the early levels have none of its buttons)
 }
@@ -175,7 +186,7 @@ function pickIds(ids) {
     const ps = ids.map(id => pos(s.squads.find(q => q.id === id))).filter(Boolean);
     if (ps.length) lookAt(ps.reduce((a, p) => a + p.x, 0) / ps.length, ps.reduce((a, p) => a + p.y, 0) / ps.length);
   }
-  select(ids.length === 1 ? ids[0] : ids.slice());
+  select(ids.length === 1 ? ids[0] : ids.slice()); sayPicked(ids);
 }
 function toggleGroup() {
   const g = selGroup();
@@ -231,7 +242,8 @@ function drawSquadIcon(cvs, type) {
   const c = cvs.getContext('2d'), k = { air: 28, tank: 21, jeep: 23, ajeep: 23, tjeep: 23, mech: 19, truck: 21 }[type] || 28;
   c.clearRect(0, 0, 64, 64);
   const x = type === 'tank' ? 25 : type === 'mech' ? 40 : type === 'inf' || type === 'aa' || type === 'at' ? 29 : 32, y = type === 'inf' || type === 'med' || type === 'aa' || type === 'at' ? 35 : 32;
-  glyph(c, type, x, y, k, colors.blue, colors.outline, type === 'air' ? -Math.PI / 4 : 0, type === 'aa' ? -Math.PI / 4 : 0, 2.2);
+  if (hasSprite(type)) { const a = type === 'air' ? -Math.PI / 4 : 0; drawUnitPic(c, type, 32, 32, k * (type === 'air' ? 0.85 : 0.95), colors.blue, a, a); }
+  else glyph(c, type, x, y, k, colors.blue, colors.outline, type === 'air' ? -Math.PI / 4 : 0, type === 'aa' ? -Math.PI / 4 : 0, 2.2);
 }
 const FOE_GUESS = 6;
 // what blue believes the power balance is: its own power vs what it has seen of the enemy

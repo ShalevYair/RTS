@@ -349,13 +349,26 @@ volEl.addEventListener('input', () => { vol = +volEl.value; saveAudio(); syncMus
 for (const ev of ['pointerdown', 'keydown', 'touchend']) document.addEventListener(ev, () => { Music.unlock(); if (musicOn && vol > 0) Music.start(); });
 syncMusic(false);
 
-// ---- radio: event reports read aloud (Web Speech), most urgent first, never a backlog ----
+// ---- radio: event reports, most urgent first, never a backlog. Recorded lines when there are some (Speak/, listed
+// in js/ui/voices.js by tools/voices.py: many takes per event, in many voices), else read aloud (Web Speech) ----
 const Radio = (() => {
   const synth = window.speechSynthesis, SAY = { 'חי"ר': 'חיל רגלים', 'נ"מ': 'נגד מטוסים', 'מכ"ם': 'מכם' };
-  const PRI = { promo: 1, unclear: 2, lost: 3, hit: 3, flagLost: 3, call: 3, nodeLost: 3, ff: 3, contact: 2, flag: 2, fhq: 1, ok: 1 };
-  const TEXT = { fhq: w => `${w}, מקימים פיקוד קדמי`, nodeLost: w => w === 'drone' ? 'הרחפן הופל' : `${Sim.STRUCTS[w].name} הושמד`, call: w => `${w}, לחץ כבד. להחזיק או לסגת?`, contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`, ff: w => `${w}, ירי על כוחותינו!`,
+  const PRI = { promo: 1, unclear: 2, lost: 3, hit: 3, flagLost: 3, call: 3, nodeLost: 3, ff: 3, contact: 2, flag: 2, fhq: 1, ok: 1, hqHit: 3, fhqHit: 3, baseHit: 2, selected: 0, go: 1, attacking: 1, holding: 1, retreating: 1 };
+  // an event's folder of recorded lines
+  const EVENT = { selected: 'selected', go: 'on_the_way', attacking: 'attacking', holding: 'holding', retreating: 'retreating', ok: 'in_position', contact: 'under_attack',
+    hit: 'heavy_losses', lost: 'squad_lost', ff: 'friendly_fire', promo: 'promoted', unclear: 'say_again', fhq: 'forward_hq', nodeLost: 'building_lost', hqHit: 'hq_attack', fhqHit: 'fhq_attack', baseHit: 'base_attack' };
+  const REC = typeof VOICES === 'object' ? VOICES : {}, recs = () => REC[lang === 'en' ? 'English' : 'Hebrew'] || null;
+  const lastTake = {};
+  // a take of the event: any of its lines (each recorded once, in one of several voices), not the same one twice running
+  function take(ev) {
+    let pool = (recs() || {})[ev]; if (!pool || !pool.length) return null;
+    if (pool.length > 1) pool = pool.filter(f => f !== lastTake[ev]);
+    return (lastTake[ev] = pool[Math.floor(Math.random() * pool.length)]);
+  }
+  let clip = null; // (the take playing now)
+  const TEXT = { hqHit: () => 'המפקדה תחת התקפה!', fhqHit: () => 'הפיקוד הקדמי תחת התקפה!', baseHit: () => 'הבסיס תחת התקפה!', fhq: w => `${w}, מקימים פיקוד קדמי`, nodeLost: w => w === 'drone' ? 'הרחפן הופל' : `${Sim.STRUCTS[w].name} הושמד`, call: w => `${w}, לחץ כבד. להחזיק או לסגת?`, contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`, ff: w => `${w}, ירי על כוחותינו!`,
     ok: w => `${w}, הגענו`, promo: w => `${w}, המפקד צבר ניסיון`, unclear: w => `${w}, ההודעה לא ברורה`, flag: w => `כבשנו את ${w}`, flagLost: w => `איבדנו את ${w}` };
-  const TEXT_EN = { fhq: w => `${w}, setting up forward HQ`, nodeLost: w => w === 'drone' ? 'Drone down' : `${EN_STRUCTS[w]} destroyed`, call: w => `${w}, heavy pressure. Hold or retreat?`, contact: w => `${w}, contact`, hit: w => `${w}, heavy losses, falling back`, lost: w => `${w}, squad destroyed`, ff: w => `${w}, friendly fire!`,
+  const TEXT_EN = { hqHit: () => 'Our HQ is under attack!', fhqHit: () => 'Forward HQ under attack!', baseHit: () => 'Our base is under attack!', fhq: w => `${w}, setting up forward HQ`, nodeLost: w => w === 'drone' ? 'Drone down' : `${EN_STRUCTS[w]} destroyed`, call: w => `${w}, heavy pressure. Hold or retreat?`, contact: w => `${w}, contact`, hit: w => `${w}, heavy losses, falling back`, lost: w => `${w}, squad destroyed`, ff: w => `${w}, friendly fire!`,
     ok: w => `${w}, in position`, promo: w => `${w}, the commander has gained experience`, unclear: w => `${w}, message unclear`, flag: w => `We took ${w}`, flagLost: w => `We lost ${w}` };
   // the sim names squads by their type, in Hebrew
   const typeOf = n => Object.keys(Sim.TYPES).find(k => Sim.TYPES[k].name === n);
@@ -363,7 +376,11 @@ const Radio = (() => {
   const pickVoice = () => { try { voice = synth.getVoices().find(v => lang === 'he' ? /^he/i.test(v.lang) : /^en/i.test(v.lang)) || null; } catch (e) { voice = null; } };
   if (synth) { pickVoice(); try { synth.addEventListener('voiceschanged', pickVoice); } catch (e) { /* old browsers */ } }
   function hear(k) {
-    if (!on || !TEXT[k.kind]) return;
+    if (!on) return;
+    // a recorded line when the event has some; else the report read aloud (the order replies and "yes, sir" only recorded)
+    const f = EVENT[k.kind] && take(EVENT[k.kind]);
+    if (f) { if (!pending || PRI[k.kind] >= pending.pri) pending = { pri: PRI[k.kind], file: f, at: performance.now() }; return; }
+    if (!TEXT[k.kind]) return;
     const en = lang === 'en', ty = typeOf(k.who), who = en ? (ty ? EN_TYPES[ty] : k.who) : SAY[k.who] || k.who;
     if (!pending || PRI[k.kind] >= pending.pri) pending = { pri: PRI[k.kind], text: (en ? TEXT_EN : TEXT)[k.kind](who || ''), at: performance.now() };
   }
@@ -371,16 +388,17 @@ const Radio = (() => {
   function tick() {
     if (!pending || !on) return;
     if (performance.now() - pending.at > 4000) { pending = null; return; }
-    if (synth && synth.speaking) return;
+    if ((synth && synth.speaking) || (clip && !clip.ended && !clip.paused)) return;
     Music.squelch();
-    if (synth && voice) {
+    if (pending.file) { clip = new Audio(pending.file); clip.volume = 0.9; clip.play().catch(() => { /* not allowed yet */ }); }
+    else if (synth && voice) {
       const u = new SpeechSynthesisUtterance(pending.text); u.voice = voice; u.lang = voice.lang; u.rate = 1.15;
       try { synth.speak(u); } catch (e) { /* speech unavailable */ }
     }
     pending = null;
   }
-  const reset = () => { pending = null; try { synth && synth.cancel(); } catch (e) { /* ignore */ } };
-  return { hear, tick, reset, pickVoice, set: v => { on = v; if (!v) reset(); }, hasVoice: () => !!voice };
+  const reset = () => { pending = null; try { synth && synth.cancel(); } catch (e) { /* ignore */ } if (clip) { clip.pause(); clip = null; } };
+  return { hear, tick, reset, pickVoice, set: v => { on = v; if (!v) reset(); }, hasVoice: () => !!voice || !!recs(), recorded: () => !!recs() };
 })();
 let radioOn = true;
 try { radioOn = localStorage.getItem('irts-radio') !== '0'; } catch (e) { /* storage unavailable */ }

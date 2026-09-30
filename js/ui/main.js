@@ -13,7 +13,7 @@ function newGame(skipIntro) {
   // the big map opens zoomed in on our base; the small one shows it all
   cam = s.H > Sim.H ? { x: 0, y: s.H / 2, z: -1 } : { x: s.W / 2, y: s.H / 2, z: 1 };
   // in the tutorial a tap on the map attacks (hold / retreat come later)
-  decor = makeDecor(s); sel = 'all'; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; Radio.reset();
+  decor = makeDecor(s); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; Radio.reset();
   $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
   $('end').hidden = true; $('share').textContent = tr('share');
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
@@ -34,7 +34,20 @@ function frame(now) {
   for (const sh of s.shots) if (!sh.heard) { sh.heard = true; if (sfxOn && onScreen({ x: sh.x1, y: sh.y1 })) Music.shot(sh.kind, sh.x1 / s.W); }
   shake *= Math.exp(-dt * 9); if (shake < 0.2) shake = 0;
   cv.style.transform = shake && !reduceMotion ? `translate(${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px, ${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px)` : '';
-  for (const k of s.marks) if (!k.heard) { k.heard = true; if (playing) Radio.hear(k); }
+  for (const k of s.marks) if (!k.heard) {
+    k.heard = true; if (!playing) continue;
+    // the order reaching the squad: its reply (attacking, on the way…), as it was given
+    Radio.hear(k.kind === 'ack' ? { kind: orderSay[k.id] || replyOf(k.type), id: k.id } : k);
+  }
+  // our buildings under fire: a call when one loses health — the HQ, a forward HQ, any other (the fake HQ is meant to be
+  // hit) — each kind at most once every BASE_CALL_MS
+  for (const n of s.nodes) {
+    if (n.side !== 'blue' || n.kind === 'drone' || n.kind === 'decoy') continue;
+    const was = nodeHp.get(n.id); nodeHp.set(n.id, n.hp);
+    if (!playing || was === undefined || n.hp >= was - 0.5 || n.hp <= 0) continue;
+    const k = n.kind === 'hq' ? 'hqHit' : n.kind === 'fhq' ? 'fhqHit' : 'baseHit';
+    if (now - (baseCalled[k] ?? -Infinity) > BASE_CALL_MS) { baseCalled[k] = now; Radio.hear({ kind: k }); }
+  }
   Radio.tick();
   if (replayAuto && !$('end').hidden && !$('replayBox').hidden && now - replayAt > 180) {
     replayAt = now; const sc = $('scrub'), i = (+sc.value + 1) % (+sc.max + 1); sc.value = i; drawReplay(i);

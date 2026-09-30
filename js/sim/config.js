@@ -73,6 +73,7 @@ const TRAITS = {
 const ORDER_R = { hold: 60, attack: 100, retreat: 40 };
 const ORDER_NAME = { hold: 'מחזיק', attack: 'תוקף', retreat: 'נסוג', support: 'מסייע' };
 const BASE_HEAL = 10, HEAL_R = 70, REARM_TIME = 2.5;
+const AIR_ORBIT = 45, AIR_LEAD = 0.6; // aircraft circle: the ring round where they are sent, and how far ahead on it they steer
 // structures (DESIGN.md §3–4). Production buildings raise one squad each and refill it, one unit per `every` s.
 const STRUCTS = {
   hq:       { name: 'מפקדה',       icon: '🏰', hp: 1500, value: 10, sight: 180 },

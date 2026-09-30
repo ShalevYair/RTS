@@ -26,7 +26,8 @@ function quality(s, side, p, build, smooth) {
   return q;
 }
 // how far a drone sees: out to its DRONE_SEE ring
-const DRONE_SIGHT = NODES.drone.r0 + (NODES.drone.r1 - NODES.drone.r0) * (1 - (DRONE_SEE * (Q_STEPS + 1) - 1) / Q_STEPS);
+// (sees twice the area of that ring: √2 its radius; the control it gives stays the ring's)
+const DRONE_SIGHT = Math.SQRT2 * (NODES.drone.r0 + (NODES.drone.r1 - NODES.drone.r0) * (1 - (DRONE_SEE * (Q_STEPS + 1) - 1) / Q_STEPS));
 const qualityAt = (s, sq) => quality(s, sq.side, { x: sq.cx, y: sq.cy });
 
 // put a drone from the ones in hand over (x, y): it starts working after `warm` seconds and stays until shot down
@@ -89,7 +90,7 @@ function setUpFhq(s, sq, at) {
   const p = at || { x: sq.cx, y: sq.cy };
   addStruct(s, sq.side, 'fhq', p.x, p.y).ready = s.t + NODES.fhq.warm;
   report(s, sq, 'מקימים פיקוד קדמי');
-  if (sq.side === 'blue') s.marks.push({ x: p.x, y: p.y, kind: 'fhq', t: s.t, who: sq.name });
+  if (sq.side === 'blue') s.marks.push({ x: p.x, y: p.y, kind: 'fhq', t: s.t, who: sq.name, id: sq.id });
 }
 // a node is a target for enemy fire: drones only for AA (soldiers and jeeps), forward HQs for anyone
 const nodeTargetable = (u, n) => n.side !== u.side && n.hp > 0 && (n.kind === 'drone' ? MULT[u.type].air > 0 : true);
