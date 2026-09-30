@@ -10,7 +10,11 @@ function buildingPic(kind, col, px) {
   const key = kind + col + px; let pic = artCache.get(key); if (pic) return pic;
   const P = px * ART_RES / 40, w = Math.ceil(px * 1.7 * ART_RES);
   pic = document.createElement('canvas'); pic.width = pic.height = w;
-  const c = pic.getContext('2d'); c.translate(w / 2, w / 2); c.scale(P, P); c.lineJoin = 'round'; c.lineCap = 'round';
+  const c = pic.getContext('2d');
+  // a building with its own picture (art/): recoloured, about as wide as the drawn one
+  const own = BUILDING_PIC[kind], im = own && spritePic(own, col);
+  if (im) { const dw = px * 1.35 * ART_RES, dh = dw * im.height / im.width; c.drawImage(im, (w - dw) / 2, (w - dh) / 2 - dh * 0.06, dw, dh); artCache.set(key, pic); return pic; }
+  c.translate(w / 2, w / 2); c.scale(P, P); c.lineJoin = 'round'; c.lineCap = 'round';
   const dk = shade(col, -0.38), lt = shade(col, 0.28);
   // a lit roof: light at its north-west corner, the side colour, darker to the south-east
   const lit = (x, y, ww, hh, base) => { const g = c.createLinearGradient(x, y, x + ww, y + hh); g.addColorStop(0, shade(base, 0.25)); g.addColorStop(0.55, base); g.addColorStop(1, shade(base, -0.22)); return g; };
@@ -290,4 +294,122 @@ function drawGrain(c, W, H) {
 }
 function drawGrade(c, W, H) {
   c.save(); c.globalCompositeOperation = 'soft-light'; c.fillStyle = 'rgba(255,214,150,.12)'; c.fillRect(0, 0, W, H); c.restore();
+}
+
+// ---- unit pictures (js/ui/sprites.js, made from art/ by tools/sprites.py): loaded once, recoloured per side (the
+// picture's blue parts get the side's hue, keeping their light and shade; a wreck is the picture dark and grey) ----
+const sprite = { img: {}, pic: new Map() };
+for (const k in (typeof SPRITES === 'object' ? SPRITES : {})) {
+  const im = new Image(); im.onload = () => { sprite.img[k] = im; sqKey = ''; artCache.clear(); if (k.startsWith('d_')) bg.key = ''; try { nameBuildMenu(); } catch (e) { /* not up yet */ } }; im.src = SPRITES[k].src;
+}
+function spritePic(k, col) {
+  const key = k + col; let p = sprite.pic.get(key); if (p) return p;
+  const im = sprite.img[k]; if (!im) return null;
+  p = document.createElement('canvas'); p.width = im.width; p.height = im.height;
+  const c = p.getContext('2d'); c.drawImage(im, 0, 0);
+  const d = c.getImageData(0, 0, p.width, p.height), a = d.data, wreck = col === 'wreck', [hue] = wreck ? [0] : toHsl(...rgbOf(col));
+  for (let i = 0; i < a.length; i += 4) {
+    if (!a[i + 3] || (!a[i] && !a[i + 1] && !a[i + 2])) continue; // (clear, or the shadow)
+    const [h, sat, l] = toHsl(a[i], a[i + 1], a[i + 2]);
+    if (wreck) { const v = Math.round(l * 255 * 0.45 + 18); a[i] = v; a[i + 1] = v * 0.96; a[i + 2] = v * 0.9; continue; }
+    if (sat < 0.3 || h < 190 || h > 260) continue; // only the team blue
+    const [r, g, b] = fromHsl(hue, sat, l); a[i] = r; a[i + 1] = g; a[i + 2] = b;
+  }
+  c.putImageData(d, 0, 0); sprite.pic.set(key, p); return p;
+}
+// how long a unit's picture is on the map, in its size k (as long as the drawn glyph)
+const SPRITE_LEN = { jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, air: 2, tank: 1.9 }, TURRET_K = 0.86;
+// a building's picture: art/b_<kind> (the fake HQ looks just like the real one; the armed jeeps' workshops, the jeeps')
+const BUILDING_PIC = new Proxy({}, { get: (_, kind) => { const k = kind === 'decoy' ? 'hq' : kind; return sprite.img['b_' + k] || !/^jeepa[at]$/.test(k) ? 'b_' + k : 'b_jeepshop'; } });
+const hasSprite = type => type === 'tank' ? !!(sprite.img.tank_hull && sprite.img.tank_turret) : !!(SPRITE_LEN[type] && sprite.img[type]);
+const hasBuildingPic = kind => !!(BUILDING_PIC[kind] && sprite.img[BUILDING_PIC[kind]]);
+// a unit drawn from its picture when there is one (else the drawn glyph): turned to its heading, a tank's turret to
+// where it aims, kicked back a little when it fires. col: the side's colour, or 'wreck'
+function drawUnitPic(c, type, x, y, k, col, hd, aim, recoil = 0) {
+  if (type !== 'tank') {
+    const S = SPRITES[type], p = spritePic(type, col), sc = SPRITE_LEN[type] * k / S.w;
+    c.save(); c.translate(x, y); c.rotate(hd); c.drawImage(p, -S.w / 2 * sc, -S.h / 2 * sc, S.w * sc, S.h * sc); c.restore();
+    return;
+  }
+  const H = SPRITES.tank_hull, T = SPRITES.tank_turret, sc = SPRITE_LEN.tank * k / H.w;
+  c.save(); c.translate(x, y); c.rotate(hd);
+  c.drawImage(spritePic('tank_hull', col), -H.w / 2 * sc, -H.h / 2 * sc, H.w * sc, H.h * sc);
+  c.translate((H.px - H.w / 2) * sc, (H.py - H.h / 2) * sc); c.rotate(aim - hd); c.translate(-recoil * 0.12 * k, 0);
+  const ts = sc * TURRET_K; c.drawImage(spritePic('tank_turret', col), -T.px * ts, -T.py * ts, T.w * ts, T.h * ts);
+  c.restore();
+}
+
+// ---- where an order went: four arrows closing on the spot (green; red at an enemy), and the picked building ----
+const PING_MS = 650;
+function drawPings(c) {
+  const now = performance.now(), px = 1 / view.css; pings = pings.filter(p => now - p.t < PING_MS);
+  for (const p of pings) {
+    const f = (now - p.t) / PING_MS, d = (8 + 22 * (1 - f) * (1 - f)) * px, a = f < 0.7 ? 1 : (1 - f) / 0.3, col = p.foe ? '#e8392e' : '#34b35a';
+    c.save(); c.translate(p.x, p.y); c.globalAlpha = a; c.lineJoin = 'round';
+    for (let i = 0; i < 4; i++) {
+      c.save(); c.rotate(Math.PI / 4 + i * Math.PI / 2); c.translate(d, 0);
+      c.beginPath(); c.moveTo(0, 0); c.lineTo(9 * px, -6 * px); c.lineTo(9 * px, -2.5 * px); c.lineTo(15 * px, -2.5 * px); c.lineTo(15 * px, 2.5 * px); c.lineTo(9 * px, 2.5 * px); c.lineTo(9 * px, 6 * px); c.closePath();
+      c.lineWidth = 3 * px; c.strokeStyle = 'rgba(255,255,255,.9)'; c.stroke(); c.fillStyle = col; c.fill();
+      c.restore();
+    }
+    c.globalAlpha = a * 0.6; c.strokeStyle = col; c.lineWidth = 2 * px; c.beginPath(); c.arc(0, 0, (4 + 10 * f) * px, 0, Math.PI * 2); c.stroke();
+    c.restore();
+  }
+}
+function drawPicked(c) {
+  const n = selNode != null && s.nodes.find(n => n.id === selNode && n.hp > 0); if (!n) return;
+  const big = n.kind === 'hq' || n.kind === 'decoy', rx = big ? 34 : 24, ry = rx * 0.55, y = n.y + (big ? 12 : 8);
+  c.save(); c.lineWidth = 2.2 / view.css; c.strokeStyle = 'rgba(255,255,255,.95)'; c.setLineDash([7 / view.css, 5 / view.css]); c.lineDashOffset = -performance.now() / 60 / view.css;
+  c.beginPath(); c.ellipse(n.x, y, rx, ry, 0, 0, Math.PI * 2); c.stroke(); c.restore();
+}
+
+// ---- scenery pictures (art/Background → d_tree*, d_bush*, d_rock*): drawn into the ground cache, only where it
+// covers; each item picks its picture by a hash of where it stands (rock slabs only up the hills) ----
+const SCENERY_WEIGHT = { d_tree2: 2, d_tree4: 1 };
+function drawScenery(c) {
+  // (a picture's weight: the teal and the autumn trees are the odd ones out)
+  const pics = t => Object.keys(sprite.img).filter(k => k.startsWith('d_' + t)).sort().flatMap(k => Array(SCENERY_WEIGHT[k] ?? 4).fill(sprite.img[k]));
+  const P = { tree: pics('tree'), bush: pics('bush'), rock: pics('rock') };
+  if (!P.tree.length) return false;
+  if (!P.bush.length) P.bush = P.tree;
+  if (!P.rock.length) return false;
+  const slab = sprite.img.d_rock3, low = P.rock.filter(im => im !== slab); // (rock3, a flat slab: only up the hills)
+  if (!low.length) low.push(...P.rock);
+  const x0 = bg.x0 - 20, y0 = bg.y0 - 20, x1 = bg.x0 + bg.w + 20, y1 = bg.y0 + bg.h + 20;
+  for (const it of decor.rocks.items) {
+    if (it.x < x0 || it.x > x1 || it.y < y0 || it.y > y1) continue;
+    const L = it.t === 'rock' ? (it.hi ? P.rock : low) : P[it.t], im = L[it.v % L.length], w = it.s, h = w * im.height / im.width;
+    c.drawImage(im, it.x - w / 2, it.y - h / 2, w, h);
+  }
+  return true;
+}
+
+// ---- ground textures (art/Background → js/ui/tiles.js by tools/tiles.py): repeating patterns, TILE_W world units a
+// tile. Grass is the ground, dry grass and bare earth the blotches, mud the lake shores, stony ground up the hills ----
+const tile = { img: {}, pat: new WeakMap() }, TILE_W = 190, GROUND_TINT = 0.18, RELIEF_OVER_TILES = 0.5;
+for (const k in (typeof TILES === 'object' ? TILES : {})) { const im = new Image(); im.onload = () => { tile.img[k] = im; bg.key = ''; }; im.src = TILES[k]; }
+// a tile's pattern for a canvas (kept per context)
+function tilePat(c, k) {
+  const im = tile.img[k]; if (!im) return null;
+  let m = tile.pat.get(c); if (!m) tile.pat.set(c, m = {});
+  if (!m[k]) { m[k] = c.createPattern(im, 'repeat'); m[k].setTransform(new DOMMatrix().scale(TILE_W / im.width)); }
+  return m[k];
+}
+// stony ground over the hills: the texture where the land is high, stronger the higher (a mask from the height grid,
+// stretched smoothly like the relief), on a layer the size of the cache
+const stony = { cv: document.createElement('canvas'), mask: null, key: null };
+function drawStony(c, pat) {
+  const E = s.elev;
+  if (stony.key !== E) {
+    stony.key = E; stony.mask = document.createElement('canvas'); stony.mask.width = E.w; stony.mask.height = E.h;
+    const mc = stony.mask.getContext('2d'), img = mc.createImageData(E.w, E.h);
+    for (let i = 0; i < E.g.length; i++) img.data[i * 4 + 3] = 255 * Math.max(0, Math.min(1, (E.g[i] - 2) / 5)) * 0.6;
+    mc.putImageData(img, 0, 0);
+  }
+  const L = stony.cv, T = c.getTransform(); L.width = c.canvas.width; L.height = c.canvas.height;
+  const g = L.getContext('2d'); g.setTransform(T);
+  g.fillStyle = pat; g.fillRect(-1e5, -1e5, 2e5, 2e5);
+  g.globalCompositeOperation = 'destination-in'; g.imageSmoothingEnabled = true;
+  g.drawImage(stony.mask, -ELEV / 2, -ELEV / 2, E.w * ELEV, E.h * ELEV);
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(L, 0, 0); c.restore();
 }

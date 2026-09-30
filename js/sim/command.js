@@ -34,7 +34,7 @@ function garbled(s, sq, type) {
   if (q >= UNCLEAR_Q || s.rand() >= UNCLEAR_K * (UNCLEAR_Q - q) / UNCLEAR_Q * Math.pow(0.5, rankOf(sq))) return type;
   const read = sq.temper === 'bold' ? 'attack' : sq.temper === 'anxious' ? 'hold' : sq.order.type === 'retreat' ? 'hold' : sq.order.type;
   if (read === type) return type;
-  if (sq.side === 'blue') { s.log2.unclear++; report(s, sq, 'ההודעה לא ברורה, מבין: ' + (read === 'hold' ? 'להחזיק' : 'לתקוף')); s.marks.push({ x: sq.cx, y: sq.cy, kind: 'unclear', t: s.t, who: sq.name }); }
+  if (sq.side === 'blue') { s.log2.unclear++; report(s, sq, 'ההודעה לא ברורה, מבין: ' + (read === 'hold' ? 'להחזיק' : 'לתקוף')); s.marks.push({ x: sq.cx, y: sq.cy, kind: 'unclear', t: s.t, who: sq.name, id: sq.id }); }
   return read;
 }
 // radio silence (sent like an order): the squad stops reporting, moves slower and raises no dust
@@ -123,7 +123,7 @@ function applyOrder(s, sq, type, x, y, quiet, form) {
   sq.retreating = false; sq.arrived = false; sq.support = null;
   if (sq.side === 'blue' && friction(s) && type !== 'retreat') {
     s.log2.off += off; s.log2.offN++;
-    s.marks.push({ x: p.x, y: p.y, kind: 'ack', t: s.t, who: sq.name }); // "roger": where the squad is actually going
+    s.marks.push({ x: p.x, y: p.y, kind: 'ack', t: s.t, who: sq.name, id: sq.id, type }); // "roger": where the squad is actually going
   }
   if (!quiet) report(s, sq, 'קיבלתי: ' + (type === 'hold' ? 'מחזיק עמדה' : type === 'attack' ? 'תוקף את האזור' : 'נסוג לבסיס') + (off > 20 ? ', בערך' : ''));
   return true;
@@ -195,5 +195,5 @@ function sendReport(s, sq, kind) {
   let said = sq.strength < 1 ? clamp(sq.strength + TEMPERS[sq.temper].rosy, 0.05, 1) : 1; // bold ones play losses down
   said = clamp(said + NOISE_STR * jit(), 0.05, 1);
   s.rep[sq.id] = { x: clamp(sq.cx + NOISE_POS * jit(), 0, s.W), y: clamp(sq.cy + NOISE_POS * jit(), 0, s.H), strength: said, t: s.t, q: 1 - miss, prev: r ? { x: r.x, y: r.y } : null };
-  if (kind) s.marks.push({ x: sq.cx, y: sq.cy, kind, t: s.t, who: sq.name });
+  if (kind) s.marks.push({ x: sq.cx, y: sq.cy, kind, t: s.t, who: sq.name, id: sq.id });
 }

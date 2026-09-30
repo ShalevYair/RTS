@@ -107,5 +107,5 @@ ok(fin >= 2, `${fin}/3 fogged bot games on the big map finished within 25 min (a
 { // bigger maps allow more: the big one 2× the buildings and forward HQs, the huge one 4×; the tutorial keeps 1×
   const sm = Sim.create(1, 1000), bg = Sim.create(1, 2400, 'normal', 1280), hg = Sim.create(1, 4000, 'normal', 2560);
   const L = [sm, bg, hg].map(g => Sim.buildLimit(g, 'blue')), F = [sm, bg, hg].map(g => Sim.fhqMax(g));
-  ok(L[1] === 2 * L[0] && L[2] === 4 * L[0] && F[1] === 2 * F[0] && F[2] === 4 * F[0] && Sim.level(11, 1, 1000).scale === 1, `building limit ${L.join(' / ')}, forward HQs ${F.join(' / ')} (small / big / huge)`);
+  ok(L[1] === L[0] + 2 && L[2] === L[0] + 6 && F[1] === 2 * F[0] && F[2] === 4 * F[0] && Sim.level(11, 1, 1000).scale === 1, `building limit ${L.join(' / ')}, forward HQs ${F.join(' / ')} (small / big / huge)`);
 }

@@ -13,6 +13,36 @@ function hitSquad(x, y) {
   for (const u of s.units) { if (u.side !== 'blue' || (Sim.friction(s) && !shownAt(u))) continue; const d = Math.hypot(u.x - x, u.y - y); if (d < bd) { bd = d; best = u.squad; } }
   return best;
 }
+// the enemy under a spot, as blue knows it: a unit or building in sight, a remembered building, a sighting under fog
+function hitFoe(x, y) {
+  const r = tapR(Math.max(14, 20 / view.css));
+  for (const u of s.units) if (u.side === 'red' && (!s.fog || (s.vis.blue.has(u.id) && shownAt(u))) && Math.hypot(u.x - x, u.y - y) < r) return { x: u.x, y: u.y };
+  const n = hitNode(x, y, 'red'); if (n) return { x: n.x, y: n.y };
+  if (s.fog) for (const m of Object.values(s.mem.blue)) if (m && Number.isFinite(m.x) && Math.hypot(m.x - x, m.y - y) < r * 1.3) return { x: m.x, y: m.y };
+  return null;
+}
+// a building under a spot (side's own, or the enemy's as seen or remembered): the node, or its memory
+function hitNode(x, y, side) {
+  const near = n => Math.hypot(n.x - x, n.y - y) < tapR(n.kind === 'hq' || n.kind === 'decoy' ? 30 : 22);
+  const n = s.nodes.find(n => n.side === side && n.hp > 0 && n.kind !== 'drone' && nodeShown(n) && near(n));
+  if (n || side === 'blue' || !s.fog) return n || null;
+  const m = Object.values(s.memNodes.blue).find(m => !s.visNodes.blue.has(m.id) && near(m));
+  return m ? { ...m, side: 'red', mem: true } : null;
+}
+// a building's line: its name, its state, and (ours) what it makes and when the next one comes out
+function nodeInfo(n) {
+  const S = Sim.STRUCTS[n.kind], kind = n.side === 'red' && n.kind === 'decoy' ? 'hq' : n.kind;
+  const out = [sn(kind) + (n.side === 'blue' && n.kind === 'decoy' ? ' 🎭' : '')];
+  if (n.mem) { out.push(tr('ni_seen', Math.round(s.t - n.t))); return out.join(' · '); }
+  if (n.side === 'blue' || !s.fog || Sim.idLevel(s, 'blue', n) >= 2) out.push(Math.max(1, Math.round(100 * n.hp / S.hp)) + '%');
+  if (n.side !== 'blue') return out.join(' · ');
+  if (s.t < n.ready) out.push(tr('ni_build', Math.ceil(n.ready - s.t)));
+  else if (S.unit) {
+    const q = s.squads.find(q => q.id === n.squad && !q.dead), have = q ? s.units.filter(u => u.squad === q.id).length : 0;
+    out.push(q && have >= q.size ? tr('ni_full') : tr('ni_next', tn(S.unit), Math.max(1, Math.ceil((1 - (n.prog || 0)) * S.every))));
+  }
+  return out.join(' · ');
+}
 // a tap on the map: select, place, or give the order
 function tap(e) {
   if (!menu.hidden) { closeMenu(); return; }
@@ -24,13 +54,56 @@ function tap(e) {
   if (fhqArmed) { placeFhq(x, y); return; }
   if (hqArmed) { placeHq(x, y); return; }
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
-  // tapping one of our buildings selects the squad it raises
-  const home = s.nodes.find(n => n.side === 'blue' && n.squad && Math.hypot(n.x - x, n.y - y) < tapR(24));
-  if (home && s.squads.some(q => q.id === home.squad)) { pickSquad(home.squad); return; }
   const hit = hitSquad(x, y);
   if (hit) { pickSquad(hit); return; }
+  // tapping one of our buildings picks it (and the squad it raises), its line shown by it
+  const home = hitNode(x, y, 'blue');
+  if (home) {
+    if (home.squad && s.squads.some(q => q.id === home.squad && !q.dead)) pickSquad(home.squad); else select(null);
+    selNode = home.id; const r = cv.getBoundingClientRect();
+    toast(nodeInfo(home), home.x * view.css + view.cox + r.left, (home.y - 26) * view.css + view.coy + r.top, 2600);
+    return;
+  }
+  // at an enemy: an attack on it, whatever the order button says
+  const foe = selIds().length || sel === 'all' ? hitFoe(x, y) : null;
+  if (foe) { issue('attack', foe.x, foe.y, undefined, true); return; }
   issue(mode, x, y);
 }
+// hover (mouse): the cursor says what a click would do, and a building's line shows by it after a moment
+const svgCur = (svg, hx, hy) => `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${hx} ${hy}, crosshair`;
+const DRONE_CUR = (() => {
+  const arms = "<path d='M9 9L23 23M23 9L9 23'/><circle cx='8' cy='8' r='5'/><circle cx='24' cy='8' r='5'/><circle cx='8' cy='24' r='5'/><circle cx='24' cy='24' r='5'/>";
+  return svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><g fill='none' stroke='#fff' stroke-width='4' stroke-linecap='round'>${arms}</g><g fill='none' stroke='#223' stroke-width='2' stroke-linecap='round'>${arms}</g><rect x='12.5' y='12.5' width='7' height='7' rx='2' fill='#4a90e2' stroke='#223' stroke-width='1.5'/></svg>`, 16, 16);
+})();
+const aimCur = col => {
+  const g = "<circle cx='14' cy='14' r='8'/><path d='M14 1v7M14 20v7M1 14h7M20 14h7'/>";
+  return svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><g fill='none' stroke-linecap='round' stroke='#fff' stroke-width='4'>${g}</g><g fill='none' stroke-linecap='round' stroke='${col}' stroke-width='2'>${g}</g></svg>`, 14, 14);
+};
+const AIM_GO = aimCur('#2e9e4f'), AIM_FOE = aimCur('#d8342c');
+let hoverNode = null, hoverT = 0;
+function hover(e) {
+  if (!s || drag || e.pointerType !== 'mouse') return;
+  const { x, y } = toWorld(e), picked = sel === 'all' || selIds().length > 0;
+  let cur = '', n = null;
+  if (eyeArmed) cur = DRONE_CUR;
+  else if (buildArmed || fhqArmed || hqArmed) cur = 'copy';
+  else if (hitSquad(x, y) || (n = hitNode(x, y, 'blue'))) cur = 'pointer';
+  else if (!picked) { cur = 'default'; n = hitNode(x, y, 'red'); }
+  else if (hitFoe(x, y)) { cur = AIM_FOE; n = hitNode(x, y, 'red'); }
+  else cur = AIM_GO;
+  if (cv.style.cursor !== cur) cv.style.cursor = cur;
+  // the building's line: after 400 ms on the same one, gone when the mouse leaves it
+  const key = n ? (n.mem ? 'm' : '') + n.id : null;
+  if (key === hoverNode) return;
+  hoverNode = key; clearTimeout(hoverT); if (tipFor === 'node') hideTip();
+  if (n) hoverT = setTimeout(() => {
+    if (hoverNode !== key || tour || tipFor === 'toast') return;
+    const r = cv.getBoundingClientRect();
+    showTip(nodeInfo(n), { left: n.x * view.css + view.cox + r.left, top: (n.y - 26) * view.css + view.coy + r.top, width: 0, height: 0 }); tipFor = 'node';
+  }, 400);
+}
+cv.addEventListener('pointermove', hover);
+cv.addEventListener('pointerleave', () => { hoverNode = null; clearTimeout(hoverT); if (tipFor === 'node') hideTip(); });
 // Mouse: a left click gives the order (or picks the squad under it); left-drag draws a rectangle that picks every squad
 // in it; right-drag gives the order with a facing (from where it starts, the front toward where it's dragged), a right
 // click clears the pick; middle-drag pans; the wheel zooms;

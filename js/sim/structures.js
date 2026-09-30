@@ -12,7 +12,8 @@ const hqOf = (s, side) => s.nodes.find(n => n.side === side && n.kind === 'hq' &
 
 // how many production buildings a side may have: BUILD_BASE + BUILD_PER_NODE per working HQ / forward HQ
 // (× s.scale: the big map 2×, the huge one 4×)
-const buildLimit = (s, side) => (BUILD_BASE + BUILD_PER_NODE * alive(s, side, ['hq', 'fhq']).filter(n => s.t >= n.ready).length) * (s.scale || 1);
+// (a bigger map: a bigger base allowance, but each HQ / forward HQ still adds the same)
+const buildLimit = (s, side) => BUILD_BASE * (s.scale || 1) + BUILD_PER_NODE * alive(s, side, ['hq', 'fhq']).filter(n => s.t >= n.ready).length;
 const buildCount = (s, side) => alive(s, side, PRODUCERS).length;
 // why a building can't go at (x, y): '' when it can; 'q' poor control, 'limit' no free slot, 'gap' too close, 'bad' bad input
 // (kind 'decoy': no slot, but at most DECOY_MAX of them)

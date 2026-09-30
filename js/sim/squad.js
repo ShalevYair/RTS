@@ -71,7 +71,7 @@ function overheard(s, sq) {
 // a commander's experience: enemy units his squad destroys; a new rank is reported
 function gainXp(s, sq, v) {
   const r0 = rankOf(sq); sq.xp += v;
-  if (rankOf(sq) > r0 && sq.side === 'blue') { report(s, sq, rankOf(sq) === 2 ? 'המפקד מנוסה מאוד עכשיו' : 'המפקד צבר ניסיון'); s.marks.push({ x: sq.cx, y: sq.cy, kind: 'promo', t: s.t, who: sq.name }); }
+  if (rankOf(sq) > r0 && sq.side === 'blue') { report(s, sq, rankOf(sq) === 2 ? 'המפקד מנוסה מאוד עכשיו' : 'המפקד צבר ניסיון'); s.marks.push({ x: sq.cx, y: sq.cy, kind: 'promo', t: s.t, who: sq.name, id: sq.id }); }
 }
 function effOrder(s, sq) {
   if (sq.support) {
@@ -117,8 +117,8 @@ function updateUnit(s, u, sq, dt) {
     if (u.ammo <= 0) u.rearm = true;
     if (u.rearm) {
       const f = rearmSpot(s, u), d = dist(u, f);
-      if (d < 20) { u.rearmT += dt; if (u.rearmT >= REARM_TIME) { u.ammo = T.ammo; u.rearm = false; u.rearmT = 0; } }
-      else { const k = Math.min(1, T.speed * dt / d); u.hd = Math.atan2(f.y - u.y, f.x - u.x); u.x += (f.x - u.x) * k; u.y += (f.y - u.y) * k; }
+      if (d < AIR_ORBIT * 1.5) { u.rearmT += dt; if (u.rearmT >= REARM_TIME) { u.ammo = T.ammo; u.rearm = false; u.rearmT = 0; } }
+      circle(s, u, f.x, f.y, AIR_ORBIT * 0.7, dt); // (over the field while they rearm it)
       return;
     }
   }
@@ -172,11 +172,16 @@ function updateUnit(s, u, sq, dt) {
   let tx, ty;
   // (a tank goes for soldiers it's shooting at, to run them over)
   if (best && (bd > range * 0.9 || (u.type === 'tank' && FOOT.includes(best.type)))) { tx = best.x; ty = best.y; }
-  else if (best) return;
+  else if (best) { if (T.air) circle(s, u, best.x, best.y, range * 0.6, dt); return; } // (aircraft wheel over what they shoot at)
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
-  else if (T.air) { const sr = o.r * 0.55; tx = anchor.x + u.sx * sr; ty = anchor.y + u.sy * sr; }
+  else if (T.air) { const sr = o.r * 0.55; circle(s, u, anchor.x + u.sx * sr, anchor.y + u.sy * sr, AIR_ORBIT, dt); return; }
   else { const g = (u.slot || 0) * spacing(u.type), a = sq.face || 0; tx = anchor.x - Math.sin(a) * g; ty = anchor.y + Math.cos(a) * g; } // in the line
   moveTo(s, u, tx, ty, (retreat ? 1.15 : 1) * (sq.silent ? SILENT_SPEED : 1), dt);
+}
+// aircraft never stand still: they circle round a spot (heading for a point a little ahead on the ring)
+function circle(s, u, cx, cy, R, dt) {
+  const a = Math.atan2(u.y - cy, u.x - cx) + AIR_LEAD;
+  moveTo(s, u, cx + Math.cos(a) * R, cy + Math.sin(a) * R, 1, dt, true);
 }
 // supply lines: a shot far from any building of the side and from its supply trucks uses more ammunition
 function supplyUse(s, u) {
@@ -185,14 +190,14 @@ function supplyUse(s, u) {
 }
 // a step toward (tx, ty): ground units go round lakes; uphill slower, downhill faster (by how many lines the next
 // few steps climb or drop)
-function moveTo(s, u, tx, ty, fast, dt) {
+function moveTo(s, u, tx, ty, fast, dt, keep) {
   const T = TYPES[u.type];
   if (!T.air && s.lakes.length) ({ x: tx, y: ty } = wade(s, u, tx, ty));
   const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy);
-  if (d <= 2) return;
+  if (d <= 2 && !keep) return;
   let slope = 1;
   if (!T.air) { const L = 6, e0 = elevAt(s, u), e1 = elevAt(s, { x: u.x + vx / d * L, y: u.y + vy / d * L }); slope = 1 - clamp((e1 - e0) / L * SLOPE_K, -SLOPE_MAX, SLOPE_MAX); }
-  const k = Math.min(1, T.speed * slope * fast * dt / d);
+  const k = keep ? T.speed * fast * dt / Math.max(d, 1e-6) : Math.min(1, T.speed * slope * fast * dt / d); // (keep: at full speed, even past the point)
   u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
   if (!T.air && !u.hush && d * k >= DUST_FAST * T.speed * dt) u.dustAt = s.t; // (driving fast: dust the enemy can see from afar)
 }
@@ -221,7 +226,7 @@ function friendlyFire(s, u, sq, tgt) {
     s.log2.ff++;
     if (s.t - (v.ffSaid ?? -99) >= FF_NOTE) {
       v.ffSaid = s.t; report(s, v, `ירי על כוחותינו! נפגענו מכוח ה${sq.name}`);
-      s.marks.push({ x: f.x, y: f.y, kind: 'ff', t: s.t, who: v.name });
+      s.marks.push({ x: f.x, y: f.y, kind: 'ff', t: s.t, who: v.name, id: v.id });
     }
   }
   return f;
