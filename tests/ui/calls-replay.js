@@ -25,7 +25,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const callGone = await p.isHidden('#call');
     await p.waitForTimeout(12000);
     await p.evaluate(() => { const o = Sim.step; Sim.step = (s, dt) => { o(s, dt); s.over = 'blue'; }; });
-    await p.waitForTimeout(1500); await p.waitForFunction(() => !document.getElementById('end').hidden, null, { timeout: 10000 }); // (after the finale)
+    await p.waitForTimeout(1500); await p.waitForFunction(() => { skipOutro(); return !document.getElementById('end').hidden; }, null, { timeout: 10000 }); // (the finale skipped)
     const rep = await p.evaluate(() => ({ box: !document.getElementById('replayBox').hidden, max: document.getElementById('scrub').max, stats: document.getElementById('endStats').textContent }));
     await p.screenshot({ path: `${OUT}/${name}-replay.png` });
     console.log(name, JSON.stringify({ callVisible, callTxt, callGone, ...rep }), 'errors', errs);

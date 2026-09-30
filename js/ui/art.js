@@ -311,7 +311,9 @@ function spritePic(k, col) {
   c.putImageData(d, 0, 0); sprite.pic.set(key, p); return p;
 }
 // how long a unit's picture is on the map, in its size k (as long as the drawn glyph)
-const SPRITE_LEN = { jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, air: 2, tank: 1.9, dozer: 1.9, radio: 1.9, inf: 2.4, at: 2.4, aa: 2.4, med: 2.4 }, TURRET_K = 0.86;
+// (soldiers: by how wide they are across the shoulders, SPRITE_ACROSS — a launcher makes one much longer than the next)
+const SPRITE_LEN = { jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, air: 2, tank: 1.9, dozer: 1.9, radio: 1.9, inf: 1, at: 1, aa: 1, med: 1 }, TURRET_K = 0.86;
+const SPRITE_ACROSS = { inf: 1.9, at: 1.9, aa: 1.9, med: 1.9 };
 // a building's picture: art/b_<kind> (the fake HQ looks just like the real one; the armed jeeps' workshops, the jeeps')
 const BUILDING_PIC = new Proxy({}, { get: (_, kind) => { const k = kind === 'decoy' ? 'hq' : kind; return sprite.img['b_' + k] || !/^jeepa[at]$/.test(k) ? 'b_' + k : 'b_jeepshop'; } });
 const hasSprite = type => type === 'tank' ? !!(sprite.img.tank_hull && sprite.img.tank_turret) : !!(SPRITE_LEN[type] && sprite.img[type]);
@@ -320,7 +322,7 @@ const hasBuildingPic = kind => !!(BUILDING_PIC[kind] && sprite.img[BUILDING_PIC[
 // where it aims, kicked back a little when it fires. col: the side's colour, or 'wreck'
 function drawUnitPic(c, type, x, y, k, col, hd, aim, recoil = 0) {
   if (type !== 'tank') {
-    const S = SPRITES[type], p = spritePic(type, col), sc = SPRITE_LEN[type] * k / S.w;
+    const S = SPRITES[type], p = spritePic(type, col), sc = SPRITE_ACROSS[type] ? SPRITE_ACROSS[type] * k / S.h : SPRITE_LEN[type] * k / S.w;
     c.save(); c.translate(x, y); c.rotate(hd); c.drawImage(p, -S.w / 2 * sc, -S.h / 2 * sc, S.w * sc, S.h * sc); c.restore();
     return;
   }
@@ -358,9 +360,9 @@ function drawPicked(c) {
 
 // ---- scenery pictures (art/Background → d_tree*, d_bush*, d_rock*): drawn into the ground cache, only where it
 // covers; each item picks its picture by a hash of where it stands (rock slabs only up the hills) ----
-const SCENERY_WEIGHT = { d_tree2: 2, d_tree4: 1 };
+const SCENERY_WEIGHT = { d_rock3: 0 }; // (0 = left out: the new rock3 is a square slab, a floor tile on the map)
 function drawScenery(c) {
-  // (a picture's weight: the teal and the autumn trees are the odd ones out)
+  // (a picture's weight, 4 unless SCENERY_WEIGHT says)
   const pics = t => Object.keys(sprite.img).filter(k => k.startsWith('d_' + t)).sort().flatMap(k => Array(SCENERY_WEIGHT[k] ?? 4).fill(sprite.img[k]));
   const P = { tree: pics('tree'), bush: pics('bush'), rock: pics('rock') };
   if (!P.tree.length) return false;
@@ -381,7 +383,7 @@ function drawScenery(c) {
 
 // ---- ground textures (art/Background → js/ui/tiles.js by tools/tiles.py): repeating patterns, TILE_W world units a
 // tile. Grass is the ground, dry grass and bare earth the blotches, mud the lake shores, stony ground up the hills ----
-const tile = { img: {}, pat: new WeakMap() }, TILE_W = 190, GROUND_TINT = 0.18, RELIEF_OVER_TILES = 0.5;
+const tile = { img: {}, pat: new WeakMap() }, TILE_W = 190, GROUND_TINT = 0.18, RELIEF_OVER_TILES = 0.62;
 for (const k in (typeof TILES === 'object' ? TILES : {})) { const im = new Image(); im.onload = () => { tile.img[k] = im; bg.key = ''; }; im.src = TILES[k]; }
 // a tile's pattern for a canvas (kept per context)
 function tilePat(c, k) {

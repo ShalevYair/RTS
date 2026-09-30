@@ -10,9 +10,9 @@ from PIL import Image
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 # name: (file, background, flip left-right, pivot in the source or None = the middle, longest side out)
 SPRITES = {
-    'jeep':        ('jeep.png',        'checker', True,  None,       256),
-    'tank_hull':   ('tank_hull.png',   'white',   False, (527, 502), 256),
-    'tank_turret': ('tank_turret.jpg', 'white',   False, (340, 502), None),  # (the hull's scale: they fit together)
+    'jeep':        ('jeep.jpg',        'white',   False, None,       256),
+    'tank_hull':   ('tank_hull.jpg',   'white',   False, (517, 506), 256),
+    'tank_turret': ('tank_turret.jpg', 'white',   False, (322, 600), None),  # (the hull's scale: they fit together)
     'ajeep':       ('jeep_aa.jpg',     'white',   False, None,       256),
     'tjeep':       ('jeep_at.jpg',     'white',   False, None,       256),
     'truck':       ('truck.jpg',       'white',   False, None,       256),
@@ -30,18 +30,18 @@ SPRITES = {
 # and every building picture in art/ (b_<kind>.jpg / .png: seen at a slant from the south, on white)
 for f in sorted(os.listdir(os.path.join(ROOT, 'art'))):
     n, ext = os.path.splitext(f)
-    if n.startswith('b_') and ext.lower() in ('.jpg', '.jpeg', '.png') and n not in SPRITES: SPRITES[n] = (f, 'white', False, None, 320)
+    if n.startswith('b_') and not n.endswith('_old') and ext.lower() in ('.jpg', '.jpeg', '.png') and n not in SPRITES: SPRITES[n] = (f, 'white', False, None, 320)
 
-# and the scenery (art/Background/tree*, bush*, rock*: from above, on white) as d_<name>, small
+# and the scenery (art/Background/tree*, bush*, rock*: from above, on white; not rocky, the hills' ground) as d_<name>, small
 for f in sorted(os.listdir(os.path.join(ROOT, 'art', 'Background'))) if os.path.isdir(os.path.join(ROOT, 'art', 'Background')) else []:
     n, ext = os.path.splitext(f)
-    if n.startswith(('tree', 'bush', 'rock')) and ext.lower() in ('.jpg', '.jpeg', '.png'): SPRITES['d_' + n] = ('Background/' + f, 'white', False, None, 128)
+    if n.startswith(('tree', 'bush', 'rock')) and n != 'rocky' and ext.lower() in ('.jpg', '.jpeg', '.png'): SPRITES['d_' + n] = ('Background/' + f, 'white', False, None, 128)
 
 def cut(im, bg):
     im = im.convert('RGBA'); W, H = im.size; px = im.load()
     def grey(p): r, g, b, _ = p; return max(r, g, b) - min(r, g, b) < 16
     if bg == 'checker': is_bg = lambda p: grey(p) and 140 <= p[0] <= 240
-    else: is_bg = lambda p: grey(p) and p[0] >= 150
+    else: is_bg = lambda p: max(p[:3]) - min(p[:3]) < 40 and min(p[:3]) >= 150  # (white, and its shadow, a little bluish)
     seen = bytearray(W * H); q = deque((x, y) for x in range(W) for y in (0, H - 1))
     q.extend((x, y) for y in range(H) for x in (0, W - 1))
     while q:
@@ -51,7 +51,7 @@ def cut(im, bg):
         p = px[x, y]
         if not is_bg(p): continue
         if bg == 'white':  # the shadow: how much darker than white, as a see-through black
-            a = max(0, min(1, (242 - p[0]) / 80)) * 0.55
+            a = max(0, min(1, (242 - min(p[:3])) / 80)) * 0.55
             px[x, y] = (0, 0, 0, int(a * 255))
         else:
             px[x, y] = (0, 0, 0, 0)
