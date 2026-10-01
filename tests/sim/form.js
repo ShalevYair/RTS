@@ -39,10 +39,13 @@ function spread(s, q) {
   const body = q => { const m = s.units.filter(u => u.squad === q.id); return m.reduce((a, u) => a + u.x, 0) / m.length; };
   ok(body(at('tank')) > body(at('inf')) && body(at('inf')) > body(at('med')), 'the squads themselves stand that way');
   // an enemy shows up to the north: the formation turns to face it (tanks toward it)
+  const medAt = { x: at('med').order.x, y: at('med').order.y };
   for (const u of s.units) if (u.squad === foe.id) { u.x = P.x + (u.x % 7); u.y = Math.max(20, P.y - 250); u.cd = 1e9; }
   foe.order = { type: 'hold', x: P.x, y: Math.max(20, P.y - 250), r: 60 }; step(s, 4); // (before they're shot down: the rows stand wider now, so closer to them)
   const y = t => at(t).order.y;
-  ok(y('tank') < y('inf') && y('inf') < y('med'), `an enemy to the north: the rows turn to it (tanks y ${y('tank').toFixed(0)}, infantry ${y('inf').toFixed(0)}, medics ${y('med').toFixed(0)})`);
+  ok(y('tank') < y('inf') && y('inf') < y('aa'), `an enemy to the north: the rows turn to it (tanks y ${y('tank').toFixed(0)}, infantry ${y('inf').toFixed(0)}, AA ${y('aa').toFixed(0)})`);
+  // (medics and mechanics stay where they were put: their far-back spot swinging with the front kept them driving about)
+  ok(Math.abs(at('med').order.x - medAt.x) < 1 && Math.abs(at('med').order.y - medAt.y) < 1, 'medics stand still where they were put');
 }
 {
   // forward HQs: one every 3 minutes, never more than 3 standing

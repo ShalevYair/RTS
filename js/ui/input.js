@@ -40,6 +40,7 @@ function nodeInfo(n) {
   if (Sim.isSite(n) && s.t < n.ready) out.push(tr(n.working ? 'ni_site' : 'ni_wait', Math.round(100 * n.work / n.need)));
   else if (s.t < n.ready) out.push(tr('ni_build', Math.ceil(n.ready - s.t)));
   else if (S.upgrade && n.upg) out.push(tr('trophyOn', Math.ceil(n.upg.until - s.t)));
+  else if (n.kind === 'hq' && hqNext()) { const h = hqNext(); out.push(tr('ni_sup', h.types.map(k => tr('one_' + k)).join(' + '), Math.max(1, Math.ceil(h.left)))); }
   else if (S.unit) {
     if (S.upgrade && s.trophy && s.trophy.blue) out.push(tr('trophyHas'));
     const have = s.units.filter(u => { const q = s.squads.find(k => k.id === u.squad); return q && (q.home === n.id); }).length;

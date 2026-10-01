@@ -8,6 +8,22 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 // a building's footprint radius (0 for anything else): distances to a building count from its edge
 const nodeR = n => (n && n.kind && STRUCTS[n.kind] ? STRUCTS[n.kind].r : 0);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// the units in a grid of GRID_CELL, made once a tick (unitGrid, in step): `around` = the units that may be within R of
+// (x, y) — those in the cells R reaches, a square, not yet a circle. Without this tick's grid (outside step): all of them.
+// (Each unit looking through every other one, several times a tick, was most of the game's time with big armies)
+const GRID_CELL = 96, MAX_R = Math.max(...Object.values(TYPES).map(T => T.r)); // (MAX_R: the biggest unit's body)
+function unitGrid(s) {
+  const g = new Map();
+  for (const u of s.units) { const k = Math.floor(u.x / GRID_CELL) * 4096 + Math.floor(u.y / GRID_CELL); let l = g.get(k); if (!l) g.set(k, l = []); l.push(u); }
+  s.grid = { t: s.t, g };
+}
+function around(s, x, y, R) {
+  const G = s.grid; if (!G || G.t !== s.t) return s.units;
+  R += 8; // (units move a little during the tick, after the grid was made)
+  const i0 = Math.floor((x - R) / GRID_CELL), i1 = Math.floor((x + R) / GRID_CELL), j0 = Math.floor((y - R) / GRID_CELL), j1 = Math.floor((y + R) / GRID_CELL), out = [];
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const l = G.g.get(i * 4096 + j); if (l) for (const u of l) out.push(u); }
+  return out;
+}
 // hills and lakes aren't perfect circles / ellipses: each has a few waves around its rim (w = [[amp, k, phase], ...]);
 // `wobble` is how far out the rim is at angle th, as a share of the plain radius
 const wobble = (w, th) => { let f = 1; if (w) for (const [a, k, ph] of w) f += a * Math.cos(k * th + ph); return f; };

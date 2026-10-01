@@ -56,7 +56,7 @@ const STR = {
     t_silent: '📻 / 🤫 שקט אלחוטי לכוח שבחרת: לא מדווח, נע לאט ובלי אבק — והאויב לא שומע אותו. רכב שנוסע מהר מעלה אבק שנראה מרחוק.',
     t_night: '🌙 כל כמה דקות יורד לילה: רואים פחות והפקודות איטיות. רחפנים ומבנים רואים כרגיל. מפקד ששורד קרבות צובר ניסיון ⭐.',
     t_scale: k => `מפה גדולה: פי ${k} מבנים ופיקודים קדמיים.`,
-    ni_build: n => `בבנייה · עוד ${n} ש׳`, ni_next: (u, n) => `${u} הבא בעוד ${n} ש׳`, ni_full: 'הכוח מלא', ni_site: n => `נבנה · ${n}%`, ni_wait: n => `${n}% · ממתין לטרקטור 🚜`, hqReadyNote: 'המפקדה מוכנה! אפשר להתחיל לבנות.', fhqCan: 'אפשר להקים פיקוד קדמי 🏕️', droneCan: 'אפשר להטיס רחפן', ni_seen: n => `נראה לפני ${n} ש׳`,
+    ni_build: n => `בבנייה · עוד ${n} ש׳`, ni_next: (u, n) => `${u} הבא בעוד ${n} ש׳`, ni_full: 'הכוח מלא', ni_sup: (u, n) => `${u} · בעוד ${n} ש׳`, one_dozer: 'טרקטור', one_radio: 'משאית קשר', ni_site: n => `נבנה · ${n}%`, ni_wait: n => `${n}% · ממתין לטרקטור 🚜`, hqReadyNote: 'המפקדה מוכנה! אפשר להתחיל לבנות.', fhqCan: 'אפשר להקים פיקוד קדמי 🏕️', droneCan: 'אפשר להטיס רחפן', ni_seen: n => `נראה לפני ${n} ש׳`,
     t_you: 'זה הכוח שלך (כחול). האויב — באדום.',
     t_hq: 'המפקדה שלך. אם היא נופלת — הפסדת (וכך גם האויב). חיילים שעומדים לידה בלי קרב מתקנים אותה, וכך כל מבנה.',
     t_power: n => `העוצמה שלך מכל הכוחות במפה. מי שיורד מתחת ל-${n}% — מפסיד. המטרה: לשבור את האויב.`,
@@ -122,7 +122,7 @@ const STR = {
     t_silent: '📻 / 🤫 radio silence for the picked squad: no reports, slow and dustless — and the enemy can\'t hear it. A vehicle driving fast raises dust seen from afar.',
     t_night: '🌙 Every few minutes night falls: shorter sight, slower orders. Drones and buildings see as usual. A commander who survives fights gains experience ⭐.',
     t_scale: k => `A big map: ${k}× the buildings and forward HQs.`,
-    ni_build: n => `building · ${n}s left`, ni_next: (u, n) => `next ${u} in ${n}s`, ni_full: 'squad full', ni_site: n => `going up · ${n}%`, ni_wait: n => `${n}% · waiting for a bulldozer 🚜`, hqReadyNote: 'Headquarters is ready! You can start building.', fhqCan: 'A forward HQ 🏕️ can be set up', droneCan: 'A drone is ready to fly', ni_seen: n => `seen ${n}s ago`,
+    ni_build: n => `building · ${n}s left`, ni_next: (u, n) => `next ${u} in ${n}s`, ni_full: 'squad full', ni_sup: (u, n) => `${u} · in ${n}s`, one_dozer: 'bulldozer', one_radio: 'signals truck', ni_site: n => `going up · ${n}%`, ni_wait: n => `${n}% · waiting for a bulldozer 🚜`, hqReadyNote: 'Headquarters is ready! You can start building.', fhqCan: 'A forward HQ 🏕️ can be set up', droneCan: 'A drone is ready to fly', ni_seen: n => `seen ${n}s ago`,
     t_you: 'This is your force (blue). The enemy is red.',
     t_hq: 'Your HQ. If it falls, you have lost (and so has the enemy if theirs does). Soldiers standing by it with no fight repair it, and any building.',
     t_power: n => `Your share of all the power on the map. Whoever drops below ${n}% loses. The goal: break the enemy.`,
@@ -204,12 +204,13 @@ document.addEventListener('pointerdown', () => { clearTimeout(tipTimer); if (tip
 // a step: { el: an element id, or a function giving a screen point / rectangle; t: the text }. The game waits.
 let tour = null;
 function runTour(steps, then) {
-  steps = steps.filter(st => { const r = stepRect(st); return r && (r.width || r.height || r.left || r.top); });
+  steps = steps.filter(st => { const r = stepRect(st, true); return r && (r.width || r.height || r.left || r.top); });
   if (!steps.length) { then && then(); return; }
-  hideTip(); tour = { steps, i: 0, then }; $('tourBg').hidden = false; tourShow();
+  // (cam: where it was — a step may take the camera to its spot)
+  hideTip(); tour = { steps, i: 0, then, cam: { ...cam } }; $('tourBg').hidden = false; tourShow();
 }
-function stepRect(st) {
-  if (typeof st.el === 'function') { const p = st.el(); return p && { left: p.x - (p.w || 0) / 2, top: p.y - (p.h || 0) / 2, width: p.w || 0, height: p.h || 0 }; }
+function stepRect(st, peek) { // (peek: only whether it's there — the camera doesn't move to it)
+  if (typeof st.el === 'function') { const p = st.el(peek); return p && { left: p.x - (p.w || 0) / 2, top: p.y - (p.h || 0) / 2, width: p.w || 0, height: p.h || 0 }; }
   const el = $(st.el); return el && !el.hidden && el.offsetParent !== null ? rectOf(el) : null;
 }
 function tourShow() {
@@ -222,7 +223,7 @@ function tourShow() {
 function tourNext(skip) {
   if (!tour) return;
   if (!skip && ++tour.i < tour.steps.length) { tourShow(); return; }
-  const then = tour.then; tour = null; $('tourBg').hidden = true; hideTip();
+  const then = tour.then; cam = tour.cam; applyView(); tour = null; $('tourBg').hidden = true; hideTip();
   document.querySelectorAll('.tourOn').forEach(e => e.classList.remove('tourOn'));
   then && then();
 }
