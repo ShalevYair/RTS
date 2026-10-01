@@ -226,6 +226,11 @@ const NODE_MULT = { commando: 0.3, ssm: 0, arrow: 0, dome: 0, lift: 0, heli: 1.2
 // (sq.pack: 'line' / 'block' set by the player, else by that count). Vehicles VEH_GAP apart, soldiers LINE_GAP.
 const PACK_AT = 10, VEH_GAP = 18;
 const FACE_R = 320, FACE_TURN = 0.8, LINE_GAP = 20, ROW_GAP = 70, SIDE_GAP = 40;
+// (attacking: the units that don't fight stand SUPPORT_BACK further back still)
+const SUPPORT_BACK = 220;
+// under fire: a fighting unit of the player's goes at the shooter, one that doesn't falls back FLEE_D toward the HQ
+// (each squad once per REACT_EVERY s)
+const FLEE_D = 190, REACT_EVERY = 4;
 const FORM_ROW = { commando: 2, ssm: 5, arrow: 5, dome: 5, lift: 4, heli: 1.5, gunship: 1.5, tank: 0, jeep: 1, tjeep: 1, ajeep: 1, air: 1.5, inf: 2, at: 2.5, aa: 3, med: 4, mech: 4, truck: 4, radio: 5, dozer: 5 };
 const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
@@ -282,6 +287,9 @@ const UNCLEAR_Q = 0.5, UNCLEAR_K = 0.5;
 const HQ_BAND = 0.2, HQ_WARM = 20, CMD_TANKS = 2;
 // the player's buildings (singles): one unit out at a time, and at most BUILD_UNITS alive from each building
 const BUILD_UNITS = 4;
+// cover: soldiers and jeeps among trees are missed COVER_MISS of the times they'd be hit (the trees come from the UI's
+// scenery, Sim.setCover; none in Node)
+const COVER = ['inf', 'at', 'aa', 'med', 'commando', 'jeep', 'ajeep', 'tjeep'], COVER_MISS = 0.5, COVER_CELL = 64;
 // support (the full game, s.dozers): each side starts with a bulldozer and a signals truck; the HQ sends out another
 // of each every SUPPORT_EVERY s while it has fewer than SUPPORT_CAP. A building goes up only while a bulldozer stands
 // within DOZER_R of it (its work: the building's time, HQ_WARM for the HQ, the forward HQ's warm-up).

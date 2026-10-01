@@ -14,7 +14,7 @@ function newGame(skipIntro) {
   // the big map opens zoomed in on our base; the small one shows it all
   cam = s.H > Sim.H ? { x: 0, y: s.H / 2, z: -1 } : { x: s.W / 2, y: s.H / 2, z: 1 };
   // in the tutorial a tap on the map attacks (hold / retreat come later)
-  decor = makeDecor(s); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();
+  feedClear(); decor = makeDecor(s); Sim.setCover(s, decor.rocks.items.filter(it => it.t === 'tree').map(it => (it.r = it.s * 0.4, it))); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();
   $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
   $('end').hidden = true; $('share').textContent = tr('share'); outro = null; $('outro').hidden = true; try { $('outroVid').pause(); } catch (e) { /* no video */ }
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
@@ -53,6 +53,8 @@ function frameBody(now) {
   cv.style.transform = shake && !reduceMotion ? `translate(${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px, ${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px)` : '';
   for (const k of s.marks) if (!k.heard) {
     k.heard = true; if (!playing) continue;
+    feedAdd(k);
+    if ((k.kind === 'missile' || k.kind === 'launch') && sfxOn) Music.siren(); // (a missile launch, theirs or ours: the siren)
     if (k.kind === 'hqReady') toast(tr('hqReadyNote'), innerWidth / 2, 90, 5000); // written as well as said
     // the order reaching the squad: its reply (attacking, on the way…), as it was given
     Radio.hear(k.kind === 'ack' ? { kind: orderSay[k.id] || replyOf(k.type), id: k.id } : k);
@@ -63,7 +65,8 @@ function frameBody(now) {
     if (n.side !== 'blue' || n.kind === 'drone' || n.kind === 'decoy') continue;
     const was = nodeHp.get(n.id); nodeHp.set(n.id, n.hp);
     if (!playing || was === undefined || n.hp >= was - 0.5 || n.hp <= 0) continue;
-    Radio.hear({ kind: n.kind === 'hq' ? 'hqHit' : n.kind === 'fhq' ? 'fhqHit' : 'baseHit', x: n.x, y: n.y, t: s.t }); // (the radio keeps quiet while the same place keeps being hit)
+    const hk = { kind: n.kind === 'hq' ? 'hqHit' : n.kind === 'fhq' ? 'fhqHit' : 'baseHit', x: n.x, y: n.y, t: s.t };
+    Radio.hear(hk); feedAdd(hk); // (the radio keeps quiet while the same place keeps being hit)
   }
   // a forward HQ that can be set up now, a drone to fly now: said once when it becomes so, a note by its button
   if (playing && !s.over) {
@@ -108,7 +111,7 @@ function startOutro() {
   const us = s.units.filter(u => u.side === loser);
   const at = h ? { x: h.x, y: h.y } : us.length ? { x: us.reduce((a, u) => a + u.x, 0) / us.length, y: us.reduce((a, u) => a + u.y, 0) / us.length } : { x: s.W / 2, y: s.H / 2 };
   outro = { t0: performance.now(), at, win, from: { x: cam.x, y: cam.y, z: cam.z }, boom: 0 };
-  hideTip(); $('buildm').hidden = true; closeMenu(false); hqArmed = fhqArmed = eyeArmed = false; buildArmed = null; syncButtons();
+  hideTip(); $('buildm').hidden = true; closeMenu(false); hqArmed = fhqArmed = eyeArmed = frontArmed = false; buildArmed = null; syncButtons();
 }
 function outroTick(now, dt) {
   const o = outro, k = Math.min(1, (now - o.t0) / 1400), e = k * k * (3 - 2 * k);

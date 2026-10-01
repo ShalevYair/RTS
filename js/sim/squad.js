@@ -118,6 +118,24 @@ function initiative(s, sq, dt) {
   if (best) { sq.support = best.id; sq.supportSince = s.t; report(s, sq, `יוזם: יוצא לסייע לכוח ה${best.name}`); }
 }
 
+// under fire (the player's squads, standing where they were sent): a fighting one that can hit the shooter and isn't
+// already firing goes at it; one that doesn't fight falls back toward the HQ, FLEE_D (not all the way). Once per
+// REACT_EVERY s a squad
+// (the squad's own doing: exactly where it means, nothing said on the radio)
+const selfOrder = (sq, type, x, y) => { sq.order = { type, x, y, r: ORDER_R[type], want: { x, y } }; sq.arrived = false; sq.support = null; };
+function underFire(s) {
+  const byId = new Map(s.units.map(u => [u.id, u]));
+  for (const u of s.units) {
+    if (!(s.t - (u.shotAt ?? -99) < 1) || TYPES[u.type].air || !singles(s, u.side)) continue;
+    const sq = s.squads.find(q => q.id === u.squad), a = byId.get(u.shotBy);
+    if (!sq || sq.dead || !a || a.side === u.side || s.t - (sq.reactAt ?? -99) < REACT_EVERY || sq.retreating || sq.boarding || u.care || u.resup) continue;
+    if (TYPES[u.type].care) {
+      const h = hqOf(s, u.side); if (!h) continue;
+      const d = dist(u, h), go = Math.min(FLEE_D, d - nodeR(h) - 30); if (go < 20) continue;
+      sq.reactAt = s.t; selfOrder(sq, 'hold', u.x + (h.x - u.x) / d * go, u.y + (h.y - u.y) / d * go);
+    } else if (sq.arrived && MULT[u.type][a.type] > 0 && s.t - u.lastFire > 1.5) { sq.reactAt = s.t; selfOrder(sq, 'attack', a.x, a.y); }
+  }
+}
 function updateUnit(s, u, sq, dt) {
   const T = TYPES[u.type];
   u.cd = Math.max(0, u.cd - dt); u.engaged = false;
@@ -135,7 +153,7 @@ function updateUnit(s, u, sq, dt) {
   // care: badly hurt, the unit leaves the fight on its own for the nearest medic / mechanic (or home), holding its fire
   if (CARER[u.type]) {
     if (!u.care && u.hp < CARE_AT * T.hp) u.care = true;
-    else if (u.care && u.hp >= (u.careFull ? 0.995 : CARE_DONE) * T.hp) { u.care = false; u.careFull = false; } // (sent by the player: until whole)
+    else if (u.care && u.hp >= (u.careFull ? 0.995 : CARE_DONE) * T.hp) { u.care = false; u.careFull = false; const f = sq.single && s.front && s.front[u.side]; if (f) selfOrder(sq, 'attack', f.x, f.y); } // (sent by the player: until whole; treated: off to the front, if there is one)
   }
   // and low on ammunition: off to the nearest supply truck (or home), holding fire, until refilled
   if (s.supply && SUPPLY[u.type]) {
@@ -180,7 +198,7 @@ function updateUnit(s, u, sq, dt) {
     if (u.cd === 0) {
       const hit = friendlyFire(s, u, sq, tgt) || tgt, g = gunAt(hit), as = g ? g.as : u.type;
       // (a missile may be stopped: Iron Dome, Trophy)
-      if (!shield(s, as, hit)) hit.hp -= (g ? g.dmg * MULT[as][hit.type] : T.dmg * MULT[u.type][hit.type]) * hk; hit.by = sq.id; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
+      if (!shield(s, as, hit) && !(inCover(s, hit) && s.rand() < COVER_MISS)) hit.hp -= (g ? g.dmg * MULT[as][hit.type] : T.dmg * MULT[u.type][hit.type]) * hk; hit.by = sq.id; hit.shotAt = s.t; hit.shotBy = u.id; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
       const fx = IMPACT[as];
       s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[as] });
       u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
@@ -222,6 +240,21 @@ function moveTo(s, u, tx, ty, fast, dt, keep) {
   const k = keep ? sp * fast * dt / Math.max(d, 1e-6) : Math.min(1, sp * slope * fast * dt / d); // (keep: at full speed, even past the point)
   u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
   if (!T.air && !u.hush && d * k >= DUST_FAST * T.speed * dt) u.dustAt = s.t; // (driving fast: dust the enemy can see from afar)
+}
+// the trees (each { x, y, r }; one run over or cleared by a building has .gone), in a grid of COVER_CELL
+function setCover(s, trees) {
+  const G = new Map();
+  for (const t of trees) { const k = Math.floor(t.x / COVER_CELL) + ',' + Math.floor(t.y / COVER_CELL); let l = G.get(k); if (!l) G.set(k, l = []); l.push(t); }
+  s.cover = G;
+}
+// a soldier or jeep under a tree's crown
+function inCover(s, u) {
+  if (!s.cover || !COVER.includes(u.type)) return false;
+  const i0 = Math.floor(u.x / COVER_CELL), j0 = Math.floor(u.y / COVER_CELL);
+  for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) {
+    const l = s.cover.get(i + ',' + j); if (l) for (const t of l) if (!t.gone && (t.x - u.x) ** 2 + (t.y - u.y) ** 2 < t.r * t.r) return true;
+  }
+  return false;
 }
 // a ground unit that hasn't got any nearer to its spot (within GIVEUP_R of it) for GIVEUP_T s stops trying, stands
 // GIVEUP_REST–GIVEUP_REST + GIVEUP_JIT s, and tries again (a new spot: at once). true = stand this tick

@@ -88,16 +88,18 @@ function missileTick(s, dt) {
   for (const u of s.units) {
     if (u.type !== 'ssm') continue;
     const q = s.squads.find(k => k.id === u.squad), still = u.at && Math.hypot(u.x - u.at.x, u.y - u.at.y) < 0.5; u.at = { x: u.x, y: u.y };
+    // (none picked for it: loaded, it takes the nearest enemy building it knows of)
+    if (q && !q.fire && !(u.reload > 0)) { const tg = knownFoeNode(s, u.side, u.x, u.y, Infinity); if (tg) q.fire = tg; }
     if (!q || !q.fire) { u.setup = 0; continue; }
     if (!s.nodes.some(n => n.id === q.fire.id && n.hp > 0)) { q.fire = null; u.setup = 0; continue; } // (gone: done)
     u.setup = still ? (u.setup || 0) + dt : 0;
     if (u.setup < SSM_SETUP || u.reload > 0) continue;
     s.missiles.push({ id: s.nextId++, side: u.side, x0: u.x, y0: u.y, x: q.fire.x, y: q.fire.y, node: q.fire.id, t0: s.t, by: q.id });
-    u.reload = SSM_RELOAD;
+    u.reload = SSM_RELOAD; u.launchedAt = s.t;
     // (the launch is seen: the enemy now knows where the truck stands)
     s.mem[foeOf(u.side)][q.id] = { x: u.x, y: u.y, lvl: 2, t: s.t, type: 'ssm', air: false, n: 1, strength: q.strength };
     if (u.side === 'red') { note(s, 'שיגור טיל לעברנו!'); s.marks.push({ x: u.x, y: u.y, kind: 'missile', t: s.t }); }
-    else report(s, q, 'טיל שוגר');
+    else { report(s, q, 'טיל שוגר'); s.marks.push({ x: u.x, y: u.y, kind: 'launch', t: s.t }); }
   }
   // in flight: Arrow takes it on halfway; landing, it brings the building down
   for (const m of s.missiles) {

@@ -124,7 +124,7 @@ function supportSpawn(s, dt) {
     for (const [type, dy, kind] of [['dozer', 30, 'dozerReady'], ['radio', -30, 'radioReady']]) {
       if (s.squads.filter(q => q.side === side && q.type === type && !q.dead).length >= SUPPORT_CAP) continue;
       const q = supportSquad(s, side, type, h.x + dir * 45, h.y + dy);
-      if (h.rally) order(s, q.id, 'hold', h.rally.x + dy, h.rally.y, true); // (the HQ's rally point; a bulldozer with work goes to it)
+      const go = outSpot(s, side, h); if (go) order(s, q.id, 'hold', go.x + dy, go.y, true); // (the HQ's rally point, or the front; a bulldozer with work goes to its site)
       if (side === 'blue') { report(s, q, type === 'dozer' ? 'טרקטור מוכן' : 'משאית קשר מוכנה'); s.marks.push({ x: q.cx, y: q.cy, kind, t: s.t, who: q.name, id: q.id }); }
     }
   }
@@ -243,7 +243,7 @@ function produceSquad(s, n, S, dt) {
   if (n.prog >= 1) {
     n.prog = 0; const k = have || sq.born ? 1 : sq.size;
     for (let i = 0; i < k; i++) { spawn(s, sq, n.x, n.y); s.stats.rein[n.side]++; }
-    if (!have && n.rally) order(s, sq.id, 'attack', n.rally.x, n.rally.y, true);
+    if (!have) goOut(s, sq, outSpot(s, n.side, n));
     if (have && have + 1 === sq.size) report(s, sq, 'הכוח מאויש במלואו');
   }
 }
@@ -257,8 +257,18 @@ function demolish(s, side, id) {
 // still going up too; the HQ's: where its new bulldozers and signals trucks go
 function rally(s, id, x, y) {
   const n = s.nodes.find(k => k.id === id && k.hp > 0); if (!n || !(STRUCTS[n.kind].unit || n.kind === 'hq')) return false;
-  n.rally = Number.isFinite(x) ? { x: clamp(x, 0, s.W), y: clamp(y, 0, s.H) } : null; return true;
+  n.rally = Number.isFinite(x) ? { x: clamp(x, 0, s.W), y: clamp(y, 0, s.H), t: s.t } : null; return true;
 }
+// the front (the player's): every unit out of a building, and every one done being treated, goes there — null = none
+function setFront(s, side, x, y) {
+  s.front = s.front || {}; s.front[side] = Number.isFinite(x) ? { x: clamp(x, 0, s.W), y: clamp(y, 0, s.H), t: s.t } : null; return true;
+}
+// where a unit new out of n goes: its rally point or the front, whichever was set last (null: stays by it)
+function outSpot(s, side, n) {
+  const f = s.front && s.front[side], r = n && n.rally;
+  return r && (!f || (r.t ?? 0) >= f.t) ? r : f || null;
+}
+const goOut = (s, q, p) => { if (p) order(s, q.id, TYPES[q.type].care ? 'hold' : 'attack', p.x, p.y, true); };
 function updateStructs(s, dt) {
   for (const side of ['blue', 'red']) for (const k in s.cd[side]) s.cd[side][k] = Math.max(0, s.cd[side][k] - dt);
   droneSupply(s, dt);
@@ -298,7 +308,7 @@ function updateStructs(s, dt) {
       for (const q of out) {
         // (each walks out from the building to its place by it — or to where the player said its squads go)
         const u = s.units.find(m => m.squad === q.id); u.x = n.x + dir * nodeR(n) * 0.6; u.y = n.y;
-        if (n.rally) order(s, q.id, 'attack', n.rally.x, n.rally.y, true);
+        goOut(s, q, outSpot(s, n.side, n));
         n.squads.push(q.id); n.squad = q.id; s.stats.rein[n.side]++;
       }
     }

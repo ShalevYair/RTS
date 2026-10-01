@@ -60,10 +60,10 @@ function syncButtons() {
   $('fs').setAttribute('aria-pressed', String(fsOn()));
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
   document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.map === (hugeMap ? 'huge' : bigMap ? 'big' : 'small'))));
-  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq');
+  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq'); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); $('front').classList.toggle('set', !!(s.front && s.front.blue));
   $('fsRow').hidden = !fsCan() && !fsOn();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
-  if (eyeArmed || buildArmed || fhqArmed || hqArmed) cv.style.cursor = eyeArmed ? DRONE_CUR : 'copy'; // (else the hover sets it)
+  if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed) cv.style.cursor = eyeArmed ? DRONE_CUR : 'copy'; // (else the hover sets it)
   $('hqb').hidden = !hqToPlace(); $('hqb').setAttribute('aria-pressed', String(hqArmed));
   bar.classList.toggle('empty', ![...bar.children].some(c => !c.hidden)); // (the early levels have none of its buttons)
 }
@@ -365,7 +365,7 @@ function pickCat(g, b) {
   const m = $('buildm');
   if (s.hqPending && s.hqPending.blue) { blink($('hqb')); const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('why').nohq, r.right - st.left + 60, r.top - st.top + 20); return; }
   if (buildFull()) { blink(b); if (!$('fhq').hidden) blink($('fhq')); return; }
-  const open = !m.hidden && m.dataset.open === g;
+  const open = !m.hidden && m.dataset.open === g && buildPage === g; // (on one of its inner pages: back to its first)
   buildArmed = null; m.hidden = true; m.classList.remove('side');
   if (!open) {
     // (a page with only one building this game — the airfield in the tutorial — arms it at once)
@@ -416,7 +416,7 @@ function showBuildPage(g) {
   buildPage = g;
   const on = new Set(l);
   for (const b of $('buildm').querySelectorAll('[data-build],[data-page]')) b.classList.toggle('pg', on.has(b.dataset.build || 'page:' + b.dataset.page));
-  const back = $('buildm').querySelector('.bback'); back.hidden = g === 'root' || !BUILD_UP[g] || pageItems(BUILD_UP[g]).length < 2;
+  const back = $('buildm').querySelector('.bback'); back.hidden = true; // (no ‹: another kind is a click on its button)
   hideTip();
 }
 // the menu offers what this game allows (the tutorial adds kinds level by level; a page with something new pulses)
@@ -581,11 +581,20 @@ $('eye').addEventListener('click', toggleEye);
 // forward HQ: 🏕️, then a spot on the map; the selected jeep / tank squad (or the nearest one) drives there and sets it
 // up. With none that can, the squads that could blink (or nothing happens while waiting for the next one).
 let fhqArmed = false;
+// the front: 🚩, then a spot on the map — where everything new out of a building, or done being treated, goes.
+// 🚩 again while armed: no front
+let frontArmed = false;
+function armFront() {
+  if (frontArmed) { frontArmed = false; Sim.setFront(s, 'blue', null); syncButtons(); return; }
+  frontArmed = true; eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; $('buildm').hidden = true; syncButtons();
+}
+$('front').addEventListener('click', armFront);
+function placeFront(x, y) { Sim.setFront(s, 'blue', x, y); frontArmed = false; pings.push({ x, y, t: performance.now() }); syncButtons(); }
 // open field: 🏰, then a spot in our strip; the command tanks drive there and set the HQ up (armed at the start)
 let hqArmed = false, hqTold = false;
 const hqToPlace = () => !!(s.hqPending && s.hqPending.blue && !s.nodes.some(n => n.side === 'blue' && n.kind === 'hq') && Sim.cmdSquad(s, 'blue'));
 const hqPlanned = () => s.squads.some(q => q.side === 'blue' && q.hqAt && !q.dead);
-function armHq() { hqArmed = !hqArmed && hqToPlace(); if (hqArmed) { eyeArmed = false; buildArmed = null; fhqArmed = false; $('buildm').hidden = true; } syncButtons(); }
+function armHq() { hqArmed = !hqArmed && hqToPlace(); if (hqArmed) { eyeArmed = false; buildArmed = null; fhqArmed = false; frontArmed = false; $('buildm').hidden = true; } syncButtons(); }
 $('hqb').addEventListener('click', armHq);
 function placeHq(x, y) {
   const why = Sim.hqCheck(s, 'blue', x, y);
@@ -599,7 +608,7 @@ function buildHere() {
   if (fhqArmed) { fhqArmed = false; syncButtons(); return; }
   if (s.cd.blue.fhq > 0 || Sim.fhqCount(s, 'blue') >= Sim.fhqMax(s)) return;
   if (!fhqCrews().length) { for (const b of document.querySelectorAll('#sqs button')) if (btnIds(b).some(id => Sim.fhqBuilders(s).includes(s.squads.find(q => q.id === id).type))) blink(b); return; }
-  fhqArmed = true; eyeArmed = false; buildArmed = null; $('buildm').hidden = true; syncButtons();
+  fhqArmed = true; eyeArmed = false; buildArmed = null; frontArmed = false; $('buildm').hidden = true; syncButtons();
 }
 function placeFhq(x, y) {
   const list = fhqCrews(), picked = list.find(q => isSel(q.id) && sel !== 'all');
@@ -661,3 +670,26 @@ function onLang() {
   if (!$('end').hidden) showEnd();
 }
 document.querySelectorAll('[data-diff]').forEach(b => { b.textContent = diffName(b.dataset.diff); });
+
+// ---- the message list, under the map: what matters (under attack, heavy losses, a squad or building lost, a missile,
+// friendly fire…), the newest on top pushing the older down; each for FEED_T s, fading away over its last FEED_FADE s.
+// A click takes the camera to where it happened. The same thing in the same area again soon: once (FEED_SAME_*) ----
+const FEED_KINDS = new Set(['hqHit', 'fhqHit', 'baseHit', 'contact', 'hit', 'lost', 'nodeLost', 'missile', 'ff', 'call', 'hqReady', 'intercept']);
+const FEED_T = 20, FEED_FADE = 8, FEED_MAX = 5, FEED_SAME_R = 300, FEED_SAME_T = 10;
+let feedSeen = [];
+function feedAdd(k) {
+  if (!FEED_KINDS.has(k.kind) || !Number.isFinite(k.x)) return;
+  if (k.kind === 'intercept' && k.side !== 'blue') return;
+  const text = Radio.textOf(k); if (!text) return;
+  const now = performance.now();
+  feedSeen = feedSeen.filter(f => now - f.at < FEED_SAME_T * 1000);
+  if (feedSeen.some(f => f.kind === k.kind && Math.hypot(f.x - k.x, f.y - k.y) < FEED_SAME_R)) return;
+  feedSeen.push({ kind: k.kind, x: k.x, y: k.y, at: now });
+  const box = $('feed'), b = document.createElement('button');
+  b.className = 'feedItem' + (/Hit|lost|nodeLost|missile|ff|hit/.test(k.kind) ? ' bad' : ''); b.textContent = text;
+  b.style.setProperty('--life', FEED_T + 's'); b.style.setProperty('--fade', FEED_FADE + 's');
+  b.addEventListener('click', e => { e.stopPropagation(); lookAt(k.x, k.y); });
+  box.prepend(b); while (box.children.length > FEED_MAX) box.lastChild.remove();
+  setTimeout(() => b.remove(), FEED_T * 1000);
+}
+const feedClear = () => { $('feed').textContent = ''; feedSeen = []; };

@@ -295,6 +295,21 @@ const Music = (() => {
       src.connect(f).connect(e).connect(out); src.start(t, Math.random() * 0.5); src.stop(t + 0.47);
     }
   }
+  // an air-raid siren: rising and falling, SIREN_UPS times over SIREN_T s (a missile launched)
+  const SIREN_T = 5, SIREN_UPS = 2; let sirenAt = -99;
+  function siren() {
+    if (!ac || ac.state !== 'running' || sfxVol <= 0) return;
+    const t = ac.currentTime; if (t - sirenAt < SIREN_T) return; sirenAt = t;
+    const o = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter();
+    o.type = 'sawtooth'; o2.type = 'square'; f.type = 'lowpass'; f.frequency.value = 2200;
+    const per = SIREN_T / SIREN_UPS;
+    for (const [osc, k] of [[o, 1], [o2, 1.005]]) {
+      osc.frequency.setValueAtTime(260 * k, t);
+      for (let i = 0; i < SIREN_UPS; i++) { osc.frequency.linearRampToValueAtTime(820 * k, t + i * per + per * 0.55); osc.frequency.linearRampToValueAtTime(260 * k, t + (i + 1) * per); }
+    }
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.09, t + 0.4); g.gain.setValueAtTime(0.09, t + SIREN_T - 0.6); g.gain.linearRampToValueAtTime(0.0001, t + SIREN_T);
+    o.connect(f); o2.connect(f); f.connect(g).connect(sfxBus); o.start(t); o2.start(t); o.stop(t + SIREN_T + 0.05); o2.stop(t + SIREN_T + 0.05);
+  }
   // radio "click" before a voice report: a short band-passed noise burst on the effects bus
   function squelch() {
     if (!ac || ac.state !== 'running') return;
@@ -325,14 +340,15 @@ const Music = (() => {
     ({ ac, master, sfxBus, leadBus, lowBus, delay, noise } = keep); nextSong(keep.song);
     return { name: SONGS[k].name, rate, data: Array.from(buf.getChannelData(0), v => Math.max(-32768, Math.min(32767, Math.round(v * 32767)))) };
   }
-  return { start, stop, unlock, setVolume, setSfxVolume, boom, shot, squelch, _debug: { render, playAll, tones, song: () => song.name, next: () => { nextSong(); return song.name; }, voices: () => voices } };
+  return { start, stop, unlock, setVolume, setSfxVolume, boom, shot, squelch, siren, _debug: { render, playAll, tones, song: () => song.name, next: () => { nextSong(); return song.name; }, voices: () => voices } };
 })();
-// ---- the soundtrack: recorded pieces (music/) — the theme on the main menu; in the game calm pieces while it's quiet
+// ---- the soundtrack: recorded pieces (music/) — last stand on the main menu (at once, a quick fade in; tried as the page
+// loads, else at the first tap); in the game calm pieces while it's quiet
 // and battle pieces once there's fighting (setMood), in random order, one after another with a crossfade. Only ever
 // one piece: a piece still starting when another takes over is stopped, not faded back in. If they can't be played,
 // the generated music above instead ----
 const Tracks = (() => {
-  const MENU = 'music/theme.mp3', CALM = ['music/planning.mp3', 'music/ashes.mp3'], BATTLE = ['music/iron_line.mp3', 'music/breakthrough.mp3', 'music/last_stand.mp3'];
+  const MENU = 'music/last_stand.mp3', CALM = ['music/planning.mp3', 'music/ashes.mp3'], BATTLE = ['music/iron_line.mp3', 'music/breakthrough.mp3', 'music/last_stand.mp3'];
   const FADE = 3; // seconds
   let mode = 'menu', mood = 'calm', vol = 0.3, on = false, cur = null, last = '', failed = false;
   const all = new Set(); // (every piece made: whatever isn't cur is faded out and stopped)
@@ -348,7 +364,7 @@ const Tracks = (() => {
     a.onerror = () => { all.delete(a); if (a === cur) { failed = true; cur = null; if (on) Music.start(); } };
     // (a few seconds before a piece ends, the next one fades in over it)
     a.ontimeupdate = () => { if (a === cur && !a.loop && on && a.duration && a.currentTime > a.duration - FADE) play(pick()); };
-    a.play().then(() => { a.starting = false; if (a === cur && on) fade(a, vol, FADE); else quiet(a); })
+    a.play().then(() => { a.starting = false; if (a === cur && on) fade(a, vol, mode === 'menu' ? 0.3 : FADE); else quiet(a); })
       .catch(() => { a.starting = false; all.delete(a); if (a === cur) cur = null; }); // (not allowed before a tap: tried again then)
     for (const o of all) if (o !== a && !o.starting) quiet(o);
   }
@@ -390,6 +406,7 @@ musBtn.addEventListener('click', () => { musicOn = !musicOn; saveAudio(); syncMu
 volEl.addEventListener('input', () => { vol = +volEl.value; saveAudio(); syncMusic(true); });
 // browsers only allow audio after a user gesture
 for (const ev of ['pointerdown', 'keydown', 'touchend']) document.addEventListener(ev, () => { Music.unlock(); if (musicOn && vol > 0) Soundtrack.start(); });
+if (musicOn && vol > 0) Tracks.start(); // (the menu's music right away, where the browser allows it before a tap)
 syncMusic(false);
 
 // ---- radio: event reports, most urgent first, never a backlog. Recorded lines when there are some (Speak/, listed
@@ -454,7 +471,14 @@ const Radio = (() => {
     pending = null;
   }
   const reset = () => { pending = null; heard.length = 0; try { synth && synth.cancel(); } catch (e) { /* ignore */ } if (clip) { clip.pause(); clip = null; } };
-  return { hear, tick, reset, pickVoice, set: v => { on = v; if (!v) reset(); }, hasVoice: () => !!voice || !!recs(), recorded: () => !!recs() };
+  // what an event says, written (the message list): as it would be read aloud
+  function textOf(k) {
+    if (k.kind === 'nodeLost' && k.who === 'drone') k = { ...k, kind: 'droneLost' };
+    if (!TEXT[k.kind]) return '';
+    const en = lang === 'en', ty = typeOf(k.who), who = en ? (ty ? EN_TYPES[ty] : k.who) : SAY[k.who] || k.who;
+    return (en ? TEXT_EN : TEXT)[k.kind](who || '');
+  }
+  return { hear, textOf, tick, reset, pickVoice, set: v => { on = v; if (!v) reset(); }, hasVoice: () => !!voice || !!recs(), recorded: () => !!recs() };
 })();
 let radioOn = true;
 try { radioOn = localStorage.getItem('irts-radio') !== '0'; } catch (e) { /* storage unavailable */ }
