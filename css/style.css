@@ -124,6 +124,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 #mini{position:absolute;inset:8px 8px auto auto;width:180px;height:auto;aspect-ratio:var(--ar,2);padding:0;border-radius:8px;cursor:pointer;touch-action:none}
 @media (max-width:560px){#mini{top:80px;width:110px}.hudl .score{font-size:20px;padding:2px 9px}}
 #mini[hidden]{display:none}
+#mini{transition:width .18s ease-out}@media (hover:hover){#mini:hover{width:360px}} /* (under the mouse: twice as wide and high) */
 /* tutorial: level path on the intro, controls that just arrived pulse */
 .levels{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0 14px}
 .levels button{width:44px;height:44px;border-radius:50%;padding:0;font:20px/1 Rubik,sans-serif}
@@ -437,8 +438,9 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
 /* (the build menu opens beside the kind picked) */
 #buildm.side{left:92px;transform:none;top:var(--bmTop,8px);bottom:auto!important;max-width:calc(100% - 110px);align-items:flex-start}
 .bar{left:8px;right:auto;bottom:10px;transform:none;flex-direction:column;align-items:center;gap:10px;flex-wrap:nowrap;padding:0}
-#hqb{order:1}#fhq{order:2}#eye{order:3}
-#hqb,#fhq,#eye{width:60px;height:60px;min-width:60px;border-radius:50%;padding:0;display:grid;place-items:center;font-size:28px}
+#hqb{order:1}#front{order:2}#fhq{order:3}#eye{order:4}
+#front[hidden]{display:none}#front[aria-pressed="true"]{background:rgb(255 255 255 / .22)}#front.set{box-shadow:0 0 0 2px rgb(255 255 255 / .55)}
+#hqb,#front,#fhq,#eye{width:60px;height:60px;min-width:60px;border-radius:50%;padding:0;display:grid;place-items:center;font-size:28px}
 #eye .ico{width:30px;height:30px}
 .bar .ico.pic{width:38px;height:38px;filter:drop-shadow(0 1px 2px rgb(0 0 0 / .8));pointer-events:none}
 #eye i,#fhq i{left:0;right:0;top:0;bottom:0;height:auto;border-radius:50%;background:conic-gradient(#fff calc(var(--p,0)*1turn),rgb(255 255 255 / .2) 0);
@@ -451,7 +453,7 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
   .bcats{gap:2px}.bcats button{width:46px;padding:1px 0}.bcats button span{display:none!important}.bcats button canvas{width:38px;height:38px}
   #buildm.side{left:58px}
   .bar{gap:6px;bottom:6px}
-  #hqb,#fhq,#eye{width:46px;height:46px;min-width:46px;font-size:22px}#eye .ico{width:24px;height:24px}.bar .ico.pic{width:30px;height:30px}
+  #hqb,#front,#fhq,#eye{width:46px;height:46px;min-width:46px;font-size:22px}#eye .ico{width:24px;height:24px}.bar .ico.pic{width:30px;height:30px}
 }
 
 /* what can be used now (a building kind with room, a forward HQ to place, a drone to send): a green halo, pulsing */
@@ -475,3 +477,13 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
 /* the upgrade button over a picked tank workshop (Trophy) */
 .upgBtn{position:absolute;transform:translate(-50%,-100%);z-index:12;font:600 14px Rubik,sans-serif;padding:7px 14px;border-radius:999px;border:0;cursor:pointer;color:#fff;background:rgb(20 24 30 / .82);backdrop-filter:blur(8px);box-shadow:0 0 0 2px rgb(70 230 120 / .7),0 4px 14px rgb(0 0 0 / .4);white-space:nowrap}
 .upgBtn[hidden]{display:none}.upgBtn:disabled{box-shadow:0 4px 14px rgb(0 0 0 / .4);cursor:default;opacity:.9}
+
+/* the message list under the map: newest on top, each fading out over its last seconds; a click goes there */
+.feed{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);width:min(460px,64vw);height:calc(5 * 30px);display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:4px;pointer-events:none;z-index:4}
+.feedItem{pointer-events:auto;font:500 14px/1.2 Rubik,system-ui,sans-serif;color:#fff;background:var(--frost,rgb(20 24 28 / .62));backdrop-filter:blur(6px);border:0;border-radius:8px;padding:5px 12px;cursor:pointer;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgb(0 0 0 / .6);animation:feedLife var(--life,20s) linear forwards}
+.feedItem.bad{box-shadow:inset 3px 0 0 #e53935}
+html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
+.feedItem:hover{filter:brightness(1.2)}
+@keyframes feedLife{0%{opacity:0;transform:translateY(-6px)}3%{opacity:1;transform:none}60%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.feedItem{animation-timing-function:steps(1,end)}}
+@media (max-width:560px){.feed{bottom:64px;width:calc(100% - 140px)}.feedItem{font-size:12px}}

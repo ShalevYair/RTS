@@ -25,6 +25,8 @@
   <button id="upgBtn" class="upgBtn" hidden></button>
   <div class="razeSure" id="razeSure" role="alertdialog" hidden><span id="razeQ"></span><button id="razeYes" data-t="yes"></button><button id="razeNo" data-t="no"></button></div>
   <canvas id="mini" class="glass" data-al="mini" hidden></canvas>
+  <!-- under the map: the latest important messages (newest on top); a click goes there -->
+  <div id="feed" class="feed" aria-live="polite"></div>
   <!-- top middle: the power bar, us against them -->
   <div class="hudc">
     <div class="score blue glass" id="power"><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="moon" data-tip="tipNight" hidden>🌙</i></div>
@@ -114,6 +116,7 @@
     <button id="hqb" class="icon" data-al="hqb" data-tip="tipHqb" hidden>🏰</button>
     <button id="eye" class="icon node" aria-pressed="false" data-al="eye" data-tip="eye"><svg class="ico" viewBox="-12 -12 24 24" aria-hidden="true"><path d="M-7-7L7 7M7-7L-7 7" stroke="currentColor" stroke-width="2"/><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="-7" cy="-7" r="4.2"/><circle cx="7" cy="-7" r="4.2"/><circle cx="-7" cy="7" r="4.2"/><circle cx="7" cy="7" r="4.2"/></g><rect x="-3" y="-3" width="6" height="6" rx="1.5" fill="currentColor"/></svg><b id="eyeN"></b><i></i></button>
     <button id="bld" class="icon" aria-expanded="false" data-al="bld" data-tip="bld">🏗️<b id="slotN"></b></button>
+    <button id="front" class="icon" aria-pressed="false" data-al="front" data-tip="tipFront" hidden>🚩</button>
     <button id="fhq" class="icon node" data-al="fhq" data-tip="fhq">🏕️<b id="fhqN"></b><i></i></button>
   </div>
   <!-- bottom left: the order (sword = attack, shield = hold; a tap switches), only while something is picked -->

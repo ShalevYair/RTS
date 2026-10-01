@@ -741,8 +741,9 @@ function drawBuildArea(c) {
   if (mouseAt) { const r = cv.getBoundingClientRect(), w = { x: (mouseAt.x - r.left - view.cox) / view.css, y: (mouseAt.y - r.top - view.coy) / view.css }; c.globalAlpha = Sim.buildCheck(s, 'blue', w.x, w.y, buildArmed) ? 0.25 : 0.7; drawBuilding(c, buildArmed, colors.blue, w.x, w.y, pxOf(buildArmed)); c.globalAlpha = 1; }
 }
 // event reports appear where they happened, pop in and fade out
-// (not shown: arrived, roger, contact — the voice says them — nor the envelopes of orders on their way)
-const MARK = { missile: '🚀', intercept: '💥', promo: '⭐', unclear: '❓', hit: '💥', lost: '✖', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕️', nodeLost: '💥', ff: '⚠' };
+// (not shown: arrived, roger, contact — the voice says them — nor the envelopes of orders on their way; nor 💥 / ✖ for a
+// blast, a loss or a building down: the shells, missiles and blasts themselves are seen, and the message list says it)
+const MARK = { missile: '🚀', promo: '⭐', unclear: '❓', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕️', ff: '⚠' };
 // orders still on their way: an envelope runs from HQ toward the squad
 function drawMail(c) {
   const hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq') || { x: s.bases.blue.x, y: s.H / 2 };
@@ -877,6 +878,8 @@ function drawUnits(c, show) {
     if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
     if (u.type === 'commando' && u.plant > 0) { c.strokeStyle = '#ff7a3d'; c.lineWidth = 2; c.beginPath(); c.arc(u.x, u.y, k + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * u.plant / Sim.PLANT_T); c.stroke(); }
     if (u.type === 'tank' && u.side === 'blue' && u.trophy !== undefined) for (let i = 0; i < Sim.TROPHY_MAX; i++) { c.fillStyle = i < u.trophy ? '#ffd54a' : 'rgba(255,255,255,.3)'; ring(u.x + (i - 1) * 4, u.y + k * 0.9, 1.4); c.fill(); }
+    // (a missile truck of ours: a ring filling while it reloads — whole = a missile ready)
+    if (u.type === 'ssm' && u.side === 'blue') { const f = 1 - (u.reload || 0) / Sim.SSM_RELOAD; c.lineWidth = 2.2 / view.css; c.strokeStyle = 'rgba(0,0,0,.35)'; ring(u.x, u.y, k * 1.15); c.stroke(); c.strokeStyle = f >= 1 ? '#ffd54a' : 'rgba(255,255,255,.8)'; c.beginPath(); c.arc(u.x, u.y, k * 1.15, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); c.stroke(); }
     if (u.type === 'lift' && u.side === 'blue' && u.cargo && u.cargo.length) label('👥' + u.cargo.length, u.x, u.y - k - 6, colors.ink);
     // (no ammunition or care marks, no health bar: a hurt unit of ours has its dot, see healthDot)
     if (u.side === 'blue' && isSel(u.squad) && !(sel === 'all' && u.type === 'dozer')) { // (all picked: every one but the bulldozers)
@@ -1001,7 +1004,16 @@ function draw() {
     drawGuess(c, q, guessAt(q), on);
   }
   drawMissiles(c);
-  drawPicked(c); drawPings(c); // (the vignette: #vig, in CSS — a full-screen layer drawn every frame was slow)
+  drawFront(c); drawPicked(c); drawPings(c); // (the vignette: #vig, in CSS — a full-screen layer drawn every frame was slow)
+}
+// the front (🚩 set): a blue flag on a pole, a faint ring round it
+function drawFront(c) {
+  const f = s.front && s.front.blue; if (!f) return;
+  const p = 1 / view.css, wave = reduceMotion ? 0 : Math.sin(performance.now() / 300) * 2 * p;
+  c.save(); c.globalAlpha = 0.35; c.strokeStyle = colors.blue; c.lineWidth = 2 * p; c.setLineDash([6 * p, 6 * p]); ring(f.x, f.y, 26 * p); c.stroke(); c.setLineDash([]);
+  c.globalAlpha = 0.95; c.strokeStyle = '#fff'; c.lineWidth = 2.2 * p; c.beginPath(); c.moveTo(f.x, f.y); c.lineTo(f.x, f.y - 26 * p); c.stroke();
+  c.fillStyle = colors.blue; c.beginPath(); c.moveTo(f.x, f.y - 26 * p); c.quadraticCurveTo(f.x + 9 * p, f.y - 27 * p + wave, f.x + 17 * p, f.y - 22 * p); c.lineTo(f.x, f.y - 16 * p); c.closePath(); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 1.2 * p; c.stroke(); c.restore();
 }
 // a squad's units are drawn as they are with no command friction, or while all of them are in the exact picture
 // (else only its symbol, see drawGuess)
@@ -1051,10 +1063,13 @@ function drawMini() {
   if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { c.globalAlpha = 0.5; const n = s.memNodes.blue[id]; dot(n.x, n.y, 14, colors.red, true); c.globalAlpha = 1; }
   for (const q of s.squads) {
     if (q.dead) continue;
-    if (q.side === 'blue') { const p = guessAt(q); if (p) dot(p.x, p.y, 20, colors.blue); continue; }
+    // (ours out of the exact picture — in the fog: only just seen)
+    if (q.side === 'blue') { const p = guessAt(q); if (p) { c.globalAlpha = sqShown(q) ? 1 : 0.2; dot(p.x, p.y, 20, colors.blue); c.globalAlpha = 1; } continue; }
     const e = s.fog ? s.mem.blue[q.id] : { x: q.cx, y: q.cy, t: s.t };
     if (e && s.t - e.t < 40) { c.globalAlpha = 1 - (s.t - e.t) / 40; dot(e.x, e.y, 20, colors.red); c.globalAlpha = 1; }
   }
+  // a missile launched (ours, or theirs at us): the truck's spot flashes for a few seconds
+  for (const f of s.marks) if ((f.kind === 'missile' || f.kind === 'launch') && s.t - f.t < 6 && Math.floor((s.t - f.t) * 3) % 2 === 0) { c.fillStyle = f.kind === 'missile' ? colors.red : '#ffd54a'; c.beginPath(); c.arc(f.x, f.y, 34, 0, Math.PI * 2); c.fill(); c.lineWidth = 8; c.strokeStyle = '#fff'; c.stroke(); }
   for (const f of s.marks) { c.strokeStyle = f.kind === 'lost' || f.kind === 'ff' || f.kind === 'nodeLost' ? colors.red : colors.ink; c.lineWidth = 10; c.beginPath(); c.arc(f.x, f.y, 40 + 30 * (s.t - f.t), 0, Math.PI * 2); c.stroke(); }
   c.strokeStyle = colors.ink; c.lineWidth = 2 / k; c.strokeRect(vr.x, vr.y, vr.w, vr.h);
 }

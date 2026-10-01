@@ -88,12 +88,15 @@ function formation(s, ids, type, x, y, quiet, fa) {
     const block = singles.length && packed(singles[0], n), cols = block ? blockCols(singles.length) : singles.length, rws = Math.ceil(singles.length / Math.max(1, cols));
     const sw = cols * sp, parts = (singles.length ? 1 : 0) + rest.length;
     let at = -((singles.length ? sw : 0) + rest.reduce((a, q) => a + lineWidth(q, n), 0) + SIDE_GAP * Math.max(0, parts - 1)) / 2;
+    // (in an attack, those that don't fight — signals trucks, bulldozers, medics, mechanics… — hold SUPPORT_BACK behind
+    // the rest, not up at what's attacked)
+    const back = q => type === 'attack' && TYPES[q.type].care ? SUPPORT_BACK : 0, how = q => back(q) ? 'hold' : type;
     singles.forEach((q, i) => {
       const c = i % cols, r = Math.floor(i / cols);
-      ok = order(s, q.id, type, x, y, quiet, { depth: (k - mid) * ROW_GAP - (r - (rws - 1) / 2) * sp, lat: at + (c + 0.5) * sp, fa }) || ok;
+      ok = order(s, q.id, how(q), x, y, quiet, { depth: (k - mid) * ROW_GAP - (r - (rws - 1) / 2) * sp + back(q), lat: at + (c + 0.5) * sp, fa }) || ok;
     });
     if (singles.length) at += sw + SIDE_GAP;
-    for (const q of rest) { const w = lineWidth(q, n); ok = order(s, q.id, type, x, y, quiet, { depth: (k - mid) * ROW_GAP, lat: at + w / 2, fa }) || ok; at += w + SIDE_GAP; }
+    for (const q of rest) { const w = lineWidth(q, n); ok = order(s, q.id, how(q), x, y, quiet, { depth: (k - mid) * ROW_GAP + back(q), lat: at + w / 2, fa }) || ok; at += w + SIDE_GAP; }
   }
   return ok;
 }
