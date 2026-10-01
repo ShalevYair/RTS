@@ -122,7 +122,7 @@ function supportSpawn(s, dt) {
     s.supNext[side] = SUPPORT_EVERY;
     const dir = side === 'blue' ? 1 : -1;
     for (const [type, dy, kind] of [['dozer', 30, 'dozerReady'], ['radio', -30, 'radioReady']]) {
-      if (s.squads.filter(q => q.side === side && q.type === type && !q.dead).length >= SUPPORT_CAP) continue;
+      if ((type === 'radio' && s.noRadio) || s.squads.filter(q => q.side === side && q.type === type && !q.dead).length >= SUPPORT_CAP) continue;
       const q = supportSquad(s, side, type, h.x + dir * 45, h.y + dy);
       const go = outSpot(s, side, h); if (go) order(s, q.id, 'hold', go.x + dy, go.y, true); // (the HQ's rally point, or the front; a bulldozer with work goes to its site)
       if (side === 'blue') { report(s, q, type === 'dozer' ? 'טרקטור מוכן' : 'משאית קשר מוכנה'); s.marks.push({ x: q.cx, y: q.cy, kind, t: s.t, who: q.name, id: q.id }); }
@@ -153,7 +153,7 @@ function openField(s) {
     if (singles(s, side)) for (const q of raiseSingles(s, side, 'tank', null, b.x + dir * 50, s.H / 2, CMD_TANKS)) q.cmd = true;
     else { const t = makeSquad(s, side, 'tank', null, b.x + dir * 50, s.H / 2); t.size = CMD_TANKS; fillSquad(s, t, t.order.x, t.order.y); t.cmd = true; }
     // (the bulldozer out in front, toward the enemy: behind the tanks, they boxed it in; it's the first to drive off)
-    supportSquad(s, side, 'dozer', b.x + dir * 130, s.H / 2 + 20); supportSquad(s, side, 'radio', b.x + dir * 30, s.H / 2 - 40);
+    supportSquad(s, side, 'dozer', b.x + dir * 130, s.H / 2 + 20); if (!s.noRadio) supportSquad(s, side, 'radio', b.x + dir * 30, s.H / 2 - 40); // (s.noRadio: the tutorial level before signals trucks)
   }
   s.dozers = true; s.supNext = { blue: SUPPORT_EVERY, red: SUPPORT_EVERY };
   s.hqPending = { blue: true, red: true }; s.memNodes = { blue: {}, red: {} };

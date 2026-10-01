@@ -14,17 +14,21 @@ ok(grows, 'every level keeps what came before and adds something');
   const s = Sim.level(1, 7, 1100), sq = side => s.squads.filter(q => q.side === side);
   ok(sq('blue').length === 1 && sq('red').length === 1 && !s.nodes.length && !s.bots.length && !s.fog, 'level 1: one squad each, no buildings, the enemy just stands there, no fog');
   const L = n => Sim.level(n, 7, 1100), fogAt = [...Array(N)].map((_, i) => { const g = L(i + 1); return g.fog || !!g.fogAt; }).indexOf(true) + 1;
-  ok(fogAt >= N - 4 && !L(fogAt - 1).fog, `fog comes in late (level ${fogAt})`);
+  const F = [...Array(N)].map((_, i) => Sim.levelUi(i + 1).includes('fhq')).indexOf(true) + 1; // (the forward-HQ level)
+  ok(fogAt >= N - 5 && !L(fogAt - 1).fog, `fog comes in late (level ${fogAt})`);
   // the fog comes in steps: first only the fog (coming down during the level, orders still at once), then drones,
   // then distance (orders as messages, carried out roughly), then forward HQs
   const f = L(fogAt); let t0 = f.fog; while (f.t < f.fogAt + 1) Sim.step(f, 1 / 30);
   ok(!t0 && f.fog && !Sim.friction(f) && !L(fogAt).ui.includes('eye'), `level ${fogAt}: the fog comes down after ${f.fogAt} s, with no command friction and no drones`);
-  ok(L(fogAt + 1).ui.includes('eye') && !Sim.friction(L(fogAt + 1)) && Sim.friction(L(fogAt + 2)) && L(N - 1).ui.includes('fhq') && !L(N - 2).ui.includes('fhq'), 'then drones, then distance, then forward HQs');
-  const fq = L(N - 1);
+  ok(L(fogAt + 1).ui.includes('eye') && !Sim.friction(L(fogAt + 1)) && Sim.friction(L(fogAt + 2)) && F === fogAt + 3, 'then drones, then distance, then forward HQs');
+  const fq = L(F);
   ok(Sim.buildCount(fq, 'blue') === Sim.buildLimit(fq, 'blue'), `forward-HQ level: the quota starts full (${Sim.buildCount(fq, 'blue')}/${Sim.buildLimit(fq, 'blue')}), so a forward HQ is the way to build more`);
-  ok(Sim.level(N - 1, 7, 1100).H > Sim.H && Sim.level(N - 2, 7, 1100).H === Sim.H, 'the big map comes in with forward HQs');
+  ok(Sim.level(F, 7, 1100).H > Sim.H && Sim.level(F - 1, 7, 1100).H === Sim.H, 'the big map comes in with forward HQs');
+  ok(L(F).ui.includes('keys') && !L(F - 1).ui.includes('keys'), 'and from there no squad / order buttons, as in the full game');
   const last = L(N);
-  ok(last.dozers && last.hqPending.blue && !last.nodes.some(n => n.kind === 'hq') && last.squads.some(q => q.side === 'blue' && q.type === 'radio'), 'last level: the open field — no HQ yet, a bulldozer and a signals truck');
+  const dz = L(N - 1), has = (g, t) => g.squads.some(q => q.side === 'blue' && q.type === t);
+  ok(dz.dozers && dz.hqPending.blue && !dz.nodes.some(n => n.kind === 'hq') && has(dz, 'dozer') && !has(dz, 'radio'), 'before last: the open field — no HQ yet, a bulldozer, no signals truck');
+  ok(last.dozers && last.hqPending.blue && has(last, 'dozer') && has(last, 'radio'), 'last level: and a signals truck');
   const b4 = Sim.level(4, 7, 1100);
   ok(b4.builds.join() === 'tent' && !Sim.build(b4, 'blue', 'tankshop', 220, 420) && Sim.build(b4, 'blue', 'tent', 220, 420), 'level 4 builds tents only (buildings come in one kind at a time)');
   // tapping the map with the only squad selected wins it
@@ -46,5 +50,5 @@ for (let n = 1; n <= N; n++) {
     if (s.over === 'blue') won++; T += s.t;
   }
   // the tutorial is meant to be won: blue wins every level, and each is over in a few minutes
-  ok(won === G && T / G < (n < N ? 300 : 480), `level ${n}: a normal bot as blue won ${won}/${G} (average ${Math.round(T / G)} s)`);
+  ok(won === G && T / G < (n < N - 1 ? 300 : 480), `level ${n}: a normal bot as blue won ${won}/${G} (average ${Math.round(T / G)} s)`);
 }

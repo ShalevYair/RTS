@@ -144,6 +144,8 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .ord{color:var(--ink)}
 /* 🏗 pulses while there's room for another building */
 #bld.nudge{animation:nudge 1.6s ease-in-out infinite}
+#bcats.hint{animation:nudge 1.6s ease-in-out 3;border-radius:12px} /* (the tutorial's nudge to the idle: build) */
+.learned{margin:4px 0 10px;font-weight:500;opacity:.9}
 @keyframes nudge{0%,100%{box-shadow:0 0 0 0 rgb(60 170 70 / 0)}50%{box-shadow:0 0 0 7px rgb(60 170 70 / .55);background:color-mix(in srgb,#3caa46 22%,var(--panel))}}
 @media (prefers-reduced-motion:reduce){#bld.nudge{animation:none;outline:3px solid #3caa46}}
 /* tooltip, notes and the tour */
@@ -479,11 +481,15 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
 .upgBtn[hidden]{display:none}.upgBtn:disabled{box-shadow:0 4px 14px rgb(0 0 0 / .4);cursor:default;opacity:.9}
 
 /* the message list under the map: newest on top, each fading out over its last seconds; a click goes there */
-.feed{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);width:min(460px,64vw);height:calc(5 * 30px);display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:4px;pointer-events:none;z-index:4}
+/* (on the right, under the minimap — below the size it grows to under the mouse, 360px wide) */
+.feed{position:absolute;right:8px;top:8px;width:min(340px,60vw);height:calc(5 * 30px);display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-end;gap:4px;pointer-events:none;z-index:4}
+.feed.underMini{top:calc(8px + 360px / var(--ar,2) + 10px)}
+html[dir="rtl"] .feed{align-items:flex-start} /* (the right edge either way: in RTL the start is the right) */
 .feedItem{pointer-events:auto;font:500 14px/1.2 Rubik,system-ui,sans-serif;color:#fff;background:var(--frost,rgb(20 24 28 / .62));backdrop-filter:blur(6px);border:0;border-radius:8px;padding:5px 12px;cursor:pointer;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgb(0 0 0 / .6);animation:feedLife var(--life,20s) linear forwards}
 .feedItem.bad{box-shadow:inset 3px 0 0 #e53935}
 html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 .feedItem:hover{filter:brightness(1.2)}
 @keyframes feedLife{0%{opacity:0;transform:translateY(-6px)}3%{opacity:1;transform:none}60%{opacity:1}100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.feedItem{animation-timing-function:steps(1,end)}}
-@media (max-width:560px){.feed{bottom:64px;width:calc(100% - 140px)}.feedItem{font-size:12px}}
+@media (max-width:560px){.feed{width:calc(100% - 140px)}.feed.underMini{top:calc(80px + 110px / var(--ar,2) + 8px)}.feedItem{font-size:12px}}
+@media (max-width:560px) and (hover:hover){.feed.underMini{top:calc(80px + 360px / var(--ar,2) + 8px)}}

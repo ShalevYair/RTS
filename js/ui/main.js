@@ -55,6 +55,7 @@ function frameBody(now) {
   // calm again only after CALM_T s with none of that
   while (fight.length && fight[0] < s.t - FIGHT_T) fight.shift();
   if (fight.length >= FIGHT_SHOTS) fightAt = s.t;
+  coachTick(); // (the tutorial's nudges, first-time tips)
   if (playing) Tracks.setMood(s.t - fightAt < CALM_T && fightAt > 0 ? 'battle' : 'calm');
   shake *= Math.exp(-dt * 9); if (shake < 0.2) shake = 0;
   cv.style.transform = shake && !reduceMotion ? `translate(${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px, ${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px)` : '';
