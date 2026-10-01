@@ -1,6 +1,6 @@
 // Sim: squad state, commander initiative and per-unit movement / combat
-function updateSquad(s, sq, dt) {
-  const m = s.units.filter(u => u.squad === sq.id);
+function updateSquad(s, sq, dt, of) {
+  const m = of ? of.get(sq.id) || [] : s.units.filter(u => u.squad === sq.id); // (of: each squad's units, worked out once a tick)
   sq.count = m.length;
   if (!m.length) {
     if (sq.aboard) { sq.count = 0; return; } // (all on board a helicopter: not gone)
@@ -23,7 +23,7 @@ function updateSquad(s, sq, dt) {
     const cols = blockCols(line.length), rows = Math.ceil(line.length / cols);
     line.forEach((u, i) => { const c = i % cols, r = Math.floor(i / cols), inRow = r < rows - 1 ? cols : line.length - r * cols; u.slot = c - (inRow - 1) / 2; u.row = r - (rows - 1) / 2; });
   } else line.forEach((u, i) => { u.slot = i - (line.length - 1) / 2; u.row = 0; });
-  if (sq.order.form && !sq.support) placeForm(s, sq, dt);
+  if (sq.order.form && !sq.support && !sq.order.form.fixed) placeForm(s, sq, dt); // (fixed: placed once, when the order came)
   const want = faceAt(s, sq.side, effOrder(s, sq), sq.order.form && sq.order.form.fa);
   sq.face = sq.face === undefined ? want : turnTo(sq.face, want, FACE_TURN * dt);
   const c = { x: sq.cx, y: sq.cy };
@@ -153,7 +153,7 @@ function updateUnit(s, u, sq, dt) {
   // care: badly hurt, the unit leaves the fight on its own for the nearest medic / mechanic (or home), holding its fire
   if (CARER[u.type]) {
     if (!u.care && u.hp < CARE_AT * T.hp) u.care = true;
-    else if (u.care && u.hp >= (u.careFull ? 0.995 : CARE_DONE) * T.hp) { u.care = false; u.careFull = false; const f = sq.single && s.front && s.front[u.side]; if (f) selfOrder(sq, 'attack', f.x, f.y); } // (sent by the player: until whole; treated: off to the front, if there is one)
+    else if (u.care && u.hp >= (u.careFull ? 0.995 : CARE_DONE) * T.hp) { u.care = false; u.careFull = false; const f = sq.single && !FRONT_NOT.includes(u.type) && s.front && s.front[u.side]; if (f) selfOrder(sq, 'attack', f.x, f.y); } // (sent by the player: until whole; treated: off to the front, if there is one)
   }
   // and low on ammunition: off to the nearest supply truck (or home), holding fire, until refilled
   if (s.supply && SUPPLY[u.type]) {
@@ -172,8 +172,9 @@ function updateUnit(s, u, sq, dt) {
   const gunAt = e => T.gun && !(e.kind ? false : TYPES[e.type].air) ? T.gun : null, reach = e => { const G = gunAt(e); return G ? G.range * up : range; };
   const hk = hurtK(u); // (hurt: weaker and slower)
   let best = null, bd = Infinity, bw = Infinity, near = null, nd = Infinity;
-  for (const e of s.units) {
-    if (e.side === u.side || e.hp <= 0 || !MULT[u.type][e.type]) continue; // 0 = can't hit it (only AA hits aircraft)
+  const lim = Math.max(sight, range, T.gun ? T.gun.range * up : 0); // (nothing further than this counts: a quick square test first)
+  for (const e of around(s, u.x, u.y, lim)) {
+    if (e.side === u.side || e.hp <= 0 || e.x - u.x > lim || u.x - e.x > lim || e.y - u.y > lim || u.y - e.y > lim || !MULT[u.type][e.type]) continue; // 0 = can't hit it (only AA hits aircraft)
     // prefer targets this unit type is effective against
     // prefer what this unit hurts most, and finishing off the wounded
     const d = dist(u, e), w = d / (MULT[u.type][e.type] + 0.2) * (0.6 + 0.4 * e.hp / TYPES[e.type].hp), rg = reach(e);
@@ -285,7 +286,7 @@ function steer(s, u, tx, ty, dt) {
   const ux = vx / d, uy = vy / d, step = Math.min(d, 30);
   if (u.detour > s.t) { const r = rot(ux, uy, Math.PI / 2); return { x: u.x + r.x * step, y: u.y + r.y * step }; }
   let o = null, oa = Infinity, oc = 0;
-  for (const b of s.units) {
+  for (const b of around(s, u.x, u.y, ru + MAX_R + UNIT_GAP + STEER_LOOK)) {
     if (b === u || TYPES[b.type].air) continue;
     const ox = b.x - u.x, oy = b.y - u.y, rr = ru + TYPES[b.type].r + UNIT_GAP, look = rr + STEER_LOOK;
     if (ox > look || ox < -look || oy > look || oy < -look) continue;

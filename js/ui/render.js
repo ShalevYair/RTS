@@ -503,7 +503,7 @@ function drawTerrain(c, W, H, mid) {
 }
 
 // drone: a quadcopter from above — four rotors on an X frame
-const AMMO = '#e0b020', GLOW = { commando: 2.5, inf: 2.5, aa: 2.5, at: 2.5, med: 2.5 }; // (the vehicles, big now, need none)
+const AMMO = '#e0b020', GLOW_K = 1.8, GLOW = { commando: 2.5, inf: 2.5, aa: 2.5, at: 2.5, med: 2.5 }; // (the vehicles, big now, need none)
 function drawDrone(c, x, y, k, col, rot = 0, spin = 0) {
   c.save(); c.translate(x, y); c.rotate(rot); c.lineWidth = k * 0.16; c.strokeStyle = colors.outline;
   c.beginPath(); c.moveTo(-k * 0.7, -k * 0.7); c.lineTo(k * 0.7, k * 0.7); c.moveTo(k * 0.7, -k * 0.7); c.lineTo(-k * 0.7, k * 0.7); c.stroke();
@@ -545,7 +545,7 @@ function drawFog() {
 const STALE = 12, TRAIL = 8, BLOB_LIFE = 40, BLOB_R = 25, BLOB_MAX = 150, UNSURE = 4;
 const intelAt = new Map(); let intelT = 0; // (where each sighting is drawn: easing toward the latest fix)
 function drawEnemyIntel(c) {
-  const now = performance.now(), ease = 1 - Math.exp(-Math.min(0.1, (now - intelT) / 1000) * 2.5); intelT = now;
+  const now = performance.now(), ease = 1 - Math.exp(-Math.min(0.1, (now - intelT) / 1000) * 2.5); intelT = now; const vr = viewRect();
   for (const q of s.squads) {
     const m0 = q.side === 'red' && s.mem.blue[q.id], age = m0 ? s.t - m0.t : Infinity;
     if (!m0 || age > BLOB_LIFE) { intelAt.delete(q.id); continue; }
@@ -556,6 +556,7 @@ function drawEnemyIntel(c) {
     // how fast it could have moved since: by type when identified, else by what's known (aircraft / ground / anything)
     const speed = m.type ? Sim.TYPES[m.type].speed : m.air ? Sim.TYPES.air.speed : m.air === false ? 50 : 70;
     const k = 1 - age / BLOB_LIFE, r = Math.min(BLOB_MAX, BLOB_R + speed * age * 0.5);
+    if (vr && (m.x + r < vr.x || m.x - r > vr.x + vr.w || m.y + r < vr.y || m.y - r > vr.y + vr.h)) continue; // (off the screen)
     const g = c.createRadialGradient(m.x, m.y, 0, m.x, m.y, r);
     g.addColorStop(0, hexA(colors.red, 0.18 * k + 0.05)); g.addColorStop(0.6, hexA(colors.red, 0.08 * k)); g.addColorStop(1, hexA(colors.red, 0));
     c.fillStyle = g; ring(m.x, m.y, r); c.fill();
@@ -681,6 +682,22 @@ function drawStruct(c, n, ghost) {
     c.fillStyle = col; c.fillRect(n.x - 14, y - 1, 28 * Math.min(1, n.prog), 3);
     const g = Math.min(6, SIZE[S.unit] * 0.55); glyph(c, S.unit, n.x - 21, y, g, col, colors.outline, 0, S.unit === 'aa' ? -Math.PI / 4 : 0, 0.8);
   }
+  // our HQ: the next bulldozer / signals truck coming out (the same bar, the shapes of what's coming beside it)
+  const hn = on && n.kind === 'hq' && n.side === 'blue' && hqNext();
+  if (hn) {
+    const y = n.y - top - 2; c.fillStyle = colors.halo; c.globalAlpha = 0.8; c.fillRect(n.x - 15, y - 2, 30, 5); c.globalAlpha = 1;
+    c.fillStyle = col; c.fillRect(n.x - 14, y - 1, 28 * hn.prog, 3);
+    hn.types.forEach((t, i) => glyph(c, t, n.x - 21 - i * 12, y, Math.min(6, SIZE[t] * 0.55), col, colors.outline, 0, 0, 0.8));
+  }
+}
+// what our HQ sends out next (open field: bulldozers and signals trucks, every SUPPORT_EVERY s, while under the cap):
+// { types, prog 0–1, left s }, or null
+function hqNext() {
+  if (!s.dozers) return null;
+  const types = ['dozer', 'radio'].filter(t => s.squads.filter(q => q.side === 'blue' && q.type === t && !q.dead).length < Sim.SUPPORT_CAP);
+  if (!types.length) return null;
+  const left = Math.max(0, (s.supNext && s.supNext.blue) ?? Sim.SUPPORT_EVERY);
+  return { types, prog: Math.min(1, 1 - left / Sim.SUPPORT_EVERY), left };
 }
 function drawNodes(c) {
   for (const n of s.nodes) if (nodeShown(n)) drawStruct(c, n, false);
@@ -792,7 +809,7 @@ function drawFallen(c) {
   c.globalAlpha = 1;
 }
 // tracks: vehicles leave faint marks in the ground as they drive, fading over TRACK_T s
-const tracks = [], TRACK_T = 8, TRACK_MAX = 1500;
+const tracks = [], TRACK_T = 8, TRACK_MAX = 1500, TRACK_BANDS = 6;
 function addTrack(u, a) {
   if (!CAR.has(u.type)) return;
   const d = Math.hypot(u.x - (a.tx ?? u.x - 99), u.y - (a.ty ?? u.y - 99));
@@ -821,12 +838,18 @@ function drawDust(c) {
 const DUST_COL = '#cbbd9c';
 function drawTracks(c) {
   while (tracks.length && s.t - tracks[0].t > TRACK_T) tracks.shift();
-  c.fillStyle = colors.shadow;
+  // (only those on the screen, and in TRACK_BANDS paths by how faded — one each, not a save / turn / restore for every
+  // mark: with a big army this was the slowest thing drawn)
+  const vr = viewRect(), paths = [];
   for (const p of tracks) {
-    if (p.t > s.t) continue;
-    c.globalAlpha = 0.6 * (1 - (s.t - p.t) / TRACK_T);
-    c.save(); c.translate(p.x, p.y); c.rotate(p.a); c.fillRect(-2.5, -p.w * p.k - 1, 5, 2); c.fillRect(-2.5, p.w * p.k - 1, 5, 2); c.restore();
+    if (p.t > s.t || (vr && (p.x < vr.x - 20 || p.x > vr.x + vr.w + 20 || p.y < vr.y - 20 || p.y > vr.y + vr.h + 20))) continue;
+    const b = Math.min(TRACK_BANDS - 1, Math.floor((s.t - p.t) / TRACK_T * TRACK_BANDS)), P = paths[b] || (paths[b] = new Path2D());
+    const ca = Math.cos(p.a) * 2.5, sa = Math.sin(p.a) * 2.5, o = p.w * p.k, ox = -Math.sin(p.a) * o, oy = Math.cos(p.a) * o;
+    P.moveTo(p.x + ox - ca, p.y + oy - sa); P.lineTo(p.x + ox + ca, p.y + oy + sa);
+    P.moveTo(p.x - ox - ca, p.y - oy - sa); P.lineTo(p.x - ox + ca, p.y - oy + sa);
   }
+  c.strokeStyle = colors.shadow; c.lineWidth = 2; c.lineCap = 'butt';
+  paths.forEach((P, b) => { if (P) { c.globalAlpha = 0.6 * (1 - (b + 0.5) / TRACK_BANDS); c.stroke(P); } });
   c.globalAlpha = 1;
 }
 function drawGhosts(c) {
@@ -862,8 +885,9 @@ function drawUnits(c, show) {
     if (hasSprite(u.type)) { /* its shadow comes with its picture */ }
     else if (T.air) { c.globalAlpha = 0.22; glyph(c, 'air', u.x + 7, u.y + 10, k, '#000', null, u.hd); c.globalAlpha = 1; }
     else { c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(u.x + 2, u.y + 4, k * 0.75, k * 0.35, 0, 0, Math.PI * 2); c.fill(); }
-    // soldiers and jeeps are small: a light glow round them, so they stand out from the ground
-    const glow = GLOW[u.type]; if (glow) { c.shadowColor = colors.halo; c.shadowBlur = glow * view.scale; }
+    // soldiers are small: a glow round them in their side's colour, so they stand out from the ground (the dark halo
+    // they had vanished on grey rock, and ours, hardly blue in the picture, couldn't be seen at all)
+    const glow = GLOW[u.type]; if (glow) { c.shadowColor = colors[u.side]; c.shadowBlur = glow * GLOW_K * view.scale; }
     glyphRecoil = Math.max(0, 1 - (s.t - u.lastFire) / 0.25);
     if (u.side === 'blue') hurt.push(u);
     // (its picture; a soldier turns to where he fires)
@@ -915,6 +939,7 @@ function lookAround(u) {
 // surface-to-surface missiles in flight (s.missiles): an arc up from the truck and down on the target, a smoke trail
 // behind, a shadow on the ground below; seen by both sides
 const MISSILE_ARC = 0.35; // (how high, of the way's length)
+const MISSILE_PX = 28; // (the picture's length, art/missile.jpg, if there is one)
 function drawMissiles(c) {
   for (const m of s.missiles || []) {
     const T = Sim.SSM_FLIGHT, at = f => { const g = Math.min(1, Math.max(0, f)), L = Math.hypot(m.x - m.x0, m.y - m.y0); return { x: m.x0 + (m.x - m.x0) * g, y: m.y0 + (m.y - m.y0) * g, h: Math.sin(Math.PI * g) * L * MISSILE_ARC }; };
@@ -923,8 +948,9 @@ function drawMissiles(c) {
     c.globalAlpha = 0.45; c.strokeStyle = '#d8d8d0'; c.lineWidth = 3; c.beginPath();
     for (let k = 0; k <= 10; k++) { const r = at(f - 0.12 * k / 10); c.lineTo(r.x, r.y - r.h); } c.stroke();
     c.globalAlpha = 1; c.save(); c.translate(p.x, p.y - p.h); c.rotate(Math.atan2((p.y - p.h) - (q.y - q.h), p.x - q.x));
-    c.fillStyle = colors[m.side]; c.beginPath(); c.moveTo(9, 0); c.lineTo(-7, -2.5); c.lineTo(-7, 2.5); c.closePath(); c.fill();
-    c.fillStyle = '#ffb347'; c.beginPath(); c.arc(-8, 0, 2.2 + Math.random() * 1.2, 0, Math.PI * 2); c.fill(); c.restore();
+    if (sprite.img.missile) { const M = SPRITES.missile, sc = MISSILE_PX / M.w; c.drawImage(spritePic('missile', colors[m.side]), -M.w / 2 * sc, -M.h / 2 * sc, M.w * sc, M.h * sc); }
+    else { c.fillStyle = colors[m.side]; c.beginPath(); c.moveTo(9, 0); c.lineTo(-7, -2.5); c.lineTo(-7, 2.5); c.closePath(); c.fill(); }
+    c.fillStyle = '#ffb347'; c.beginPath(); c.arc(sprite.img.missile ? -MISSILE_PX / 2 : -8, 0, 2.2 + Math.random() * 1.2, 0, Math.PI * 2); c.fill(); c.restore();
   }
   c.globalAlpha = 1;
 }

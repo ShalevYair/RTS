@@ -195,11 +195,15 @@ function bodyCenter(m) {
 // instead, crushing them. Ground units are pushed out of buildings too.
 function separate(s, dt = 0) {
   const us = s.units;
-  for (let i = 0; i < us.length; i++) {
-    const a = us[i], ra = TYPES[a.type].r;
-    for (let j = i + 1; j < us.length; j++) {
-      const b = us[j];
-      if (!TYPES[a.type].air !== !TYPES[b.type].air) continue; // air and ground don't collide
+  // (pairs in order across the map: past the widest possible touch, MAXR, nothing further right can touch)
+  let maxR = 0; for (const u of us) maxR = Math.max(maxR, TYPES[u.type].r);
+  const xs = us.slice().sort((a, b) => a.x - b.x), far = 2 * maxR + UNIT_GAP;
+  for (let i = 0; i < xs.length; i++) {
+    const a = xs[i], ra = TYPES[a.type].r, aAir = !TYPES[a.type].air;
+    for (let j = i + 1; j < xs.length; j++) {
+      const b = xs[j];
+      if (b.x - a.x >= far) break;
+      if (aAir !== !TYPES[b.type].air) continue; // air and ground don't collide
       const min = ra + TYPES[b.type].r + UNIT_GAP, dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
       if (d2 < min * min) {
         const crush = a.side !== b.side && (a.type === 'tank' && FOOT.includes(b.type) ? b : b.type === 'tank' && FOOT.includes(a.type) ? a : null);

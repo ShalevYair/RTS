@@ -5,7 +5,14 @@
 // (every production building counts too, as a small node: NODES.bld)
 const nodeSpec = kind => NODES[kind] || (STRUCTS[kind] && STRUCTS[kind].unit ? NODES.bld : null);
 // (open field: before the HQ stands, the command tanks count as a node where they are)
+// (kept for the tick: Q is asked for many times a tick — every squad, every unit drawn — and this went through all the
+// buildings and units each time. Made again when the time, the buildings or the units change)
 function controlNodes(s, side) {
+  const C = s.cnCache || (s.cnCache = {}), c = C[side];
+  if (c && c.t === s.t && c.n === s.nodes.length && c.u === s.units.length && c.hq === (s.hqPending && s.hqPending[side])) return c.l;
+  const l = controlNodesNow(s, side); C[side] = { t: s.t, n: s.nodes.length, u: s.units.length, hq: s.hqPending && s.hqPending[side], l }; return l;
+}
+function controlNodesNow(s, side) {
   const l = s.nodes.filter(n => n.side === side && n.hp > 0 && nodeSpec(n.kind) && s.t >= n.ready);
   // (the player's command tanks are two singles: a node at each)
   if (s.hqPending && s.hqPending[side]) for (const c of s.squads) if (c.side === side && c.cmd && !c.dead) l.push({ id: -1 - c.id, kind: 'cmd', side, x: c.cx, y: c.cy, hp: 1, ready: 0 });

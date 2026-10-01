@@ -496,13 +496,19 @@ function renderLevels() {
     box.appendChild(b);
   }
 }
-$('go').addEventListener('click', () => startGame(0));
+// "start": a new player goes to the tutorial — the first level, or the next one not yet won; after the last, the full game
+$('go').addEventListener('click', () => startGame(done < Sim.LEVELS ? done + 1 : 0));
 // the tour: what each level step brings, pointing at its control (or at a spot on the map for what has none)
 let toured = 0; const tourSeen = new Set();
 try { toured = +localStorage.getItem('irts-tour') || 0; } catch (e) { /* storage unavailable */ }
 const pctLose = () => Math.round((s.collapseAt ?? 0.15) * 100);
 // a spot on the map, on the screen (for the tour's bubble)
-const mapSpot = f => () => { const w = f(); if (!w) return null; const p = onScreen(w.x, w.y); return { x: p.x, y: p.y, w: 30, h: 30 }; };
+// (off the screen — the tutorial opens zoomed in on our side — the camera goes there first)
+const mapSpot = f => peek => {
+  const w = f(); if (!w) return null;
+  const vr = viewRect(), m = 60; if (!peek && vr && (w.x < vr.x + m || w.x > vr.x + vr.w - m || w.y < vr.y + m || w.y > vr.y + vr.h - m)) lookAt(w.x, w.y);
+  const p = onScreen(w.x, w.y); return { x: p.x, y: p.y, w: 30, h: 30 };
+};
 const ourSquad = mapSpot(() => { const q = s.squads.find(q => q.side === 'blue' && !q.dead); return q && { x: q.cx, y: q.cy - 10 }; });
 const foeSquad = mapSpot(() => { const q = s.squads.find(q => q.side === 'red' && !q.dead); return q && { x: q.cx, y: q.cy }; });
 const ourType = type => mapSpot(() => { const q = s.squads.find(q => q.side === 'blue' && !q.dead && q.type === type); return q && { x: q.cx, y: q.cy }; });

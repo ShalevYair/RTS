@@ -228,6 +228,8 @@ const PACK_AT = 10, VEH_GAP = 18;
 const FACE_R = 320, FACE_TURN = 0.8, LINE_GAP = 20, ROW_GAP = 70, SIDE_GAP = 40;
 // (attacking: the units that don't fight stand SUPPORT_BACK further back still)
 const SUPPORT_BACK = 220;
+// (the front: what never goes there — missile trucks fire from far behind)
+const FRONT_NOT = ['ssm'];
 // under fire: a fighting unit of the player's goes at the shooter, one that doesn't falls back FLEE_D toward the HQ
 // (each squad once per REACT_EVERY s)
 const FLEE_D = 190, REACT_EVERY = 4;

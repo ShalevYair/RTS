@@ -243,7 +243,7 @@ function produceSquad(s, n, S, dt) {
   if (n.prog >= 1) {
     n.prog = 0; const k = have || sq.born ? 1 : sq.size;
     for (let i = 0; i < k; i++) { spawn(s, sq, n.x, n.y); s.stats.rein[n.side]++; }
-    if (!have) goOut(s, sq, outSpot(s, n.side, n));
+    if (!have) goOut(s, sq, outSpot(s, n.side, n, sq.type));
     if (have && have + 1 === sq.size) report(s, sq, 'הכוח מאויש במלואו');
   }
 }
@@ -263,9 +263,10 @@ function rally(s, id, x, y) {
 function setFront(s, side, x, y) {
   s.front = s.front || {}; s.front[side] = Number.isFinite(x) ? { x: clamp(x, 0, s.W), y: clamp(y, 0, s.H), t: s.t } : null; return true;
 }
-// where a unit new out of n goes: its rally point or the front, whichever was set last (null: stays by it)
-function outSpot(s, side, n) {
-  const f = s.front && s.front[side], r = n && n.rally;
+// where a unit new out of n goes: its rally point or the front, whichever was set last (null: stays by it).
+// Missile trucks never go to the front (FRONT_NOT): they fire from far behind
+function outSpot(s, side, n, type) {
+  const f = !FRONT_NOT.includes(type) && s.front && s.front[side], r = n && n.rally;
   return r && (!f || (r.t ?? 0) >= f.t) ? r : f || null;
 }
 const goOut = (s, q, p) => { if (p) order(s, q.id, TYPES[q.type].care ? 'hold' : 'attack', p.x, p.y, true); };
@@ -308,7 +309,7 @@ function updateStructs(s, dt) {
       for (const q of out) {
         // (each walks out from the building to its place by it — or to where the player said its squads go)
         const u = s.units.find(m => m.squad === q.id); u.x = n.x + dir * nodeR(n) * 0.6; u.y = n.y;
-        goOut(s, q, outSpot(s, n.side, n));
+        goOut(s, q, outSpot(s, n.side, n, q.type));
         n.squads.push(q.id); n.squad = q.id; s.stats.rein[n.side]++;
       }
     }

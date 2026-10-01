@@ -46,6 +46,8 @@ try { const m = localStorage.getItem('irts-map'); bigMap = m !== 'small'; hugeMa
 // the browser scales it up, a little softer
 const MAX_DPR = 1, DPR = () => Math.min(window.devicePixelRatio || 1, MAX_DPR);
 const START_PX = 1 * WORLD_K, ZOOM_PX = 2.5 * WORLD_K;
+// (the tutorial opens closer still, on our forces, TUT_AHEAD toward the enemy)
+const TUT_PX = 1.7 * WORLD_K, TUT_AHEAD = 120;
 let view = { scale: 1, ox: 0, oy: 0, css: 1, cox: 0, coy: 0 }, cam = { x: 0, y: 0, z: 1 }, fit = null;
 function resize() {
   const r = stage.getBoundingClientRect(); if (!r.width || !r.height || !s) return;
@@ -61,7 +63,7 @@ const zoomMax = () => Math.max(1, ZOOM_PX / fit.sc);
 // keep the camera on the map: a side that fits on screen is centred
 function applyView() {
   if (!fit) return;
-  if (cam.z < 0) cam.z = START_PX / fit.sc; // a new big map: the opening zoom
+  if (cam.z < 0) cam.z = (cam.px || START_PX) / fit.sc; // a new big map (or a tutorial level): the opening zoom
   cam.z = Math.max(1, Math.min(zoomMax(), cam.z));
   const sc = fit.sc * cam.z, vw = fit.w / sc, vh = fit.h / sc;
   cam.x = vw >= s.W ? s.W / 2 : Math.max(vw / 2, Math.min(s.W - vw / 2, cam.x));

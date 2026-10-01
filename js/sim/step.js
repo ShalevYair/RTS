@@ -5,7 +5,9 @@ function step(s, dt) {
   if (s.fogAt && !s.fog && s.t >= s.fogAt) s.fog = true; // the tutorial's fog comes down during the level
   // (a fallen single — a squad of one unit — is dropped after a while: there are many of them over a game)
   s.squads = s.squads.filter(q => !(q.single && q.dead && s.t - (q.deadAt ?? s.t) > 30));
-  for (const sq of s.squads) updateSquad(s, sq, dt);
+  unitGrid(s);
+  const of = new Map(); for (const u of s.units) { let l = of.get(u.squad); if (!l) of.set(u.squad, l = []); l.push(u); }
+  for (const sq of s.squads) updateSquad(s, sq, dt, of);
   for (const sq of s.squads) initiative(s, sq, dt);
   for (const u of s.units) { u.lvl = TYPES[u.type].air ? 0 : levelAt(s, u); u.hill = u.lvl >= 1; }
   const bySquad = new Map(s.squads.map(q => [q.id, q]));

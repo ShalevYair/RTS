@@ -90,13 +90,16 @@ function formation(s, ids, type, x, y, quiet, fa) {
     let at = -((singles.length ? sw : 0) + rest.reduce((a, q) => a + lineWidth(q, n), 0) + SIDE_GAP * Math.max(0, parts - 1)) / 2;
     // (in an attack, those that don't fight — signals trucks, bulldozers, medics, mechanics… — hold SUPPORT_BACK behind
     // the rest, not up at what's attacked)
+    // (and they stand still where they're put: their spot doesn't swing round with the front — far back, a small turn
+    // moved it a lot, and they drove about all the time; only fire moves them, `underFire`)
     const back = q => type === 'attack' && TYPES[q.type].care ? SUPPORT_BACK : 0, how = q => back(q) ? 'hold' : type;
+    const fixed = q => !!TYPES[q.type].care && !TYPES[q.type].air;
     singles.forEach((q, i) => {
       const c = i % cols, r = Math.floor(i / cols);
-      ok = order(s, q.id, how(q), x, y, quiet, { depth: (k - mid) * ROW_GAP - (r - (rws - 1) / 2) * sp + back(q), lat: at + (c + 0.5) * sp, fa }) || ok;
+      ok = order(s, q.id, how(q), x, y, quiet, { depth: (k - mid) * ROW_GAP - (r - (rws - 1) / 2) * sp + back(q), lat: at + (c + 0.5) * sp, fa, fixed: fixed(q) }) || ok;
     });
     if (singles.length) at += sw + SIDE_GAP;
-    for (const q of rest) { const w = lineWidth(q, n); ok = order(s, q.id, how(q), x, y, quiet, { depth: (k - mid) * ROW_GAP + back(q), lat: at + w / 2, fa }) || ok; at += w + SIDE_GAP; }
+    for (const q of rest) { const w = lineWidth(q, n); ok = order(s, q.id, how(q), x, y, quiet, { depth: (k - mid) * ROW_GAP + back(q), lat: at + w / 2, fa, fixed: fixed(q) }) || ok; at += w + SIDE_GAP; }
   }
   return ok;
 }
@@ -109,9 +112,20 @@ function pack(s, ids) {
   return to;
 }
 // which way to face from p: the nearest enemy seen within FACE_R, else fa (where the player pointed), else the enemy HQ
-function faceAt(s, side, p, fa) {
+// (the nearest seen enemy is looked for once a tick per FACE_CELL square, from its middle: every squad asks, twice a
+// tick, and looking through all the units each time was a big part of the game's time)
+const FACE_CELL = 40;
+function faceFoe(s, side, p) {
+  const C = s.faceCache && s.faceCache.t === s.t && s.faceCache.n === s.units.length ? s.faceCache : (s.faceCache = { t: s.t, n: s.units.length, m: new Map() });
+  const i = Math.floor(p.x / FACE_CELL), j = Math.floor(p.y / FACE_CELL), key = side + (i * 4096 + j);
+  if (C.m.has(key)) return C.m.get(key);
+  const c = { x: (i + 0.5) * FACE_CELL, y: (j + 0.5) * FACE_CELL };
   let best = null, bd = FACE_R;
-  for (const e of s.units) if (e.side !== side && seen(s, side, e)) { const d = dist(e, p); if (d < bd) { bd = d; best = e; } }
+  for (const e of around(s, c.x, c.y, FACE_R)) if (e.side !== side && Math.abs(e.x - c.x) < FACE_R && Math.abs(e.y - c.y) < FACE_R && seen(s, side, e)) { const d = dist(e, c); if (d < bd) { bd = d; best = e; } }
+  C.m.set(key, best); return best;
+}
+function faceAt(s, side, p, fa) {
+  const best = faceFoe(s, side, p);
   if (!best && Number.isFinite(fa)) return fa;
   const t = best || hqOf(s, side === 'blue' ? 'red' : 'blue') || s.bases[side === 'blue' ? 'red' : 'blue'];
   return Math.atan2(t.y - p.y, t.x - p.x);
@@ -146,7 +160,7 @@ function understood(s, sq, x, y) {
 function applyOrder(s, sq, type, x, y, quiet, form) {
   const p = friction(s) && type !== 'retreat' ? understood(s, sq, x, y) : { x, y }, off = Math.hypot(p.x - x, p.y - y);
   sq.order = { type, x: p.x, y: p.y, r: ORDER_R[type], want: { x, y } };
-  if (form && type !== 'retreat') { sq.order.form = { x: p.x, y: p.y, wx: x, wy: y, depth: form.depth || 0, lat: form.lat || 0, fa: form.fa }; placeForm(s, sq, 0); }
+  if (form && type !== 'retreat') { sq.order.form = { x: p.x, y: p.y, wx: x, wy: y, depth: form.depth || 0, lat: form.lat || 0, fa: form.fa, fixed: form.fixed }; placeForm(s, sq, 0); }
   sq.retreating = false; sq.arrived = false; sq.support = null;
   if (sq.side === 'blue' && friction(s) && type !== 'retreat') {
     s.log2.off += off; s.log2.offN++;
