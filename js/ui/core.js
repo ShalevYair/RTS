@@ -63,7 +63,11 @@ const zoomMax = () => Math.max(1, ZOOM_PX / fit.sc);
 // keep the camera on the map: a side that fits on screen is centred
 function applyView() {
   if (!fit) return;
-  if (cam.z < 0) cam.z = (cam.px || START_PX) / fit.sc; // a new big map (or a tutorial level): the opening zoom
+  if (cam.z < 0) { // a new big map (or a tutorial level): the opening zoom
+    // (a tutorial level: less close on a narrow screen — a phone — and only a little ahead of our forces, by how much is seen)
+    cam.z = (cam.px ? cam.px * Math.min(1, Math.max(0.55, fit.w / 900)) : START_PX) / fit.sc;
+    if (cam.ahead) { cam.x += Math.min(cam.ahead, fit.w / (fit.sc * Math.max(1, cam.z)) * 0.2); cam.ahead = 0; }
+  }
   cam.z = Math.max(1, Math.min(zoomMax(), cam.z));
   const sc = fit.sc * cam.z, vw = fit.w / sc, vh = fit.h / sc;
   cam.x = vw >= s.W ? s.W / 2 : Math.max(vw / 2, Math.min(s.W - vw / 2, cam.x));

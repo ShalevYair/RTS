@@ -6,10 +6,11 @@ const ok = (c, m) => { console.log((c ? 'ok  ' : 'FAIL') + ' ' + m); if (!c) pro
 const step = (s, sec) => { for (let i = 0; i < sec * 30; i++) Sim.step(s, 1 / 30); };
 // a quiet map, no fog: one squad of each kind for blue, red far off
 function setup(seed) {
-  const s = Sim.level(1, seed, 1400); s.bots = []; s.fog = false; s.noReinforce = true; s.collapseAfter = 1e9;
+  // (the size of the small map — level 1's is smaller now — with nothing built)
+  const s = Sim.level(5, seed, 1400); s.nodes = []; s.supply = false; s.prodRate = null; s.bots = []; s.fog = false; s.noReinforce = true; s.collapseAfter = 1e9;
   s.squads = []; s.units = []; s.lakes = []; // no lakes in the way
   const add = (side, type, n, x, y) => { const q = Sim._makeSquad(s, side, type, null, x, y); q.size = n; Sim._fillSquad(s, q, x, y); return q; };
-  const mine = ['inf', 'tank', 'jeep', 'aa', 'med', 'mech', 'air'].map((t, i) => add('blue', t, 4, 150, 100 + 70 * i));
+  const mine = ['inf', 'tank', 'jeep', 'aa', 'med', 'mech', 'air'].map((t, i) => add('blue', t, 4, 150 + (i % 2) * 70, 100 + 70 * i)); // (staggered: side by side, a soldier could be boxed in by the tanks)
   const foe = add('red', 'inf', 3, s.W - 40, s.H / 2);
   return { s, mine, foe, add };
 }

@@ -18,7 +18,7 @@ function newGame(skipIntro) {
   if (lvl) {
     const ours = s.units.filter(u => u.side === 'blue'), hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq');
     const at = ours.length ? { x: ours.reduce((a, u) => a + u.x, 0) / ours.length, y: ours.reduce((a, u) => a + u.y, 0) / ours.length } : hq || { x: s.W / 4, y: s.H / 2 };
-    cam = { x: at.x + TUT_AHEAD, y: at.y, z: -1, px: TUT_PX };
+    cam = { x: at.x, y: at.y, z: -1, px: TUT_PX, ahead: TUT_AHEAD };
   }
   // in the tutorial a tap on the map attacks (hold / retreat come later)
   feedClear(); decor = makeDecor(s); Sim.setCover(s, decor.rocks.items.filter(it => it.t === 'tree').map(it => (it.r = it.s * 0.4, it))); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();

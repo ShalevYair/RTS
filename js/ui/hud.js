@@ -517,9 +517,9 @@ const ourType = type => mapSpot(() => { const q = s.squads.find(q => q.side === 
 const ourHq = mapSpot(() => s.nodes.find(n => n.side === 'blue' && n.kind === 'hq'));
 const midMap = () => fit && { x: fit.w / 2, y: fit.top + fit.h / 2, w: 0, h: 0 };
 const TOUR = {
-  squads: () => [{ el: 'gSq', t: tr('t_squads') }],
-  orders: () => [{ el: ourHq, t: tr('t_hq') }], // (no order button: H/A/R on the keys)
-  build: () => [{ el: 'bcats', t: tr('t_build') + ' ' + tr('t_slots') }],
+  squads: () => [{ el: ourSquad, t: tr(TOUCH ? 't_squadsT' : 't_squads') }], // (no squad buttons: picking is on the map, as in the full game)
+  orders: () => [{ el: ourHq, t: tr('t_hq') + (TOUCH ? '' : ' ' + tr('t_keys')) }], // (no order buttons: H/A/R on the keys)
+  build: () => [{ el: 'bcats', t: tr('t_build') }],
   vehicles: () => [{ el: 'bcats', t: tr('t_vehicles') }],
   care: () => [{ el: 'bcats', t: tr('t_care') }],
   air: () => [{ el: 'bcats', t: tr('t_air') }],
@@ -527,7 +527,6 @@ const TOUR = {
   eye: () => [{ el: 'eye', t: tr('t_eye') }],
   c2: () => [{ el: ourHq, t: tr('t_c2') }],
   fhq: () => [{ el: 'fhq', t: tr(s.dozers ? 't_fhqDz' : 't_fhq') }],
-  keys: () => [{ el: midMap, t: tr(TOUCH ? 't_keysT' : 't_keys') }],
   support: () => [{ el: 'hqb', t: tr('t_placeDz') }, { el: ourType('dozer'), t: tr('t_dozer') }],
   radio: () => [{ el: ourType('radio'), t: tr('t_radio') }],
 };
@@ -537,7 +536,7 @@ function levelTour(n) {
   if (n === 1) return [{ el: ourSquad, t: tr('t_you') }, { el: foeSquad, t: tr('t_click') }];
   const fresh = Sim.levelUi(n).filter(k => !Sim.levelUi(n - 1).includes(k));
   // every other level opens with its number, the goal and what it adds, then points at each new thing
-  const out = [{ el: midMap, t: tr('t_level', n, Sim.LEVELS, !!s.nodes.some(k => k.side === 'red' && k.kind === 'hq'), pctLose()) }, ...fresh.flatMap(k => TOUR[k] ? TOUR[k]() : [])];
+  const out = [{ el: midMap, t: tr('t_level', n, Sim.LEVELS, !!s.nodes.some(k => k.side === 'red' && k.kind === 'hq'), pctLose(), s.collapseAt < 0.01) }, ...fresh.flatMap(k => TOUR[k] ? TOUR[k]() : [])];
   if (fresh.includes('squads')) out.push({ el: ourSquad, t: tr('t_face') }, { el: 'power', t: tr('t_power', pctLose()) });
   if (fresh.includes('orders')) out.push({ el: 'gear', t: tr('t_play') });
   return out;
@@ -562,7 +561,7 @@ function fullTour() {
 }
 // only the controls this level has; the ones it adds pulse until first used
 // (the radio log #log stays hidden for now: the map says it)
-const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'bcats'], vehicles: ['bld', 'bcats'], care: ['bld', 'bcats'], air: ['bld', 'bcats'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq'], keys: [], support: [], radio: [] };
+const UI_EL = { squads: [], orders: [], build: ['bld', 'bcats'], vehicles: ['bld', 'bcats'], care: ['bld', 'bcats'], air: ['bld', 'bcats'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq'], support: [], radio: [] };
 // building kinds each level step brings
 const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage', 'depot'], air: ['aapost', 'atpost', 'jeepaa', 'jeepat', 'airfield', 'heliatk', 'heligun', 'helilift', 'ssmshop', 'arrowsite', 'domesite', 'commandopost'] };
 // an element shows when any of the level steps that bring it is there
@@ -574,7 +573,7 @@ function applyUi() {
   syncBuildMenu(fresh.flatMap(k => UI_BUILDS[k] || []));
   for (const k of fresh) for (const id of UI_EL[k] || [k]) $(id).classList.add('new');
   bar.classList.toggle('tut', !!s.ui && s.ui.length < 4);
-  document.body.classList.toggle('fullgame', !lvl || uiHas('keys')); // (no squad or order buttons in the full game, nor in the tutorial's last levels)
+  document.body.classList.add('fullgame'); // (no squad or order buttons, in the tutorial too: picking and orders are on the map and the keys)
 }
 document.addEventListener('pointerdown', e => { const n = e.target.closest && e.target.closest('.new'); if (n) n.classList.remove('new'); }, true);
 // map size: a new map is made at once (the intro is still up, nothing has happened yet)

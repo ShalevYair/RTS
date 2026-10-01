@@ -138,8 +138,9 @@ const fillSquad = (s, sq, x, y) => {
 // Opening (DESIGN.md §3): HQ, a tent with its infantry, and one jeep squad without a building
 // mapH: the world's height (H = the small map; up to MAP_H_MAX for the big one, DESIGN.md §5)
 function create(seed = 1, W = 1000, diff = 'normal', mapH = H, opts = {}) {
-  const h = clamp(Math.round(mapH) || H, H, MAP_H_MAX);
-  W = clamp(Math.round(W) || 1000, 700, MAP_W_MAX);
+  // (opts.small: the tutorial's first levels may go under the small map's size)
+  const h = clamp(Math.round(mapH) || H, opts.small ? 360 : H, MAP_H_MAX);
+  W = clamp(Math.round(W) || 1000, opts.small ? 560 : 700, MAP_W_MAX);
   const s = { W, H: h, seed, t: 0, over: null, nextId: 1, nextSq: 0, rand: rng(seed), hills: [], lakes: [],
     bases: { blue: makeBase(30, 0, 60, h), red: makeBase(W - 30, W - 60, W, h) },
     squads: [], units: [], shots: [], fx: [], log: [], aiIn: { blue: 0, red: 0 }, noReinforce: false, stats: { rein: { blue: 0, red: 0 } }, fog: true,
