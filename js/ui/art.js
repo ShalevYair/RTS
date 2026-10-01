@@ -13,6 +13,7 @@ function buildingPic(kind, col, px, bare) {
   const c = pic.getContext('2d');
   // a building with its own picture (art/): recoloured, about as wide as the drawn one
   const own = BUILDING_PIC[kind], im = own && spritePic(own, col);
+  const S = Sim.STRUCTS[kind] || Sim.POSTS[kind]; // (a post is drawn like a building)
   if (im) {
     const dw = px * 1.35 * ART_RES, dh = dw * im.height / im.width, x0 = (w - dw) / 2, y0 = (w - dh) / 2 - dh * 0.06, sh = shadowPic(own);
     // (its shadow first: to the south-east, as every shadow)
@@ -119,7 +120,7 @@ function buildingPic(kind, col, px, bare) {
     for (const [x, y] of [[6, -8], [11, -8], [6, -3], [11, -3], [8.5, -5.5]]) crate(x, y, 2.4);
     barrel(-10, 9); barrel(-5.5, 9); barrel(-1, 9); crate(8, 8, 2.6);
   } else {
-    c.font = '30px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(Sim.STRUCTS[kind].icon, 0, 2); // (anything new: its emoji)
+    c.font = '30px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(S.icon, 0, 2); // (anything new: its emoji)
   }
   shadowOff(); artCache.set(key, pic); return pic;
 }
@@ -347,7 +348,7 @@ function spritePic(k, col) {
   const im = sprite.img[k]; if (!im) return null;
   p = document.createElement('canvas'); p.width = im.width; p.height = im.height;
   const c = p.getContext('2d'); c.drawImage(im, 0, 0);
-  const d = c.getImageData(0, 0, p.width, p.height), a = d.data, wreck = col === 'wreck', [hue] = wreck ? [0] : toHsl(...rgbOf(col));
+  const d = c.getImageData(0, 0, p.width, p.height), a = d.data, wreck = col === 'wreck', [hue, csat] = wreck ? [0, 1] : toHsl(...rgbOf(col)), grey = csat < 0.15; // (grey: a post of no one's)
   for (let i = 0; i < a.length; i += 4) {
     if (!a[i + 3] || (!a[i] && !a[i + 1] && !a[i + 2])) continue; // (clear, or the shadow)
     const [h, sat, l] = toHsl(a[i], a[i + 1], a[i + 2]);
@@ -356,7 +357,7 @@ function spritePic(k, col) {
     // saturation), with a soft edge; made the side's colour, a little stronger so a faded red still reads red
     const blue = a[i + 2] - Math.max(a[i], a[i + 1]), w = Math.min(1, (blue - 10) / 12);
     if (w <= 0 || h < 195 || h > 270) continue;
-    const [r, g, b] = fromHsl(hue, Math.min(1, Math.max(sat * 1.5, 0.5)), l);
+    const [r, g, b] = fromHsl(hue, grey ? 0 : Math.min(1, Math.max(sat * 1.5, 0.5)), l);
     a[i] += (r - a[i]) * w; a[i + 1] += (g - a[i + 1]) * w; a[i + 2] += (b - a[i + 2]) * w;
   }
   c.putImageData(d, 0, 0); sprite.pic.set(key, p); return p;
@@ -409,7 +410,8 @@ const SPRITE_LEN = { commando: 1, ssm: 1.9, arrow: 1.9, dome: 1.9, lift: 2.1, he
 const SPRITE_ACROSS = { commando: 1.9, inf: 1.9, at: 1.9, aa: 1.9, med: 1.9 };
 // a building's picture: art/b_<kind> (the fake HQ looks just like the real one; the armed jeeps' workshops, the jeeps')
 // (and the gunship's helipad, the attack helicopters' one, unless it has its own)
-const PIC_LIKE = { jeepaa: 'jeepshop', jeepat: 'jeepshop', heligun: 'heliatk', helilift: 'heliatk', ssmshop: 'tankshop', arrowsite: 'aapost', domesite: 'aapost', commandopost: 'tent' };
+// (the posts: until their own pictures are in — b_supply, b_hospital, b_motorpool… — a building that looks the part)
+const PIC_LIKE = { supply: 'depot', hospital: 'clinic', motorpool: 'garage', jeepaa: 'jeepshop', jeepat: 'jeepshop', heligun: 'heliatk', helilift: 'heliatk', ssmshop: 'tankshop', arrowsite: 'aapost', domesite: 'aapost', commandopost: 'tent' };
 const BUILDING_PIC = new Proxy({}, { get: (_, kind) => { const k = kind === 'decoy' ? 'hq' : kind; return sprite.img['b_' + k] || !PIC_LIKE[k] ? 'b_' + k : 'b_' + PIC_LIKE[k]; } });
 const hasSprite = type => type === 'tank' ? !!(sprite.img.tank_hull && sprite.img.tank_turret) : !!(SPRITE_LEN[type] && sprite.img[type]);
 const hasBuildingPic = kind => !!(BUILDING_PIC[kind] && sprite.img[BUILDING_PIC[kind]]);

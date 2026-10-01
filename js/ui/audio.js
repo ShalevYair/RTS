@@ -454,7 +454,7 @@ const Radio = (() => {
     const f = EVENT[k.kind] && take(EVENT[k.kind]);
     if (f) { if (!pending || PRI[k.kind] >= pending.pri) pending = { pri: PRI[k.kind], file: f, at: performance.now() }; return; }
     if (!TEXT[k.kind]) return;
-    const en = lang === 'en', ty = typeOf(k.who), who = en ? (ty ? EN_TYPES[ty] : k.who) : SAY[k.who] || k.who;
+    const en = lang === 'en', ty = typeOf(k.who), who = k.post ? pn(k.post) : en ? (ty ? EN_TYPES[ty] : k.who) : SAY[k.who] || k.who;
     if (!pending || PRI[k.kind] >= pending.pri) pending = { pri: PRI[k.kind], text: (en ? TEXT_EN : TEXT)[k.kind](who || ''), at: performance.now() };
   }
   // called every frame: say the pending report when the channel is free; stale ones are dropped
@@ -475,10 +475,12 @@ const Radio = (() => {
   function textOf(k) {
     if (k.kind === 'nodeLost' && k.who === 'drone') k = { ...k, kind: 'droneLost' };
     if (!TEXT[k.kind]) return '';
-    const en = lang === 'en', ty = typeOf(k.who), who = en ? (ty ? EN_TYPES[ty] : k.who) : SAY[k.who] || k.who;
+    const en = lang === 'en', ty = typeOf(k.who), who = k.post ? pn(k.post) : en ? (ty ? EN_TYPES[ty] : k.who) : SAY[k.who] || k.who;
     return (en ? TEXT_EN : TEXT)[k.kind](who || '');
   }
-  return { hear, textOf, tick, reset, pickVoice, set: v => { on = v; if (!v) reset(); }, hasVoice: () => !!voice || !!recs(), recorded: () => !!recs() };
+  // a line said now, over whatever was waiting (the answer to a spoken order)
+  const say = text => { if (on && text) pending = { pri: 9, text, at: performance.now() }; };
+  return { hear, say, textOf, tick, reset, pickVoice, set: v => { on = v; if (!v) reset(); }, hasVoice: () => !!voice || !!recs(), recorded: () => !!recs() };
 })();
 let radioOn = true;
 try { radioOn = localStorage.getItem('irts-radio') !== '0'; } catch (e) { /* storage unavailable */ }

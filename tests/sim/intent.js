@@ -39,8 +39,8 @@ const far = (s, sq, x, y) => { for (const u of s.units) if (u.squad === sq.id) {
 {
   // night: the full game has it, the tutorial doesn't; units see less, orders are slower
   const s = game(4); const u = s.units.find(k => k.side === 'blue' && k.type === 'inf'), q = s.squads.find(k => k.id === u.squad);
-  const day = [Sim.nightAt(s), Sim.orderDelay(s, q)]; s.t = 330; const night = [Sim.nightAt(s), Sim.orderDelay(s, q)];
-  ok(day[0] === 0 && night[0] === 1 && night[1] > day[1] * 1.4, `night at 5:30: dark ${night[0]}, orders ${day[1].toFixed(1)} → ${night[1].toFixed(1)} s`);
+  const day = [Sim.nightAt(s), Sim.orderDelay(s, q)]; s.t = 270; const night = [Sim.nightAt(s), Sim.orderDelay(s, q)];
+  ok(day[0] === 0 && night[0] === 1 && night[1] > day[1] * 1.4, `night at 4:30: dark ${night[0]}, orders ${day[1].toFixed(1)} → ${night[1].toFixed(1)} s`);
   ok(!Sim.level(10, 1, 1000).night, 'no night in the tutorial');
 }
 {

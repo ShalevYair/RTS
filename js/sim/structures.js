@@ -239,7 +239,7 @@ function produceSquad(s, n, S, dt) {
   if (!sq || s.noReinforce) return;
   const have = s.units.filter(u => u.squad === sq.id).length;
   if (have >= sq.size) { n.prog = 0; return; }
-  n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) / S.every;
+  n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / S.every;
   if (n.prog >= 1) {
     n.prog = 0; const k = have || sq.born ? 1 : sq.size;
     for (let i = 0; i < k; i++) { spawn(s, sq, n.x, n.y); s.stats.rein[n.side]++; }
@@ -301,7 +301,7 @@ function updateStructs(s, dt) {
     if (s.noReinforce) continue;
     const have = n.squads.length;
     if (have >= BUILD_UNITS) { n.prog = 0; continue; }
-    n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) / S.every;
+    n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / S.every; // (a held power station: faster)
     if (n.prog >= 1) {
       n.prog = 0;
       const dir = n.side === 'blue' ? 1 : -1, k = 1;

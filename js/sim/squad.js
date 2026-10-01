@@ -166,13 +166,14 @@ function updateUnit(s, u, sq, dt) {
   u.hush = sq.silent; // (radio silence: quiet driving, no dust)
   const o = effOrder(s, sq), retreat = sq.retreating || o.type === 'retreat';
   const anchor = retreat ? homeOf(s, sq) : o;
-  const up = 1 + ELEV_BONUS * (u.lvl || 0), range = T.range * up, sight = T.sight * up; // higher ground: further
+  // higher ground: further; the dark and the weather nearer, a held radar further (rk: what's left of the range)
+  const up = 1 + ELEV_BONUS * (u.lvl || 0), rk = envRange(s, u), range = T.range * up * rk, sight = T.sight * up * envSight(s, u);
   const leash = o.r * TRAITS[sq.trait].leash;
   // (AA soldiers at something on the ground: their rifle — gun — not their missiles)
-  const gunAt = e => T.gun && !(e.kind ? false : TYPES[e.type].air) ? T.gun : null, reach = e => { const G = gunAt(e); return G ? G.range * up : range; };
+  const gunAt = e => T.gun && !(e.kind ? false : TYPES[e.type].air) ? T.gun : null, reach = e => { const G = gunAt(e); return G ? G.range * up * rk : range; };
   const hk = hurtK(u); // (hurt: weaker and slower)
   let best = null, bd = Infinity, bw = Infinity, near = null, nd = Infinity;
-  const lim = Math.max(sight, range, T.gun ? T.gun.range * up : 0); // (nothing further than this counts: a quick square test first)
+  const lim = Math.max(sight, range, T.gun ? T.gun.range * up * rk : 0); // (nothing further than this counts: a quick square test first)
   for (const e of around(s, u.x, u.y, lim)) {
     if (e.side === u.side || e.hp <= 0 || e.x - u.x > lim || u.x - e.x > lim || e.y - u.y > lim || u.y - e.y > lim || !MULT[u.type][e.type]) continue; // 0 = can't hit it (only AA hits aircraft)
     // prefer targets this unit type is effective against
@@ -185,7 +186,7 @@ function updateUnit(s, u, sq, dt) {
   // nothing else to shoot at: hit an enemy forward HQ or (AA only) a drone in range
   if (!tgt && !retreat && u.cd === 0 && !T.care && !T.stealth) { // (a commando doesn't shoot at buildings: he blows them up)
     const G = n => n.kind !== 'drone' && T.gun ? T.gun : null; // (a building: the rifle too; a drone: a missile)
-    const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= (G(n) ? G(n).range * up : range) + nodeR(n));
+    const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= (G(n) ? G(n).range * up * rk : range) + nodeR(n));
     if (n) {
       const g = G(n), as = g ? g.as : u.type;
       u.engaged = true; if (!shield(s, as, n)) n.hp -= (g ? g.dmg * NODE_MULT[as] : T.dmg * NODE_MULT[u.type]) * hk; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
@@ -198,8 +199,10 @@ function updateUnit(s, u, sq, dt) {
     u.engaged = true;
     if (u.cd === 0) {
       const hit = friendlyFire(s, u, sq, tgt) || tgt, g = gunAt(hit), as = g ? g.as : u.type;
-      // (a missile may be stopped: Iron Dome, Trophy)
-      if (!shield(s, as, hit) && !(inCover(s, hit) && s.rand() < COVER_MISS)) hit.hp -= (g ? g.dmg * MULT[as][hit.type] : T.dmg * MULT[u.type][hit.type]) * hk; hit.by = sq.id; hit.shotAt = s.t; hit.shotBy = u.id; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
+      // (a missile may be stopped: Iron Dome, Trophy; under trees, in the dark, the rain or the fog a shot may miss; a
+      // soldier by his side's bunker takes BUNKER_K of it)
+      const hitK = envHit(s, u);
+      if (!shield(s, as, hit) && !(inCover(s, hit) && s.rand() < COVER_MISS) && !(hitK < 1 && s.rand() > hitK)) hit.hp -= (g ? g.dmg * MULT[as][hit.type] : T.dmg * MULT[u.type][hit.type]) * hk * (s.bunkered && s.bunkered.has(hit.id) ? BUNKER_K : 1); hit.by = sq.id; hit.shotAt = s.t; hit.shotBy = u.id; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
       const fx = IMPACT[as];
       s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[as] });
       u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
@@ -223,7 +226,7 @@ function circle(s, u, cx, cy, R, dt) {
 // supply lines: a shot far from any building of the side and from its supply trucks uses more ammunition
 function supplyUse(s, u) {
   if (s.nodes.some(n => n.side === u.side && n.hp > 0 && n.kind !== 'drone' && n.kind !== 'decoy' && dist(n, u) <= SUPPLY_FAR)) return 1;
-  return s.units.some(m => m.type === 'truck' && m.side === u.side && dist(m, u) <= SUPPLY_NEAR) ? 1 : SUPPLY_FAR_K;
+  return s.units.some(m => m.type === 'truck' && m.side === u.side && dist(m, u) <= SUPPLY_NEAR) || postNear(s, u, 'supply') ? 1 : SUPPLY_FAR_K;
 }
 // a step toward (tx, ty): ground units go round lakes; uphill slower, downhill faster (by how many lines the next
 // few steps climb or drop)
@@ -237,9 +240,10 @@ function moveTo(s, u, tx, ty, fast, dt, keep) {
   if (d <= 2 && !keep) { u.stuck = 0; return; }
   let slope = 1;
   if (!T.air) { const L = 6, e0 = elevAt(s, u), e1 = elevAt(s, { x: u.x + vx / d * L, y: u.y + vy / d * L }); slope = 1 - clamp((e1 - e0) / L * SLOPE_K, -SLOPE_MAX, SLOPE_MAX); }
-  const sp = T.speed * hurtK(u); // (hurt: slower)
+  // (hurt: slower; a vehicle on a road, or of the side holding the fuel station: faster)
+  const veh = s.extras && isVehicle(u.type), sp = T.speed * hurtK(u) * (veh ? postK(s, u.side, 'fuel', FUEL_K) * (onRoad(s, u) ? ROAD_FAST : 1) : 1);
   const k = keep ? sp * fast * dt / Math.max(d, 1e-6) : Math.min(1, sp * slope * fast * dt / d); // (keep: at full speed, even past the point)
-  u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
+  u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx); u.movedAt = s.t; // (moving: not lying in ambush)
   if (!T.air && !u.hush && d * k >= DUST_FAST * T.speed * dt) u.dustAt = s.t; // (driving fast: dust the enemy can see from afar)
 }
 // the trees (each { x, y, r }; one run over or cleared by a building has .gone), in a grid of COVER_CELL
@@ -316,6 +320,15 @@ function skirt(s, u, tx, ty) {
     const side = (ox * vy - oy * vx) > 0 ? 1 : -1, px = -oy / od * side, py = ox / od * side;
     return { x: u.x + px * SKIRT_STEP + ox / od * Math.max(0, od - R) * 0.5, y: u.y + py * SKIRT_STEP + oy / od * Math.max(0, od - R) * 0.5 };
   }
+  // (posts too, whoever holds them — unless one is where it's going: soldiers walk into it to take it)
+  if (s.posts) for (const n of s.posts) {
+    const R = POSTS[n.kind].r + TYPES[u.type].r + 4, ox = n.x - u.x, oy = n.y - u.y, od = Math.hypot(ox, oy);
+    if (od > R + SKIRT_AHEAD || Math.hypot(tx - n.x, ty - n.y) < R + 15) continue;
+    const along = (ox * vx + oy * vy) / d; if (along <= 0 || along > d) continue;
+    if (Math.abs(ox * vy - oy * vx) / d >= R) continue;
+    const side = (ox * vy - oy * vx) > 0 ? 1 : -1, px = -oy / od * side, py = ox / od * side;
+    return { x: u.x + px * SKIRT_STEP + ox / od * Math.max(0, od - R) * 0.5, y: u.y + py * SKIRT_STEP + oy / od * Math.max(0, od - R) * 0.5 };
+  }
   return { x: tx, y: ty };
 }
 // where a hurt unit goes: the nearest medic / mechanic of its side that isn't itself being treated, else home
@@ -327,6 +340,13 @@ function careSpot(s, u, sq, kind = CARER[u.type]) {
   if (kind !== 'truck') for (const n of s.nodes) {
     if (n.side !== u.side || n.hp <= 0 || s.t < n.ready || !STRUCTS[n.kind] || STRUCTS[n.kind].unit !== kind) continue;
     const d = dist(u, n), e = nodeR(n) + TYPES[u.type].r + 8;
+    if (d - e < bd) { bd = d - e; best = d > 1 ? { x: n.x + (u.x - n.x) / d * e, y: n.y + (u.y - n.y) / d * e } : n; }
+  }
+  // (or a post of its side that does it: a hospital, a garage, a supply depot — by its edge)
+  const pk = { med: 'hospital', mech: 'motorpool', truck: 'supply' }[kind];
+  if (pk && s.posts) for (const n of s.posts) {
+    if (n.kind !== pk || n.side !== u.side || (pk === 'motorpool' && TYPES[u.type].air)) continue;
+    const d = dist(u, n), e = POSTS[pk].r + TYPES[u.type].r + 8;
     if (d - e < bd) { bd = d - e; best = d > 1 ? { x: n.x + (u.x - n.x) / d * e, y: n.y + (u.y - n.y) / d * e } : n; }
   }
   return best || homeOf(s, sq);

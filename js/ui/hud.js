@@ -515,6 +515,7 @@ const ourSquad = mapSpot(() => { const q = s.squads.find(q => q.side === 'blue' 
 const foeSquad = mapSpot(() => { const q = s.squads.find(q => q.side === 'red' && !q.dead); return q && { x: q.cx, y: q.cy }; });
 const ourType = type => mapSpot(() => { const q = s.squads.find(q => q.side === 'blue' && !q.dead && q.type === type); return q && { x: q.cx, y: q.cy }; });
 const ourHq = mapSpot(() => s.nodes.find(n => n.side === 'blue' && n.kind === 'hq'));
+const radarSpot = mapSpot(() => s.posts && s.posts.find(p => p.kind === 'radar'));
 const midMap = () => fit && { x: fit.w / 2, y: fit.top + fit.h / 2, w: 0, h: 0 };
 const TOUR = {
   squads: () => [{ el: ourSquad, t: tr(TOUCH ? 't_squadsT' : 't_squads') }], // (no squad buttons: picking is on the map, as in the full game)
@@ -547,6 +548,9 @@ function freeTour() {
   const out = [{ el: midMap, t: tr('t_free', pctLose()) }];
   if (hqToPlace()) out.push({ el: 'hqb', t: tr('t_placeHq') });
   out.push({ el: 'bcats', t: tr('t_decoy') }, { el: 'power', t: tr('t_night') });
+  // (the big maps: the posts, the weather and roads, spoken orders)
+  if (s.posts) out.push({ el: radarSpot, t: tr('t_posts') }, { el: midMap, t: tr('t_weather') });
+  if (!TOUCH) out.push({ el: midMap, t: tr('t_voice') });
   if (s.scale > 1) out.push({ el: 'fhq', t: tr('t_scale', s.scale) });
   out.push({ el: 'gear', t: tr('t_play') });
   return out;
@@ -685,7 +689,7 @@ document.querySelectorAll('[data-diff]').forEach(b => { b.textContent = diffName
 // ---- the message list, under the map: what matters (under attack, heavy losses, a squad or building lost, a missile,
 // friendly fire…), the newest on top pushing the older down; each for FEED_T s, fading away over its last FEED_FADE s.
 // A click takes the camera to where it happened. The same thing in the same area again soon: once (FEED_SAME_*) ----
-const FEED_KINDS = new Set(['hqHit', 'fhqHit', 'baseHit', 'contact', 'hit', 'lost', 'nodeLost', 'missile', 'ff', 'call', 'hqReady', 'intercept']);
+const FEED_KINDS = new Set(['hqHit', 'fhqHit', 'baseHit', 'contact', 'hit', 'lost', 'nodeLost', 'missile', 'ff', 'call', 'hqReady', 'intercept', 'flag', 'flagLost']);
 const FEED_T = 20, FEED_FADE = 8, FEED_MAX = 5, FEED_SAME_R = 300, FEED_SAME_T = 10;
 let feedSeen = [];
 function feedAdd(k) {
@@ -697,7 +701,7 @@ function feedAdd(k) {
   if (feedSeen.some(f => f.kind === k.kind && Math.hypot(f.x - k.x, f.y - k.y) < FEED_SAME_R)) return;
   feedSeen.push({ kind: k.kind, x: k.x, y: k.y, at: now });
   const box = $('feed'), b = document.createElement('button');
-  b.className = 'feedItem' + (/Hit|lost|nodeLost|missile|ff|hit/.test(k.kind) ? ' bad' : ''); b.textContent = text;
+  b.className = 'feedItem' + (/Hit|lost|Lost|missile|ff|hit/.test(k.kind) ? ' bad' : ''); b.textContent = text;
   b.style.setProperty('--life', FEED_T + 's'); b.style.setProperty('--fade', FEED_FADE + 's');
   b.addEventListener('click', e => { e.stopPropagation(); lookAt(k.x, k.y); });
   box.prepend(b); while (box.children.length > FEED_MAX) box.lastChild.remove();

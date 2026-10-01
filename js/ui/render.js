@@ -536,8 +536,12 @@ function drawFog() {
     f.fillStyle = g; f.beginPath(); f.arc(x, y, r, 0, Math.PI * 2); f.fill();
   };
   // our squads lift the fog around them only where they're drawn (not around a guess)
-  for (const q of s.squads) if (q.side === 'blue' && !q.dead && sqShown(q)) hole(q.cx, q.cy, Sim.TYPES[q.type].sight * (1 - 0.4 * Sim.nightAt(s)) + 30);
-  for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, n.kind === 'drone' ? Sim.DRONE_SIGHT + 15 : n.kind === 'fhq' ? Sim.NODES.fhq.sight : n.kind === 'hq' ? Sim.STRUCTS.hq.sight + 20 : 170);
+  // (as far as they see now: the dark, the weather, a held radar)
+  for (const q of s.squads) if (q.side === 'blue' && !q.dead && sqShown(q)) hole(q.cx, q.cy, Sim.TYPES[q.type].sight * Sim.envSight(s, { side: 'blue', type: q.type, x: q.cx, y: q.cy }) + 30);
+  const sk = Sim.skySight(s, 'blue');
+  for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, (n.kind === 'drone' ? Sim.DRONE_SIGHT + 15 : n.kind === 'fhq' ? Sim.NODES.fhq.sight : n.kind === 'hq' ? Sim.STRUCTS.hq.sight + 20 : 170) * sk);
+  // (and our posts: an observation tower far)
+  for (const p of s.posts || []) if (p.side === 'blue') hole(p.x, p.y, (p.kind === 'tower' ? Sim.TOWER_SIGHT : Sim.POST_SIGHT) * sk);
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = s.fogAt ? Math.min(1, (s.t - s.fogAt) / 3) : 1; ctx.drawImage(fogCv, 0, 0, cv.width, cv.height); ctx.restore();
 }
 
@@ -582,12 +586,10 @@ const eyes = { s: null, t: -1, l: [] };
 function clearEyes() {
   if (eyes.s === s && eyes.t === s.t) return eyes.l;
   eyes.s = s; eyes.t = s.t; eyes.l = [];
-  for (const n of s.nodes) if (n.side === 'blue' && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready) eyes.l.push({ x: n.x, y: n.y, r2: Sim.DRONE_SIGHT ** 2 });
-  const rr = Sim.TYPES.radio.sight * (1 - 0.4 * Sim.nightAt(s));
-  for (const u of s.units) if (u.side === 'blue' && u.type === 'radio') eyes.l.push({ x: u.x, y: u.y, r2: rr * rr });
-  // (a commando sees round him as a drone does)
-  const cr = Sim.TYPES.commando.sight * (1 - 0.4 * Sim.nightAt(s));
-  for (const u of s.units) if (u.side === 'blue' && u.type === 'commando') eyes.l.push({ x: u.x, y: u.y, r2: cr * cr });
+  const ds = Sim.DRONE_SIGHT * Sim.skySight(s, 'blue');
+  for (const n of s.nodes) if (n.side === 'blue' && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready) eyes.l.push({ x: n.x, y: n.y, r2: ds * ds });
+  // (a signals truck, and a commando — he sees round him as a drone does: as far as the dark and the weather let them)
+  for (const u of s.units) if (u.side === 'blue' && (u.type === 'radio' || u.type === 'commando')) { const r = Sim.TYPES[u.type].sight * Sim.envSight(s, u); eyes.l.push({ x: u.x, y: u.y, r2: r * r }); }
   return eyes.l;
 }
 const shownAt = p => !Sim.friction(s) || clearEyes().some(e => (e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= e.r2) || Sim.quality(s, 'blue', p) >= 1;
@@ -1019,10 +1021,10 @@ function draw() {
       }
     }
   }
-  drawSmoke(c); drawFlashes(c); drawClouds(c);
+  drawSmoke(c); drawFlashes(c); drawClouds(c); drawWeather(c); // (rain, the morning fog: field.js)
   drawNightLit(c);
   if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); }
-  drawNodes(c); drawDozerJobs(c);
+  drawPosts(c); drawNodes(c); drawDozerJobs(c);
   drawBuildArea(c);
   // our squads. Where the units themselves are drawn: their strength and ammunition over them, no badge. Where they
   // aren't (out of the exact picture under command friction): faint units where they probably are by now, and a
@@ -1108,6 +1110,8 @@ function drawMini() {
   const dot = (x, y, r, col, sq) => { c.fillStyle = col; c.beginPath(); if (sq) c.rect(x - r, y - r, 2 * r, 2 * r); else c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
   for (const n of s.nodes) if (nodeShown(n)) { if (n.kind === 'drone') { c.globalAlpha = 0.35; dot(n.x, n.y, 7, colors[n.side]); c.globalAlpha = 1; } else dot(n.x, n.y, 14, colors[n.side], true); }
   if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { c.globalAlpha = 0.5; const n = s.memNodes.blue[id]; dot(n.x, n.y, 14, colors.red, true); c.globalAlpha = 1; }
+  // (the posts: a diamond in the holder's colour, white for no one's)
+  for (const p of s.posts || []) { c.save(); c.translate(p.x, p.y); c.rotate(Math.PI / 4); c.fillStyle = p.side ? colors[p.side] : '#f2f2f2'; c.fillRect(-15, -15, 30, 30); c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeRect(-15, -15, 30, 30); c.restore(); }
   for (const q of s.squads) {
     if (q.dead) continue;
     // (ours out of the exact picture — in the fog: only just seen)
@@ -1119,6 +1123,7 @@ function drawMini() {
   for (const f of s.marks) if ((f.kind === 'missile' || f.kind === 'launch') && s.t - f.t < 6 && Math.floor((s.t - f.t) * 3) % 2 === 0) { c.fillStyle = f.kind === 'missile' ? colors.red : '#ffd54a'; c.beginPath(); c.arc(f.x, f.y, 34, 0, Math.PI * 2); c.fill(); c.lineWidth = 8; c.strokeStyle = '#fff'; c.stroke(); }
   for (const f of s.marks) { c.strokeStyle = f.kind === 'lost' || f.kind === 'ff' || f.kind === 'nodeLost' ? colors.red : colors.ink; c.lineWidth = 10; c.beginPath(); c.arc(f.x, f.y, 40 + 30 * (s.t - f.t), 0, Math.PI * 2); c.stroke(); }
   c.strokeStyle = colors.ink; c.lineWidth = 2 / k; c.strokeRect(vr.x, vr.y, vr.w, vr.h);
+  drawViews(c, k); // (the saved views' numbers)
 }
 
 // the selection rectangle while it's being drawn (screen pixels)

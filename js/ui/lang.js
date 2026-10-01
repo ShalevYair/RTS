@@ -4,6 +4,7 @@ let lang = 'he';
 try { const l = localStorage.getItem('irts-lang'); if (l === 'he' || l === 'en') lang = l; } catch (e) { /* storage unavailable */ }
 const EN_TYPES = { inf: 'Infantry', tank: 'Tanks', air: 'Aircraft', aa: 'Anti-air', at: 'Anti-tank', jeep: 'Jeeps', ajeep: 'AA jeeps', tjeep: 'AT jeeps', med: 'Medics', mech: 'Mechanics', truck: 'Supply trucks', dozer: 'Bulldozers', radio: 'Signals trucks' , heli: 'Attack helicopters', gunship: 'Gunships', lift: 'Transport helicopters', ssm: 'Missile trucks', arrow: 'Arrow trucks', dome: 'Iron Dome trucks', commando: 'Commandos'};
 const EN_STRUCTS = { hq: 'HQ', fhq: 'Forward HQ', drone: 'Drone', tent: 'Tent', aapost: 'AA tent', atpost: 'AT tent', decoy: 'Fake HQ', jeepshop: 'Jeep workshop', jeepaa: 'AA jeep workshop', jeepat: 'AT jeep workshop', tankshop: 'Tank workshop', airfield: 'Airfield', heliatk: 'Attack helipad', heligun: 'Gunship helipad', helilift: 'Transport helipad', ssmshop: 'Missile works', arrowsite: 'Arrow site', domesite: 'Iron Dome site', commandopost: 'Commando base', clinic: 'Medic tent', garage: 'Garage', depot: 'Supply depot' };
+const EN_POSTS = { radar: 'Radar', power: 'Power station', fuel: 'Fuel station', supply: 'Supply depot', hospital: 'Hospital', motorpool: 'Motor pool', tower: 'Observation tower', antenna: 'Signals antenna', bunker: 'Bunker' };
 const EN_NAMES = { 'כהן': 'Cohen', 'לוי': 'Levi', 'מזרחי': 'Mizrahi', 'פרץ': 'Peretz', 'ביטון': 'Biton', 'אברהם': 'Avraham', 'פרידמן': 'Friedman', 'אזולאי': 'Azoulay', 'דהן': 'Dahan', 'שפירא': 'Shapira' };
 const EN_DIFFS = { easy: 'Easy', normal: 'Normal', hard: 'Hard' };
 const EN_STYLES = { steady: 'Steady', rush: 'Rusher', turtle: 'Turtle', flank: 'Flanker' };
@@ -33,7 +34,7 @@ const STR = {
     decoyItem: n => `פיתיון · עד ${n}, בלי מכסה`, b_decoy: 'מפקדה מזויפת: בערפל האויב חושב שזו המפקדה שלך ותוקף אותה',
     front: 'חזית', tipFront: 'חזית: לחץ ואז על המפה — כל מה שיוצא ממבנה או מסיים טיפול (גם משאיות קשר, טרקטורים, מסוקים ומטוסים) יגיע לשם. לחיצה נוספת מבטלת', hqb: 'מפקדה', tipHqb: 'הקמת המפקדה: בחר מקום ברצועה שלך, והטנקים ייסעו להקים אותה',
     tipSilent: 'שקט אלחוטי (S): הכוח לא מדווח, נע לאט ובלי אבק, והאויב לא שומע אותו', silentOn: 'בשקט אלחוטי', silentOff: 'בקשר',
-    tipNight: 'לילה: רואים פחות רחוק והפקודות איטיות; רחפנים ומבנים רואים כרגיל',
+    tipNight: 'לילה: רואים פחות, יורים פחות רחוק ופוגעים פחות; הפקודות איטיות',
     shareText: (won, time, d) => `${won ? 'ניצחתי' : 'הפסדתי'} אחרי ${time} ברמה ${d} ב"המפקד". נסה לנצח:`,
     call: (boss, name) => `📞 סרן ${boss} (${name}): לחץ כבד. להחזיק או לסגת?`,
     sqTip: (name, boss, home) => `${name} · סרן ${boss}${home ? '' : ' · בלי מבנה, בלי תגבורת'}`,
@@ -68,7 +69,7 @@ const STR = {
     t_placeHq: 'קודם כל: בחר איפה להקים את המפקדה — איפשהו ברצועה הירוקה בצד שלך. הטרקטור 🚜 ייסע לשם ויקים אותה — וגם כל מבנה אחר, רק כשהוא עומד לידו. עד שהמפקדה קמה אין בנייה, ואם טנקי הפיקוד נופלים — הפסדת. משאית הקשר 📡 רואה רחוק; כל שתי דקות המפקדה שולחת עוד טרקטור ועוד משאית.',
     t_decoy: 'בתפריט הבנייה: 🏰🎭 מפקדה מזויפת. בערפל האויב חושב שזו המפקדה שלך ותוקף אותה.',
     t_silent: '📻 / 🤫 שקט אלחוטי לכוח שבחרת: לא מדווח, נע לאט ובלי אבק — והאויב לא שומע אותו. רכב שנוסע מהר מעלה אבק שנראה מרחוק.',
-    t_night: '🌙 כל כמה דקות יורד לילה: רואים פחות והפקודות איטיות. רחפנים ומבנים רואים כרגיל. מפקד ששורד קרבות צובר ניסיון ⭐.',
+    t_night: '🌙 הלילה יורד בהדרגה: בשיא החושך כולם (גם רחפנים ומבנים) רואים 40% פחות, יורים 20% פחות רחוק ופוגעים 25% פחות, והפקודות איטיות. מפקד ששורד קרבות צובר ניסיון ⭐.',
     t_scale: k => `מפה גדולה: פי ${k} מבנים ופיקודים קדמיים.`,
     ni_build: n => `בבנייה · עוד ${n} ש׳`, ni_next: (u, n) => `${u} הבא בעוד ${n} ש׳`, ni_full: 'הכוח מלא', ni_sup: (u, n) => `${u} · בעוד ${n} ש׳`, one_dozer: 'טרקטור', one_radio: 'משאית קשר', ni_site: n => `נבנה · ${n}%`, ni_wait: n => `${n}% · ממתין לטרקטור 🚜`, hqReadyNote: 'המפקדה מוכנה! אפשר להתחיל לבנות.', fhqCan: 'אפשר להקים פיקוד קדמי 🏕️', droneCan: 'אפשר להטיס רחפן', ni_seen: n => `נראה לפני ${n} ש׳`,
     t_you: 'אתה בצבע כחול, משמאל. אתה צריך להשמיד את הצבע האדום, מימין.',
@@ -94,6 +95,19 @@ const STR = {
     t_dozer: 'הטרקטור בונה הכל (גם פיקוד קדמי), לפי הסדר שהנחת (מספר על כל אתר). הוא בונה רק כשהוא עומד ליד האתר — אם תזיז אותו, הבנייה נעצרת עד שתלחץ שוב על אתר.',
     t_radio: 'משאית הקשר רואה רחוק ונותנת שליטה סביבה. שלח אותה מאחורי הכוחות שלך.',
     t_face: TOUCH ? 'לחיצה ארוכה וגרירה = פקודה עם כיוון החזית.' : 'גרירה בכפתור הימני = פקודה עם כיוון החזית.',
+    pi_free: 'של אף אחד', pi_ours: 'שלנו', pi_theirs: 'של האויב', pi_take: 'חייל שנכנס כובש (ונשאר בפנים); קומנדו כובש ויוצא',
+    fx_radar: 'כל הכוחות של המחזיק רואים ויורים רחוק יותר ב-10%', fx_power: 'המבנים של המחזיק מייצרים מהר יותר ב-10%', fx_fuel: 'הרכבים של המחזיק נוסעים מהר יותר ב-10%',
+    fx_supply: 'ממלא תחמושת סביבו', fx_hospital: 'חיילים סביבו מתרפאים מהר', fx_motorpool: 'רכבים סביבו מתוקנים מהר', fx_tower: 'רואה רחוק מאוד סביבו',
+    fx_antenna: 'שליטה מלאה סביבו: פקודות מהירות ומדויקות', fx_bunker: 'עד 4 חיילים לידו חוטפים חצי נזק',
+    wx_rain: '🌧 גשם: רואים, יורים ופוגעים פחות', wx_fog: '🌫 ערפל בוקר בשפלה: מי שעל ההר מעליו',
+    ptSaved: n => `נקודה ${n} נשמרה (Shift+${n} חוזר אליה)`, ptNone: n => `נקודה ${n} לא מוגדרת (Alt+${n} שומר)`,
+    vListen: 'מקשיב…', vNoSR: 'הדפדפן לא תומך בזיהוי דיבור. נסה Chrome או Edge.', vNoMic: 'אין גישה למיקרופון', vNet: 'זיהוי הדיבור צריך אינטרנט', vAgain: 'לא הבנתי, חזור',
+    vWho: 'מי? למשל: טנקים, כוח 2, כולם', vWhere: 'לאן? למשל: לרדאר, לנקודה 3, לשם', vNone: k => `אין ${k}`, vNoGroup: n => `אין כוח ${n}`, vNoFront: 'אין חזית',
+    vGroup: n => `כוח ${n}`, vPoint: n => `נקודה ${n}`, vPicked: 'הנבחרים', vAll: 'כולם', vThere: 'לשם',
+    t_posts: 'מבנים ניטרליים: רדאר, תחנת כוח ודלק, מחסנים, בתי חולים, מוסכים, מגדלי תצפית, אנטנות ובונקרים. חייל שנכנס כובש (ונשאר בפנים); חייל אויב מחזיר אותו לאף אחד, ושני — לאויב. עכבר מעל מבנה = מה הוא נותן.',
+    t_weather: '🌧 גשם ו-🌫 ערפל בוקר (רק בשפלה) מורידים 20% מהראייה, מהטווח ומהפגיעה. על דרך רכבים מהירים יותר. חיילים שעומדים בשקט בין העצים כמעט לא נראים.',
+    t_voice: '🎙 החזק רווח ודבר: "טנקים לרדאר", "כוח 2 לנקודה 4", "כולם לסגת". Alt+מספר שומר את המסך כנקודה, Shift+מספר קופץ אליה. לחיצה קצרה על רווח עדיין עוצרת.',
+    tip_posts: 'מבנה ניטרלי: חייל שנכנס כובש אותו. עכבר מעליו = מה הוא נותן.', tip_voice: 'החזק רווח ודבר: "טנקים לרדאר", "כוח 2 לנקודה 4". Alt+מספר שומר נקודה.',
   },
   en: {
     title: 'The Commander', map: 'Battle map', mini: 'Minimap: tap to look there',
@@ -114,7 +128,7 @@ const STR = {
     decoyItem: n => `Decoy · up to ${n}, no slot`, b_decoy: 'Fake HQ: under fog the enemy takes it for your HQ and attacks it',
     front: 'Front', tipFront: 'Front: click, then the map — everything out of a building or done being treated (signals trucks, bulldozers, helicopters and planes too) heads there. Click again to clear it', hqb: 'HQ', tipHqb: 'Set up the HQ: pick a spot in your strip and the tanks drive there to build it',
     tipSilent: 'Radio silence (S): the squad stops reporting, moves slowly with no dust, and the enemy can\'t hear it', silentOn: 'Radio silent', silentOff: 'On the air',
-    tipNight: 'Night: shorter sight and slower orders; drones and buildings see as usual',
+    tipNight: 'Night: shorter sight and range, fewer hits; slower orders',
     shareText: (won, time, d) => `I ${won ? 'won' : 'lost'} after ${time} on ${d} in "The Commander". Beat it:`,
     call: (boss, name) => `📞 Capt. ${boss} (${name}): heavy pressure. Hold or retreat?`,
     sqTip: (name, boss, home) => `${name} · Capt. ${boss}${home ? '' : ' · no building, no reinforcements'}`,
@@ -149,7 +163,7 @@ const STR = {
     t_placeHq: 'First: pick where your HQ goes — anywhere in the green strip on your side. The bulldozer 🚜 drives there and puts it up — and every other building too, only while it stands by it. Until the HQ stands there is no building, and if the command tanks fall, you lose. The signals truck 📡 sees far; every two minutes the HQ sends another bulldozer and another truck.',
     t_decoy: 'In the build menu: 🏰🎭 a fake HQ. Under fog the enemy takes it for yours and attacks it.',
     t_silent: '📻 / 🤫 radio silence for the picked squad: no reports, slow and dustless — and the enemy can\'t hear it. A vehicle driving fast raises dust seen from afar.',
-    t_night: '🌙 Every few minutes night falls: shorter sight, slower orders. Drones and buildings see as usual. A commander who survives fights gains experience ⭐.',
+    t_night: '🌙 Night falls step by step: in the full dark everyone (drones and buildings too) sees 40% less, shoots 20% shorter and hits 25% less, and orders are slower. A commander who survives fights gains experience ⭐.',
     t_scale: k => `A big map: ${k}× the buildings and forward HQs.`,
     ni_build: n => `building · ${n}s left`, ni_next: (u, n) => `next ${u} in ${n}s`, ni_full: 'squad full', ni_sup: (u, n) => `${u} · in ${n}s`, one_dozer: 'bulldozer', one_radio: 'signals truck', ni_site: n => `going up · ${n}%`, ni_wait: n => `${n}% · waiting for a bulldozer 🚜`, hqReadyNote: 'Headquarters is ready! You can start building.', fhqCan: 'A forward HQ 🏕️ can be set up', droneCan: 'A drone is ready to fly', ni_seen: n => `seen ${n}s ago`,
     t_you: 'You are blue, on the left. You must destroy red, on the right.',
@@ -175,6 +189,19 @@ const STR = {
     t_dozer: 'The bulldozer builds everything (forward HQs too), in the order you lay it out (a number on each site). It only builds while it stands by the site — move it and the work stops until you tap a site again.',
     t_radio: 'The signals truck sees far and gives control round it. Send it behind your forces.',
     t_face: TOUCH ? 'Press, hold and drag = an order with the way the front faces.' : 'Right-drag = an order with the way the front faces.',
+    pi_free: "no one's", pi_ours: 'ours', pi_theirs: "the enemy's", pi_take: 'a soldier who walks in takes it (and stays inside); a commando takes it and walks out',
+    fx_radar: "the holder's forces see and shoot 10% further", fx_power: "the holder's buildings produce 10% faster", fx_fuel: "the holder's vehicles drive 10% faster",
+    fx_supply: 'refills ammunition round it', fx_hospital: 'soldiers round it heal fast', fx_motorpool: 'vehicles round it are repaired fast', fx_tower: 'sees very far round it',
+    fx_antenna: 'full control round it: orders fast and exact', fx_bunker: 'up to 4 soldiers by it take half the damage',
+    wx_rain: '🌧 Rain: shorter sight and range, fewer hits', wx_fog: '🌫 Morning fog on the plain: on a hill you are above it',
+    ptSaved: n => `Point ${n} saved (Shift+${n} goes back)`, ptNone: n => `Point ${n} isn't set (Alt+${n} saves it)`,
+    vListen: 'Listening…', vNoSR: "This browser can't recognise speech. Try Chrome or Edge.", vNoMic: 'No access to the microphone', vNet: 'Speech recognition needs the internet', vAgain: 'Say again?',
+    vWho: 'Who? e.g. tanks, group 2, everyone', vWhere: 'Where? e.g. to the radar, to point 3, there', vNone: k => `No ${k}`, vNoGroup: n => `No group ${n}`, vNoFront: 'No front set',
+    vGroup: n => `Group ${n}`, vPoint: n => `Point ${n}`, vPicked: 'The picked', vAll: 'Everyone', vThere: 'There',
+    t_posts: "Neutral buildings: a radar, power and fuel stations, depots, hospitals, motor pools, observation towers, antennas and bunkers. A soldier who walks in takes it (and stays inside); an enemy soldier makes it no one's, a second makes it theirs. Mouse over one = what it gives.",
+    t_weather: '🌧 Rain and 🌫 morning fog (only on the plain) take 20% off sight, range and hits. Vehicles go faster on roads. Soldiers standing still among trees are hard to see.',
+    t_voice: '🎙 Hold Space and speak: "tanks to the radar", "group 2 to point 4", "everyone retreat". Alt+number saves the view as a point, Shift+number jumps there. A short tap on Space still pauses.',
+    tip_posts: 'A neutral building: a soldier who walks in takes it. Mouse over it = what it gives.', tip_voice: 'Hold Space and speak: "tanks to the radar", "group 2 to point 4". Alt+number saves a point.',
   },
 };
 const tr = (k, ...a) => { const v = STR[lang][k] ?? STR.he[k] ?? k; return typeof v === 'function' ? v(...a) : v; };

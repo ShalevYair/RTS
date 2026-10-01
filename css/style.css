@@ -482,6 +482,9 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
 
 /* the message list under the map: newest on top, each fading out over its last seconds; a click goes there */
 /* (on the right, under the minimap — below the size it grows to under the mouse, 360px wide) */
+/* a spoken order: what was heard, and what it became (field.js) */
+#talk{position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:30;max-width:min(560px,90vw);padding:8px 16px;border-radius:999px;background:var(--frost,rgb(20 24 30 / .72));backdrop-filter:blur(8px);color:#fff;font:600 16px/1.35 Rubik,sans-serif;text-align:center;pointer-events:none;box-shadow:0 4px 18px rgb(0 0 0 / .35)}
+#talk[hidden]{display:none}
 .feed{position:absolute;right:8px;top:8px;width:min(340px,60vw);height:calc(5 * 30px);display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-end;gap:4px;pointer-events:none;z-index:4}
 .feed.underMini{top:calc(8px + 360px / var(--ar,2) + 10px)}
 html[dir="rtl"] .feed{align-items:flex-start} /* (the right edge either way: in RTL the start is the right) */

@@ -205,14 +205,15 @@ function hover(e) {
   // the line of what's under the mouse — a squad (ours, or the enemy's in sight), else a building: after 400 ms on the
   // same one, gone when the mouse leaves it
   const q = !n && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed ? hitSquad(x, y) || hitFoeSquad(x, y) : null;
-  const key = q ? 'q' + q : n ? (n.mem ? 'm' : '') + n.id : null;
+  const pt = !n && !q ? hitPost(x, y) : null; // (a post: who holds it, what it gives)
+  const key = q ? 'q' + q : n ? (n.mem ? 'm' : '') + n.id : pt ? 'p' + pt.id : null;
   if (key === hoverNode) return;
   hoverNode = key; clearTimeout(hoverT); if (tipFor === 'node') hideTip();
-  if (n || q) hoverT = setTimeout(() => {
+  if (n || q || pt) hoverT = setTimeout(() => {
     if (hoverNode !== key || tour || tipFor === 'toast') return;
-    const r = cv.getBoundingClientRect(), sq = q && s.squads.find(k => k.id === q), at = sq ? guessAt(sq) || { x: sq.cx, y: sq.cy } : n;
+    const r = cv.getBoundingClientRect(), sq = q && s.squads.find(k => k.id === q), at = sq ? guessAt(sq) || { x: sq.cx, y: sq.cy } : n || pt;
     if (!at) return;
-    showTip(sq ? squadInfo(sq) : nodeInfo(n), { left: at.x * view.css + view.cox + r.left, top: (at.y - 26) * view.css + view.coy + r.top, width: 0, height: 0 }); tipFor = 'node';
+    showTip(sq ? squadInfo(sq) : n ? nodeInfo(n) : postInfo(pt), { left: at.x * view.css + view.cox + r.left, top: (at.y - 26) * view.css + view.coy + r.top, width: 0, height: 0 }); tipFor = 'node';
   }, 400);
 }
 cv.addEventListener('pointermove', hover);
@@ -356,9 +357,11 @@ document.addEventListener('keydown', e => {
   // keys for controls this level doesn't have yet do nothing
   const need = /^\d$/.test(k) ? 'squads' : 'har'.includes(k) ? 'orders' : { d: 'eye', b: 'fhq', g: 'build' }[k];
   if (need && !uiHas(need)) return;
-  // Ctrl / Alt + a number: what's picked becomes that group; the number alone: the button with that number (a second
-  // press brings the camera there)
-  if (/^[1-9]$/.test(k) && (e.ctrlKey || e.metaKey || e.altKey)) { e.preventDefault(); keyGroup(+k); }
+  // Ctrl + a number: what's picked becomes that group; the number alone: the button with that number (a second press
+  // brings the camera there). Alt + a number: this view is saved as that point; Shift + it: back to it (field.js)
+  if (/^\d$/.test(k) && e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); saveView(+k); }
+  else if (/^\d$/.test(k) && e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); goView(+k); }
+  else if (/^[1-9]$/.test(k) && (e.ctrlKey || e.metaKey)) { e.preventDefault(); keyGroup(+k); }
   else if (/^[1-9]$/.test(k)) { const kb = document.querySelector(`#sqs kbd[data-k="${k}"]`); if (kb) kb.parentElement.click(); }
   else if (k === 'l' && uiHas('squads')) toggleGroup();
   else if (k === 's' && !$('silent').hidden) toggleSilent();
@@ -370,7 +373,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'h') { mode = 'hold'; syncButtons(); }
   else if (k === 'a') { mode = 'attack'; syncButtons(); }
   else if (k === 'r') issue('retreat');
-  else if (k === ' ') { e.preventDefault(); setPlaying(!playing); }
+  else if (k === ' ') { e.preventDefault(); if (!e.repeat) talkDown(); } // (a tap: pause / go on; held: a spoken order — field.js)
   else if (k === 'd') toggleEye();
   else if (k === 'b') buildHere();
   else if (k === 'g') toggleBuild();
@@ -379,3 +382,6 @@ document.addEventListener('keydown', e => {
   else if (e.key === '+' || e.key === '=' || e.key === '-') zoomAt(fit.w / 2, fit.top + fit.h / 2, e.key === '-' ? 1 / 1.25 : 1.25);
   else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; frontArmed = false; $('buildm').hidden = true; syncButtons(); closeMenu(); }
 });
+// Space let go: the pause, or the spoken order (field.js); the window left with it held: nothing
+document.addEventListener('keyup', e => { if ((e.code === 'Space' || e.key === ' ') && talk) { e.preventDefault(); talkUp(); } });
+window.addEventListener('blur', () => { if (talk) { try { talk.rec && talk.rec.abort(); } catch (x) { /* ignore */ } talk = null; talkShow(''); } });

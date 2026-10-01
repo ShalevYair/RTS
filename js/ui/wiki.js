@@ -71,8 +71,16 @@ const WIKI = {
       <h3>איכות שליטה</h3><p>סביב המפקדה, פיקוד קדמי, רחפן ומשאית קשר יש שליטה טובה (הכחול על המפה). שם פקודות מגיעות מהר ומדויק, והדיווחים נכונים. רחוק מהם — פקודות באיחור, "בערך", ולפעמים לא ברורות.</p>
       <h3>תמונת מצב</h3><p>כוח שלך רחוק מופיע איפה שהוא <b>דיווח</b>, לא איפה שהוא באמת. אויב מופיע ככתם אדום — ככל שהזיהוי טוב יותר, רואים סוג ומספר.</p>
       <h3>שקט אלחוטי 🤫</h3><p>כוח בשקט לא מדווח ולא נשמע אצל האויב, ונע לאט ובלי אבק. רכב שנוסע מהר מעלה אבק שנראה מרחוק.</p>
-      <h3>לילה 🌙</h3><p>רואים פחות והפקודות איטיות יותר. רחפנים ומבנים רואים כרגיל.</p>
+      <h3>לילה 🌙</h3><p>החושך יורד בהדרגה (יום של 8 דקות). בשיא: כולם — גם רחפנים, משאיות קשר ומבנים — רואים 40% פחות, יורים 20% פחות רחוק ופוגעים 25% פחות, והפקודות איטיות יותר.</p>
       <h3>מפקדים</h3><p>לכל כוח מפקד עם אופי (נועז, שקול, חרד). מפקד ששורד קרבות צובר ניסיון ⭐: מדווח מדויק יותר ומבין פקודות טוב יותר.</p>`],
+    ['🗺', 'שדה הקרב', `<h2>שדה הקרב</h2><p>במפה הגדולה והענקית (לא בקטנה):</p>
+      <h3>מבנים ניטרליים</h3><p>חייל (חי"ר, נ"ט, נ"מ) שנכנס למבנה כובש אותו ונשאר בפנים. חייל אויב מחזיר אותו לאף אחד, ושני — לאויב. קומנדו כובש ויוצא. אי אפשר להשמיד אותם, והם לא נספרים בעוצמה.</p>
+      <ul><li>📡 רדאר (אחד, באמצע): כל הכוחות שלך רואים ויורים רחוק יותר ב-10%</li><li>⚡ תחנת כוח: הייצור מהיר ב-10% · ⛽ תחנת דלק: הרכבים מהירים ב-10%</li>
+      <li>📦 מחסן: ממלא תחמושת · 🏥 בית חולים: חיילים מתרפאים מהר · 🛠️ מוסך: רכבים מתוקנים מהר</li>
+      <li>🗼 מגדל תצפית: רואה רחוק מאוד · 📶 אנטנה: שליטה מלאה סביבה · 🧱 בונקר: עד 4 חיילים לידו חוטפים חצי נזק</li></ul>
+      <h3>מזג אוויר</h3><p>🌧 גשם בכל המפה, ו-🌫 ערפל בוקר רק בשפלה (על ההר מעליו): כל אחד מוריד 20% מהראייה, מהטווח ומהפגיעה. מצטבר עם הלילה.</p>
+      <h3>דרכים ומארבים</h3><p>רכב על דרך נוסע מהר ב-30%. חיילים וג'יפים שעומדים בשקט בין העצים ולא יורים — נראים רק מקרוב, או מרחפן ומשאית קשר.</p>
+      <h3>פקודות בקול 🎙</h3><p>החזק <kbd>רווח</kbd> ודבר: "טנקים לרדאר", "כוח 2 לנקודה 4", "חיילים להחזיק בבונקר", "כולם לסגת". <kbd>Alt</kbd>+מספר שומר את המסך כנקודה, <kbd>Shift</kbd>+מספר קופץ אליה. "לשם" = איפה שהעכבר. Chrome או Edge, עם אינטרנט.</p>`],
     ['🪖', 'יחידות', () => wikiCards('unit')],
     ['🏗', 'מבנים', () => `<p>בונים מתפריט הבנייה 🏗 (<kbd>G</kbd>), רק איפה שהשטח ירוק. כל מבנה ייצור מקים כוח משלו וממלא אותו. הכוח הראשון יוצא מלא.</p>` + wikiCards('struct')],
     ['🚜', 'תמיכה ואספקה', `<h2>תמיכה ואספקה</h2>
@@ -84,7 +92,8 @@ const WIKI = {
     ['⌨', 'מקשים', `<h2>מקשים</h2><ul>
       <li><kbd>1</kbd>–<kbd>9</kbd> בחירת סוג כוח · <kbd>0</kbd> כולם</li><li><kbd>A</kbd> לתקוף · <kbd>H</kbd> להחזיק · <kbd>R</kbd> לסגת</li>
       <li><kbd>G</kbd> בנייה · <kbd>B</kbd> פיקוד קדמי · <kbd>D</kbd> רחפן · <kbd>S</kbd> שקט אלחוטי · <kbd>P</kbd> שורה / קובייה</li>
-      <li><kbd>L</kbd> לקשור / לפרק קבוצה · <kbd>רווח</kbd> עצירה · <kbd>F</kbd> מסך מלא · <kbd>Esc</kbd> ביטול</li></ul>`],
+      <li><kbd>L</kbd> לקשור / לפרק קבוצה · <kbd>Ctrl</kbd>+מספר קבוצה · <kbd>F</kbd> מסך מלא · <kbd>Esc</kbd> ביטול</li>
+      <li><kbd>רווח</kbd> לחיצה = עצירה, החזקה = פקודה בקול · <kbd>Alt</kbd>+מספר שמירת נקודה · <kbd>Shift</kbd>+מספר קפיצה אליה</li></ul>`],
   ],
   en: [
     ['🎯', 'The goal', `<h2>The goal</h2>
@@ -101,8 +110,16 @@ const WIKI = {
       <h3>Control</h3><p>Around the HQ, forward HQs, drones and signals trucks control is good (the blue on the map): orders arrive fast and exact, reports are right. Far from them orders come late, "roughly", and sometimes garbled.</p>
       <h3>The picture</h3><p>A squad of yours far away shows where it last <b>reported</b>, not where it really is. The enemy shows as a red blob — the better it's identified, the more you see of its kind and size.</p>
       <h3>Radio silence 🤫</h3><p>A silent squad doesn't report and isn't heard by the enemy; it moves slower and raises no dust. A vehicle driving fast raises dust seen from afar.</p>
-      <h3>Night 🌙</h3><p>Shorter sight, slower orders. Drones and buildings see as usual.</p>
+      <h3>Night 🌙</h3><p>The dark comes on step by step (an 8-minute day). At its deepest everyone — drones, signals trucks and buildings too — sees 40% less, shoots 20% shorter and hits 25% less, and orders are slower.</p>
       <h3>Commanders</h3><p>Each squad has a commander with a temper (bold, steady, anxious). One who survives fights gains experience ⭐: truer reports, orders better understood.</p>`],
+    ['🗺', 'The battlefield', `<h2>The battlefield</h2><p>On the big and huge maps (not the small one):</p>
+      <h3>Neutral buildings</h3><p>A soldier (infantry, AT, AA) who walks into one takes it and stays inside. An enemy soldier makes it no one's, a second makes it theirs. A commando takes it and walks out. They can't be destroyed and don't count in power.</p>
+      <ul><li>📡 Radar (one, in the middle): all your forces see and shoot 10% further</li><li>⚡ Power station: production 10% faster · ⛽ Fuel station: vehicles 10% faster</li>
+      <li>📦 Depot: refills ammunition · 🏥 Hospital: soldiers heal fast · 🛠️ Motor pool: vehicles repaired fast</li>
+      <li>🗼 Observation tower: sees very far · 📶 Antenna: full control round it · 🧱 Bunker: up to 4 soldiers by it take half the damage</li></ul>
+      <h3>Weather</h3><p>🌧 Rain over the whole map, and 🌫 morning fog only on the plain (on a hill you're above it): each takes 20% off sight, range and hits. It adds up with the night.</p>
+      <h3>Roads and ambushes</h3><p>A vehicle on a road goes 30% faster. Soldiers and jeeps standing still among trees, not firing, are seen only up close, or by a drone or signals truck.</p>
+      <h3>Spoken orders 🎙</h3><p>Hold <kbd>Space</kbd> and speak: "tanks to the radar", "group 2 to point 4", "soldiers hold the bunker", "everyone retreat". <kbd>Alt</kbd>+number saves the view as a point, <kbd>Shift</kbd>+number jumps there. "There" = where the mouse is. Chrome or Edge, online.</p>`],
     ['🪖', 'Units', () => wikiCards('unit')],
     ['🏗', 'Buildings', () => `<p>Build from the build menu 🏗 (<kbd>G</kbd>), only where the ground is green. Each production building raises a squad of its own and keeps it full. The first squad comes out whole.</p>` + wikiCards('struct')],
     ['🚜', 'Support and supply', `<h2>Support and supply</h2>
@@ -114,7 +131,8 @@ const WIKI = {
     ['⌨', 'Keys', `<h2>Keys</h2><ul>
       <li><kbd>1</kbd>–<kbd>9</kbd> pick a kind · <kbd>0</kbd> all</li><li><kbd>A</kbd> attack · <kbd>H</kbd> hold · <kbd>R</kbd> fall back</li>
       <li><kbd>G</kbd> build · <kbd>B</kbd> forward HQ · <kbd>D</kbd> drone · <kbd>S</kbd> radio silence · <kbd>P</kbd> line / block</li>
-      <li><kbd>L</kbd> group / ungroup · <kbd>Space</kbd> pause · <kbd>F</kbd> full screen · <kbd>Esc</kbd> cancel</li></ul>`],
+      <li><kbd>L</kbd> group / ungroup · <kbd>Ctrl</kbd>+number group · <kbd>F</kbd> full screen · <kbd>Esc</kbd> cancel</li>
+      <li><kbd>Space</kbd> tap = pause, hold = spoken order · <kbd>Alt</kbd>+number save a point · <kbd>Shift</kbd>+number jump there</li></ul>`],
   ],
 };
 // the cards: every unit / building with its picture and the game's own numbers

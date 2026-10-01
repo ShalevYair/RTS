@@ -9,8 +9,8 @@ const nodeSpec = kind => NODES[kind] || (STRUCTS[kind] && STRUCTS[kind].unit ? N
 // buildings and units each time. Made again when the time, the buildings or the units change)
 function controlNodes(s, side) {
   const C = s.cnCache || (s.cnCache = {}), c = C[side];
-  if (c && c.t === s.t && c.n === s.nodes.length && c.u === s.units.length && c.hq === (s.hqPending && s.hqPending[side])) return c.l;
-  const l = controlNodesNow(s, side); C[side] = { t: s.t, n: s.nodes.length, u: s.units.length, hq: s.hqPending && s.hqPending[side], l }; return l;
+  if (c && c.t === s.t && c.n === s.nodes.length && c.u === s.units.length && c.hq === (s.hqPending && s.hqPending[side]) && c.p === s.postsV) return c.l;
+  const l = controlNodesNow(s, side); C[side] = { t: s.t, n: s.nodes.length, u: s.units.length, hq: s.hqPending && s.hqPending[side], p: s.postsV, l }; return l;
 }
 function controlNodesNow(s, side) {
   const l = s.nodes.filter(n => n.side === side && n.hp > 0 && nodeSpec(n.kind) && s.t >= n.ready);
@@ -18,6 +18,8 @@ function controlNodesNow(s, side) {
   if (s.hqPending && s.hqPending[side]) for (const c of s.squads) if (c.side === side && c.cmd && !c.dead) l.push({ id: -1 - c.id, kind: 'cmd', side, x: c.cx, y: c.cy, hp: 1, ready: 0 });
   // (signals trucks: a node where each one is)
   if (s.dozers) for (const u of s.units) if (u.type === 'radio' && u.side === side) l.push({ id: -1000 - u.id, kind: 'radio', side, x: u.x, y: u.y, hp: 1, ready: 0 });
+  // (a signals antenna the side holds)
+  if (s.posts) for (const p of s.posts) if (p.kind === 'antenna' && p.side === side) l.push({ id: 'a' + p.id, kind: 'antenna', side, x: p.x, y: p.y, hp: 1, ready: 0 });
   return l;
 }
 // how much of a node's control reaches distance d: all of it inside r0, then Q_STEPS rings (0.8, 0.6, 0.4, 0.2), none past r1
@@ -31,7 +33,7 @@ function reach(N, d, smooth) {
 // control quality at p: the best node; never below Q_FLOOR. `build`: only what counts for building (no drones)
 function quality(s, side, p, build, smooth) {
   let q = Q_FLOOR;
-  for (const n of controlNodes(s, side)) if (!build || (n.kind !== 'drone' && n.kind !== 'cmd' && n.kind !== 'radio')) { const N = nodeSpec(n.kind); q = Math.max(q, N.q * reach(N, dist(n, p), smooth)); }
+  for (const n of controlNodes(s, side)) if (!build || (n.kind !== 'drone' && n.kind !== 'cmd' && n.kind !== 'radio' && n.kind !== 'antenna')) { const N = nodeSpec(n.kind); q = Math.max(q, N.q * reach(N, dist(n, p), smooth)); }
   return q;
 }
 // how far a drone sees: out to its DRONE_SEE ring
@@ -117,4 +119,5 @@ function setUpFhq(s, sq, at, queued) {
 const nodeTargetable = (u, n) => n.side !== u.side && n.hp > 0 && (n.kind === 'drone' ? MULT[u.type].air > 0 : true);
 // what a structure can see: drones everything under them, the HQ / forward HQs / buildings around themselves
 const nodeSight = n => n.kind === 'decoy' ? 0 : n.kind === 'drone' ? DRONE_SIGHT : n.kind === 'fhq' ? NODES.fhq.sight : n.kind === 'hq' ? STRUCTS.hq.sight : STRUCT_SIGHT;
-const nodeSees = (s, side, e) => s.nodes.some(n => n.side === side && n.hp > 0 && s.t >= n.ready && dist(n, e) <= nodeSight(n));
+// (the dark and the rain: nearer; a held radar: further)
+const nodeSees = (s, side, e) => { const k = skySight(s, side); return s.nodes.some(n => n.side === side && n.hp > 0 && s.t >= n.ready && dist(n, e) <= nodeSight(n) * k); };

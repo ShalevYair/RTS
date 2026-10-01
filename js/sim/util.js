@@ -62,7 +62,8 @@ function nightAt(s) {
   if (f >= 1 || i === 0) return now;
   return was + (now - was) * f * f * (3 - 2 * f);
 }
-const sightOf = (s, u) => TYPES[u.type].sight * (1 + ELEV_BONUS * (u.lvl || 0)) * (1 - NIGHT_SIGHT * nightAt(s));
+// (and what the dark, the weather and a held radar make of it: envSight)
+const sightOf = (s, u) => TYPES[u.type].sight * (1 + ELEV_BONUS * (u.lvl || 0)) * envSight(s, u);
 // a commander's rank (0, 1, 2) from his experience
 const rankOf = sq => sq.xp >= RANK_XP[2] ? 2 : sq.xp >= RANK_XP[1] ? 1 : 0;
 
