@@ -33,8 +33,8 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const end = await p.evaluate(() => ({ t: document.getElementById('endT').textContent, again: document.getElementById('again').textContent, done: localStorage.getItem('irts-done') }));
     check(name, end.t === '🏆' && end.again === '▶' && end.done === '1', `level 1 won by one tap: ${JSON.stringify(end)}`);
     await p.click('#again'); await p.waitForTimeout(300);
-    const lv2 = await p.evaluate(() => ({ lvl, sq: !document.getElementById('gSq').hidden, isNew: document.getElementById('gSq').classList.contains('new'), ord: !document.getElementById('gOrd').hidden }));
-    check(name, lv2.lvl === 2 && lv2.sq && lv2.isNew && !lv2.ord, `▶ goes on to level 2: squad buttons appear and pulse ${JSON.stringify(lv2)}`);
+    const lv2 = await p.evaluate(() => ({ lvl, sq: getComputedStyle(document.getElementById('gSq')).display !== 'none', ord: getComputedStyle(document.getElementById('gOrd')).display !== 'none', W: s.W, H: s.H }));
+    check(name, lv2.lvl === 2 && !lv2.sq && !lv2.ord && lv2.H < Sim.H, `▶ goes on to level 2: no squad buttons (picking is on the map), a small map ${JSON.stringify(lv2)}`);
     await p.screenshot({ path: `${OUT}/${name}-lv2.png` });
     // level 3: our HQ, drawn as a compound (no base strip)
     await p.evaluate(() => { rate = 1; lvl = 3; newGame(true); setPlaying(true); });

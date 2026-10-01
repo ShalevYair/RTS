@@ -751,11 +751,30 @@ function drawBuildArea(c) {
     c.globalAlpha = Sim.fhqCheck(s, w.x, w.y) ? 0.25 : 0.7; drawBuilding(c, 'fhq', colors.blue, w.x, w.y, pxOf('fhq')); c.globalAlpha = 1;
   }
   if (!buildArmed) return;
-  const G = 20, v = viewRect() || { x: 0, y: 0, w: s.W, h: s.H }; c.fillStyle = 'rgba(80,200,90,.22)';
-  const x0 = Math.max(G / 2, Math.floor(v.x / G) * G + G / 2), y0 = Math.max(G / 2, Math.floor(v.y / G) * G + G / 2);
-  for (let y = y0; y < Math.min(s.H, v.y + v.h + G); y += G) for (let x = x0; x < Math.min(s.W, v.x + v.w + G); x += G) if (!Sim.buildCheck(s, 'blue', x, y, buildArmed)) c.fillRect(x - G / 2, y - G / 2, G, G);
+  drawBuildZone(c);
   // (the building at the pointer, in its size: faint where it can't go)
   if (mouseAt) { const r = cv.getBoundingClientRect(), w = { x: (mouseAt.x - r.left - view.cox) / view.css, y: (mouseAt.y - r.top - view.coy) / view.css }; c.globalAlpha = Sim.buildCheck(s, 'blue', w.x, w.y, buildArmed) ? 0.25 : 0.7; drawBuilding(c, buildArmed, colors.blue, w.x, w.y, pxOf(buildArmed)); c.globalAlpha = 1; }
+}
+// where the armed building may go: a soft green wash. The screen's part of the map in BZ_CELLS cells across (finer
+// than before: zoomed in on a phone, 20-unit squares were big blocks), one pixel each, drawn scaled up smoothly — soft
+// edges, no squares. Worked out again only when the view, the buildings change, or BZ_EVERY s go by
+const BZ_CELLS = 90, BZ_EVERY = 3, bz = { cv: document.createElement('canvas'), key: '' };
+function drawBuildZone(c) {
+  // (the whole canvas, not only viewRect: on a phone held upright the map shows above and below that part too)
+  const cw = cv.width / (fit ? fit.dpr : 1), ch = cv.height / (fit ? fit.dpr : 1);
+  const v = fit ? { x: -view.cox / view.css, y: -view.coy / view.css, w: cw / view.css, h: ch / view.css } : { x: 0, y: 0, w: s.W, h: s.H }, G = Math.max(6, Math.ceil(v.w / BZ_CELLS));
+  const x0 = Math.max(0, Math.floor(v.x / G) - 1), y0 = Math.max(0, Math.floor(v.y / G) - 1);
+  const x1 = Math.min(Math.ceil(s.W / G), Math.ceil((v.x + v.w) / G) + 1), y1 = Math.min(Math.ceil(s.H / G), Math.ceil((v.y + v.h) / G) + 1);
+  const w = Math.max(1, x1 - x0), h = Math.max(1, y1 - y0);
+  const key = [buildArmed, G, x0, y0, w, h, s.nodes.length, s.nodes.reduce((a, n) => a + (n.hp > 0) + (s.t >= n.ready), 0), Math.floor(s.t / BZ_EVERY)].join(); // (and every BZ_EVERY s: control moves with drones and signals trucks)
+  if (key !== bz.key) {
+    bz.key = key; bz.cv.width = w; bz.cv.height = h;
+    const g = bz.cv.getContext('2d'), img = g.createImageData(w, h), d = img.data;
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (!Sim.buildCheck(s, 'blue', (x0 + i + 0.5) * G, (y0 + j + 0.5) * G, buildArmed)) { const k = (j * w + i) * 4; d[k] = 80; d[k + 1] = 200; d[k + 2] = 90; d[k + 3] = 70; }
+    g.putImageData(img, 0, 0);
+  }
+  c.save(); c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+  c.drawImage(bz.cv, x0 * G, y0 * G, w * G, h * G); c.restore();
 }
 // event reports appear where they happened, pop in and fade out
 // (not shown: arrived, roger, contact — the voice says them — nor the envelopes of orders on their way; nor 💥 / ✖ for a
