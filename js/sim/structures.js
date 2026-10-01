@@ -124,6 +124,7 @@ function supportSpawn(s, dt) {
     for (const [type, dy, kind] of [['dozer', 30, 'dozerReady'], ['radio', -30, 'radioReady']]) {
       if (s.squads.filter(q => q.side === side && q.type === type && !q.dead).length >= SUPPORT_CAP) continue;
       const q = supportSquad(s, side, type, h.x + dir * 45, h.y + dy);
+      if (h.rally) order(s, q.id, 'hold', h.rally.x + dy, h.rally.y, true); // (the HQ's rally point; a bulldozer with work goes to it)
       if (side === 'blue') { report(s, q, type === 'dozer' ? 'טרקטור מוכן' : 'משאית קשר מוכנה'); s.marks.push({ x: q.cx, y: q.cy, kind, t: s.t, who: q.name, id: q.id }); }
     }
   }
@@ -147,8 +148,10 @@ function openField(s) {
   s.nodes = s.nodes.filter(n => n.kind !== 'hq' && n.kind !== 'tent');
   for (const q of s.squads) if (q.home && !s.nodes.some(n => n.id === q.home)) q.home = null;
   for (const side of ['blue', 'red']) {
-    const b = s.bases[side], dir = side === 'blue' ? 1 : -1, t = makeSquad(s, side, 'tank', null, b.x + dir * 50, s.H / 2);
-    t.size = CMD_TANKS; fillSquad(s, t, t.order.x, t.order.y); t.cmd = true;
+    const b = s.bases[side], dir = side === 'blue' ? 1 : -1;
+    // (the player's: each tank its own squad, like every other unit of theirs; the AI's: one squad of two)
+    if (singles(s, side)) for (const q of raiseSingles(s, side, 'tank', null, b.x + dir * 50, s.H / 2, CMD_TANKS)) q.cmd = true;
+    else { const t = makeSquad(s, side, 'tank', null, b.x + dir * 50, s.H / 2); t.size = CMD_TANKS; fillSquad(s, t, t.order.x, t.order.y); t.cmd = true; }
     // (the bulldozer out in front, toward the enemy: behind the tanks, they boxed it in; it's the first to drive off)
     supportSquad(s, side, 'dozer', b.x + dir * 130, s.H / 2 + 20); supportSquad(s, side, 'radio', b.x + dir * 30, s.H / 2 - 40);
   }
@@ -173,7 +176,7 @@ function hqTrips(s) {
     if (!s.hqPending[side]) continue;
     const h = s.nodes.find(n => n.side === side && n.kind === 'hq'), sq = cmdSquad(s, side);
     // (the HQ up: the first forward HQ a minute later)
-    if (h) { if (s.t >= h.ready) { s.hqPending[side] = false; if (sq) sq.cmd = false; s.cd[side].fhq = Math.max(s.cd[side].fhq, FHQ_AFTER_HQ); note(s, side === 'blue' ? 'המפקדה פועלת' : ''); if (side === 'blue') s.marks.push({ x: h.x, y: h.y, kind: 'hqReady', t: s.t }); } continue; }
+    if (h) { if (s.t >= h.ready) { s.hqPending[side] = false; for (const q of s.squads) if (q.side === side) q.cmd = false; s.cd[side].fhq = Math.max(s.cd[side].fhq, FHQ_AFTER_HQ); note(s, side === 'blue' ? 'המפקדה פועלת' : ''); if (side === 'blue') s.marks.push({ x: h.x, y: h.y, kind: 'hqReady', t: s.t }); } continue; }
     if (!sq) { s.hqDown = side; continue; }
     // (who sets it up: the command tanks, or with support the bulldozer sent)
     const b = s.dozers ? s.squads.find(q => q.side === side && q.hqAt && !q.dead) : sq;
@@ -195,7 +198,7 @@ function homeOf(s, sq) {
 // aircraft rearm at the nearest working airfield, or at the HQ
 function rearmSpot(s, u) {
   let best = hqOf(s, u.side), bd = best ? dist(u, best) : Infinity;
-  for (const n of alive(s, u.side, ['airfield'])) if (s.t >= n.ready && dist(u, n) < bd) { bd = dist(u, n); best = n; }
+  for (const n of alive(s, u.side, TYPES[u.type].hover ? ['heliatk', 'heligun', 'airfield'] : ['airfield'])) if (s.t >= n.ready && dist(u, n) < bd) { bd = dist(u, n); best = n; }
   return best || s.bases[u.side];
 }
 // units heal near their own HQ, working buildings and forward HQs
@@ -226,9 +229,34 @@ function repair(s, n, S, idle, dt) {
   }
   if (k) { n.hp = Math.min(S.hp, n.hp + k * REPAIR_RATE * dt); n.fixing = true; }
 }
-// where a building's new squads go once out (the player's rally point; null = by the building)
+// the AI's buildings: one squad each, raised whole and then refilled one unit at a time
+function produceSquad(s, n, S, dt) {
+  if (!n.squad) {
+    const dir = n.side === 'blue' ? 1 : -1, sq = makeSquad(s, n.side, S.unit, n.id, n.x + dir * (nodeR(n) + 30), n.y);
+    n.squad = sq.id; sq.dead = true; // empty until the first unit comes out
+  }
+  const sq = s.squads.find(q => q.id === n.squad);
+  if (!sq || s.noReinforce) return;
+  const have = s.units.filter(u => u.squad === sq.id).length;
+  if (have >= sq.size) { n.prog = 0; return; }
+  n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) / S.every;
+  if (n.prog >= 1) {
+    n.prog = 0; const k = have || sq.born ? 1 : sq.size;
+    for (let i = 0; i < k; i++) { spawn(s, sq, n.x, n.y); s.stats.rein[n.side]++; }
+    if (!have && n.rally) order(s, sq.id, 'attack', n.rally.x, n.rally.y, true);
+    if (have && have + 1 === sq.size) report(s, sq, 'הכוח מאויש במלואו');
+  }
+}
+// the player pulls down one of its own buildings (not the HQ: that would be the game): gone at once, as if destroyed
+function demolish(s, side, id) {
+  const n = s.nodes.find(k => k.id === id && k.side === side && k.hp > 0);
+  if (!n || n.kind === 'hq' || n.kind === 'drone') return false;
+  n.hp = 0; n.razed = true; return true;
+}
+// where a building's new squads go once out (the player's rally point; null = by the building) — set while it is
+// still going up too; the HQ's: where its new bulldozers and signals trucks go
 function rally(s, id, x, y) {
-  const n = s.nodes.find(k => k.id === id && k.hp > 0); if (!n || !STRUCTS[n.kind].unit) return false;
+  const n = s.nodes.find(k => k.id === id && k.hp > 0); if (!n || !(STRUCTS[n.kind].unit || n.kind === 'hq')) return false;
   n.rally = Number.isFinite(x) ? { x: clamp(x, 0, s.W), y: clamp(y, 0, s.H) } : null; return true;
 }
 function updateStructs(s, dt) {
@@ -242,8 +270,10 @@ function updateStructs(s, dt) {
       if (n.gone) continue;
       if (n.kind === 'hq') { s.hqDown = n.side; s.hqDownAt = { x: n.x, y: n.y }; } // (step: that side has lost; the UI's finale looks there)
       n.gone = true; s.fx.push({ x: n.x, y: n.y, life: 0.9, max: 0.9, size: n.kind === 'drone' ? 18 : 34 });
-      const sq = n.squad && s.squads.find(q => q.id === n.squad); if (sq) sq.home = null; // the squad fights on, without refills
-      if (n.side === 'blue') { note(s, `${S.name}: ${n.kind === 'drone' ? 'הופל' : 'הושמד'}`); s.marks.push({ x: n.x, y: n.y, kind: 'nodeLost', t: s.t, who: n.kind }); }
+      for (const q of s.squads) if (q.home === n.id) q.home = null; // its squads fight on, without refills
+      const sq = n.squad && s.squads.find(q => q.id === n.squad); if (sq) sq.home = null;
+      if (n.side === 'blue' && n.razed) note(s, `${S.name}: פורק`); // (pulled down by us: no alarm)
+      else if (n.side === 'blue') { note(s, `${S.name}: ${n.kind === 'drone' ? 'הופל' : 'הושמד'}`); s.marks.push({ x: n.x, y: n.y, kind: 'nodeLost', t: s.t, who: n.kind }); }
       else if (n.kind !== 'drone') note(s, `השמדנו ${S.name} של האויב`);
       continue;
     }
@@ -251,24 +281,26 @@ function updateStructs(s, dt) {
     repair(s, n, S, idle, dt);
     if (n.kind === 'fhq' && n.side === 'blue' && !n.said) { n.said = true; note(s, 'הפיקוד הקדמי פועל'); }
     if (!S.unit) continue;
-    // a finished building raises its squad, then keeps it full
-    if (!n.squad) {
-      const dir = n.side === 'blue' ? 1 : -1, sq = makeSquad(s, n.side, S.unit, n.id, n.x + dir * (nodeR(n) + 30), n.y);
-      n.squad = sq.id; sq.dead = true; // empty until the first unit comes out
-      if (n.side === 'blue') note(s, `${S.name} מוכן, ${sq.name} מתחילים לצאת`);
-    }
-    const sq = s.squads.find(q => q.id === n.squad);
-    if (!sq || s.noReinforce) continue;
-    const have = s.units.filter(u => u.squad === sq.id).length;
-    if (have >= sq.size) { n.prog = 0; continue; }
+    // a finished building raises its units — each its own squad (n.squads; n.squad: the last one out) — one at a
+    // time, every S.every s, and keeps BUILD_UNITS of them alive
+    if (!n.said2) { n.said2 = true; if (n.side === 'blue') note(s, `${S.name} מוכן, ${TYPES[S.unit].name} מתחילים לצאת`); }
+    if (n.upg) { n.prog = 0; continue; } // (an upgrade under way: nothing comes out meanwhile)
+    if (!singles(s, n.side) && !(n.squads && n.squads.length)) { produceSquad(s, n, S, dt); continue; } // (the AI's: one squad, kept full)
+    n.squads = (n.squads || []).filter(id => s.squads.some(q => q.id === id && !q.dead && q.home === n.id));
+    if (s.noReinforce) continue;
+    const have = n.squads.length;
+    if (have >= BUILD_UNITS) { n.prog = 0; continue; }
     n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) / S.every;
     if (n.prog >= 1) {
-      // a new squad (the first, or one raised again after it was wiped out) comes out whole; after losses it's
-      // refilled one unit at a time
-      n.prog = 0; const k = have || sq.born ? 1 : sq.size;
-      for (let i = 0; i < k; i++) { spawn(s, sq, n.x, n.y); s.stats.rein[n.side]++; }
-      if (!have && n.rally) order(s, sq.id, 'attack', n.rally.x, n.rally.y, true); // (where the player said its squads go)
-      if (have && have + 1 === sq.size) report(s, sq, 'הכוח מאויש במלואו');
+      n.prog = 0;
+      const dir = n.side === 'blue' ? 1 : -1, k = 1;
+      const out = raiseSingles(s, n.side, S.unit, n.id, n.x + dir * (nodeR(n) + 30), n.y, k);
+      for (const q of out) {
+        // (each walks out from the building to its place by it — or to where the player said its squads go)
+        const u = s.units.find(m => m.squad === q.id); u.x = n.x + dir * nodeR(n) * 0.6; u.y = n.y;
+        if (n.rally) order(s, q.id, 'attack', n.rally.x, n.rally.y, true);
+        n.squads.push(q.id); n.squad = q.id; s.stats.rein[n.side]++;
+      }
     }
   }
   for (const n of s.nodes) if (n.gone) for (const side of ['blue', 'red']) delete s.memNodes[side][n.id];

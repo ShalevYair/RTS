@@ -3,6 +3,8 @@ function step(s, dt) {
   if (s.over || !(dt > 0)) return;
   s.t += dt;
   if (s.fogAt && !s.fog && s.t >= s.fogAt) s.fog = true; // the tutorial's fog comes down during the level
+  // (a fallen single — a squad of one unit — is dropped after a while: there are many of them over a game)
+  s.squads = s.squads.filter(q => !(q.single && q.dead && s.t - (q.deadAt ?? s.t) > 30));
   for (const sq of s.squads) updateSquad(s, sq, dt);
   for (const sq of s.squads) initiative(s, sq, dt);
   for (const u of s.units) { u.lvl = TYPES[u.type].air ? 0 : levelAt(s, u); u.hill = u.lvl >= 1; }
@@ -28,6 +30,7 @@ function step(s, dt) {
   s.fx = s.fx.filter(f => f.life > 0);
   s.marks = s.marks.filter(k => s.t - k.t < MARK_LIFE);
   updateStructs(s, dt);
+  liftTick(s, dt); missileTick(s, dt); trophyTick(s, dt); commandoTick(s, dt);
   deliver(s);
   fhqTrips(s);
   hqTrips(s);
@@ -49,4 +52,4 @@ function step(s, dt) {
   if (!s.over && s.hqDown) s.over = s.hqDown === 'blue' ? 'red' : 'blue';
 }
 
-const Sim = { rally, pack, PACK_AT, clearAt, fhqCheck, FHQ_AFTER_HQ, fhqBuilders, assignSite, jobOf, isSite, dozers, SUPPORT_EVERY, SUPPORT_CAP, DOZER_R, fhqMax, openField, planHq, hqCheck, hqBand, cmdSquad, HQ_BAND, HQ_WARM, _garbled: garbled, _supplyUse: supplyUse, BUILDABLE, DECOY_MAX, silence, nightAt, rankOf, RANK_XP, SILENT_SPEED, SUPPLY, AI_STYLES, planFhq, _makeSquad: makeSquad, _fillSquad: fillSquad, formation, fhqCount, friction, dronesUp, DRONE_SIGHT, CARER, nodeSpec, create, lakeAt, wobble, inHill, elevAt, levelAt, hillHeight, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+const Sim = { sendCare, BUILD_UNITS, PLANT_T, STEALTH_EYE, launch, upgrade, knownFoeNode, SSM_SETUP, SSM_FLIGHT, SSM_RELOAD, TROPHY_MAX, TROPHY_BUILD, ARROW_R_K, DOME_R_K, board, unload, RIDERS, demolish, NIGHT_LEVELS, NIGHT_STEP, NIGHT_FADE, rally, pack, PACK_AT, clearAt, fhqCheck, FHQ_AFTER_HQ, fhqBuilders, assignSite, jobOf, isSite, dozers, SUPPORT_EVERY, SUPPORT_CAP, DOZER_R, fhqMax, openField, planHq, hqCheck, hqBand, cmdSquad, HQ_BAND, HQ_WARM, _garbled: garbled, _supplyUse: supplyUse, BUILDABLE, DECOY_MAX, silence, nightAt, rankOf, RANK_XP, SILENT_SPEED, SUPPLY, AI_STYLES, planFhq, _makeSquad: makeSquad, _fillSquad: fillSquad, formation, fhqCount, friction, dronesUp, DRONE_SIGHT, CARER, nodeSpec, create, lakeAt, wobble, inHill, elevAt, levelAt, hillHeight, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };

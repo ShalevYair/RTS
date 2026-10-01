@@ -83,15 +83,27 @@ function formation(s, ids, type, x, y, quiet, fa) {
   for (const [k, list] of rows) {
     // (many of a kind in the row — more than PACK_AT — stand in blocks, unless the player set it)
     const n = list.reduce((a, q) => a + (q.count || q.size), 0); for (const q of list) q.packN = n;
-    let at = -(list.reduce((a, q) => a + lineWidth(q, n), 0) + SIDE_GAP * (list.length - 1)) / 2;
-    for (const q of list) { const w = lineWidth(q, n); ok = order(s, q.id, type, x, y, quiet, { depth: (k - mid) * ROW_GAP, lat: at + w / 2, fa }) || ok; at += w + SIDE_GAP; }
+    const singles = list.filter(q => q.single), rest = list.filter(q => !q.single), sp = Math.max(...list.map(q => spacing(q.type)));
+    // single units side by side, no gap between them — or, many, in a block (cols across, rows back from the front)
+    const block = singles.length && packed(singles[0], n), cols = block ? blockCols(singles.length) : singles.length, rws = Math.ceil(singles.length / Math.max(1, cols));
+    const sw = cols * sp, parts = (singles.length ? 1 : 0) + rest.length;
+    let at = -((singles.length ? sw : 0) + rest.reduce((a, q) => a + lineWidth(q, n), 0) + SIDE_GAP * Math.max(0, parts - 1)) / 2;
+    singles.forEach((q, i) => {
+      const c = i % cols, r = Math.floor(i / cols);
+      ok = order(s, q.id, type, x, y, quiet, { depth: (k - mid) * ROW_GAP - (r - (rws - 1) / 2) * sp, lat: at + (c + 0.5) * sp, fa }) || ok;
+    });
+    if (singles.length) at += sw + SIDE_GAP;
+    for (const q of rest) { const w = lineWidth(q, n); ok = order(s, q.id, type, x, y, quiet, { depth: (k - mid) * ROW_GAP, lat: at + w / 2, fa }) || ok; at += w + SIDE_GAP; }
   }
   return ok;
 }
 // line ↔ block for these squads (the player's P): all to the other of what the first has now
 function pack(s, ids) {
   const qs = ids.map(id => s.squads.find(q => q.id === id)).filter(q => q && !q.dead && !TYPES[q.type].air); if (!qs.length) return null;
-  const to = packed(qs[0], qs[0].packN) ? 'line' : 'block'; for (const q of qs) q.pack = to; return to;
+  const to = packed(qs[0], qs[0].single ? qs.length : qs[0].packN) ? 'line' : 'block'; for (const q of qs) q.pack = to;
+  // (standing in a formation together: formed again, the new way)
+  const f = qs[0].order.form; if (f && qs.length > 1) formation(s, qs.map(q => q.id), qs[0].order.type, f.wx ?? f.x, f.wy ?? f.y, true, f.fa);
+  return to;
 }
 // which way to face from p: the nearest enemy seen within FACE_R, else fa (where the player pointed), else the enemy HQ
 function faceAt(s, side, p, fa) {

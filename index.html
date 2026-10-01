@@ -21,6 +21,9 @@
 <body>
 <div class="stage" id="stage">
   <canvas id="cv" data-al="map"></canvas>
+  <div id="vig" aria-hidden="true"></div>
+  <button id="upgBtn" class="upgBtn" hidden></button>
+  <div class="razeSure" id="razeSure" role="alertdialog" hidden><span id="razeQ"></span><button id="razeYes" data-t="yes"></button><button id="razeNo" data-t="no"></button></div>
   <canvas id="mini" class="glass" data-al="mini" hidden></canvas>
   <!-- top middle: the power bar, us against them -->
   <div class="hudc">
@@ -136,6 +139,7 @@
 <script src="js/sim/squad.js"></script>
 <script src="js/sim/intel.js"></script>
 <script src="js/sim/structures.js"></script>
+<script src="js/sim/special.js"></script>
 <script src="js/sim/ai.js"></script>
 <script src="js/sim/levels.js"></script>
 <script src="js/sim/step.js"></script>

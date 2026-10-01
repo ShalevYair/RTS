@@ -7,8 +7,8 @@ const nodeSpec = kind => NODES[kind] || (STRUCTS[kind] && STRUCTS[kind].unit ? N
 // (open field: before the HQ stands, the command tanks count as a node where they are)
 function controlNodes(s, side) {
   const l = s.nodes.filter(n => n.side === side && n.hp > 0 && nodeSpec(n.kind) && s.t >= n.ready);
-  const c = s.hqPending && s.hqPending[side] && cmdSquad(s, side);
-  if (c) l.push({ id: -1, kind: 'cmd', side, x: c.cx, y: c.cy, hp: 1, ready: 0 });
+  // (the player's command tanks are two singles: a node at each)
+  if (s.hqPending && s.hqPending[side]) for (const c of s.squads) if (c.side === side && c.cmd && !c.dead) l.push({ id: -1 - c.id, kind: 'cmd', side, x: c.cx, y: c.cy, hp: 1, ready: 0 });
   // (signals trucks: a node where each one is)
   if (s.dozers) for (const u of s.units) if (u.type === 'radio' && u.side === side) l.push({ id: -1000 - u.id, kind: 'radio', side, x: u.x, y: u.y, hp: 1, ready: 0 });
   return l;

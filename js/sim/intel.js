@@ -12,8 +12,14 @@ function intel(s, side, q) {
 // only its full-control ring
 function clearAt(s, side, p) {
   for (const n of s.nodes) if (n.side === side && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready && dist(n, p) <= DRONE_SIGHT) return true;
-  for (const u of s.units) if (u.side === side && u.type === 'radio' && dist(u, p) <= sightOf(s, u)) return true;
+  for (const u of s.units) if (u.side === side && (u.type === 'radio' || u.type === 'commando') && dist(u, p) <= sightOf(s, u)) return true;
   return false;
+}
+// a commando is seen only up close: by a drone or a signals truck of the side, its units or buildings, or firing
+function stealthSeen(s, side, e, eyes) {
+  if (s.t - e.lastFire < STEALTH_FIRE) return true;
+  if (s.nodes.some(n => n.side === side && n.hp > 0 && dist(n, e) <= (n.kind === 'drone' ? STEALTH_EYE : nodeR(n) + STEALTH_NEAR))) return true;
+  return eyes.some(u => dist(u, e) <= (u.type === 'radio' ? STEALTH_EYE : STEALTH_NEAR));
 }
 function idLevel(s, side, p) {
   if (!friction(s)) return 2;
@@ -29,7 +35,7 @@ function visibility(s) {
     const v = new Set(), vq = new Set();
     for (const e of s.units) {
       if (e.side === side) continue;
-      if (s.t - e.lastFire < FIRE_REVEAL || nodeSees(s, side, e) ||
+      if (TYPES[e.type].stealth ? stealthSeen(s, side, e, eyes) : s.t - e.lastFire < FIRE_REVEAL || nodeSees(s, side, e) ||
           eyes.some(u => dist(u, e) <= sightOf(s, u))) { v.add(e.id); vq.add(e.squad); }
     }
     s.vis[side] = v; s.visSq[side] = vq;

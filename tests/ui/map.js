@@ -39,8 +39,8 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
         return { x0: Math.min(...pts.map(q => X(q.x))) - 30, y0: Math.min(...pts.map(q => Y(q.y - 26))) - 30, x1: Math.max(...pts.map(q => X(q.x))) + 30, y1: Math.max(...pts.map(q => Y(q.y))) + 30 }; });
       await p.mouse.move(rect.x0, rect.y0); await p.mouse.down(); await p.mouse.move(rect.x1, rect.y1, { steps: 8 });
       const drawn = await p.evaluate(() => !!boxSel); await p.mouse.up();
-      const picked = await p.evaluate(() => ({ sel: Array.isArray(sel) ? sel.length : sel, pressed: [...document.querySelectorAll('[data-ty][aria-pressed="true"]')].length, orders: s.outbox.length }));
-      check(name, drawn && picked.sel === 2 && picked.pressed === 2, `a rectangle picks both squads (${JSON.stringify(picked)})`);
+      const picked = await p.evaluate(() => ({ all: blueSquads().length, sel: Array.isArray(sel) ? sel.length : sel, pressed: [...document.querySelectorAll('[data-ty][aria-pressed="true"]')].length, orders: s.outbox.length }));
+      check(name, drawn && picked.sel === picked.all && picked.pressed === 2, `a rectangle picks all our squads (each unit its own) (${JSON.stringify(picked)})`);
       // the mouse at the right edge slides the view right
       await p.evaluate(() => { cam.z = 99; lookAt(300, s.H / 2); });
       const e0 = await st(); await p.mouse.move(vp.width - 2, vp.height / 2); await p.waitForTimeout(400); await p.mouse.move(vp.width / 2, vp.height / 2);

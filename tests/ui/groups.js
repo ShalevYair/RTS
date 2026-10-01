@@ -28,7 +28,7 @@ let bad = false; const check = (name, c, m) => { console.log(name, c ? 'ok  ' : 
   await p.evaluate(ids => { const q = Sim._makeSquad(s, 'blue', 'tank', null, 200, 200); q.size = 2; Sim._fillSquad(s, q, 200, 200); Sim.step(s, 1 / 30); select(ids[0]); }, ids);
   await p.keyboard.press('Control+Digit1'); await p.waitForTimeout(100);
   const g2 = await p.evaluate(() => { renderSquadButtons(); return { n: groups.length, keys: groups.map(x => x.key + ':' + x.ids.length).join(), types: [...document.querySelectorAll('[data-ty] kbd')].map(k => k.dataset.k).join() }; });
-  check(name, g2.n === 2 && g2.keys === '1:1,3:1' && g2.types === '2', `Ctrl+1 on one squad: groups ${g2.keys}, the other type is number ${g2.types}`);
+  check(name, g2.n === 2 && g2.keys === '1:1,3:1' && g2.types === '2,4,5', `Ctrl+1 on one squad: groups ${g2.keys}, the other type is number ${g2.types}`);
   check(name, !errs.length, `no errors ${JSON.stringify(errs)}`);
   await b.close();
   if (bad) process.exitCode = 1;

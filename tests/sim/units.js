@@ -70,4 +70,17 @@ ok(S.tankshop.every / S.tent.every >= 4, `tanks come slower next to soldiers: a 
   const kinds = new Set(s.nodes.map(n => n.kind));
   ok(['atpost', 'jeepat', 'jeepaa'].some(k => kinds.has(k)), `the AI builds anti-tank / armed jeeps: ${[...kinds].join(', ')}`);
 }
+{
+  // helicopters: AA hits them hard, soldiers and jeeps a little, tanks and planes not at all; they hover over what they
+  // shoot (planes circle); the attack one's missiles take on aircraft and vehicles, the gunship's gun soldiers
+  ok(M.aa.heli > 2 && M.inf.heli > 0 && M.inf.heli < 0.5 && M.jeep.heli > 0 && !M.tank.heli && !M.air.heli && !M.inf.air, `helicopters: AA ×${M.aa.heli}, soldiers ×${M.inf.heli}, tanks and planes 0`);
+  ok(M.heli.air > 0 && M.heli.heli > 0 && M.heli.tank > 1.5 && M.gunship.inf > 1.4 && M.gunship.tank < 0.3 && !M.gunship.air, 'attack helicopters hit aircraft, helicopters and tanks; gunships soldiers');
+  const s = quiet(5), mk = (side, t, x, y, n) => { const q = Sim._makeSquad(s, side, t, null, x, y); q.size = n; Sim._fillSquad(s, q, x, y); return q; };
+  const h = mk('blue', 'heli', 500, 320, 1), e = mk('red', 'tank', 560, 320, 1);
+  Sim.order(s, h.id, 'attack', 560, 320, true); Sim.order(s, e.id, 'hold', 560, 320, true); s.outbox = [];
+  const u = s.units.find(k => k.squad === h.id), tk = s.units.find(k => k.squad === e.id); let far = 0;
+  for (let i = 0; i < 30 * 6; i++) { Sim.step(s, 1 / 30); if (tk.hp > 0) far = Math.max(far, Math.hypot(u.x - 500, u.y - 320)); } // (while the tank stands)
+  ok(tk.hp < Sim.TYPES.tank.hp * 0.8 && far < 30, `an attack helicopter hovers where it is (moved at most ${Math.round(far)}) and hits the tank (${Math.round(tk.hp)} hp left)`);
+  ok(['heliatk', 'heligun'].every(k => S[k] && S[k].unit && S[k].cat === 'helis'), 'two helipads, on the helicopter page of the aviation menu');
+}
 if (bad) process.exitCode = 1;
