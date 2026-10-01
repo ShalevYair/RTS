@@ -12,7 +12,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.goto(URL); await p.waitForTimeout(500);
     await p.click('#go'); await p.click('#gear'); await p.click('[data-rate="2"]');
     const note = await p.textContent('#radioNote'); await p.click('#gear');
-    await p.click('#all');
+    await p.evaluate(() => $('all').click()); // (no squad buttons on screen in the full game)
     const box = await p.locator('#cv').boundingBox();
     await p.mouse.click(box.x + box.width / 2, box.y + box.height * 0.45);
     await p.waitForTimeout(9000);
@@ -25,9 +25,9 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // forward HQ (the full game: set up by a bulldozer, once the HQ stands and a minute more): select it and 🏕 then a
     // spot on the map
     await p.evaluate(() => { const [a, b] = Sim.hqBand(s, 'blue'); Sim.planHq(s, 'blue', (a + b) / 2, s.H / 2); for (let i = 0; i < 30 * 120 && s.hqPending.blue; i++) Sim.step(s, 1 / 30); s.cd.blue.fhq = 0; updateHud(); });
-    await p.click('[data-ty="dozer"]'); const fhqEnabled = await p.isEnabled('#fhq'); await p.click('#fhq'); await p.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    await p.evaluate(() => document.querySelector('[data-ty="dozer"]').click()); const fhqEnabled = await p.isEnabled('#fhq'); await p.click('#fhq'); await p.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
     await p.waitForTimeout(400); const fhqCd = await p.textContent('#fhqN');
-    await p.click('[data-ty="inf"]'); const fhqInf = await p.isEnabled('#fhq');
+    await p.evaluate(() => document.querySelector('[data-ty="inf"]').click()); const fhqInf = await p.isEnabled('#fhq');
     await p.screenshot({ path: `${OUT}/${name}-eye.png` });
     // fog off hides the drone button
     console.log(name, 'charges', JSON.stringify(before), '->', JSON.stringify(after), 'armed', armed, 'radioNote', JSON.stringify(note), 'fhq enabled for the bulldozer', fhqEnabled, 'cooldown', JSON.stringify(fhqCd), 'enabled for infantry', fhqInf, 'errors', errs);

@@ -93,7 +93,7 @@ if (bad) process.exitCode = 1;
   ok(Sim.planHq(s, 'blue', 300, 150), 'a spot in the corner of our strip');
   step(s, 60);
   const h = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq'), r = s.nodes.find(n => n.side === 'red' && n.kind === 'hq');
-  ok(h && Math.hypot(h.x - 300, h.y - 150) < 5 && s.t >= h.ready && !s.hqPending.blue && Sim.buildCheck(s, 'blue', 330, 230) === '', `the tanks drove there and set it up; now we can build (${h && [Math.round(h.x), Math.round(h.y)]})`);
+  ok(h && Math.hypot(h.x - 300, h.y - 150) < 5 && s.t >= h.ready && !s.hqPending.blue && Sim.buildCheck(s, 'blue', 440, 240) === '', `the tanks drove there and set it up; now we can build (${h && [Math.round(h.x), Math.round(h.y)]})`);
   ok(r && r.x > 2000 * 0.8, `the AI put its own in its strip (${r && [Math.round(r.x), Math.round(r.y)]})`);
   const g = Sim.openField(Sim.create(11, 2000, 'normal', 1280)); g.bots = [];
   for (const u of g.units) if (u.squad === Sim.cmdSquad(g, 'blue').id) u.hp = 0;

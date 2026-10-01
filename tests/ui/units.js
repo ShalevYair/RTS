@@ -18,7 +18,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
       lvl = 0; fog = false; bigMap = false; newGame(true); showIntro(false); s.bots = [];
       const hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq');
       const put = (kind, dx, dy) => { const n = s.nodes.find(k => k.side === 'blue' && k.kind === kind) || { kind }; return Sim.build(s, 'blue', kind, hq.x + dx, hq.y + dy); };
-      const made = [put('jeepaa', 110, -60), put('atpost', 110, 60), put('jeepat', 60, 150)];
+      const made = [put('jeepaa', 160, -90), put('atpost', 140, 90), put('jeepat', 60, 190)];
       for (const n of s.nodes) if (n.side === 'blue') n.ready = s.t; // up at once
       for (let i = 0; i < 30 * 12; i++) Sim.step(s, 1 / 30);
       for (const [t, y] of [['at', -120], ['ajeep', 0], ['tjeep', 120]]) { const q = Sim._makeSquad(s, 'blue', t, null, hq.x + 260, hq.y + y); q.size = 3; Sim._fillSquad(s, q, hq.x + 260, hq.y + y); }
@@ -52,7 +52,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
       return { hq: s.nodes.some(n => n.kind === 'hq'), armed: hqArmed, btn: !document.getElementById('hqb').hidden, build: Sim.buildCheck(s, 'blue', 100, s.H / 2) }; });
     await p.waitForTimeout(200); await p.screenshot({ path: `${OUT}/${name}-placehq.png` });
     const h1 = await p.evaluate(() => { const carrier = () => s.squads.find(q => q.side === 'blue' && q.hqAt); // (the full game: the bulldozer goes to put it up)
-      placeHq(s.W * 0.5, 300); const refused = !carrier(); placeHq(s.W * 0.1, s.H * 0.2); const going = !!carrier() && carrier().type === 'dozer';
+      placeHq(s.W * 0.5, 300); const refused = !carrier(); let P = { x: s.W * 0.1, y: s.H * 0.2 }; for (let i = 0; i < 40 && Sim.hqCheck(s, 'blue', P.x, P.y); i++) P = { x: s.W * (0.04 + (i % 5) * 0.03), y: s.H * (0.15 + Math.floor(i / 5) * 0.1) }; /* (a spot the HQ fits: a lake or the map's edge may be in the way) */ placeHq(P.x, P.y); const going = !!carrier() && carrier().type === 'dozer';
       setPlaying(false); for (let i = 0; i < 30 * 90 && s.hqPending.blue; i++) Sim.step(s, 1 / 30);
       const h = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq'); updateHud(); syncButtons();
       return { refused, going, at: h && [Math.round(h.x), Math.round(h.y)], t: Math.round(s.t), pending: s.hqPending.blue, btn: !document.getElementById('hqb').hidden, red: s.nodes.some(n => n.side === 'red' && n.kind === 'hq') }; });

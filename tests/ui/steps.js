@@ -24,7 +24,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
       manifest: !!document.querySelector('link[rel=manifest]') }));
     check(name, bar.ord === 'לתקוף' && !bar.trait && bar.manifest, `orders "${bar.ord}", no posture buttons, installable ${JSON.stringify(bar)}`);
     // level 6: medics and mechanics in the build menu, new ones pulsing
-    await level(6); await p.click('#bld'); await p.waitForTimeout(150);
+    await level(6); await p.click('[data-cat="tents"]'); await p.waitForTimeout(150);
     const menu6 = await p.evaluate(() => [...document.querySelectorAll('[data-build]')].filter(e => !e.hidden).map(e => e.dataset.build + (e.classList.contains('new') ? '*' : '')).join());
     check(name, menu6 === 'tent,clinic*,tankshop,jeepshop,garage*,depot*', `level 6 builds: ${menu6}`);
     await p.screenshot({ path: `${OUT}/${name}-st-lv6-menu.png` });
@@ -70,8 +70,8 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     check(name, !ghost.shown && ghost.g, `our squad out of the full-control ring shows where it probably is ${JSON.stringify(ghost)}`);
     // level 11: the quota is full; pressing 🏗 blinks the counter and 🏕; 🏕 with no jeep/tank picked blinks the squads that can
     await level(11); await p.waitForTimeout(250);
-    await p.click('#bld', { force: true }); await p.waitForTimeout(100);
-    const h1 = await p.evaluate(() => ({ slots: document.getElementById('bld').classList.contains('blink'), fhq: document.getElementById('fhq').classList.contains('blink'), newFhq: document.getElementById('fhq').classList.contains('new'), n: document.getElementById('slotN').textContent }));
+    await p.click('[data-cat="tents"]', { force: true }); await p.waitForTimeout(100);
+    const h1 = await p.evaluate(() => ({ slots: document.querySelector('[data-cat="tents"]').classList.contains('blink'), fhq: document.getElementById('fhq').classList.contains('blink'), newFhq: document.getElementById('fhq').classList.contains('new'), n: document.getElementById('slotN').textContent }));
     check(name, h1.slots && h1.fhq && h1.newFhq && h1.n === '4/4', `level 11: full quota ${h1.n}; 🏗 blinks the counter and 🏕 (which pulses as new) ${JSON.stringify(h1)}`);
     // 🏕, then a spot on the map: the nearest jeep squad drives there and sets it up; building opens around it
     await p.evaluate(() => select('all'));
@@ -83,7 +83,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.mouse.click(spot.x, spot.y); await p.waitForTimeout(100);
     const trip = await p.evaluate(() => { const q = s.squads.find(k => k.fhqAt); return q ? q.type : null; });
     await run(90); await p.waitForTimeout(200);
-    const built = await p.evaluate(P => { const f = s.nodes.find(n => n.kind === 'fhq' && n.side === 'blue'); return f ? { d: Math.round(Math.hypot(f.x - P.x, f.y - P.y)), build: [0, 1, 2, 3, 4, 5, 6, 7].map(i => Sim.buildCheck(s, 'blue', f.x + Math.cos(i * 0.8) * 70, f.y + Math.sin(i * 0.8) * 70)).includes('') ? '' : 'none' } : null; }, spot.P);
+    const built = await p.evaluate(P => { const f = s.nodes.find(n => n.kind === 'fhq' && n.side === 'blue'); return f ? { d: Math.round(Math.hypot(f.x - P.x, f.y - P.y)), build: [0, 1, 2, 3, 4, 5, 6, 7].map(i => Sim.buildCheck(s, 'blue', f.x + Math.cos(i * 0.8) * 110, f.y + Math.sin(i * 0.8) * 110)).includes('') ? '' : 'none' } : null; }, spot.P);
     check(name, armed && trip && built && built.d < 45 && built.build === '', `🏕 then a spot: the ${trip} squad drove there and set it up (${JSON.stringify(built)}), and building is allowed around it`);
     await p.screenshot({ path: `${OUT}/${name}-st-lv11.png` });
     // ★ all squads + a tap: rows toward the enemy — tanks in front, then jeeps, infantry, AA, medics and mechanics

@@ -44,19 +44,57 @@ function nodeInfo(n) {
   }
   return out.join(' · ');
 }
+// a squad tapped: Shift adds it to what's picked, or takes it out (with its group); a double click picks every squad
+// of its kind on the screen; else it alone (its group)
+let lastPick = { id: null, t: 0 };
+const DBL_MS = 380;
+function pickAt(id, e) {
+  const q = s.squads.find(k => k.id === id), now = performance.now(), dbl = lastPick.id === id && now - lastPick.t < DBL_MS;
+  lastPick = { id, t: now };
+  if (e.shiftKey) {
+    const g = groupOf(id), mine = g ? g.ids : [id], have = sel === 'all' ? [] : selIds().slice(), on = mine.every(k => have.includes(k));
+    const ids = on ? have.filter(k => !mine.includes(k)) : [...have, ...mine.filter(k => !have.includes(k))];
+    select(ids.length === 0 ? null : ids.length === 1 ? ids[0] : ids); if (!on) sayPicked([id]); return;
+  }
+  if (dbl && q) {
+    const v = viewRect(), ids = blueSquads().filter(k => !k.dead && k.type === q.type).filter(k => { const p = guessAt(k); return p && (!v || (p.x >= v.x && p.x <= v.x + v.w && p.y >= v.y && p.y <= v.y + v.h)); }).map(k => k.id);
+    if (ids.length) { select(ids.length === 1 ? ids[0] : ids); return; }
+  }
+  pickSquad(id);
+}
+// an enemy squad under the mouse, if we see it as it is (identified: its kind)
+function hitFoeSquad(x, y) {
+  const r = tapR(Math.max(14, 20 / view.css));
+  for (const u of s.units) if (u.side === 'red' && (!s.fog || (s.vis.blue.has(u.id) && shownAt(u))) && Math.hypot(u.x - x, u.y - y) < r) return u.squad;
+  return null;
+}
+// a squad's line: its kind and size, how strong, what it's doing (ours), and what it's for
+function squadInfo(q) {
+  const us = s.units.filter(u => u.squad === q.id), T = Sim.TYPES[q.type], hp = us.reduce((a, u) => a + u.hp, 0) / Math.max(1, us.length * T.hp);
+  const out = [`${tn(q.type)} ×${us.length}`, Math.round(hp * 100) + '%'];
+  if (q.side === 'blue') {
+    const st = q.retreating || q.order.type === 'retreat' ? 'st_retreat' : us.some(u => u.care) ? 'st_heal' : us.some(u => u.resup) ? 'st_ammo'
+      : q.type === 'dozer' ? (q.jobAt ? 'st_build' : 'st_idle') : q.fire || us.some(u => s.t - (u.lastFire ?? -99) < 3) ? 'st_fight'
+      : !q.arrived ? 'st_move' : q.order.type === 'hold' ? 'st_hold' : 'st_idle';
+    out.push(tr(st)); if (q.silent) out.push(tr('st_silent'));
+  } else out.unshift(tr('foe'));
+  const ex = (WIKI_UNIT[lang] || WIKI_UNIT.he)[q.type]; if (ex) out.push(ex.split(/(?<=\.)\s/)[0]);
+  return out.join(' · ');
+}
 // a tap on the map: select, place, or give the order
 function tap(e) {
   if (!menu.hidden) { closeMenu(); return; }
   if (s.over) return;
   const { x, y } = toWorld(e);
   if (x < 0 || y < 0 || x > s.W || y > s.H) return;
-  if (eyeArmed) { Sim.drone(s, 'blue', x, y); eyeArmed = false; syncButtons(); updateHud(); return; }
-  if (buildArmed) { placeBuilding(x, y); return; }
+  // (a drone sent up: the next one stays ready to place while there are more in hand)
+  if (eyeArmed) { Sim.drone(s, 'blue', x, y); eyeArmed = s.drones.blue.stock > 0; syncButtons(); updateHud(); return; }
+  if (buildArmed) { placeBuilding(x, y, e.shiftKey); return; }
   if (fhqArmed) { placeFhq(x, y); return; }
   if (hqArmed) { placeHq(x, y); return; }
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
   const hit = hitSquad(x, y);
-  if (hit) { pickSquad(hit); return; }
+  if (hit) { pickAt(hit, e); return; }
   // tapping one of our buildings picks it (and the squad it raises), its line shown by it
   const home = hitNode(x, y, 'blue');
   // (a site of ours with a bulldozer picked: it goes to build there, first thing)
@@ -67,6 +105,13 @@ function tap(e) {
     selNode = home.id; const r = cv.getBoundingClientRect();
     toast(nodeInfo(home), home.x * view.css + view.cox + r.left, (home.y - 26) * view.css + view.coy + r.top, 2600);
     return;
+  }
+  // a building of ours picked: where its squads go once out (and its squad now, if it's out), "on our way"
+  const rn = rallyNode();
+  if (rn) {
+    Sim.rally(s, rn.id, x, y); const q = rn.squad && s.squads.find(k => k.id === rn.squad && !k.dead);
+    if (q) Sim.order(s, q.id, 'attack', x, y, true);
+    pings.push({ x, y, t: performance.now() }); Radio.hear({ kind: 'go', id: q ? q.id : undefined }); return;
   }
   // at an enemy: an attack on it, whatever the order button says
   const foe = selIds().length || sel === 'all' ? hitFoe(x, y) : null;
@@ -79,35 +124,60 @@ const DRONE_CUR = (() => {
   const arms = "<path d='M9 9L23 23M23 9L9 23'/><circle cx='8' cy='8' r='5'/><circle cx='24' cy='8' r='5'/><circle cx='8' cy='24' r='5'/><circle cx='24' cy='24' r='5'/>";
   return svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><g fill='none' stroke='#fff' stroke-width='4' stroke-linecap='round'>${arms}</g><g fill='none' stroke='#223' stroke-width='2' stroke-linecap='round'>${arms}</g><rect x='12.5' y='12.5' width='7' height='7' rx='2' fill='#4a90e2' stroke='#223' stroke-width='1.5'/></svg>`, 16, 16);
 })();
-const aimCur = col => {
-  const g = "<circle cx='14' cy='14' r='8'/><path d='M14 1v7M14 20v7M1 14h7M20 14h7'/>";
-  return svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><g fill='none' stroke-linecap='round' stroke='#fff' stroke-width='4'>${g}</g><g fill='none' stroke-linecap='round' stroke='${col}' stroke-width='2'>${g}</g></svg>`, 14, 14);
-};
+// the plain pointer: an arrow twice the system one's size, white with a dark edge and a soft shadow
+const ARROW_CUR = svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='46' viewBox='0 0 34 46'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#fff'/><stop offset='1' stop-color='#d9e2ec'/></linearGradient><filter id='f' x='-20%' y='-20%' width='160%' height='160%'><feDropShadow dx='1.5' dy='2' stdDeviation='1.6' flood-opacity='.45'/></filter></defs><path filter='url(#f)' d='M3 2L3 36L11.5 28.5L17.5 42L23.5 39.2L17.6 26L29 26Z' fill='url(#g)' stroke='#1b2430' stroke-width='2.2' stroke-linejoin='round'/></svg>`, 3, 2).replace(', crosshair', ', default');
+// with something picked: a sight — a ring and four arrows pointing at the middle, breathing in and out (AIM_FRAMES
+// pictures, one every AIM_MS; tickCursor swaps them); green for an order, red at an enemy
+const AIM_FRAMES = 8, AIM_MS = 85;
+const aimCur = col => Array.from({ length: AIM_FRAMES }, (_, i) => {
+  const d = 15 + 5 * (0.5 + 0.5 * Math.cos(i / AIM_FRAMES * Math.PI * 2)), arrow = a => `<g transform='rotate(${a} 28 28)'><path d='M28 ${28 - d}l-6 -8h4v-6h4v6h4z'/></g>`;
+  const g = `<circle cx='28' cy='28' r='9'/>${[0, 90, 180, 270].map(arrow).join('')}`;
+  return svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'><g stroke='#fff' stroke-width='4' stroke-linejoin='round' fill='#fff'>${g}</g><g stroke='${col}' stroke-width='1.6' stroke-linejoin='round' fill='${col}'><circle cx='28' cy='28' r='9' fill='none' stroke-width='2.4'/>${[0, 90, 180, 270].map(arrow).join('')}</g><circle cx='28' cy='28' r='2' fill='${col}'/></svg>`, 28, 28);
+});
 const AIM_GO = aimCur('#2e9e4f'), AIM_FOE = aimCur('#d8342c');
+// the cursor for where the mouse is (an array: an animated one)
+function cursorAt(x, y) {
+  const picked = sel === 'all' || selIds().length > 0;
+  if (eyeArmed) return DRONE_CUR;
+  if (buildArmed || fhqArmed || hqArmed) return 'copy';
+  if (hitSquad(x, y) || hitNode(x, y, 'blue')) return rallyNode() && !hitNode(x, y, 'blue') ? AIM_GO : 'pointer';
+  if (rallyNode()) return AIM_GO; // (a building of ours picked: a click says where its squads go)
+  if (!picked) return ARROW_CUR;
+  return hitFoe(x, y) ? AIM_FOE : AIM_GO;
+}
+let curNow = null, lastMouse = null;
+// a production building of ours picked: a click on the map is its rally point
+const rallyNode = () => { const n = selNode != null && s.nodes.find(k => k.id === selNode && k.hp > 0 && k.side === 'blue'); return n && Sim.STRUCTS[n.kind].unit && s.t >= n.ready ? n : null; };
+function setCursor(cur) {
+  curNow = cur; const c = Array.isArray(cur) ? cur[Math.floor(performance.now() / AIM_MS) % cur.length] : cur;
+  if (cv.style.cursor !== c) cv.style.cursor = c;
+}
+// every frame (main.js): the cursor follows what changed — a pick, a right click, a key — not only a move of the mouse
+function tickCursor() {
+  if (!s || drag || !lastMouse) return;
+  const { x, y } = toWorld(lastMouse); setCursor(cursorAt(x, y));
+}
 let hoverNode = null, hoverT = 0;
 function hover(e) {
   if (!s || drag || e.pointerType !== 'mouse') return;
-  const { x, y } = toWorld(e), picked = sel === 'all' || selIds().length > 0;
-  let cur = '', n = null;
-  if (eyeArmed) cur = DRONE_CUR;
-  else if (buildArmed || fhqArmed || hqArmed) cur = 'copy';
-  else if (hitSquad(x, y) || (n = hitNode(x, y, 'blue'))) cur = 'pointer';
-  else if (!picked) { cur = 'default'; n = hitNode(x, y, 'red'); }
-  else if (hitFoe(x, y)) { cur = AIM_FOE; n = hitNode(x, y, 'red'); }
-  else cur = AIM_GO;
-  if (cv.style.cursor !== cur) cv.style.cursor = cur;
-  // the building's line: after 400 ms on the same one, gone when the mouse leaves it
-  const key = n ? (n.mem ? 'm' : '') + n.id : null;
+  const { x, y } = toWorld(e); lastMouse = { clientX: e.clientX, clientY: e.clientY };
+  const n = hitSquad(x, y) ? null : hitNode(x, y, 'blue') || hitNode(x, y, 'red');
+  setCursor(cursorAt(x, y));
+  // the line of what's under the mouse — a squad (ours, or the enemy's in sight), else a building: after 400 ms on the
+  // same one, gone when the mouse leaves it
+  const q = !n && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed ? hitSquad(x, y) || hitFoeSquad(x, y) : null;
+  const key = q ? 'q' + q : n ? (n.mem ? 'm' : '') + n.id : null;
   if (key === hoverNode) return;
   hoverNode = key; clearTimeout(hoverT); if (tipFor === 'node') hideTip();
-  if (n) hoverT = setTimeout(() => {
+  if (n || q) hoverT = setTimeout(() => {
     if (hoverNode !== key || tour || tipFor === 'toast') return;
-    const r = cv.getBoundingClientRect();
-    showTip(nodeInfo(n), { left: n.x * view.css + view.cox + r.left, top: (n.y - 26) * view.css + view.coy + r.top, width: 0, height: 0 }); tipFor = 'node';
+    const r = cv.getBoundingClientRect(), sq = q && s.squads.find(k => k.id === q), at = sq ? guessAt(sq) || { x: sq.cx, y: sq.cy } : n;
+    if (!at) return;
+    showTip(sq ? squadInfo(sq) : nodeInfo(n), { left: at.x * view.css + view.cox + r.left, top: (at.y - 26) * view.css + view.coy + r.top, width: 0, height: 0 }); tipFor = 'node';
   }, 400);
 }
 cv.addEventListener('pointermove', hover);
-cv.addEventListener('pointerleave', () => { hoverNode = null; clearTimeout(hoverT); if (tipFor === 'node') hideTip(); });
+cv.addEventListener('pointerleave', () => { lastMouse = null; hoverNode = null; clearTimeout(hoverT); if (tipFor === 'node') hideTip(); });
 // Mouse: a left click gives the order (or picks the squad under it); left-drag draws a rectangle that picks every squad
 // in it; right-drag gives the order with a facing (from where it starts, the front toward where it's dragged), a right
 // click clears the pick; middle-drag pans; the wheel zooms;
@@ -153,13 +223,15 @@ cv.addEventListener('pointermove', e => {
   else panBy(dx, dy);
 });
 // the squads inside the rectangle (by their badge or their body): one becomes the selection, several a group
-function pickBox(b) {
+function pickBox(b, shift) {
   const w0 = { x: (Math.min(b.x0, b.x1) - view.cox) / view.css, y: (Math.min(b.y0, b.y1) - view.coy) / view.css };
   const w1 = { x: (Math.max(b.x0, b.x1) - view.cox) / view.css, y: (Math.max(b.y0, b.y1) - view.coy) / view.css };
   const inside = (x, y) => x >= w0.x && x <= w1.x && y >= w0.y && y <= w1.y;
   const ids = blueSquads().filter(q => { if (q.dead) return false; const p = guessAt(q); return p && (inside(p.x, p.y) || inside(p.x, p.y - 26)); }).map(q => q.id);
   // a squad in a group brings its whole group along
   for (const id of ids.slice()) { const g = groupOf(id); if (g) for (const x of g.ids) if (!ids.includes(x)) ids.push(x); }
+  // (Shift: added to what's already picked)
+  if (shift && sel !== 'all') for (const id of selIds()) if (!ids.includes(id)) ids.push(id);
   if (ids.length) select(ids.length === 1 ? ids[0] : ids);
 }
 const lift = e => { touches.delete(e.pointerId); if (drag) clearTimeout(drag.hold); if (!touches.size) drag = null; };
@@ -171,7 +243,7 @@ cv.addEventListener('pointerup', e => {
     const w = p => ({ x: (p.x - view.cox) / view.css, y: (p.y - view.coy) / view.css }), a = w({ x: f.x0, y: f.y0 }), z = w({ x: f.x1, y: f.y1 });
     issue(mode, a.x, a.y, Math.atan2(z.y - a.y, z.x - a.x)); return;
   }
-  if (d && d.box && d.moved && b) { if (!menu.hidden || s.over) return; pickBox(b); return; }
+  if (d && d.box && d.moved && b) { if (!menu.hidden || s.over) return; pickBox(b, e.shiftKey); return; }
   if (d && d.right && !d.moved) { unpick(); return; }
   if (d && !d.moved && d.tapOk && e.isPrimary !== false) tap(e);
 });
@@ -208,6 +280,7 @@ document.addEventListener('keydown', e => {
   if (e.target.closest('input,textarea')) return;
   if (tour) { if (e.key === 'Escape') tourNext(true); else if (e.key === 'Enter' || e.key === ' ' || e.key.startsWith('Arrow')) { e.preventDefault(); tourNext(); } return; }
   if (!$('intro').hidden) { if (e.key === 'Escape') $('go').click(); return; }
+  if (e.ctrlKey && e.shiftKey && e.code === 'KeyL') { e.preventDefault(); saveLog(); return; } // (the log, as a file)
   if (!$('end').hidden) return;
   // physical key codes, so the shortcuts also work on a Hebrew keyboard layout
   const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : /^(Digit|Numpad)\d$/.test(e.code) ? e.code.slice(-1) : e.key.toLowerCase();
@@ -220,6 +293,10 @@ document.addEventListener('keydown', e => {
   else if (/^[1-9]$/.test(k)) { const kb = document.querySelector(`#sqs kbd[data-k="${k}"]`); if (kb) kb.parentElement.click(); }
   else if (k === 'l' && uiHas('squads')) toggleGroup();
   else if (k === 's' && !$('silent').hidden) toggleSilent();
+  else if (k === 'p') { // line ↔ block for what's picked
+    const ids = sel === 'all' ? s.squads.filter(q => q.side === 'blue' && !q.dead && q.type !== 'dozer').map(q => q.id) : selIds(), to = ids.length && Sim.pack(s, ids);
+    if (to) toast(tr(to === 'block' ? 'packBlock' : 'packLine'), innerWidth / 2, innerHeight / 2, 1200);
+  }
   else if (k === '0') select('all');
   else if (k === 'h') { mode = 'hold'; syncButtons(); }
   else if (k === 'a') { mode = 'attack'; syncButtons(); }

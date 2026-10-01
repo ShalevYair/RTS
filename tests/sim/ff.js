@@ -4,6 +4,7 @@ const ok = (c, m) => { console.log((c ? 'ok  ' : 'FAIL') + ' ' + m); if (!c) pro
 // blue infantry (blue0) shoots at a red jeep; the blue jeeps (blue1) stand next to the target
 function setup(x, fog = true) {
   const s = Sim.create(21, 1000, 'normal'); s.bots = []; s.fog = fog;
+  x += s.nodes.find(n => n.side === 'blue' && n.kind === 'hq').x - 30; // (x from the HQ's old spot, x = 30: it stands a little in now)
   const inf = s.squads.find(q => q.id === 'blue0'), jeep = s.squads.find(q => q.id === 'blue1');
   inf.cx = x; inf.cy = 320; // Q is read at the shooter's squad
   const u = s.units.find(k => k.squad === inf.id), tgt = s.units.find(k => k.side === 'red' && k.type === 'jeep');

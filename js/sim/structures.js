@@ -70,8 +70,9 @@ function assignSite(s, sq, n, first) {
 // where the bulldozer works from: the site's back corner, clear of the building (it can't stand on it)
 const dozerR = n => STRUCTS[n.kind].r + DOZER_R;
 function dozerSpot(s, n) {
-  const dir = n.side === 'blue' ? -1 : 1, k = STRUCTS[n.kind].r;
-  return { x: clamp(n.x + dir * (k + 16), 10, s.W - 10), y: clamp(n.y + k + 12, 10, s.H - 10) };
+  // (on the diagonal, just past the building and the bulldozer's own body: well inside dozerR whatever the size)
+  const dir = n.side === 'blue' ? -1 : 1, d = (STRUCTS[n.kind].r + TYPES.dozer.r + 8) * Math.SQRT1_2;
+  return { x: clamp(n.x + dir * d, 10, s.W - 10), y: clamp(n.y + d, 10, s.H - 10) };
 }
 function goBuild(s, sq, n) { const p = dozerSpot(s, n); order(s, sq.id, 'hold', p.x, p.y, true); sq.jobAt = n.id; }
 // every tick: sites go up while a bulldozer of theirs stands still by them; a bulldozer done with one goes on to its next
@@ -85,6 +86,13 @@ function dozerWork(s, dt) {
     n.work += dt * (s.prodRate ? s.prodRate[n.side] : 1);
     if (n.work >= n.need) { n.ready = s.t; if (n.side === 'blue' && n.kind !== 'hq') note(s, `${STRUCTS[n.kind].name} מוכן`); }
   }
+  // (a site no living bulldozer has on its list — its bulldozer was destroyed — goes to the nearest one left: else it
+  // stood there unbuilt for good, and so did everything laid after it)
+  if (Math.floor(s.t) !== Math.floor(s.t - dt)) for (const side of ['blue', 'red']) {
+    const l = dozers(s, side); if (!l.length) continue;
+    const held = new Set(l.flatMap(q => q.jobs || []));
+    for (const n of s.nodes) if (n.side === side && isSite(n) && n.hp > 0 && s.t < n.ready && !held.has(n.id)) assignSite(s, pickDozer(s, side, n), n);
+  }
   for (const sq of s.squads) {
     if (sq.type !== 'dozer' || sq.dead) continue;
     const n = jobOf(s, sq);
@@ -96,9 +104,10 @@ function dozerWork(s, dt) {
     // sent elsewhere by the player (another order): it stops work until given a site again, then goes on in order
     const m = pending(s, sq.id, 'order'), o = m || sq.order, w = o.want || o, p = dozerSpot(s, n);
     if (o.type !== 'hold' || Math.hypot(w.x - p.x, w.y - p.y) > 2) { sq.paused = true; sq.jobAt = null; continue; }
-    // (there, but stopped short of the site — orders are carried out roughly in the fog: the crew sees the site)
+    // (there, but stopped short of the site — orders are carried out roughly in the fog: the crew sees the site). Once
+    // per site: pushed back by the building or others it would "arrive" again and again, several times a second
     const d = Math.hypot(sq.cx - n.x, sq.cy - n.y);
-    if (sq.arrived && !m && d > dozerR(n) - 6 && d < 140 + STRUCTS[n.kind].r) { sq.order.x = p.x; sq.order.y = p.y; sq.arrived = false; }
+    if (sq.arrived && !m && sq.nudged !== n.id && d > dozerR(n) - 6 && d < 140 + STRUCTS[n.kind].r) { sq.order.x = p.x; sq.order.y = p.y; sq.arrived = false; sq.nudged = n.id; }
   }
 }
 // a support squad of one, out of the HQ
@@ -140,7 +149,8 @@ function openField(s) {
   for (const side of ['blue', 'red']) {
     const b = s.bases[side], dir = side === 'blue' ? 1 : -1, t = makeSquad(s, side, 'tank', null, b.x + dir * 50, s.H / 2);
     t.size = CMD_TANKS; fillSquad(s, t, t.order.x, t.order.y); t.cmd = true;
-    supportSquad(s, side, 'dozer', b.x + dir * 30, s.H / 2 + 40); supportSquad(s, side, 'radio', b.x + dir * 30, s.H / 2 - 40);
+    // (the bulldozer out in front, toward the enemy: behind the tanks, they boxed it in; it's the first to drive off)
+    supportSquad(s, side, 'dozer', b.x + dir * 130, s.H / 2 + 20); supportSquad(s, side, 'radio', b.x + dir * 30, s.H / 2 - 40);
   }
   s.dozers = true; s.supNext = { blue: SUPPORT_EVERY, red: SUPPORT_EVERY };
   s.hqPending = { blue: true, red: true }; s.memNodes = { blue: {}, red: {} };
@@ -163,7 +173,7 @@ function hqTrips(s) {
     if (!s.hqPending[side]) continue;
     const h = s.nodes.find(n => n.side === side && n.kind === 'hq'), sq = cmdSquad(s, side);
     // (the HQ up: the first forward HQ a minute later)
-    if (h) { if (s.t >= h.ready) { s.hqPending[side] = false; if (sq) sq.cmd = false; s.cd[side].fhq = Math.max(s.cd[side].fhq, FHQ_AFTER_HQ); note(s, side === 'blue' ? 'המפקדה פועלת' : ''); } continue; }
+    if (h) { if (s.t >= h.ready) { s.hqPending[side] = false; if (sq) sq.cmd = false; s.cd[side].fhq = Math.max(s.cd[side].fhq, FHQ_AFTER_HQ); note(s, side === 'blue' ? 'המפקדה פועלת' : ''); if (side === 'blue') s.marks.push({ x: h.x, y: h.y, kind: 'hqReady', t: s.t }); } continue; }
     if (!sq) { s.hqDown = side; continue; }
     // (who sets it up: the command tanks, or with support the bulldozer sent)
     const b = s.dozers ? s.squads.find(q => q.side === side && q.hqAt && !q.dead) : sq;
@@ -180,7 +190,7 @@ function hqTrips(s) {
 // where a squad goes to fall back, heal and refill: its building, else the HQ, else any structure of its side
 function homeOf(s, sq) {
   const h = sq.home && s.nodes.find(n => n.id === sq.home && n.hp > 0);
-  return h || hqOf(s, sq.side) || alive(s, sq.side).find(n => n.kind !== 'drone' && n.kind !== 'decoy') || { x: sq.cx, y: sq.cy };
+  return h || hqOf(s, sq.side) || alive(s, sq.side).find(n => n.kind !== 'drone' && n.kind !== 'decoy') || s.bases[sq.side]; // (nothing standing: its own map edge — its own spot made a retreat walk on forever, a step past itself each tick)
 }
 // aircraft rearm at the nearest working airfield, or at the HQ
 function rearmSpot(s, u) {
@@ -189,7 +199,7 @@ function rearmSpot(s, u) {
   return best || s.bases[u.side];
 }
 // units heal near their own HQ, working buildings and forward HQs
-const healSpot = (s, u) => s.nodes.some(n => n.side === u.side && n.hp > 0 && n.kind !== 'drone' && n.kind !== 'decoy' && s.t >= n.ready && dist(n, u) <= HEAL_R);
+const healSpot = (s, u) => s.nodes.some(n => n.side === u.side && n.hp > 0 && n.kind !== 'drone' && n.kind !== 'decoy' && s.t >= n.ready && dist(n, u) <= HEAL_R + nodeR(n));
 
 function power(s, side) {
   let p = 0;
@@ -210,11 +220,16 @@ function repair(s, n, S, idle, dt) {
   if (n.hp >= S.hp || n.kind === 'drone') return;
   let k = 0;
   for (const u of idle) {
-    if (u.side !== n.side || Math.hypot(u.x - n.x, u.y - n.y) > REPAIR_R) continue;
+    if (u.side !== n.side || Math.hypot(u.x - n.x, u.y - n.y) > REPAIR_R + nodeR(n)) continue;
     k += u.type === 'mech' ? REPAIR_MECH : 1;
     if (k >= REPAIR_MAX) { k = REPAIR_MAX; break; }
   }
   if (k) { n.hp = Math.min(S.hp, n.hp + k * REPAIR_RATE * dt); n.fixing = true; }
+}
+// where a building's new squads go once out (the player's rally point; null = by the building)
+function rally(s, id, x, y) {
+  const n = s.nodes.find(k => k.id === id && k.hp > 0); if (!n || !STRUCTS[n.kind].unit) return false;
+  n.rally = Number.isFinite(x) ? { x: clamp(x, 0, s.W), y: clamp(y, 0, s.H) } : null; return true;
 }
 function updateStructs(s, dt) {
   for (const side of ['blue', 'red']) for (const k in s.cd[side]) s.cd[side][k] = Math.max(0, s.cd[side][k] - dt);
@@ -238,7 +253,7 @@ function updateStructs(s, dt) {
     if (!S.unit) continue;
     // a finished building raises its squad, then keeps it full
     if (!n.squad) {
-      const dir = n.side === 'blue' ? 1 : -1, sq = makeSquad(s, n.side, S.unit, n.id, n.x + dir * 60, n.y);
+      const dir = n.side === 'blue' ? 1 : -1, sq = makeSquad(s, n.side, S.unit, n.id, n.x + dir * (nodeR(n) + 30), n.y);
       n.squad = sq.id; sq.dead = true; // empty until the first unit comes out
       if (n.side === 'blue') note(s, `${S.name} מוכן, ${sq.name} מתחילים לצאת`);
     }
@@ -252,6 +267,7 @@ function updateStructs(s, dt) {
       // refilled one unit at a time
       n.prog = 0; const k = have || sq.born ? 1 : sq.size;
       for (let i = 0; i < k; i++) { spawn(s, sq, n.x, n.y); s.stats.rein[n.side]++; }
+      if (!have && n.rally) order(s, sq.id, 'attack', n.rally.x, n.rally.y, true); // (where the player said its squads go)
       if (have && have + 1 === sq.size) report(s, sq, 'הכוח מאויש במלואו');
     }
   }

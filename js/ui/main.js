@@ -13,15 +13,23 @@ function newGame(skipIntro) {
   // the big map opens zoomed in on our base; the small one shows it all
   cam = s.H > Sim.H ? { x: 0, y: s.H / 2, z: -1 } : { x: s.W / 2, y: s.H / 2, z: 1 };
   // in the tutorial a tap on the map attacks (hold / retreat come later)
-  decor = makeDecor(s); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; Radio.reset();
+  decor = makeDecor(s); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();
   $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
   $('end').hidden = true; $('share').textContent = tr('share'); outro = null; $('outro').hidden = true; try { $('outroVid').pause(); } catch (e) { /* no video */ }
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
 }
 
 const DT = 1 / 30; let last = performance.now(), acc = 0, shake = 0;
+const FIGHT_T = 6, FIGHT_SHOTS = 8, CALM_T = 40; let fight = [], fightAt = 0;
 const SHAKE_MAX = 8, reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// an error in a frame never stops the game: it's written to the log (errLog) and the next frame goes on
 function frame(now) {
+  const t0 = performance.now();
+  try { frameBody(now); } catch (e) { errLog('frame', e); }
+  const took = performance.now() - t0; if (took > SLOW_FRAME) errLog('slow', null, Math.round(took) + ' ms');
+  requestAnimationFrame(frame);
+}
+function frameBody(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   if (playing) { acc += dt * rate; while (acc >= DT) { Sim.step(s, DT); acc -= DT; } } else acc = 0;
   // one sound per new explosion (the audio side rate-limits bursts)
@@ -31,7 +39,15 @@ function frame(now) {
     if (f.size >= 26 && onScreen(f)) shake = Math.min(SHAKE_MAX, shake + (f.size >= 34 ? 6 : 2.5)); // a unit / building destroyed
   }
   // gunfire on screen: a crack for bullets, a thump for shells, a whoosh for missiles (the audio side limits bursts)
-  for (const sh of s.shots) if (!sh.heard) { sh.heard = true; if (sfxOn && onScreen({ x: sh.x1, y: sh.y1 })) Music.shot(sh.kind, sh.x1 / s.W); }
+  for (const sh of s.shots) if (!sh.heard) {
+    sh.heard = true; if (sfxOn && onScreen({ x: sh.x1, y: sh.y1 })) Music.shot(sh.kind, sh.x1 / s.W);
+    fight.push(s.t); // (two sides: every shot is ours or at us)
+  }
+  // the music's mood: battle pieces once we're fighting (FIGHT_SHOTS shots in FIGHT_T s of game time),
+  // calm again only after CALM_T s with none of that
+  while (fight.length && fight[0] < s.t - FIGHT_T) fight.shift();
+  if (fight.length >= FIGHT_SHOTS) fightAt = s.t;
+  if (playing) Tracks.setMood(s.t - fightAt < CALM_T && fightAt > 0 ? 'battle' : 'calm');
   shake *= Math.exp(-dt * 9); if (shake < 0.2) shake = 0;
   cv.style.transform = shake && !reduceMotion ? `translate(${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px, ${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px)` : '';
   for (const k of s.marks) if (!k.heard) {
@@ -58,10 +74,27 @@ function frame(now) {
   if (replayAuto && !$('end').hidden && !$('replayBox').hidden && now - replayAt > 180) {
     replayAt = now; const sc = $('scrub'), i = (+sc.value + 1) % (+sc.max + 1); sc.value = i; drawReplay(i);
   }
-  if (outro) outroTick(now, dt); else edgeScroll(dt);
+  if (outro) outroTick(now, dt); else { edgeScroll(dt); tickCursor(); }
   draw(); if (outro) drawOutro(now); drawBox(); drawMini();
   if (now - hudAt > 200) { hudAt = now; updateHud(); }
-  requestAnimationFrame(frame);
+}
+// ---- the log: errors (and very slow frames) with where the game stood, kept in the browser (irts-log, the last
+// LOG_MAX); a note on screen at the first one; Ctrl+Shift+L saves it as a file ----
+const LOG_MAX = 40, SLOW_FRAME = 700; let logTold = false, slowAt = 0;
+function errLog(where, e, note) {
+  if (where === 'slow') { if (performance.now() - slowAt < 5000) return; slowAt = performance.now(); }
+  const at = s ? { t: Math.round(s.t), units: s.units.length, nodes: s.nodes.length, sel: Array.isArray(sel) ? sel.length : sel, lvl, playing } : {};
+  const row = { when: new Date().toISOString(), where, msg: e ? String(e.message || e) : note, stack: e && e.stack ? String(e.stack).split('\n').slice(0, 6).join('\n') : '', ...at };
+  console.error('[irts]', row.where, row.msg, row.stack);
+  let l = []; try { l = JSON.parse(localStorage.getItem('irts-log') || '[]'); } catch (x) { /* storage unavailable */ }
+  l.push(row); try { localStorage.setItem('irts-log', JSON.stringify(l.slice(-LOG_MAX))); } catch (x) { /* full / unavailable */ }
+  if (where !== 'slow' && !logTold) { logTold = true; try { toast(tr('errLogged'), innerWidth / 2, 80, 5000); } catch (x) { /* before the UI is up */ } }
+}
+window.addEventListener('error', e => errLog('error', e.error || e.message));
+window.addEventListener('unhandledrejection', e => { if (e.reason && /play\(\)|NotAllowed|AbortError|media/i.test(String(e.reason))) return; errLog('promise', e.reason); });
+function saveLog() {
+  let l = '[]'; try { l = localStorage.getItem('irts-log') || '[]'; } catch (x) { /* storage unavailable */ }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([l], { type: 'application/json' })); a.download = 'commander-log.json'; a.click();
 }
 // ---- the end of a game: the camera goes to where it was decided (the HQ that fell, else the beaten side), blasts
 // there if it's the enemy's, the word over the map; then, in the full game, the victory / defeat video if there is
@@ -104,6 +137,8 @@ function endOutro() {
   if (!src) { showEnd(); return; }
   const box = $('outro'), v = $('outroVid');
   box.hidden = false; v.src = src; v.currentTime = 0; Soundtrack.stop();
+  // (the word over the video too: the picture alone doesn't say who won)
+  const w = $('outroWord'); w.textContent = tr(s.over === 'blue' ? 'victory' : 'defeat'); w.className = s.over === 'blue' ? 'win' : 'lose';
   let over = false;
   const done = () => { if (over) return; over = true; clearTimeout(guard); v.onended = v.onerror = null; v.pause(); box.hidden = true; if (musicOn) Soundtrack.start(); showEnd(); };
   // (a video that won't start — not allowed, or a format this browser can't play — doesn't hold up the end card)

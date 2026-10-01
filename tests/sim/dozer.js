@@ -11,7 +11,7 @@ Sim.planHq(s, 'blue', 250, 640); step(s, 50);
 const hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq');
 ok(hq && s.t >= hq.ready, 'the bulldozer put the HQ up');
 ok(!Sim.canBuildFhq(s, dz) && s.cd.blue.fhq > 20, `a minute to wait for the first forward HQ (${Math.round(s.cd.blue.fhq)} s)`);
-ok(Sim.build(s, 'blue', 'tent', 330, 560) && Sim.build(s, 'blue', 'jeepshop', 330, 730), 'two buildings laid');
+ok(Sim.build(s, 'blue', 'tent', 380, 540) && Sim.build(s, 'blue', 'jeepshop', 380, 760), 'two buildings laid');
 step(s, 61);
 ok(Sim.canBuildFhq(s, dz), 'now a forward HQ may go up');
 ok(Sim.fhqCheck(s, 330, 560) === 'gap' && !Sim.planFhq(s, dz.id, 330, 565), 'not on a building');

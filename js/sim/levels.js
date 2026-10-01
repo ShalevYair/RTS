@@ -69,7 +69,15 @@ function level(n, seed = 1, W = 1000) {
   if (L.blue) setForces(s, 'blue', L.blue);
   if (L.red) setForces(s, 'red', L.red);
   // buildings already standing (ready): behind the HQ, one above the other
-  (L.prebuilt || []).forEach((k, i) => { const b = s.bases.blue; addStruct(s, 'blue', k, b.x + 60 + 50 * (i % 2), s.H / 2 + 110 + 60 * i, true); });
+  // (each on the first free spot round the HQ, toward the enemy: none on top of another or over the map's edge —
+  // units got caught in the pockets between them)
+  (L.prebuilt || []).forEach(k => {
+    const h = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq') || { x: s.bases.blue.x, y: s.H / 2 }, R = STRUCTS[k].r;
+    for (let d = STRUCTS.hq.r + R + BUILD_GAP + 10; d < 600; d += 20) for (let a = -1.2; a <= 1.21; a += 0.3) {
+      const x = h.x + Math.cos(a) * d, y = h.y + Math.sin(a) * d;
+      if (x > R + 10 && y > R + 10 && y < s.H - R - 10 && !crowded(s, k, x, y) && !lakeAt(s, { x, y }, R + 10)) { addStruct(s, 'blue', k, x, y, true); return; }
+    }
+  });
   if (L.easy) {
     s.prodRate = { ...LEVEL_PROD };
     setForces(s, 'red', LEVEL_FOE);

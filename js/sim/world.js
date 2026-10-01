@@ -142,7 +142,7 @@ function create(seed = 1, W = 1000, diff = 'normal', mapH = H) {
   makeTerrain(s);
   for (const side of ['blue', 'red']) {
     const b = s.bases[side], dir = side === 'blue' ? 1 : -1;
-    addStruct(s, side, 'hq', b.x, h / 2, true);
+    addStruct(s, side, 'hq', b.x + dir * (STRUCTS.hq.r - 30), h / 2, true); // (all of it on the map)
     const tent = addStruct(s, side, 'tent', b.x + dir * 75, h / 2 - 130, true);
     const inf = makeSquad(s, side, 'inf', tent.id, b.x + dir * 150, h / 2 - 130, side === 'blue' ? 'aggressive' : 'balanced');
     tent.squad = inf.id; fillSquad(s, inf, inf.order.x, inf.order.y);

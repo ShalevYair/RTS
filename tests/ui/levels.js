@@ -21,7 +21,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.screenshot({ path: `${OUT}/${name}-lv-intro.png` });
     // the tutorial: "tutorial" in the side panel, then a level (▶ "start game" is the full game)
     await p.click('#learn'); await p.click('#levels button:first-child'); await p.waitForTimeout(300); await p.evaluate(() => tourNext(true)); // (the tour is tests/ui/tour.js)
-    const bar1 = { sq: await shown('#gSq'), ord: await shown('#gOrd'), bld: await shown('#bld'), eye: await shown('#eye'), log: await shown('#log') };
+    const bar1 = { sq: await shown('#gSq'), ord: await shown('#gOrd'), bld: await shown('#bld'), cats: await shown('#bcats'), eye: await shown('#eye'), log: await shown('#log') };
     check(name, Object.values(bar1).every(v => !v), `level 1: no squad buttons, orders, building, drone, log ${JSON.stringify(bar1)}`);
     await p.screenshot({ path: `${OUT}/${name}-lv1.png` });
     // tap on the enemy squad: ours goes and wins
@@ -39,7 +39,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // level 3: our HQ, drawn as a compound (no base strip)
     await p.evaluate(() => { rate = 1; lvl = 3; newGame(true); setPlaying(true); });
     await p.waitForTimeout(400);
-    check(name, await shown('#gOrd'), 'level 3: hold / attack / retreat appear');
+    check(name, !(await shown('#gOrd')), 'level 3: no order buttons (H / A / R on the keys)');
     await p.screenshot({ path: `${OUT}/${name}-lv3.png` });
     // level 4: tents only; with every slot taken the build button is dimmed and pressing it flashes the counter
     await p.evaluate(() => { lvl = 4; newGame(true); setPlaying(false); });
@@ -48,20 +48,19 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const full = await p.evaluate(() => {
       const hq = s.nodes.find(n => n.kind === 'hq' && n.side === 'blue');
       for (let i = 0; i < 40 && Sim.buildCount(s, 'blue') < Sim.buildLimit(s, 'blue'); i++) Sim.build(s, 'blue', 'tent', hq.x + 60 + (i % 4) * 50, 80 + Math.floor(i / 4) * 60);
-      updateHud(); return { dis: document.getElementById('bld').getAttribute('aria-disabled'), slots: document.getElementById('slotN').textContent };
+      updateHud(); const b = document.querySelector('[data-cat="tents"]'); return { dis: b.getAttribute('aria-disabled'), slots: document.getElementById('slotN').textContent, tip: b.tipText() };
     });
-    await p.click('#bld', { force: true }); // dimmed, but a finger can still press it
-    const after = await p.evaluate(() => ({ blink: document.getElementById('bld').classList.contains('blink'), menu: !document.getElementById('buildm').hidden }));
-    check(name, full.dis === 'true' && after.blink && !after.menu, `full (${full.slots}): build button dimmed, pressing it flashes the counter, no menu ${JSON.stringify(after)}`);
-    const onBld = await p.evaluate(() => document.getElementById('bld').contains(document.getElementById('slotN')) && !document.getElementById('slots'));
-    check(name, onBld, 'the buildings count sits on the build button');
+    await p.click('[data-cat="tents"]', { force: true }); // dimmed, but a finger can still press it
+    const after = await p.evaluate(() => ({ blink: document.querySelector('[data-cat="tents"]').classList.contains('blink'), menu: !document.getElementById('buildm').hidden }));
+    check(name, full.dis === 'true' && after.blink && !after.menu, `full (${full.slots}): the kinds of building dimmed, pressing one flashes it, no menu ${JSON.stringify(after)}`);
+    check(name, /🏕/.test(full.tip), `its line says there's no room and the way out: ${full.tip}`);
     // music: five pieces, all playable
     const mus = await p.evaluate(() => { const r = Music._debug.playAll(); Music.stop(); const a = Music._debug.song(), b = Music._debug.next(); return { r, change: a !== b }; });
     check(name, mus.r && Object.keys(mus.r).length === 5 && Object.values(mus.r).every(n => n >= 20) && mus.change, `music: ${JSON.stringify(mus.r)}, the next piece is a different one`);
     // last level: fog, drone (a quadcopter, not an emoji) and forward HQ
     await p.evaluate(() => { lvl = Sim.LEVELS; newGame(true); setPlaying(true); Sim.drone(s, 'blue', s.bases.blue.x + 300, s.H / 2 - 60); });
     await p.waitForTimeout(600);
-    const last = await p.evaluate(() => ({ fog: s.fog, big: s.H > Sim.H, svg: !!document.querySelector('#eye svg'), emoji: document.getElementById('eye').textContent.includes('🛸') }));
+    const last = await p.evaluate(() => ({ fog: s.fog, big: s.H > Sim.H, svg: !!document.querySelector('#eye svg, #eye img'), emoji: document.getElementById('eye').textContent.includes('🛸') }));
     check(name, last.fog && last.big && last.svg && !last.emoji && await shown('#eye') && !(await shown('#log')), `last level: fog, big map, drone button is a picture, no text log ${JSON.stringify(last)}`);
     await p.screenshot({ path: `${OUT}/${name}-lv-last.png` });
     await p.evaluate(() => localStorage.clear());

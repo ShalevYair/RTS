@@ -3,8 +3,9 @@ const { Sim, play } = require('./bench.js');
 const ok = (c, m) => { console.log((c ? 'ok  ' : 'FAIL') + ' ' + m); if (!c) process.exitCode = 1; };
 // Q around blue's HQ (x = 30): 1 up to x = 310, then rings of 80% (to 360), 60%, 40%, 20% (to 510)
 let s = Sim.create(11, 1000, 'normal');
-ok(Sim.idLevel(s, 'blue', { x: 200, y: 320 }) === 2 && Sim.idLevel(s, 'blue', { x: 400, y: 320 }) === 1 && Sim.idLevel(s, 'blue', { x: 700, y: 320 }) === 0, 'levels by Q: 2 / 1 / 0');
-ok(Sim.idLevel(s, 'blue', { x: 359, y: 320 }) === 2 && Sim.idLevel(s, 'blue', { x: 361, y: 320 }) === 1, 'the 80% ring still identifies, the 60% ring only ground / air');
+const dx = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq').x - 30; // (the HQ stands a little in from x = 30, all of it on the map)
+ok(Sim.idLevel(s, 'blue', { x: 200 + dx, y: 320 }) === 2 && Sim.idLevel(s, 'blue', { x: 400 + dx, y: 320 }) === 1 && Sim.idLevel(s, 'blue', { x: 700 + dx, y: 320 }) === 0, 'levels by Q: 2 / 1 / 0');
+ok(Sim.idLevel(s, 'blue', { x: 359 + dx, y: 320 }) === 2 && Sim.idLevel(s, 'blue', { x: 361 + dx, y: 320 }) === 1, 'the 80% ring still identifies, the 60% ring only ground / air');
 s.fog = false; ok(Sim.idLevel(s, 'blue', { x: 900, y: 320 }) === 2, 'without fog everything is identified');
 // sightings: put the red infantry somewhere and make it visible (muzzle flash)
 s = Sim.create(11, 1000, 'normal'); s.bots = []; s.noReinforce = true;

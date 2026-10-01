@@ -28,8 +28,10 @@ function deliver(s) {
 
 // unclear orders: far from control an order may come through garbled, and the commander makes of it what his temper
 // says (bold: attack; anxious: hold; steady: go on as he was). Seasoned commanders get it right more often.
+// (not the bulldozer or the signals truck: they don't fight, so "attack" means nothing to them — a bulldozer that
+// read its trip to a site as "attack" thought it was sent elsewhere, and stopped work)
 function garbled(s, sq, type) {
-  if (!friction(s) || type === 'retreat') return type;
+  if (!friction(s) || type === 'retreat' || TYPES[sq.type].support) return type;
   const q = qualityAt(s, sq);
   if (q >= UNCLEAR_Q || s.rand() >= UNCLEAR_K * (UNCLEAR_Q - q) / UNCLEAR_Q * Math.pow(0.5, rankOf(sq))) return type;
   const read = sq.temper === 'bold' ? 'attack' : sq.temper === 'anxious' ? 'hold' : sq.order.type === 'retreat' ? 'hold' : sq.order.type;
@@ -63,9 +65,12 @@ function order(s, squadId, type, x, y, quiet, form) {
   if (friction(s)) send(s, sq, { kind: 'order', type, x, y, quiet, form }); else applyOrder(s, sq, type, x, y, quiet, form);
   return true;
 }
-// how wide a squad's line is
-const spacing = type => TYPES[type].r * 2 + LINE_GAP;
-const lineWidth = sq => sq.size * spacing(sq.type);
+// how far apart a squad's units stand (soldiers LINE_GAP, vehicles VEH_GAP), and how wide it is: in a line, or a block
+// (packed: its own pack, else more than PACK_AT of a kind — n, the number counted with it when ordered together)
+const spacing = type => TYPES[type].r * 2 + (FOOT.includes(type) ? LINE_GAP : VEH_GAP);
+const packed = (sq, n = sq.count || sq.size) => sq.pack ? sq.pack === 'block' : n > PACK_AT;
+const blockCols = n => Math.max(1, Math.ceil(Math.sqrt(n)));
+const lineWidth = (sq, n) => (packed(sq, n) ? blockCols(sq.size) : sq.size) * spacing(sq.type);
 // all these squads to (x, y) together, in rows facing the enemy: tanks in front, then jeeps, infantry, AA, and medics /
 // mechanics at the back; aircraft over the middle. Squads of a kind stand side by side in their row.
 // fa: the way the front should face (a drag on the map); without it, toward the enemy HQ (a seen enemy always wins)
@@ -76,10 +81,17 @@ function formation(s, ids, type, x, y, quiet, fa) {
   const ks = [...rows.keys()], mid = (Math.min(...ks) + Math.max(...ks)) / 2;
   let ok = false;
   for (const [k, list] of rows) {
-    let at = -(list.reduce((a, q) => a + lineWidth(q), 0) + SIDE_GAP * (list.length - 1)) / 2;
-    for (const q of list) { const w = lineWidth(q); ok = order(s, q.id, type, x, y, quiet, { depth: (k - mid) * ROW_GAP, lat: at + w / 2, fa }) || ok; at += w + SIDE_GAP; }
+    // (many of a kind in the row — more than PACK_AT — stand in blocks, unless the player set it)
+    const n = list.reduce((a, q) => a + (q.count || q.size), 0); for (const q of list) q.packN = n;
+    let at = -(list.reduce((a, q) => a + lineWidth(q, n), 0) + SIDE_GAP * (list.length - 1)) / 2;
+    for (const q of list) { const w = lineWidth(q, n); ok = order(s, q.id, type, x, y, quiet, { depth: (k - mid) * ROW_GAP, lat: at + w / 2, fa }) || ok; at += w + SIDE_GAP; }
   }
   return ok;
+}
+// line ↔ block for these squads (the player's P): all to the other of what the first has now
+function pack(s, ids) {
+  const qs = ids.map(id => s.squads.find(q => q.id === id)).filter(q => q && !q.dead && !TYPES[q.type].air); if (!qs.length) return null;
+  const to = packed(qs[0], qs[0].packN) ? 'line' : 'block'; for (const q of qs) q.pack = to; return to;
 }
 // which way to face from p: the nearest enemy seen within FACE_R, else fa (where the player pointed), else the enemy HQ
 function faceAt(s, side, p, fa) {

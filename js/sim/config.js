@@ -16,24 +16,24 @@ const MAP_JITTER = 30, MAP_RESIZE = 0.12, LAKE_GAP = 60, SHAPE_AMP = 0.14;
 // A ground unit looks LAKE_LOOK ahead and slides along the shore when the way is wet.
 const LAKE_PAD = 20, LAKE_LOOK = 28;
 const TYPES = {
-  inf:  { name: 'חי"ר',  hp: 60,  speed: 26, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 4, rein: 7, cost: 1 },
-  tank: { name: 'טנקים', hp: 150, speed: 37, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 12, rein: 12, cost: 2 },
-  air:  { name: 'מטוסים', hp: 90, speed: 80, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 7, rein: 15, air: true, ammo: 10, cost: 2 },
-  aa:   { name: 'נ"מ',   hp: 70,  speed: 29, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 4, rein: 9, cost: 1 },
-  jeep: { name: "ג'יפים", hp: 80,  speed: 60, range: 60,  dmg: 6,  cd: 0.7, sight: 170, r: 7, rein: 8, cost: 1 },
+  inf:  { name: 'חי"ר',  hp: 60,  speed: 26, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 3, rein: 7, cost: 1 },
+  tank: { name: 'טנקים', hp: 150, speed: 37, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 13, rein: 12, cost: 2 },
+  air:  { name: 'מטוסים', hp: 90, speed: 80, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 9, rein: 15, air: true, ammo: 10, cost: 2 },
+  aa:   { name: 'נ"מ',   hp: 70,  speed: 29, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 3, rein: 9, cost: 1 },
+  jeep: { name: "ג'יפים", hp: 80,  speed: 60, range: 60,  dmg: 6,  cd: 0.7, sight: 170, r: 8, rein: 8, cost: 1 },
   // anti-tank soldiers: like AA, but their launcher is for armour
-  at:   { name: 'נ"ט',   hp: 60,  speed: 27, range: 95, dmg: 26, cd: 2.0, sight: 125, r: 4, rein: 9, cost: 1 },
+  at:   { name: 'נ"ט',   hp: 60,  speed: 27, range: 95, dmg: 26, cd: 2.0, sight: 125, r: 3, rein: 9, cost: 1 },
   // armed jeeps (twice as long to make): AA missiles or anti-tank missiles on the back
-  ajeep: { name: "ג'יפי נ\"מ", hp: 80, speed: 55, range: 110, dmg: 12, cd: 1.1, sight: 170, r: 7, rein: 8, cost: 1 },
-  tjeep: { name: "ג'יפי נ\"ט", hp: 80, speed: 55, range: 90,  dmg: 20, cd: 1.8, sight: 170, r: 7, rein: 8, cost: 1 },
+  ajeep: { name: "ג'יפי נ\"מ", hp: 80, speed: 55, range: 110, dmg: 12, cd: 1.1, sight: 170, r: 8, rein: 8, cost: 1 },
+  tjeep: { name: "ג'יפי נ\"ט", hp: 80, speed: 55, range: 90,  dmg: 20, cd: 1.8, sight: 170, r: 8, rein: 8, cost: 1 },
   // care squads: they don't fight (range 0); medics treat infantry and AA, mechanics repair jeeps and tanks
-  med:  { name: 'חובשים', hp: 50,  speed: 30, range: 0,   dmg: 0,  cd: 1,   sight: 110, r: 4, rein: 8, cost: 1, care: true },
-  mech: { name: 'מכונאים', hp: 80, speed: 45, range: 0,   dmg: 0,  cd: 1,   sight: 130, r: 6, rein: 8, cost: 1, care: true },
-  truck: { name: 'משאיות אספקה', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1,  sight: 120, r: 6, rein: 8, cost: 1, care: true },
+  med:  { name: 'חובשים', hp: 50,  speed: 30, range: 0,   dmg: 0,  cd: 1,   sight: 110, r: 3, rein: 8, cost: 1, care: true },
+  mech: { name: 'מכונאים', hp: 80, speed: 45, range: 0,   dmg: 0,  cd: 1,   sight: 130, r: 7, rein: 8, cost: 1, care: true },
+  truck: { name: 'משאיות אספקה', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1,  sight: 120, r: 7, rein: 8, cost: 1, care: true },
   // support (the full game): a bulldozer builds the HQ, forward HQs and every building (only while it stands by the
   // site); a signals truck sees far and gives control around it (NODES.radio). Neither fights; both come from the HQ.
-  dozer: { name: 'טרקטורים', hp: 120, speed: 30, range: 0, dmg: 0, cd: 1, sight: 110, r: 8, rein: 8, cost: 1, care: true, support: true },
-  radio: { name: 'משאיות קשר', hp: 90, speed: 42, range: 0, dmg: 0, cd: 1, sight: 510, r: 7, rein: 8, cost: 1, care: true, support: true },
+  dozer: { name: 'טרקטורים', hp: 120, speed: 30, range: 0, dmg: 0, cd: 1, sight: 110, r: 9, rein: 8, cost: 1, care: true, support: true },
+  radio: { name: 'משאיות קשר', hp: 90, speed: 42, range: 0, dmg: 0, cd: 1, sight: 510, r: 8, rein: 8, cost: 1, care: true, support: true },
 };
 // logistics: ground fighters carry SUPPLY shots, one used per shot. Low (below SUPPLY_LOW of a load) a unit goes on
 // its own to the nearest supply truck, or home, holding its fire until refilled to SUPPLY_DONE. Within SUPPLY_R of a
@@ -84,24 +84,28 @@ const AIR_ORBIT = 45, AIR_LEAD = 0.6; // aircraft circle: the ring round where t
 // r: its footprint's radius (nothing drives through it; the picture is about 2.4r across): the HQ the biggest, the
 // airfield as big, then the tank workshop, the jeep workshops / garage / depot, and the tents the smallest.
 // cat: where it is in the build menu (tents, workshops — jeep ones in a sub-menu —, the airfield, services)
+// (r: a building's footprint radius — its picture, collisions, room between buildings; distances to a building —
+// fire, healing, repair — count from its edge: nodeR)
+// (bodies — buildings' and units' r — are 1/1.5 of what they were at 2× / 2–3×: the world is 1.5× bigger round them,
+// and the UI zooms in 1.5× (WORLD_K); at the full size big bodies jammed in passes and round buildings)
 const STRUCTS = {
-  hq:       { name: 'מפקדה',       icon: '🏰', hp: 1500, value: 10, sight: 180, r: 36 },
-  fhq:      { name: 'פיקוד קדמי',  icon: '🏕️', hp: 600,  value: 5, r: 18 },
+  hq:       { name: 'מפקדה',       icon: '🏰', hp: 1500, value: 10, sight: 180, r: 48 },
+  fhq:      { name: 'פיקוד קדמי',  icon: '🏕️', hp: 600,  value: 5, r: 24 },
   drone:    { name: 'רחפן',        icon: '🛸', hp: 30,   value: 0, r: 0 },
-  tent:     { name: 'אוהל',        icon: '⛺', hp: 400,  value: 3, unit: 'inf',  build: 20, every: 15,  size: 6, r: 16, cat: 'tents' },
-  atpost:   { name: 'אוהל נ"ט',    icon: '🚀', hp: 450,  value: 4, unit: 'at',   build: 30, every: 30,  size: 4, r: 16, cat: 'tents' },
-  aapost:   { name: 'אוהל נ"מ',    icon: '📡', hp: 450,  value: 4, unit: 'aa',   build: 30, every: 30,  size: 4, r: 16, cat: 'tents' },
-  clinic:   { name: 'אוהל חובשים', icon: '🏥', hp: 350,  value: 3, unit: 'med',  build: 20, every: 25,  size: 2, r: 16, cat: 'tents' },
-  tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 50, every: 60,  size: 3, r: 27, cat: 'shops' },
-  jeepshop: { name: "סדנת ג'יפים", icon: '🔧', hp: 450,  value: 4, unit: 'jeep', build: 25, every: 25,  size: 4, r: 21, cat: 'jeeps' },
+  tent:     { name: 'אוהל',        icon: '⛺', hp: 400,  value: 3, unit: 'inf',  build: 20, every: 15,  size: 6, r: 21, cat: 'tents' },
+  atpost:   { name: 'אוהל נ"ט',    icon: '🚀', hp: 450,  value: 4, unit: 'at',   build: 30, every: 30,  size: 4, r: 21, cat: 'tents' },
+  aapost:   { name: 'אוהל נ"מ',    icon: '📡', hp: 450,  value: 4, unit: 'aa',   build: 30, every: 30,  size: 4, r: 21, cat: 'tents' },
+  clinic:   { name: 'אוהל חובשים', icon: '🏥', hp: 350,  value: 3, unit: 'med',  build: 20, every: 25,  size: 2, r: 21, cat: 'tents' },
+  tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 50, every: 60,  size: 3, r: 36, cat: 'shops' },
+  jeepshop: { name: "סדנת ג'יפים", icon: '🔧', hp: 450,  value: 4, unit: 'jeep', build: 25, every: 25,  size: 4, r: 28, cat: 'jeeps' },
   // the same workshop, set up for armed jeeps: each takes twice as long (badge: what's on the back)
-  jeepat:   { name: "סדנת ג'יפי נ\"ט", icon: '🔧', hp: 450, value: 4, unit: 'tjeep', build: 25, every: 50, size: 3, badge: '🚀', r: 21, cat: 'jeeps' },
-  jeepaa:   { name: "סדנת ג'יפי נ\"מ", icon: '🔧', hp: 450, value: 4, unit: 'ajeep', build: 25, every: 50, size: 3, badge: '✈️', r: 21, cat: 'jeeps' },
-  airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2, r: 34, cat: 'air' },
-  garage:   { name: 'מוסך',        icon: '🛠️', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2, r: 21, cat: 'service' },
-  depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 21, cat: 'service' },
+  jeepat:   { name: "סדנת ג'יפי נ\"ט", icon: '🔧', hp: 450, value: 4, unit: 'tjeep', build: 25, every: 50, size: 3, badge: '🚀', r: 28, cat: 'jeeps' },
+  jeepaa:   { name: "סדנת ג'יפי נ\"מ", icon: '🔧', hp: 450, value: 4, unit: 'ajeep', build: 25, every: 50, size: 3, badge: '✈️', r: 28, cat: 'jeeps' },
+  airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2, r: 45, cat: 'air' },
+  garage:   { name: 'מוסך',        icon: '🛠️', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2, r: 28, cat: 'service' },
+  depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 28, cat: 'service' },
   // a fake HQ: cheap, no slot, draws the enemy (under fog it passes for the HQ until made out closely)
-  decoy:    { name: 'מפקדה מזויפת', icon: '🏰', hp: 250,  value: 0.5, build: 15, badge: '🎭', r: 36, cat: 'service' },
+  decoy:    { name: 'מפקדה מזויפת', icon: '🏰', hp: 250,  value: 0.5, build: 15, badge: '🎭', r: 48, cat: 'service' },
 };
 const PRODUCERS = Object.keys(STRUCTS).filter(k => STRUCTS[k].unit);
 // what the player can build: the producers and the fake HQ (at most DECOY_MAX standing, outside the slots; full game only)
@@ -114,7 +118,13 @@ const REPAIR_R = 70, REPAIR_RATE = 3, REPAIR_MECH = 3, REPAIR_MAX = 8, REPAIR_QU
 const BUILD_MIN_Q = 0.5, BUILD_BASE = 2, BUILD_PER_NODE = 2, BUILD_GAP = 12, STRUCT_SIGHT = 160;
 // nothing drives through a building: ground units are kept its STRUCTS r from its centre.
 // Units keep UNIT_GAP between them. A tank that runs into enemy soldiers (FOOT) crushes them, CRUSH_DPS a second.
-const UNIT_GAP = 6, CRUSH_DPS = 90, FOOT = ['inf', 'aa', 'at', 'med'];
+// a building in a ground unit's way is gone round once it's within SKIRT_AHEAD of its edge, SKIRT_STEP a step to the side
+const SKIRT_AHEAD = 30, SKIRT_STEP = 30;
+// (STEER_*: a ground unit about to run into another turns aside — both moving: each 90° to its right, so two meeting
+// head-on pass each other; the other standing: 45°, to the side away from it. One that hasn't got anywhere for
+// STUCK_T s, though it means to move, takes a detour to its right for DETOUR_T s.)
+const STEER_LOOK = 14, STUCK_T = 1.5, DETOUR_T = 1.2;
+const UNIT_GAP = 10, CRUSH_DPS = 90, FOOT = ['inf', 'aa', 'at', 'med'];
 // how hard a unit is to push aside when two bump (soldiers 1)
 // (SLIDE: how much of a push goes sideways)
 const MASS = { tank: 6, jeep: 2, ajeep: 2, tjeep: 2, mech: 2, truck: 2, dozer: 3, radio: 2 }, SLIDE = 0.35;
@@ -168,7 +178,10 @@ const NODE_MULT = { inf: 0.6, tank: 1.5, air: 1.2, aa: 1.5, jeep: 0.8, at: 1.5, 
 // lines them up in rows, front to back (FORM_ROW): tanks, jeeps, infantry, AA, medics and mechanics; aircraft over the
 // middle. Rows are ROW_GAP apart, squads in a row SIDE_GAP apart.
 // (the signals truck and the bulldozer at the very back; bulldozers aren't ordered with everyone, though)
-const FACE_R = 320, FACE_TURN = 0.8, LINE_GAP = 16, ROW_GAP = 70, SIDE_GAP = 40;
+// A squad of more than PACK_AT units of a kind (or such squads ordered together) stands in a block instead of a line
+// (sq.pack: 'line' / 'block' set by the player, else by that count). Vehicles VEH_GAP apart, soldiers LINE_GAP.
+const PACK_AT = 10, VEH_GAP = 18;
+const FACE_R = 320, FACE_TURN = 0.8, LINE_GAP = 20, ROW_GAP = 70, SIDE_GAP = 40;
 const FORM_ROW = { tank: 0, jeep: 1, tjeep: 1, ajeep: 1, air: 1.5, inf: 2, at: 2.5, aa: 3, med: 4, mech: 4, truck: 4, radio: 5, dozer: 5 };
 const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 

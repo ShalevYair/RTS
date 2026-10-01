@@ -186,7 +186,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 #fsRow[hidden]{display:none}
 #paused{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:22px;border-radius:999px;padding:4px 16px;z-index:3}
 #paused[hidden]{display:none}
-#fhq.nudge{animation:nudge 1.6s ease-in-out infinite}
+
 @media (prefers-reduced-motion:reduce){#fhq.nudge{animation:none;outline:3px solid #3caa46}}
 .corner:has(.tourOn){z-index:16}
 @media (max-width:560px){.hudl #gSq button{min-height:40px;padding:3px 5px}.sqb{min-width:38px}.sqb canvas{width:28px;height:28px}}
@@ -407,5 +407,58 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
 /* the victory / defeat video: over everything, a skip button in the corner */
 .outro{position:absolute;inset:0;z-index:40;background:#000;display:grid;place-items:center}
 .outro[hidden]{display:none}
-.outro video{width:100%;height:100%;object-fit:cover}
+.outro video{width:100%;height:100%;object-fit:cover;grid-area:1/1}
+#outroWord{grid-area:1/1;align-self:start;margin-top:12vh;font:900 clamp(48px,14vmin,150px)/1 Rubik,sans-serif;letter-spacing:.04em;text-shadow:0 4px 24px rgb(0 0 0 / .85),0 0 3px rgb(0 0 0 / .9);pointer-events:none;animation:outroWord 1.2s ease-out both}
+#outroWord.win{color:#e3c77f}#outroWord.lose{color:#ff6b5b}
+@keyframes outroWord{from{opacity:0;transform:scale(1.25)}to{opacity:1;transform:none}}
 #outroSkip{position:absolute;bottom:calc(16px + env(safe-area-inset-bottom,0px));inset-inline-end:16px;background:rgb(255 255 255 / .12);color:#fff;border:0;border-radius:999px;font-size:20px;min-width:52px;backdrop-filter:blur(8px)}
+
+/* ---- the screen's layout: the power bar in the top middle; top left, the kinds of building one under the other;
+   bottom left, one above the other, the HQ to place, the forward HQ and the drone, each round with a ring that
+   fills up to the next one. In the full game no squad buttons, no order / radio buttons (the keys still work) ---- */
+.hudc{position:absolute;top:10px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:2}
+.hudc .score{position:static}
+#moon{display:none!important}
+#paused{top:30px}
+.hudl{flex-direction:column;align-items:flex-start}
+.fullgame #gSq,#gOrd{display:none!important} /* (attack/hold and radio silence: keys only — H/A/R, S) */
+.bcats{display:flex;flex-direction:column;gap:6px;pointer-events:auto}
+.bcats[hidden],.bcats button[hidden]{display:none}
+.bcats button{position:relative;display:grid;justify-items:center;width:78px;white-space:nowrap;padding:3px 0 4px;background:none;border:0;border-radius:12px;color:#fff;font:500 11px Rubik,sans-serif;text-shadow:0 1px 2px rgb(0 0 0 / .85);cursor:pointer}
+.bcats button:hover{background:var(--soft)}
+.bcats button[aria-expanded="true"]{background:var(--soft2)}
+.bcats button{display:flex!important;flex-direction:column;align-items:center;gap:0}
+.bcats button canvas,.bcats button span{position:static!important;display:block}
+.bcats button canvas{width:48px;height:48px;filter:drop-shadow(0 2px 3px rgb(0 0 0 / .5))}
+.bcats button[aria-disabled="true"]{opacity:.38;filter:grayscale(.7)}
+.bcats button.blink{animation:blink .35s ease-in-out 4}
+.bcats button.new{animation:nudge 1.6s ease-in-out infinite}
+#bld{display:none!important}
+/* (the build menu opens beside the kind picked) */
+#buildm.side{left:92px;transform:none;top:var(--bmTop,8px);bottom:auto!important;max-width:calc(100% - 110px);align-items:flex-start}
+.bar{left:8px;right:auto;bottom:10px;transform:none;flex-direction:column;align-items:center;gap:10px;flex-wrap:nowrap;padding:0}
+#hqb{order:1}#fhq{order:2}#eye{order:3}
+#hqb,#fhq,#eye{width:60px;height:60px;min-width:60px;border-radius:50%;padding:0;display:grid;place-items:center;font-size:28px}
+#eye .ico{width:30px;height:30px}
+.bar .ico.pic{width:38px;height:38px;filter:drop-shadow(0 1px 2px rgb(0 0 0 / .8));pointer-events:none}
+#eye i,#fhq i{left:0;right:0;top:0;bottom:0;height:auto;border-radius:50%;background:conic-gradient(#fff calc(var(--p,0)*1turn),rgb(255 255 255 / .2) 0);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3.5px),#000 calc(100% - 3px));mask:radial-gradient(farthest-side,transparent calc(100% - 3.5px),#000 calc(100% - 3px));pointer-events:none}
+#eye b,#fhq b{top:-2px;inset-inline-end:-2px}
+/* the settings stay bottom right; the order buttons (tutorial only) move to the bottom middle */
+#gOrd{left:50%;transform:translateX(-50%)}
+/* a short screen (a phone on its side): the columns small, the kinds of building without their names */
+@media (max-height:560px){
+  .bcats{gap:2px}.bcats button{width:46px;padding:1px 0}.bcats button span{display:none!important}.bcats button canvas{width:38px;height:38px}
+  #buildm.side{left:58px}
+  .bar{gap:6px;bottom:6px}
+  #hqb,#fhq,#eye{width:46px;height:46px;min-width:46px;font-size:22px}#eye .ico{width:24px;height:24px}.bar .ico.pic{width:30px;height:30px}
+}
+
+/* what can be used now (a building kind with room, a forward HQ to place, a drone to send): a green halo, pulsing */
+@keyframes canGlow{0%,100%{filter:drop-shadow(0 0 2px rgb(70 230 120 / .55))}50%{filter:drop-shadow(0 0 9px rgb(70 230 120 / 1)) drop-shadow(0 0 3px rgb(70 230 120 / .9))}}
+@keyframes canRing{0%,100%{box-shadow:0 0 0 2px rgb(70 230 120 / .45),0 0 8px 2px rgb(70 230 120 / .35)}50%{box-shadow:0 0 0 3px rgb(70 230 120 / .95),0 0 20px 7px rgb(70 230 120 / .7)}}
+#bcats .can canvas,#bcats .can img{animation:canGlow 1.3s ease-in-out infinite}
+.bar .can{animation:canRing 1.3s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){#bcats .can canvas,#bcats .can img{animation:none;filter:drop-shadow(0 0 6px rgb(70 230 120))}.bar .can{animation:none;box-shadow:0 0 0 3px rgb(70 230 120)}}
+.bar .ico.pic.real{width:46px;height:46px;filter:drop-shadow(0 2px 3px rgb(0 0 0 / .6))}
+@media (max-height:560px){.bar .ico.pic.real{width:36px;height:36px}}

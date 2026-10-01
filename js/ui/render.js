@@ -44,9 +44,10 @@ function makeDecor(s) {
   const B = 6, bucket = () => Math.floor(r() * B), paths = () => Array.from({ length: B }, () => new Path2D());
   const treeBody = paths(), treeTop = paths(), treeShadow = new Path2D(), bush = paths(), rock = paths(), rockHi = new Path2D(), rockShadow = new Path2D();
   // (and each one as an item, for the drawn pictures when there are some: see drawScenery)
-  const items = [], hash = (x, y) => Math.abs(Math.round(x * 7.1 + y * 13.7));
+  const items = [], hash = (x, y) => Math.abs(Math.round(x * 7.1 + y * 13.7)), TREE_K = [2 / WORLD_K, 4 / WORLD_K];
   const addTree = (x, y, R) => {
-    const k = bucket(); items.push({ t: 'tree', x, y, s: R * 2.7, v: hash(x, y) });
+    // (the picture 2–4× the drawn crown, by where it stands: trees in proportion to the vehicles)
+    const k = bucket(); items.push({ t: 'tree', x, y, s: R * 2.7 * (TREE_K[0] + (hash(x, y) % 97) / 96 * (TREE_K[1] - TREE_K[0])), v: hash(x, y) });
     treeShadow.moveTo(x + 2 + R, y + 3); treeShadow.ellipse(x + 2, y + 3, R, R * 0.8, 0, 0, Math.PI * 2);
     treeBody[k].moveTo(x + R, y); treeBody[k].arc(x, y, R, 0, Math.PI * 2);
     treeTop[k].moveTo(x - R * 0.3 + R * 0.5, y - R * 0.3); treeTop[k].arc(x - R * 0.3, y - R * 0.3, R * 0.5, 0, Math.PI * 2);
@@ -65,12 +66,12 @@ function makeDecor(s) {
   // bushes: little clumps of two or three blobs
   for (let i = 0; i < Math.round(K / 2.5); i++) {
     const x = 70 + r() * (W - 140), y = r() * s.H; if (!free(x, y) || Sim.elevAt(s, { x, y }) > 7) continue;
-    const k = bucket(), m = 2 + Math.floor(r() * 2); items.push({ t: 'bush', x, y, s: 4 + m * 0.9, v: hash(x, y) });
+    const k = bucket(), m = 2 + Math.floor(r() * 2); items.push({ t: 'bush', x, y, s: (4 + m * 0.9) / WORLD_K, v: hash(x, y) });
     for (let j = 0; j < m; j++) { const R = 1.3 + r() * 1.7, px = x + (r() - 0.5) * 5, py = y + (r() - 0.5) * 4; bush[k].moveTo(px + R, py); bush[k].arc(px, py, R, 0, Math.PI * 2); }
   }
   // stones and boulders: a few on the plain, many more up the hills (the higher, the rockier)
   const addRock = (x, y, R) => {
-    const k = bucket(), w = [[0.2, 2, r() * 7], [0.12, 3, r() * 7]]; items.push({ t: 'rock', x, y, s: R * 2.5, v: hash(x, y), hi: Sim.elevAt(s, { x, y }) > 3 });
+    const k = bucket(), w = [[0.2, 2, r() * 7], [0.12, 3, r() * 7]]; items.push({ t: 'rock', x, y, s: R * 2.5 / WORLD_K, v: hash(x, y), hi: Sim.elevAt(s, { x, y }) > 3 });
     const at = (px, py, s0) => { const p = new Path2D(); for (let q = 0; q <= 8; q++) { const th = q / 8 * Math.PI * 2, f = R * s0 * Sim.wobble(w, th); if (q) p.lineTo(px + Math.cos(th) * f, py + Math.sin(th) * f * 0.8); else p.moveTo(px + Math.cos(th) * f, py + Math.sin(th) * f * 0.8); } p.closePath(); return p; };
     rockShadow.addPath(at(x + 1.2, y + 1.6, 1)); rock[k].addPath(at(x, y, 1)); rockHi.addPath(at(x - R * 0.25, y - R * 0.25, 0.45));
   };
@@ -444,7 +445,7 @@ function drawTerrain(c, W, H, mid) {
 }
 
 // drone: a quadcopter from above — four rotors on an X frame
-const AMMO = '#e0b020', GLOW = { inf: 2.5, aa: 2.5, at: 2.5, med: 2.5, jeep: 3, ajeep: 3, tjeep: 3 };
+const AMMO = '#e0b020', GLOW = { inf: 2.5, aa: 2.5, at: 2.5, med: 2.5 }; // (the vehicles, big now, need none)
 function drawDrone(c, x, y, k, col, rot = 0, spin = 0) {
   c.save(); c.translate(x, y); c.rotate(rot); c.lineWidth = k * 0.16; c.strokeStyle = colors.outline;
   c.beginPath(); c.moveTo(-k * 0.7, -k * 0.7); c.lineTo(k * 0.7, k * 0.7); c.moveTo(k * 0.7, -k * 0.7); c.lineTo(-k * 0.7, k * 0.7); c.stroke();
@@ -578,7 +579,7 @@ function fromHsl(h, sat, l) {
   return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
 }
 // a building's picture across: by its footprint (the HQ and the airfield the biggest, the tents the smallest)
-const STRUCT_PX = 40, pxOf = kind => Math.round((Sim.STRUCTS[kind].r || 16) * 2.4), HQ_PX = pxOf('hq');
+const DRONE_PX = 30 / WORLD_K, STRUCT_PX = 40, pxOf = kind => Math.round((Sim.STRUCTS[kind].r || 16) * 2.4), HQ_PX = pxOf('hq');
 function drawStruct(c, n, ghost) {
   const S = Sim.STRUCTS[n.kind], col = colors[n.side], on = s.t >= n.ready;
   // under construction: the building shows, from fully see-through to whole (a bulldozer's site: by the work done;
@@ -589,7 +590,11 @@ function drawStruct(c, n, ghost) {
   if (!ghost && n.kind !== 'drone' && !on && (site || n.kind !== 'hq')) {
     c.strokeStyle = col; c.globalAlpha = 0.8; c.lineWidth = 2; c.beginPath(); c.arc(n.x, n.y, S.r + 12, -Math.PI / 2, -Math.PI / 2 + grow * Math.PI * 2); c.stroke(); c.globalAlpha = 1;
   }
-  if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.2 : 0.32; drawDrone(c, n.x, n.y, 8, col, s.t * 0.35 + n.id, on ? s.t * 25 : 0); }
+  if (n.kind === 'drone' && sprite.img.drone) { // (the picture: up in the air, its shadow far off, turning slowly)
+    const D = SPRITES.drone, sc = DRONE_PX / Math.max(D.w, D.h), rot = s.t * 0.35 + n.id;
+    c.globalAlpha = ghost ? 0.3 : 0.9; drawShadowPic(c, 'drone', n.x, n.y, D.w * sc, D.h * sc, rot, DRONE_PX * 0.5);
+    c.save(); c.translate(n.x, n.y); c.rotate(rot); c.drawImage(spritePic('drone', col), -D.w / 2 * sc, -D.h / 2 * sc, D.w * sc, D.h * sc); c.restore();
+  } else if (n.kind === 'drone') { c.globalAlpha = ghost ? 0.2 : 0.32; drawDrone(c, n.x, n.y, 8, col, s.t * 0.35 + n.id, on ? s.t * 25 : 0); }
   else {
     const px = pxOf(n.kind), k = px / STRUCT_PX;
     c.globalAlpha = ghost ? 0.45 : on ? 1 : 0.16 + grow * grow * 0.8; // (from faint — its spot shows — to solid)
@@ -789,20 +794,25 @@ function drawUnits(c, show) {
     if (s.fog && u.side === 'red') anim.last.set(u.id, { x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t });
     const k = SIZE[u.type], recent = s.t - u.lastFire < 3;
     const aim = recent ? u.aim : (u.type === 'aa' ? idleAim('aa', u.side) : u.hd);
-    if (T.air) { c.globalAlpha = 0.22; glyph(c, 'air', u.x + 7, u.y + 10, k, '#000', null, u.hd); c.globalAlpha = 1; }
+    // (a unit with a picture casts its own shadow, the picture's outline: drawUnitPic)
+    if (hasSprite(u.type)) { /* its shadow comes with its picture */ }
+    else if (T.air) { c.globalAlpha = 0.22; glyph(c, 'air', u.x + 7, u.y + 10, k, '#000', null, u.hd); c.globalAlpha = 1; }
     else { c.fillStyle = colors.shadow; c.beginPath(); c.ellipse(u.x + 2, u.y + 4, k * 0.75, k * 0.35, 0, 0, Math.PI * 2); c.fill(); }
     // soldiers and jeeps are small: a light glow round them, so they stand out from the ground
     const glow = GLOW[u.type]; if (glow) { c.shadowColor = colors.halo; c.shadowBlur = glow * view.scale; }
     glyphRecoil = Math.max(0, 1 - (s.t - u.lastFire) / 0.25);
     if (u.side === 'blue') hurt.push(u);
     // (its picture; a soldier turns to where he fires)
-    if (hasSprite(u.type)) { stride(u); drawUnitPic(c, u.type, u.x, u.y, k, colors[u.side], SPRITE_ACROSS[u.type] && recent ? u.aim : u.hd, aim, glyphRecoil); }
+    // (a soldier standing easy sways a little: never quite still)
+    // (and every second or two turns where he stands, 30–60° one way or the other: lookAround)
+    const sway = SPRITE_ACROSS[u.type] && !recent && !reduceMotion ? Math.sin(performance.now() / 900 + u.id * 1.7) * 0.07 + lookAround(u) : 0;
+    if (hasSprite(u.type)) { stride(u); drawUnitPic(c, u.type, u.x, u.y, k, colors[u.side], (SPRITE_ACROSS[u.type] && recent ? u.aim : u.hd) + sway, aim, glyphRecoil); }
     else glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim, glow ? 0.9 : 1.2, T.air ? 0 : stride(u));
     glyphRecoil = 0;
     if (glow) c.shadowBlur = 0;
     if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
     // (no ammunition or care marks, no health bar: a hurt unit of ours has its dot, see healthDot)
-    if (u.side === 'blue' && sel !== 'all' && isSel(u.squad)) { // (all of them picked, as at the start: no rings)
+    if (u.side === 'blue' && isSel(u.squad) && !(sel === 'all' && u.type === 'dozer')) { // (all picked: every one but the bulldozers)
       // picked: a faint light ring close round the unit
       c.globalAlpha = 0.4; c.strokeStyle = colors.halo; c.lineWidth = 1; ring(u.x, u.y, k * (u.type === 'tank' ? 0.95 : 1) + 2.5); c.stroke(); c.globalAlpha = 1;
     }
@@ -810,6 +820,15 @@ function drawUnits(c, show) {
   for (const u of hurt) healthDot(c, u);
 }
 
+// a standing soldier looks round: a new turn (30–60°, either way, from his heading) every 1–2 s, eased in over LOOK_EASE s
+const LOOK_EASE = 0.35, lookHash = n => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); };
+function lookAround(u) {
+  if (u.moving !== undefined && s.t - u.moving < 0.5) return 0; // (walking: eyes front)
+  const per = 1 + lookHash(u.id * 3.1), t = s.t + lookHash(u.id) * per, i = Math.floor(t / per), f = t / per - i;
+  const turn = k => k % 3 === 0 ? 0 : (lookHash(k * 7.7 + u.id) < 0.5 ? -1 : 1) * (0.52 + lookHash(k * 3.3 + u.id) * 0.53);
+  const a0 = turn(i - 1), a1 = turn(i), e = Math.min(1, f * per / LOOK_EASE);
+  return a0 + (a1 - a0) * e * e * (3 - 2 * e);
+}
 function draw() {
   const c = ctx, W = s.W, H = s.H, mid = W / 2;
   c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = colors.ground; c.fillRect(0, 0, cv.width, cv.height);

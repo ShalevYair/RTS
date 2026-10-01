@@ -26,7 +26,12 @@ try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', read
 new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 const TC = { inf: 'tInf', aa: 'tAa', at: 'tAa', tank: 'tTank', air: 'tAir', jeep: 'tJeep', ajeep: 'tJeep', tjeep: 'tJeep', med: 'tMed', mech: 'tMech', truck: 'tTruck' }, tcol = t => colors[TC[t]];
 // drawn sizes: tanks big, soldiers (infantry, AA, medics) small
-const SIZE = { inf: 5, aa: 5.5, at: 5.5, tank: 18, air: 13, jeep: 10.5, ajeep: 10.5, tjeep: 10.5, med: 5, mech: 8, truck: 8, dozer: 10, radio: 9 };
+// (the soldiers as they were; the vehicles 2–3× that, the aircraft the biggest, then the tanks — with their bodies in
+// the sim, TYPES[..].r, grown the same)
+// WORLD_K: the world is 1.5× bigger than the units (the sim's bodies 1/1.5 of their look before); everything drawn
+// for them is 1/WORLD_K and the camera opens / zooms WORLD_K× closer, so on screen they look the same
+const WORLD_K = 1.5;
+const SIZE = Object.fromEntries(Object.entries({ inf: 5, aa: 5.5, at: 5.5, tank: 40, air: 42, jeep: 26, ajeep: 26, tjeep: 26, med: 5, mech: 20, truck: 20, dozer: 24, radio: 22 }).map(([k, v]) => [k, v / WORLD_K]));
 // vehicles (tracks, dust, wrecks)
 const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck', 'dozer', 'radio']);
 
@@ -36,7 +41,7 @@ const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck', 'dozer',
 // map size: small / big (the default) / huge (2× the big one each way); hugeMap implies bigMap
 let bigMap = true, hugeMap = false;
 try { const m = localStorage.getItem('irts-map'); bigMap = m !== 'small'; hugeMap = m === 'huge'; } catch (e) { /* storage unavailable */ }
-const START_PX = 1, ZOOM_PX = 2.5;
+const START_PX = 1 * WORLD_K, ZOOM_PX = 2.5 * WORLD_K;
 let view = { scale: 1, ox: 0, oy: 0, css: 1, cox: 0, coy: 0 }, cam = { x: 0, y: 0, z: 1 }, fit = null;
 function resize() {
   const r = stage.getBoundingClientRect(); if (!r.width || !r.height || !s) return;
