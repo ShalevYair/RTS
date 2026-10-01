@@ -13,7 +13,12 @@ function buildingPic(kind, col, px) {
   const c = pic.getContext('2d');
   // a building with its own picture (art/): recoloured, about as wide as the drawn one
   const own = BUILDING_PIC[kind], im = own && spritePic(own, col);
-  if (im) { const dw = px * 1.35 * ART_RES, dh = dw * im.height / im.width; c.drawImage(im, (w - dw) / 2, (w - dh) / 2 - dh * 0.06, dw, dh); artCache.set(key, pic); return pic; }
+  if (im) {
+    const dw = px * 1.35 * ART_RES, dh = dw * im.height / im.width, x0 = (w - dw) / 2, y0 = (w - dh) / 2 - dh * 0.06, sh = shadowPic(own);
+    // (its shadow first: to the south-east, as every shadow)
+    if (sh) { const f = dw / im.width, o = dw * 0.05; c.globalAlpha = SHADOW_A; c.drawImage(sh, x0 - SHADOW_PAD * f + o, y0 - SHADOW_PAD * f + o * 1.25, sh.width * f, sh.height * f); c.globalAlpha = 1; }
+    c.drawImage(im, x0, y0, dw, dh); artCache.set(key, pic); return pic;
+  }
   c.translate(w / 2, w / 2); c.scale(P, P); c.lineJoin = 'round'; c.lineCap = 'round';
   const dk = shade(col, -0.38), lt = shade(col, 0.28);
   // a lit roof: light at its north-west corner, the side colour, darker to the south-east
@@ -130,6 +135,10 @@ function drawFlag(c, x, y, k, col) {
 }
 // ---- smoke: grey puffs rising and drifting from damaged vehicles and buildings, wrecks, busy factories ----
 const smoke = [], SMOKE_MAX = 500, WIND = { x: 7, y: -2 };
+// (the quiet life: puffs a second — a building's roof, a vehicle's exhaust; only on screen)
+// (and a little dust off the ground round every vehicle and building every second or two, IDLE_DUST a second)
+const IDLE_ROOF = 0.35, IDLE_EXHAUST = 0.5, IDLE_DUST = 0.6;
+const onView = (p, v) => !v || (p.x > v.x - 60 && p.x < v.x + v.w + 60 && p.y > v.y - 60 && p.y < v.y + v.h + 60);
 let artT = null;
 function puff(x, y, dark, big = 1) {
   if (smoke.length >= SMOKE_MAX) smoke.shift();
@@ -139,7 +148,7 @@ function puff(x, y, dark, big = 1) {
 function drawSmoke(c) {
   const dt = artT === null || s.t < artT ? 0 : Math.min(0.1, s.t - artT); artT = s.t;
   if (dt > 0) {
-    const vis = u => !s.fog || ((u.side === 'blue' || s.vis.blue.has(u.id)) && shownAt(u));
+    const vis = u => !s.fog || ((u.side === 'blue' || s.vis.blue.has(u.id)) && shownAt(u)), v0 = viewRect();
     for (const u of s.units) { const T = Sim.TYPES[u.type]; if (!T.air && CAR.has(u.type) && u.hp < T.hp * 0.5 && vis(u) && Math.random() < dt * 3) puff(u.x, u.y - 3, true); }
     for (const f of s.fallen) if (CAR.has(f.type) && s.t - f.t < 10 && (!s.fog || shownAt(f)) && Math.random() < dt * 5) puff(f.x, f.y - 2, true, 1.3);
     for (const n of s.nodes) {
@@ -147,6 +156,15 @@ function drawSmoke(c) {
       const S = Sim.STRUCTS[n.kind];
       if (n.hp < S.hp * 0.5 && Math.random() < dt * 4) puff(n.x + (Math.random() - 0.5) * 16, n.y - 6, true, 1.5);
       if (n.kind === 'tankshop' && n.prog > 0 && s.t >= n.ready && Math.random() < dt * 2) puff(n.x + 12, n.y - 12, false);
+      // (every building standing: a faint wisp from its roof now and then)
+      else if (s.t >= n.ready && n.hp >= S.hp * 0.5 && onView(n, v0) && Math.random() < dt * IDLE_ROOF) puff(n.x + S.r * 0.25, n.y - S.r * 0.55, false, 0.8);
+      if (s.t >= n.ready && onView(n, v0) && Math.random() < dt * IDLE_DUST) { const a = Math.random() * 6.28; dust.push({ x: n.x + Math.cos(a) * S.r, y: n.y + Math.sin(a) * S.r * 0.6 + S.r * 0.3, t: s.t, r: 3.5, a: 0.4 }); }
+    }
+    // (every vehicle on screen, even standing still: now and then a faint puff of exhaust at its back)
+    for (const u of s.units) {
+      if (CAR.has(u.type) && onView(u, v0) && vis(u) && Math.random() < dt * IDLE_DUST) { const k = SIZE[u.type] * 0.6, a = Math.random() * 6.28; dust.push({ x: u.x + Math.cos(a) * k, y: u.y + Math.sin(a) * k * 0.6 + k * 0.3, t: s.t, r: u.type === 'tank' ? 3 : 2.2, a: 0.38 }); }
+      if (!CAR.has(u.type) || !onView(u, v0) || !vis(u) || Math.random() >= dt * IDLE_EXHAUST) continue;
+      const k = SIZE[u.type] * 0.8; puff(u.x - Math.cos(u.hd) * k, u.y - Math.sin(u.hd) * k, false, 0.45);
     }
   }
   const v = viewRect();
@@ -241,7 +259,7 @@ function drawNightLit(c) {
   g.fillStyle = `rgba(8,14,40,${(NIGHT_DARK * k).toFixed(3)})`; g.fillRect(0, 0, nightCv.width, nightCv.height);
   g.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy); g.globalCompositeOperation = 'destination-out';
   const lights = [];
-  for (const n of s.nodes) if (n.kind !== 'drone' && nodeShown(n) && s.t >= n.ready) lights.push([n.x, n.y, n.kind === 'hq' ? 90 : 60, 0.8]);
+  for (const n of s.nodes) if (n.kind !== 'drone' && nodeShown(n) && s.t >= n.ready) lights.push([n.x, n.y, Sim.STRUCTS[n.kind].r * 2.5 + 20, 0.8]);
   // (a blast lights its surroundings softly — no flash of the whole screen)
   for (const f of s.fx) if (!(f.wait > 0) && f.size >= 10) { const a = f.life / f.max; lights.push([f.x, f.y, f.size * 3, 0.45 * Math.min(1, (1 - a) * 5) * a]); }
   // (our own units carry a little light: vehicles more than soldiers)
@@ -256,13 +274,29 @@ function drawNightLit(c) {
 }
 
 // ---- water: slow ripples moving over each lake on screen, and foam along its shore ----
+// (the water picture's two drifting layers: speed x, y in world units a second, how strong, how blended)
+const WATER_LAYERS = [[7, 3, 0.35, 'overlay'], [-4, 6, 0.25, 'soft-light']];
 function drawWater(c) {
   const v = viewRect(), t = reduceMotion ? 0 : performance.now() / 1000;
   for (const k of decor.lakes) {
     const l = k.l, R = Math.max(l.rx, l.ry);
     if (v && (l.x + R < v.x || l.x - R > v.x + v.w || l.y + R < v.y || l.y - R > v.y + v.h)) continue;
     c.save(); c.clip(k.body);
-    c.strokeStyle = 'rgba(255,255,255,.16)'; c.lineWidth = 1.2;
+    // (the water's own picture, twice, drifting two ways at once and blended in: the surface moves like water; then
+    // a slow light passing over it)
+    const im = tile.img.water;
+    if (im) {
+      const w = TILE_SIZE.water || TILE_W, f = w / im.width;
+      for (const [vx, vy, a, op] of WATER_LAYERS) {
+        const p = c.createPattern(im, 'repeat'); p.setTransform(new DOMMatrix().translate((t * vx) % w, (t * vy) % w).scale(f));
+        c.globalAlpha = a; c.globalCompositeOperation = op; c.fillStyle = p; c.fill(k.body);
+      }
+      c.globalCompositeOperation = 'source-over';
+      const gx = l.x + Math.sin(t * 0.13 + l.x) * R * 0.6, gy = l.y + Math.cos(t * 0.1 + l.y) * R * 0.4, g = c.createRadialGradient(gx, gy, 0, gx, gy, R * 0.7);
+      g.addColorStop(0, 'rgba(255,255,255,.10)'); g.addColorStop(1, 'rgba(255,255,255,0)'); c.globalAlpha = 1; c.fillStyle = g; c.fill(k.body);
+    }
+    c.globalAlpha = 1;
+    c.strokeStyle = im ? 'rgba(255,255,255,.09)' : 'rgba(255,255,255,.16)'; c.lineWidth = 1.2;
     for (let i = -4; i <= 4; i++) {
       const y0 = l.y + i * R / 4.5 + Math.sin(t * 0.4 + i) * 6;
       c.beginPath();
@@ -305,10 +339,32 @@ function spritePic(k, col) {
     if (!a[i + 3] || (!a[i] && !a[i + 1] && !a[i + 2])) continue; // (clear, or the shadow)
     const [h, sat, l] = toHsl(a[i], a[i + 1], a[i + 2]);
     if (wreck) { const v = Math.round(l * 255 * 0.45 + 18); a[i] = v; a[i + 1] = v * 0.96; a[i + 2] = v * 0.9; continue; }
-    if (sat < 0.3 || h < 190 || h > 260) continue; // only the team blue
-    const [r, g, b] = fromHsl(hue, sat, l); a[i] = r; a[i + 1] = g; a[i + 2] = b;
+    // only the team blue: how much bluer than red and green (the new pictures' blue is faded paint, low in
+    // saturation), with a soft edge; made the side's colour, a little stronger so a faded red still reads red
+    const blue = a[i + 2] - Math.max(a[i], a[i + 1]), w = Math.min(1, (blue - 10) / 12);
+    if (w <= 0 || h < 195 || h > 270) continue;
+    const [r, g, b] = fromHsl(hue, Math.min(1, Math.max(sat * 1.5, 0.5)), l);
+    a[i] += (r - a[i]) * w; a[i + 1] += (g - a[i + 1]) * w; a[i + 2] += (b - a[i + 2]) * w;
   }
   c.putImageData(d, 0, 0); sprite.pic.set(key, p); return p;
+}
+// a picture's shadow: its outline in black, blurred (cached; SHADOW_PAD px of room around it for the blur)
+const SHADOW_PAD = 8;
+function shadowPic(k) {
+  const key = k + '|shadow'; let p = sprite.pic.get(key); if (p) return p;
+  const im = sprite.img[k]; if (!im) return null;
+  p = document.createElement('canvas'); p.width = im.width + 2 * SHADOW_PAD; p.height = im.height + 2 * SHADOW_PAD;
+  const c = p.getContext('2d'); c.filter = 'blur(3px) brightness(0)'; c.drawImage(im, SHADOW_PAD, SHADOW_PAD);
+  sprite.pic.set(key, p); return p;
+}
+// the shadows: the sun from the north-west, as on the hills — every shadow falls the same way (to the south-east),
+// whichever way the unit faces; SHADOW_OFF of its size away (aircraft, up in the air, SHADOW_AIR)
+const SHADOW_OFF = 0.1, SHADOW_AIR = 0.9, SHADOW_A = 0.42;
+function drawShadowPic(c, k, x, y, w, h, rot, off) {
+  const p = shadowPic(k); if (!p) return;
+  const sx = w / (p.width - 2 * SHADOW_PAD), sy = h / (p.height - 2 * SHADOW_PAD);
+  c.save(); c.globalAlpha *= SHADOW_A; c.shadowBlur = 0; c.shadowColor = 'transparent'; c.translate(x + off, y + off * 1.25); c.rotate(rot);
+  c.drawImage(p, -p.width / 2 * sx, -p.height / 2 * sy, p.width * sx, p.height * sy); c.restore();
 }
 // how long a unit's picture is on the map, in its size k (as long as the drawn glyph)
 // (soldiers: by how wide they are across the shoulders, SPRITE_ACROSS — a launcher makes one much longer than the next)
@@ -323,10 +379,12 @@ const hasBuildingPic = kind => !!(BUILDING_PIC[kind] && sprite.img[BUILDING_PIC[
 function drawUnitPic(c, type, x, y, k, col, hd, aim, recoil = 0) {
   if (type !== 'tank') {
     const S = SPRITES[type], p = spritePic(type, col), sc = SPRITE_ACROSS[type] ? SPRITE_ACROSS[type] * k / S.h : SPRITE_LEN[type] * k / S.w;
+    if (col !== 'wreck') drawShadowPic(c, type, x, y, S.w * sc, S.h * sc, hd, k * (type === 'air' ? SHADOW_AIR : SHADOW_OFF));
     c.save(); c.translate(x, y); c.rotate(hd); c.drawImage(p, -S.w / 2 * sc, -S.h / 2 * sc, S.w * sc, S.h * sc); c.restore();
     return;
   }
   const H = SPRITES.tank_hull, T = SPRITES.tank_turret, sc = SPRITE_LEN.tank * k / H.w;
+  if (col !== 'wreck') drawShadowPic(c, 'tank_hull', x, y, H.w * sc, H.h * sc, hd, k * SHADOW_OFF);
   c.save(); c.translate(x, y); c.rotate(hd);
   c.drawImage(spritePic('tank_hull', col), -H.w / 2 * sc, -H.h / 2 * sc, H.w * sc, H.h * sc);
   c.translate((H.px - H.w / 2) * sc, (H.py - H.h / 2) * sc); c.rotate(aim - hd); c.translate(-recoil * 0.12 * k, 0);
@@ -353,14 +411,24 @@ function drawPings(c) {
 }
 function drawPicked(c) {
   const n = selNode != null && s.nodes.find(n => n.id === selNode && n.hp > 0); if (!n) return;
-  const big = n.kind === 'hq' || n.kind === 'decoy', rx = big ? 34 : 24, ry = rx * 0.55, y = n.y + (big ? 12 : 8);
+  const R = Sim.STRUCTS[n.kind].r, rx = R * 0.95, ry = rx * 0.55, y = n.y + R * 0.33;
   c.save(); c.lineWidth = 2.2 / view.css; c.strokeStyle = 'rgba(255,255,255,.95)'; c.setLineDash([7 / view.css, 5 / view.css]); c.lineDashOffset = -performance.now() / 60 / view.css;
-  c.beginPath(); c.ellipse(n.x, y, rx, ry, 0, 0, Math.PI * 2); c.stroke(); c.restore();
+  c.beginPath(); c.ellipse(n.x, y, rx, ry, 0, 0, Math.PI * 2); c.stroke();
+  // its rally point: a dashed line out to a small flag
+  if (n.rally) {
+    const p = 1 / view.css; c.setLineDash([5 * p, 5 * p]); c.lineWidth = 1.6 * p; c.strokeStyle = 'rgba(70,200,110,.85)';
+    c.beginPath(); c.moveTo(n.x, n.y); c.lineTo(n.rally.x, n.rally.y); c.stroke(); c.setLineDash([]);
+    c.fillStyle = '#34b35a'; c.strokeStyle = '#fff'; c.lineWidth = 1.5 * p;
+    c.beginPath(); c.moveTo(n.rally.x, n.rally.y); c.lineTo(n.rally.x, n.rally.y - 16 * p); c.stroke();
+    c.beginPath(); c.moveTo(n.rally.x, n.rally.y - 16 * p); c.lineTo(n.rally.x + 10 * p, n.rally.y - 12.5 * p); c.lineTo(n.rally.x, n.rally.y - 9 * p); c.closePath(); c.fill(); c.stroke();
+  }
+  c.restore();
 }
 
 // ---- scenery pictures (art/Background → d_tree*, d_bush*, d_rock*): drawn into the ground cache, only where it
 // covers; each item picks its picture by a hash of where it stands (rock slabs only up the hills) ----
-const SCENERY_WEIGHT = { d_rock3: 0 }; // (0 = left out: the new rock3 is a square slab, a floor tile on the map)
+const SCENERY_WEIGHT = { d_rock3: 0 };
+const TREE_SHADOW = 0.22, TREE_SHADOW_A = 0.4; // (a tree's shadow: that much of its width to the south-east, how dark) // (0 = left out: the new rock3 is a square slab, a floor tile on the map)
 function drawScenery(c) {
   // (a picture's weight, 4 unless SCENERY_WEIGHT says)
   const pics = t => Object.keys(sprite.img).filter(k => k.startsWith('d_' + t)).sort().flatMap(k => Array(SCENERY_WEIGHT[k] ?? 4).fill(sprite.img[k]));
@@ -370,11 +438,22 @@ function drawScenery(c) {
   if (!P.rock.length) return false;
   const slab = sprite.img.d_rock3, low = P.rock.filter(im => im !== slab); // (rock3, a flat slab: only up the hills)
   if (!low.length) low.push(...P.rock);
-  const x0 = bg.x0 - 20, y0 = bg.y0 - 20, x1 = bg.x0 + bg.w + 20, y1 = bg.y0 + bg.h + 20;
+  const x0 = bg.x0 - 90, y0 = bg.y0 - 90, x1 = bg.x0 + bg.w + 90, y1 = bg.y0 + bg.h + 90; // (big trees reach in from past the edge)
+  const keyOf = new Map(Object.keys(sprite.img).filter(k => k.startsWith('d_')).map(k => [sprite.img[k], k]));
+  const pick = it => { const L = it.t === 'rock' ? (it.hi && it.s >= 10 / WORLD_K ? P.rock : low) : P[it.t]; return L[it.v % L.length]; }; // (the slab only big: small, it's a grey square)
+  // first the shadows (trees and bushes: to the south-east, like everything else; a tree, taller, casts farther),
+  // so no shadow falls over a neighbour's crown
+  c.save(); c.globalAlpha = TREE_SHADOW_A;
+  for (const it of decor.rocks.items) {
+    if (it.t === 'rock' || it.gone || it.x < x0 || it.x > x1 || it.y < y0 || it.y > y1) continue;
+    const im = pick(it), p = shadowPic(keyOf.get(im)); if (!p) continue;
+    const w = it.s, sc = w / im.width, off = w * (it.t === 'tree' ? TREE_SHADOW : TREE_SHADOW * 0.5);
+    c.drawImage(p, it.x - p.width / 2 * sc + off, it.y - p.height / 2 * sc + off * 1.25, p.width * sc, p.height * sc);
+  }
+  c.restore();
   for (const it of decor.rocks.items) {
     if (it.x < x0 || it.x > x1 || it.y < y0 || it.y > y1) continue;
-    const L = it.t === 'rock' ? (it.hi && it.s >= 10 ? P.rock : low) : P[it.t], // (the slab only big: small, it's a grey square)
-      im = L[it.v % L.length], w = it.s, h = w * im.height / im.width;
+    const im = pick(it), w = it.s, h = w * im.height / im.width;
     it.im = im; if (it.gone) continue; // (cleared or run over: see sceneryTick)
     c.drawImage(im, it.x - w / 2, it.y - h / 2, w, h);
   }
@@ -383,13 +462,16 @@ function drawScenery(c) {
 
 // ---- ground textures (art/Background → js/ui/tiles.js by tools/tiles.py): repeating patterns, TILE_W world units a
 // tile. Grass is the ground, dry grass and bare earth the blotches, mud the lake shores, stony ground up the hills ----
-const tile = { img: {}, pat: new WeakMap() }, TILE_W = 190, GROUND_TINT = 0.18, RELIEF_OVER_TILES = 0.62;
+const tile = { img: {}, pat: new WeakMap() }, TILE_W = 190 / WORLD_K, GROUND_TINT = 0.18, RELIEF_OVER_TILES = 0.62;
+// (some textures smaller, so a blade of grass or a stone is in proportion to a tank: the grass 3×, the dry grass 5×,
+// the rocky ground 4× smaller)
+const TILE_SIZE = { grass1: TILE_W / 3, grass2: TILE_W / 5, rocky: TILE_W / 4 };
 for (const k in (typeof TILES === 'object' ? TILES : {})) { const im = new Image(); im.onload = () => { tile.img[k] = im; bg.key = ''; }; im.src = TILES[k]; }
 // a tile's pattern for a canvas (kept per context)
 function tilePat(c, k) {
   const im = tile.img[k]; if (!im) return null;
   let m = tile.pat.get(c); if (!m) tile.pat.set(c, m = {});
-  if (!m[k]) { m[k] = c.createPattern(im, 'repeat'); m[k].setTransform(new DOMMatrix().scale(TILE_W / im.width)); }
+  if (!m[k]) { m[k] = c.createPattern(im, 'repeat'); m[k].setTransform(new DOMMatrix().scale((TILE_SIZE[k] || TILE_W) / im.width)); }
   return m[k];
 }
 // stony ground over the hills: the texture where the land is high, stronger the higher (a mask from the height grid,

@@ -22,8 +22,14 @@
 <div class="stage" id="stage">
   <canvas id="cv" data-al="map"></canvas>
   <canvas id="mini" class="glass" data-al="mini" hidden></canvas>
-  <div class="hudl">
+  <!-- top middle: the power bar, us against them -->
+  <div class="hudc">
     <div class="score blue glass" id="power"><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="moon" data-tip="tipNight" hidden>🌙</i></div>
+  </div>
+  <!-- top left: the kinds of building, one under the other (dimmed with no free slot); the squad buttons only in the
+       tutorial -->
+  <div class="hudl">
+    <div class="bcats" id="bcats" role="group"></div>
     <div class="seg glass" id="gSq" role="group">
       <button id="all" class="icon" aria-pressed="false" data-al="all" data-tip="all">★</button>
       <span id="sqs" class="seg"></span>
@@ -99,6 +105,8 @@
       <div class="btns"><button id="again"></button><button id="share" data-t="share"></button><button id="settings" data-t="levels"></button></div>
     </div>
   </div>
+  <!-- bottom left, one above the other: the HQ to place, the forward HQ, the drone (each with a ring filling up to the
+       next one) -->
   <div class="bar glass" id="bar" role="toolbar">
     <button id="hqb" class="icon" data-al="hqb" data-tip="tipHqb" hidden>🏰</button>
     <button id="eye" class="icon node" aria-pressed="false" data-al="eye" data-tip="eye"><svg class="ico" viewBox="-12 -12 24 24" aria-hidden="true"><path d="M-7-7L7 7M7-7L-7 7" stroke="currentColor" stroke-width="2"/><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="-7" cy="-7" r="4.2"/><circle cx="7" cy="-7" r="4.2"/><circle cx="-7" cy="7" r="4.2"/><circle cx="7" cy="7" r="4.2"/></g><rect x="-3" y="-3" width="6" height="6" rx="1.5" fill="currentColor"/></svg><b id="eyeN"></b><i></i></button>
@@ -115,7 +123,7 @@
     <button id="gear" class="icon glass" data-al="gear" data-tip="gear" aria-expanded="false">⚙</button>
   </div>
   <!-- the end of a game: the finale drawn on the map, then (the full game) the victory / defeat video, if there is one -->
-  <div class="outro" id="outro" hidden><video id="outroVid" playsinline preload="none"></video><button id="outroSkip" data-al="skip">⏭</button></div>
+  <div class="outro" id="outro" hidden><video id="outroVid" playsinline preload="none"></video><b id="outroWord" aria-live="polite"></b><button id="outroSkip" data-al="skip">⏭</button></div>
   <div id="tourBg" hidden></div>
   <div class="tip glass" id="tip" role="tooltip" hidden><span id="tipT"></span><div class="tipNav" id="tipNav" hidden><small id="tipN"></small><button id="tipSkip"></button><button id="tipNext"></button></div></div>
 </div>

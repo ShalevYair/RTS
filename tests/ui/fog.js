@@ -13,7 +13,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const fogBtn = await p.getAttribute('[data-fog="1"]', 'aria-pressed');
     await p.screenshot({ path: `${OUT}/${name}-intro3.png` });
     await p.click('#go'); await p.click('#gear'); await p.click('[data-rate="2"]'); await p.click('#gear');
-    await p.click('#all');
+    await p.evaluate(() => $('all').click()); // (no squad buttons on screen in the full game)
     const box = await p.locator('#cv').boundingBox();
     await p.mouse.click(box.x + box.width / 2, box.y + box.height * 0.45);
     await p.waitForTimeout(+process.env.WAIT||12000);

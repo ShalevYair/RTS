@@ -26,7 +26,7 @@ ok(grows, 'every level keeps what came before and adds something');
   const last = L(N);
   ok(last.dozers && last.hqPending.blue && !last.nodes.some(n => n.kind === 'hq') && last.squads.some(q => q.side === 'blue' && q.type === 'radio'), 'last level: the open field — no HQ yet, a bulldozer and a signals truck');
   const b4 = Sim.level(4, 7, 1100);
-  ok(b4.builds.join() === 'tent' && !Sim.build(b4, 'blue', 'tankshop', 150, 200) && Sim.build(b4, 'blue', 'tent', 150, 200), 'level 4 builds tents only (buildings come in one kind at a time)');
+  ok(b4.builds.join() === 'tent' && !Sim.build(b4, 'blue', 'tankshop', 220, 420) && Sim.build(b4, 'blue', 'tent', 220, 420), 'level 4 builds tents only (buildings come in one kind at a time)');
   // tapping the map with the only squad selected wins it
   const r = sq('red')[0]; Sim.order(s, sq('blue')[0].id, 'attack', r.cx, r.cy);
   while (!s.over && s.t < 120) Sim.step(s, 1 / 30);

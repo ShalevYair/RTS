@@ -12,13 +12,13 @@ ok(Sim.buildLimit(s, 'blue') === 4 && Sim.buildCount(s, 'blue') === 1, 'limit 2+
 ok(Sim.buildCheck(s, 'blue', 900, 320) === 'q', 'no building where control is weak');
 ok(Sim.buildCheck(s, 'blue', 105, 190) === 'gap', 'no building on top of another');
 ok(!Sim.build(s, 'blue', 'hq', 150, 320) && !Sim.build(s, 'blue', 'fhq', 150, 320), 'only production buildings can be built');
-ok(Sim.build(s, 'blue', 'tankshop', 150, 320), 'tank workshop placed');
+ok(Sim.build(s, 'blue', 'tankshop', 230, 320), 'tank workshop placed');
 for (let i = 0; i < 30 * 49; i++) Sim.step(s, 1 / 30);
 ok(!s.squads.some(q => q.side === 'blue' && q.type === 'tank'), 'no tank squad before the 50s build');
 for (let i = 0; i < 30 * 2; i++) Sim.step(s, 1 / 30);
 const tk = s.squads.find(q => q.side === 'blue' && q.type === 'tank');
 ok(!!tk && tk.home, 'workshop raised a tank squad with a home');
-ok(Sim.build(s, 'blue', 'aapost', 150, 420) && Sim.build(s, 'blue', 'jeepshop', 200, 250), 'fill the slots');
+ok(Sim.build(s, 'blue', 'aapost', 150, 420) && Sim.build(s, 'blue', 'jeepshop', 230, 170), 'fill the slots');
 ok(Sim.buildCheck(s, 'blue', 120, 560) === 'limit', 'then the limit stops more');
 // only AA hits aircraft
 ok(Sim.MULT.inf.air === 0 && Sim.MULT.tank.air === 0 && Sim.MULT.jeep.air === 0 && Sim.MULT.aa.air > 0, 'only AA can hit aircraft');

@@ -17,7 +17,11 @@ function updateSquad(s, sq, dt) {
   const body = bodyCenter(m); sq.cx = body.x; sq.cy = body.y;
   // the line: a place for each unit that isn't away for treatment, facing the enemy (turning toward a new threat)
   const line = m.filter(u => !u.care);
-  line.forEach((u, i) => { u.slot = i - (line.length - 1) / 2; });
+  // (or a block: rows of blockCols across, front to back)
+  if (packed(sq, sq.order.form ? sq.packN : m.length)) {
+    const cols = blockCols(line.length), rows = Math.ceil(line.length / cols);
+    line.forEach((u, i) => { const c = i % cols, r = Math.floor(i / cols), inRow = r < rows - 1 ? cols : line.length - r * cols; u.slot = c - (inRow - 1) / 2; u.row = r - (rows - 1) / 2; });
+  } else line.forEach((u, i) => { u.slot = i - (line.length - 1) / 2; u.row = 0; });
   if (sq.order.form && !sq.support) placeForm(s, sq, dt);
   const want = faceAt(s, sq.side, effOrder(s, sq), sq.order.form && sq.order.form.fa);
   sq.face = sq.face === undefined ? want : turnTo(sq.face, want, FACE_TURN * dt);
@@ -28,12 +32,13 @@ function updateSquad(s, sq, dt) {
     sq.retreating = true;
     report(s, sq, `אבדות כבדות (${Math.round(sq.strength * 100)}%), נסוג להתארגנות`); sendReport(s, sq, 'hit');
   }
-  const atHome = dist(c, homeOf(s, sq)) <= HEAL_R + 20;
+  const home = homeOf(s, sq), atHome = dist(c, home) <= HEAL_R + 20 + nodeR(home);
   if (sq.retreating && sq.strength >= 0.8 && atHome) {
     sq.retreating = false; sq.arrived = false; report(s, sq, 'התארגנו, חוזרים למשימה');
   }
   if (!sq.arrived && !sq.retreating && !sq.support && (sq.order.type === 'retreat' ? atHome : dist(c, sq.order) < sq.order.r)) {
-    sq.arrived = true; report(s, sq, sq.order.type === 'retreat' ? 'הגענו לבסיס' : 'הגענו ליעד'); sendReport(s, sq, 'ok');
+    // (a bulldozer at its site says nothing: it just gets to work)
+    sq.arrived = true; if (!(sq.type === 'dozer' && sq.jobAt)) { report(s, sq, sq.order.type === 'retreat' ? 'הגענו לבסיס' : 'הגענו ליעד'); sendReport(s, sq, 'ok'); }
   }
   sq.contactCd = Math.max(0, sq.contactCd - dt);
   const contact = m.some(u => u.engaged);
@@ -152,7 +157,7 @@ function updateUnit(s, u, sq, dt) {
   const tgt = best && bd <= range ? best : near;
   // nothing else to shoot at: hit an enemy forward HQ or (AA only) a drone in range
   if (!tgt && !retreat && u.cd === 0 && !T.care) {
-    const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= range);
+    const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= range + nodeR(n));
     if (n) {
       u.engaged = true; n.hp -= T.dmg * NODE_MULT[u.type]; u.cd = T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
       u.aim = Math.atan2(n.y - u.y, n.x - u.x); u.lastFire = s.t;
@@ -177,7 +182,7 @@ function updateUnit(s, u, sq, dt) {
   else if (best) { if (T.air) circle(s, u, best.x, best.y, range * 0.6, dt); return; } // (aircraft wheel over what they shoot at)
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
   else if (T.air) { const sr = o.r * 0.55; circle(s, u, anchor.x + u.sx * sr, anchor.y + u.sy * sr, AIR_ORBIT, dt); return; }
-  else { const g = (u.slot || 0) * spacing(u.type), a = sq.face || 0; tx = anchor.x - Math.sin(a) * g; ty = anchor.y + Math.cos(a) * g; } // in the line
+  else { const sp = spacing(u.type), g = (u.slot || 0) * sp, b = (u.row || 0) * sp, a = sq.face || 0; tx = anchor.x - Math.sin(a) * g - Math.cos(a) * b; ty = anchor.y + Math.cos(a) * g - Math.sin(a) * b; } // in the line (or block)
   moveTo(s, u, tx, ty, (retreat ? 1.15 : 1) * (sq.silent ? SILENT_SPEED : 1), dt);
 }
 // aircraft never stand still: they circle round a spot (heading for a point a little ahead on the ring)
@@ -195,13 +200,61 @@ function supplyUse(s, u) {
 function moveTo(s, u, tx, ty, fast, dt, keep) {
   const T = TYPES[u.type];
   if (!T.air && s.lakes.length) ({ x: tx, y: ty } = wade(s, u, tx, ty));
+  if (!T.air) ({ x: tx, y: ty } = skirt(s, u, tx, ty));
+  if (!T.air && !s.noSteer) ({ x: tx, y: ty } = steer(s, u, tx, ty, dt)); // (s.noSteer: off, to compare)
   const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy);
-  if (d <= 2 && !keep) return;
+  if (d <= 2 && !keep) { u.stuck = 0; return; }
   let slope = 1;
   if (!T.air) { const L = 6, e0 = elevAt(s, u), e1 = elevAt(s, { x: u.x + vx / d * L, y: u.y + vy / d * L }); slope = 1 - clamp((e1 - e0) / L * SLOPE_K, -SLOPE_MAX, SLOPE_MAX); }
   const k = keep ? T.speed * fast * dt / Math.max(d, 1e-6) : Math.min(1, T.speed * slope * fast * dt / d); // (keep: at full speed, even past the point)
   u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
   if (!T.air && !u.hush && d * k >= DUST_FAST * T.speed * dt) u.dustAt = s.t; // (driving fast: dust the enemy can see from afar)
+}
+// a ground unit about to run into another of its side turns aside (STEER_*): both moving — 90° to its right (the other does
+// the same: they pass); the other standing — 45°, away from it. One that means to move but hasn't got anywhere for
+// STUCK_T s (a lake's corner, between buildings) takes a detour to its right for DETOUR_T s.
+const rot = (x, y, a) => ({ x: x * Math.cos(a) - y * Math.sin(a), y: x * Math.sin(a) + y * Math.cos(a) });
+function steer(s, u, tx, ty, dt) {
+  const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy), ru = TYPES[u.type].r;
+  const at = u.was ? Math.hypot(u.x - u.was.x, u.y - u.was.y) : 0; u.was = { x: u.x, y: u.y };
+  if (d < 8) { u.stuck = 0; return { x: tx, y: ty }; }
+  u.moving = s.t; // (it means to move this tick)
+  u.stuck = at < TYPES[u.type].speed * dt * 0.15 ? (u.stuck || 0) + dt : 0;
+  if (u.stuck > STUCK_T) { u.detour = s.t + DETOUR_T; u.stuck = 0; }
+  const ux = vx / d, uy = vy / d, step = Math.min(d, 30);
+  if (u.detour > s.t) { const r = rot(ux, uy, Math.PI / 2); return { x: u.x + r.x * step, y: u.y + r.y * step }; }
+  let o = null, oa = Infinity, oc = 0;
+  for (const b of s.units) {
+    if (b === u || TYPES[b.type].air) continue;
+    const ox = b.x - u.x, oy = b.y - u.y, rr = ru + TYPES[b.type].r + UNIT_GAP, look = rr + STEER_LOOK;
+    if (ox > look || ox < -look || oy > look || oy < -look) continue;
+    const along = ox * ux + oy * uy, cross = ox * uy - oy * ux; // (cross > 0: it's on our left)
+    if (along <= 0 || along > look || Math.abs(cross) >= rr * 0.8 || along >= d) continue; // (behind, beside, or past the goal)
+    if (u.side !== b.side || Math.hypot(tx - b.x, ty - b.y) < rr * 1.5) continue; // (only our own: an enemy is what it goes for; nor one at the goal)
+    if (along < oa) { oa = along; o = b; oc = cross; }
+  }
+  if (!o) return { x: tx, y: ty };
+  const moving = o.moving !== undefined && s.t - o.moving < 0.25;
+  if (moving && Math.cos(o.hd - Math.atan2(uy, ux)) > 0.3) return { x: tx, y: ty }; // (going our way, ahead of us: no collision)
+  const r = rot(ux, uy, moving ? Math.PI / 2 : (oc > 0 ? Math.PI / 4 : -Math.PI / 4));
+  return { x: u.x + r.x * step, y: u.y + r.y * step };
+}
+// ground units go round their own side's buildings: with one close ahead in the straight way (and the goal not the building itself or
+// right by it), the step is along its edge, on the side toward the goal. (Else a unit behind a building — pushed
+// there by it, or on the map's edge side — drove into it forever.)
+function skirt(s, u, tx, ty) {
+  const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy); if (d < 1) return { x: tx, y: ty };
+  for (const n of s.nodes) {
+    if (n.kind === 'drone' || n.hp <= 0 || n.side !== u.side) continue; // (its own side's: the enemy's are what it goes for)
+    const R = STRUCTS[n.kind].r + TYPES[u.type].r + 4, ox = n.x - u.x, oy = n.y - u.y, od = Math.hypot(ox, oy);
+    if (od > R + SKIRT_AHEAD || Math.hypot(tx - n.x, ty - n.y) < R + 15) continue;
+    const along = (ox * vx + oy * vy) / d; if (along <= 0 || along > d) continue; // (behind, or past the goal)
+    if (Math.abs(ox * vy - oy * vx) / d >= R) continue; // (the way passes it by)
+    // (the way round: a right angle off the line to its middle, on the side the goal is)
+    const side = (ox * vy - oy * vx) > 0 ? 1 : -1, px = -oy / od * side, py = ox / od * side;
+    return { x: u.x + px * SKIRT_STEP + ox / od * Math.max(0, od - R) * 0.5, y: u.y + py * SKIRT_STEP + oy / od * Math.max(0, od - R) * 0.5 };
+  }
+  return { x: tx, y: ty };
 }
 // where a hurt unit goes: the nearest medic / mechanic of its side that isn't itself being treated, else home
 // (kind: who to go to — a medic / mechanic for treatment, a supply truck for ammunition)

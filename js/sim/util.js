@@ -5,6 +5,8 @@ function rng(seed) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+// a building's footprint radius (0 for anything else): distances to a building count from its edge
+const nodeR = n => (n && n.kind && STRUCTS[n.kind] ? STRUCTS[n.kind].r : 0);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // hills and lakes aren't perfect circles / ellipses: each has a few waves around its rim (w = [[amp, k, phase], ...]);
 // `wobble` is how far out the rim is at angle th, as a share of the plain radius

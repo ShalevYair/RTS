@@ -2,7 +2,7 @@
 const { Sim, play } = require('./bench.js');
 const ok = (c, m) => { console.log((c ? 'ok  ' : 'FAIL') + ' ' + m); if (!c) process.exitCode = 1; };
 let s = Sim.create(4, 1000, 'normal');
-const hq = { x: s.bases.blue.x, y: 320 };
+const h0 = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq'), hq = { x: h0.x, y: h0.y };
 ok(Sim.quality(s, 'blue', hq) === 1, 'Q = 1 at the HQ');
 const N = Sim.NODES.hq, at = f => Sim.quality(s, 'blue', { x: hq.x + N.r0 + (N.r1 - N.r0) * f, y: 320 });
 ok([0.1, 0.4, 0.6, 0.9].map(at).join() === '0.8,0.6,0.4,0.2', 'past r0, control drops in rings: 80%, 60%, 40%, 20% (' + [0.1, 0.4, 0.6, 0.9].map(at).join() + ')');

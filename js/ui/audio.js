@@ -327,34 +327,41 @@ const Music = (() => {
   }
   return { start, stop, unlock, setVolume, setSfxVolume, boom, shot, squelch, _debug: { render, playAll, tones, song: () => song.name, next: () => { nextSong(); return song.name; }, voices: () => voices } };
 })();
-// ---- the soundtrack: recorded pieces (music/) — the theme on the main menu, the others in the game in random order,
-// one after another with a crossfade. If they can't be played, the generated music above instead ----
+// ---- the soundtrack: recorded pieces (music/) — the theme on the main menu; in the game calm pieces while it's quiet
+// and battle pieces once there's fighting (setMood), in random order, one after another with a crossfade. Only ever
+// one piece: a piece still starting when another takes over is stopped, not faded back in. If they can't be played,
+// the generated music above instead ----
 const Tracks = (() => {
-  const MENU = 'music/theme.mp3', GAME = ['music/planning.mp3', 'music/iron_line.mp3', 'music/breakthrough.mp3', 'music/ashes.mp3', 'music/last_stand.mp3'];
+  const MENU = 'music/theme.mp3', CALM = ['music/planning.mp3', 'music/ashes.mp3'], BATTLE = ['music/iron_line.mp3', 'music/breakthrough.mp3', 'music/last_stand.mp3'];
   const FADE = 3; // seconds
-  let mode = 'menu', vol = 0.3, on = false, cur = null, last = '', failed = false;
+  let mode = 'menu', mood = 'calm', vol = 0.3, on = false, cur = null, last = '', failed = false;
+  const all = new Set(); // (every piece made: whatever isn't cur is faded out and stopped)
   const fade = (a, to, sec, then) => {
     clearInterval(a.fadeT); const v0 = a.volume, t0 = performance.now();
     a.fadeT = setInterval(() => { const k = Math.min(1, (performance.now() - t0) / (sec * 1000)); a.volume = Math.max(0, Math.min(1, v0 + (to - v0) * k)); if (k >= 1) { clearInterval(a.fadeT); a.fadeT = 0; then && then(); } }, 50);
   };
-  const pick = () => { if (mode === 'menu') return MENU; const pool = GAME.filter(f => f !== last); return (last = pool[Math.floor(Math.random() * pool.length)]); };
+  const quiet = a => fade(a, 0, a.volume > 0 ? FADE : 0.05, () => { a.pause(); all.delete(a); });
+  const pick = () => { if (mode === 'menu') return MENU; const pool = (mood === 'battle' ? BATTLE : CALM).filter(f => f !== last); return (last = pool[Math.floor(Math.random() * pool.length)]); };
   function play(src) {
-    const old = cur, a = new Audio(src); cur = a;
+    const a = new Audio(src); cur = a; all.add(a); a.starting = true;
     a.volume = 0; a.loop = mode === 'menu';
-    a.onerror = () => { if (a === cur) { failed = true; cur = null; if (on) Music.start(); } };
+    a.onerror = () => { all.delete(a); if (a === cur) { failed = true; cur = null; if (on) Music.start(); } };
     // (a few seconds before a piece ends, the next one fades in over it)
     a.ontimeupdate = () => { if (a === cur && !a.loop && on && a.duration && a.currentTime > a.duration - FADE) play(pick()); };
-    a.play().then(() => fade(a, vol, FADE)).catch(() => { if (a === cur) cur = null; }); // (not allowed before a tap: tried again then)
-    if (old) fade(old, 0, FADE, () => old.pause());
+    a.play().then(() => { a.starting = false; if (a === cur && on) fade(a, vol, FADE); else quiet(a); })
+      .catch(() => { a.starting = false; all.delete(a); if (a === cur) cur = null; }); // (not allowed before a tap: tried again then)
+    for (const o of all) if (o !== a && !o.starting) quiet(o);
   }
   return {
     ok: () => !failed,
-    start() { on = true; if (failed) return; if (!cur || cur.paused) play(pick()); },
-    stop() { on = false; if (cur) { const a = cur; cur = null; fade(a, 0, 0.6, () => a.pause()); } },
-    setVolume(v) { vol = Math.min(1, v); if (cur && !cur.fadeT) cur.volume = vol; },
+    start() { on = true; if (failed) return; if (!cur || (cur.paused && !cur.starting)) play(pick()); },
+    stop() { on = false; cur = null; for (const a of all) if (!a.starting) quiet(a); },
+    setVolume(v) { vol = Math.min(1, v); if (cur && !cur.fadeT && !cur.starting) cur.volume = vol; },
     // the menu's piece or the game's: a change fades from one to the other
-    setMode(m) { if (m === mode) return; mode = m; if (on && !failed) play(pick()); },
-    _debug: () => ({ mode, src: cur && cur.src, vol: cur && cur.volume, failed })
+    setMode(m) { if (m === mode) return; mode = m; mood = 'calm'; if (on && !failed) play(pick()); },
+    // calm or battle (in the game): a change fades to a piece of the other kind
+    setMood(m) { if (m === mood) return; mood = m; if (mode === 'game' && on && !failed) play(pick()); },
+    _debug: () => ({ mode, mood, src: cur && cur.src, vol: cur && cur.volume, failed, playing: [...all].filter(a => !a.paused).length })
   };
 })();
 // what plays: the recorded pieces, or the generated music if they can't
@@ -389,10 +396,10 @@ syncMusic(false);
 // in js/ui/voices.js by tools/voices.py: many takes per event, in many voices), else read aloud (Web Speech) ----
 const Radio = (() => {
   const synth = window.speechSynthesis, SAY = { 'חי"ר': 'חיל רגלים', 'נ"מ': 'נגד מטוסים', 'מכ"ם': 'מכם' };
-  const PRI = { promo: 1, unclear: 2, lost: 3, hit: 3, flagLost: 3, call: 3, nodeLost: 3, ff: 3, contact: 2, flag: 2, fhq: 1, ok: 1, hqHit: 3, fhqHit: 3, baseHit: 2, droneLost: 2, dozerReady: 1, dozerIdle: 1, radioReady: 1, fhqCan: 1, droneCan: 1, placeHq: 2, selected: 0, go: 1, attacking: 1, holding: 1, retreating: 1 };
+  const PRI = { promo: 1, unclear: 2, lost: 3, hit: 3, flagLost: 3, call: 3, nodeLost: 3, ff: 3, contact: 2, flag: 2, fhq: 1, ok: 1, hqHit: 3, fhqHit: 3, baseHit: 2, droneLost: 2, dozerReady: 1, dozerIdle: 1, radioReady: 1, fhqCan: 1, droneCan: 1, placeHq: 2, hqReady: 2, selected: 0, go: 1, attacking: 1, holding: 1, retreating: 1 };
   // an event's folder of recorded lines
   const EVENT = { selected: 'selected', go: 'on_the_way', attacking: 'attacking', holding: 'holding', retreating: 'retreating', ok: 'in_position', contact: 'under_attack',
-    hit: 'heavy_losses', lost: 'squad_lost', ff: 'friendly_fire', promo: 'promoted', unclear: 'say_again', fhq: 'forward_hq', nodeLost: 'building_lost', hqHit: 'hq_attack', fhqHit: 'fhq_attack', baseHit: 'base_attack', droneLost: 'drone_lost', dozerReady: 'dozer_ready', dozerIdle: 'dozer_idle', radioReady: 'radio_ready', fhqCan: 'fhq_ready', droneCan: 'drone_ready', placeHq: 'place_hq' };
+    hit: 'heavy_losses', lost: 'squad_lost', ff: 'friendly_fire', promo: 'promoted', unclear: 'say_again', fhq: 'forward_hq', nodeLost: 'building_lost', hqHit: 'hq_attack', fhqHit: 'fhq_attack', baseHit: 'base_attack', droneLost: 'drone_lost', dozerReady: 'dozer_ready', dozerIdle: 'dozer_idle', radioReady: 'radio_ready', fhqCan: 'fhq_ready', droneCan: 'drone_ready', placeHq: 'place_hq', hqReady: 'hq_ready' };
   const REC = typeof VOICES === 'object' ? VOICES : {}, recs = () => REC[lang === 'en' ? 'English' : 'Hebrew'] || null;
   const lastTake = {};
   // a take of the event: any of its lines (each recorded once, in one of several voices), not the same one twice running
@@ -402,9 +409,9 @@ const Radio = (() => {
     return (lastTake[ev] = pool[Math.floor(Math.random() * pool.length)]);
   }
   let clip = null; // (the take playing now)
-  const TEXT = { placeHq: () => 'יש למקם את המפקדה הראשית', dozerReady: () => 'טרקטור מוכן', dozerIdle: () => 'הטרקטור ממתין, יש עבודה', radioReady: () => 'משאית קשר מוכנה', fhqCan: () => 'ניתן לבנות פיקוד קדמי', droneCan: () => 'ניתן למקם רחפן', droneLost: () => 'הרחפן הופל', hqHit: () => 'המפקדה תחת התקפה!', fhqHit: () => 'הפיקוד הקדמי תחת התקפה!', baseHit: () => 'הבסיס תחת התקפה!', fhq: w => `${w}, מקימים פיקוד קדמי`, nodeLost: w => w === 'drone' ? 'הרחפן הופל' : `${Sim.STRUCTS[w].name} הושמד`, call: w => `${w}, לחץ כבד. להחזיק או לסגת?`, contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`, ff: w => `${w}, ירי על כוחותינו!`,
+  const TEXT = { placeHq: () => 'יש למקם את המפקדה הראשית', hqReady: () => 'המפקדה מוכנה', dozerReady: () => 'טרקטור מוכן', dozerIdle: () => 'הטרקטור ממתין, יש עבודה', radioReady: () => 'משאית קשר מוכנה', fhqCan: () => 'ניתן לבנות פיקוד קדמי', droneCan: () => 'ניתן למקם רחפן', droneLost: () => 'הרחפן הופל', hqHit: () => 'המפקדה תחת התקפה!', fhqHit: () => 'הפיקוד הקדמי תחת התקפה!', baseHit: () => 'הבסיס תחת התקפה!', fhq: w => `${w}, מקימים פיקוד קדמי`, nodeLost: w => w === 'drone' ? 'הרחפן הופל' : `${Sim.STRUCTS[w].name} הושמד`, call: w => `${w}, לחץ כבד. להחזיק או לסגת?`, contact: w => `${w}, מגע`, hit: w => `${w}, אבדות כבדות, נסוגים`, lost: w => `${w}, הכוח הושמד`, ff: w => `${w}, ירי על כוחותינו!`,
     ok: w => `${w}, הגענו`, promo: w => `${w}, המפקד צבר ניסיון`, unclear: w => `${w}, ההודעה לא ברורה`, flag: w => `כבשנו את ${w}`, flagLost: w => `איבדנו את ${w}` };
-  const TEXT_EN = { placeHq: () => 'Place the main headquarters', dozerReady: () => 'Bulldozer ready', dozerIdle: () => 'Bulldozer idle, work waiting', radioReady: () => 'Signals truck ready', fhqCan: () => 'Forward HQ available', droneCan: () => 'Drone ready', droneLost: () => 'Drone down', hqHit: () => 'Our HQ is under attack!', fhqHit: () => 'Forward HQ under attack!', baseHit: () => 'Our base is under attack!', fhq: w => `${w}, setting up forward HQ`, nodeLost: w => w === 'drone' ? 'Drone down' : `${EN_STRUCTS[w]} destroyed`, call: w => `${w}, heavy pressure. Hold or retreat?`, contact: w => `${w}, contact`, hit: w => `${w}, heavy losses, falling back`, lost: w => `${w}, squad destroyed`, ff: w => `${w}, friendly fire!`,
+  const TEXT_EN = { placeHq: () => 'Place the main headquarters', hqReady: () => 'Headquarters is up', dozerReady: () => 'Bulldozer ready', dozerIdle: () => 'Bulldozer idle, work waiting', radioReady: () => 'Signals truck ready', fhqCan: () => 'Forward HQ available', droneCan: () => 'Drone ready', droneLost: () => 'Drone down', hqHit: () => 'Our HQ is under attack!', fhqHit: () => 'Forward HQ under attack!', baseHit: () => 'Our base is under attack!', fhq: w => `${w}, setting up forward HQ`, nodeLost: w => w === 'drone' ? 'Drone down' : `${EN_STRUCTS[w]} destroyed`, call: w => `${w}, heavy pressure. Hold or retreat?`, contact: w => `${w}, contact`, hit: w => `${w}, heavy losses, falling back`, lost: w => `${w}, squad destroyed`, ff: w => `${w}, friendly fire!`,
     ok: w => `${w}, in position`, promo: w => `${w}, the commander has gained experience`, unclear: w => `${w}, message unclear`, flag: w => `We took ${w}`, flagLost: w => `We lost ${w}` };
   // the sim names squads by their type, in Hebrew
   const typeOf = n => Object.keys(Sim.TYPES).find(k => Sim.TYPES[k].name === n);

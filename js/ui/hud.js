@@ -40,6 +40,7 @@ function closeMenu(go = true) {
 }
 
 function syncButtons() {
+  syncCats();
   $('all').setAttribute('aria-pressed', String(sel === 'all'));
   // a type is pressed when all its squads are picked (★: all of them)
   document.querySelectorAll('[data-ty]').forEach(b => b.setAttribute('aria-pressed', String(typeIds(b.dataset.ty).every(isSel))));
@@ -114,7 +115,7 @@ function updateHud() {
   // power share: the truth without fog; under fog the enemy side is only what we know of it
   const b = Math.round(100 * (s.fog ? believedShare() : Sim.share(s, 'blue')));
   $('pwB').style.width = b + '%'; $('power').classList.toggle('est', !!s.fog); $('power').style.setProperty('--lose', pctLose() + '%');
-  $('slotN').textContent = Sim.buildCount(s, 'blue') + '/' + Sim.buildLimit(s, 'blue');
+  $('slotN').textContent = Sim.buildCount(s, 'blue') + '/' + Sim.buildLimit(s, 'blue'); syncCats();
   $('bld').setAttribute('aria-disabled', String(buildFull() && !buildArmed));
   // while there's room for another building, 🏗️ pulses: build more
   $('bld').classList.toggle('nudge', !!s.t && !buildFull() && !buildArmed && $('buildm').hidden && !s.over && playing && !(s.hqPending && s.hqPending.blue));
@@ -130,6 +131,11 @@ function updateHud() {
   $('eye').style.setProperty('--p', D.stock + Sim.dronesUp(s, 'blue') >= N.drone.max ? '1' : (1 - D.next / N.drone.every).toFixed(2));
   const bsq = oneSel() && s.squads.find(q => q.id === oneSel());
   $('fhqN').textContent = Sim.fhqCount(s, 'blue') >= Sim.fhqMax(s) ? Sim.fhqMax(s) + '/' + Sim.fhqMax(s) : cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').setAttribute('aria-disabled', String(!Sim.canBuildFhq(s, bsq)));
+  // a green halo, pulsing, round whatever can be used now (a drone to send, a forward HQ to place; the building
+  // kinds: syncCats); the two buttons show what they'd put down then: the drone, the forward HQ
+  const canEye = D.stock >= 1 && !$('eye').hidden, canFhq = uiHas('fhq') && !!s.t && !fhqArmed && Sim.canBuildFhq(s, bsq) && Sim.fhqCount(s, 'blue') < Sim.fhqMax(s);
+  $('eye').classList.toggle('can', canEye && !eyeArmed); $('fhq').classList.toggle('can', canFhq);
+  btnPic('eye', canEye ? 'drone' : null); btnPic('fhq', canFhq ? 'fhq' : null);
   if (s.fog !== fogWas) { fogWas = s.fog; syncButtons(); } // the tutorial's fog comes down mid-level
   $('fhq').style.setProperty('--p', (1 - cd.fhq / N.fhq.every).toFixed(2));
   $('moon').hidden = Sim.nightAt(s) < 0.5;
@@ -285,9 +291,32 @@ const BUILD_PAGES = {
   service: ['garage', 'depot', 'decoy'],
 };
 const BUILD_UP = { tents: 'root', shops: 'root', service: 'root', jeeps: 'shops' };
+// the column top left: the root page's kinds (the airfield on its own)
+const BUILD_CATS = ['tents', 'shops', 'airfield', 'service'];
 // (the picture on a page's button)
 const PAGE_PIC = { tents: 'tent', shops: 'tankshop', jeeps: 'jeepshop', service: 'garage' };
 let buildPage = 'root';
+// the drone and forward-HQ buttons: their icons from art/ (ICONS, white on clear) instead of the drawn ones
+for (const [id, k] of [['eye', 'drone'], ['fhq', 'fhq']]) {
+  const src = typeof ICONS === 'object' && ICONS[k], b = $(id); if (!src || !b) continue;
+  const im = document.createElement('img'); im.className = 'ico pic'; im.src = src; im.alt = ''; im.setAttribute('aria-hidden', 'true');
+  b.querySelector('svg')?.remove(); if (b.firstChild && b.firstChild.nodeType === 3) b.firstChild.remove(); b.prepend(im);
+}
+// the picture on the drone / forward-HQ button: the thing itself when it can be put down, else the plain icon
+const btnPics = {};
+function btnPic(id, what) {
+  const im = $(id).querySelector('img.pic'); if (!im) return;
+  let src = ICONS[id === 'eye' ? 'drone' : 'fhq'];
+  if (what) {
+    const key = what + colors.blue;
+    if (!btnPics[key]) {
+      const p = what === 'drone' ? sprite.img.drone && spritePic('drone', colors.blue) : hasBuildingPic('fhq') && buildingPic('fhq', colors.blue, 40);
+      if (p) btnPics[key] = p.toDataURL();
+    }
+    src = btnPics[key] || src;
+  }
+  if (im.getAttribute('src') !== src) { im.src = src; im.classList.toggle('real', src !== ICONS[id === 'eye' ? 'drone' : 'fhq']); }
+}
 function initBuildMenu() {
   const m = $('buildm'), back = document.createElement('button');
   back.className = 'bback'; back.dataset.al = 'back'; back.textContent = '‹';
@@ -307,8 +336,43 @@ function initBuildMenu() {
     b.addEventListener('click', () => { buildArmed = k; m.hidden = true; hideTip(); syncButtons(); });
     m.appendChild(b);
   }
+  // the kinds of building, top left, one under the other
+  const cats = $('bcats');
+  for (const g of BUILD_CATS) {
+    const b = document.createElement('button');
+    b.dataset.cat = g; b.dataset.tip = 'bcat'; b.innerHTML = '<canvas width="96" height="96"></canvas><span></span>';
+    b.tipText = () => (g === 'airfield' ? sn(g) : tr('bp_' + g) + ' · ' + tr('bpn_' + g)) + ' · ' + tr('slotsLeft', Math.max(0, Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue')));
+    b.addEventListener('click', () => pickCat(g, b));
+    cats.appendChild(b);
+  }
   nameBuildMenu();
 }
+// a kind of building picked (top left): its page opens beside it (the airfield, one of a kind, is armed at once);
+// with no free slot the button is dimmed, and pressing it flashes it and the way out: 🏕️
+function pickCat(g, b) {
+  const m = $('buildm');
+  if (s.hqPending && s.hqPending.blue) { blink($('hqb')); const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('why').nohq, r.right - st.left + 60, r.top - st.top + 20); return; }
+  if (buildFull()) { blink(b); if (!$('fhq').hidden) blink($('fhq')); return; }
+  const open = !m.hidden && m.dataset.open === g;
+  buildArmed = null; m.hidden = true; m.classList.remove('side');
+  if (!open) {
+    if (g === 'airfield') buildArmed = 'airfield';
+    else { m.dataset.open = g; m.classList.add('side'); m.style.setProperty('--bmTop', (b.getBoundingClientRect().top - $('stage').getBoundingClientRect().top) + 'px'); m.hidden = false; showBuildPage(g); }
+  }
+  hideTip(); syncButtons();
+}
+// what the column shows: the kinds this game allows; all dimmed with no free slot (or before the HQ stands)
+function syncCats() {
+  const root = new Set(pageItems('root')), full = buildFull() || !!(s.hqPending && s.hqPending.blue), m = $('buildm');
+  for (const b of document.querySelectorAll('[data-cat]')) {
+    const g = b.dataset.cat;
+    b.hidden = !root.has(g === 'airfield' ? g : 'page:' + g);
+    b.setAttribute('aria-disabled', String(full && !buildArmed));
+    b.classList.toggle('can', !full && !buildArmed && m.hidden && !b.hidden && !!s.t); // (room to build: the halo)
+    b.setAttribute('aria-expanded', String(g === 'airfield' ? buildArmed === 'airfield' : !m.hidden && m.dataset.open === g || !!buildArmed && pageHas(g, buildArmed)));
+  }
+}
+const pageHas = (g, k) => BUILD_PAGES[g].some(e => e.startsWith('page:') ? pageHas(e.slice(5), k) : e === k);
 function drawPic(cv, kind) { const g = cv.getContext('2d'); g.clearRect(0, 0, 84, 84); const src = buildingPic(kind, colors.blue, kind === 'decoy' ? 34 : 40); const m = src.width * 0.17; g.drawImage(src, m, m, src.width - 2 * m, src.width - 2 * m, 0, 0, 84, 84); }
 function nameBuildMenu() {
   for (const b of document.querySelectorAll('[data-build]')) {
@@ -316,6 +380,11 @@ function nameBuildMenu() {
     b.querySelector('b').textContent = sn(b.dataset.build);
     const pic = b.querySelector('canvas'); if (pic) drawPic(pic, b.dataset.build);
     b.querySelector('small').textContent = S.unit ? tr('buildItem', S.every, tn(S.unit)) : tr('decoyItem', Sim.DECOY_MAX);
+  }
+  for (const b of document.querySelectorAll('[data-cat]')) {
+    const g = b.dataset.cat; b.querySelector('span').textContent = g === 'airfield' ? sn(g) : tr('bp_' + g);
+    const c = b.querySelector('canvas'), x = c.getContext('2d'), src = buildingPic(PAGE_PIC[g] || g, colors.blue, 40), mm = src.width * 0.17;
+    x.clearRect(0, 0, 96, 96); x.drawImage(src, mm, mm, src.width - 2 * mm, src.width - 2 * mm, 0, 0, 96, 96);
   }
   for (const b of document.querySelectorAll('[data-page]')) {
     const g = b.dataset.page; b.querySelector('b').textContent = tr('bp_' + g);
@@ -344,6 +413,7 @@ function syncBuildMenu(fresh) {
   }
   const has = g => BUILD_PAGES[g].some(e => e.startsWith('page:') ? has(e.slice(5)) : fresh.includes(e));
   for (const b of document.querySelectorAll('[data-page]')) b.classList.toggle('new', has(b.dataset.page));
+  for (const b of document.querySelectorAll('[data-cat]')) b.classList.toggle('new', b.dataset.cat === 'airfield' ? fresh.includes('airfield') : has(b.dataset.cat));
 }
 const buildFull = () => Sim.buildCount(s, 'blue') >= Sim.buildLimit(s, 'blue');
 const blink = el => { el.classList.remove('blink'); void el.offsetWidth; el.classList.add('blink'); };
@@ -353,16 +423,19 @@ function toggleBuild() {
   if (!buildArmed && m.hidden && s.hqPending && s.hqPending.blue) { blink($('hqb')); const r = $('bld').getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('why').nohq, r.left - st.left + r.width / 2, r.top - st.top - 30); return; }
   if (!buildArmed && m.hidden && buildFull()) { blink($('bld')); if (!$('fhq').hidden) blink($('fhq')); return; }
   if (buildArmed) { buildArmed = null; m.hidden = true; } else m.hidden = !m.hidden;
+  m.classList.add('side'); m.dataset.open = 'root'; m.style.setProperty('--bmTop', '8px');
   if (!m.hidden) showBuildPage('root');
   syncButtons();
 }
 $('bld').addEventListener('click', toggleBuild);
 // a world point on the screen (stage pixels)
 const onScreen = (x, y) => ({ x: view.cox + x * view.css, y: view.coy + y * view.css });
-function placeBuilding(x, y) {
+// (with Shift: another of the same right after, while there's room for one)
+function placeBuilding(x, y, again) {
   const why = Sim.buildCheck(s, 'blue', x, y, buildArmed);
   if (why) { const p = onScreen(x, y); toast(tr('why')[why], p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y, pickedDozer());
-  if (!why) buildArmed = null;
+  const room = buildArmed === 'decoy' ? s.nodes.filter(n => n.side === 'blue' && n.kind === 'decoy' && n.hp > 0).length < Sim.DECOY_MAX : Sim.buildCount(s, 'blue') < Sim.buildLimit(s, 'blue');
+  if (!why && !(again && room)) buildArmed = null;
   syncButtons(); updateHud();
 }
 document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => {
@@ -423,11 +496,11 @@ const ourHq = mapSpot(() => s.nodes.find(n => n.side === 'blue' && n.kind === 'h
 const midMap = () => fit && { x: fit.w / 2, y: fit.top + fit.h / 2, w: 0, h: 0 };
 const TOUR = {
   squads: () => [{ el: 'gSq', t: tr('t_squads') }],
-  orders: () => [{ el: 'ordMode', t: tr('t_order') }, { el: ourHq, t: tr('t_hq') }],
-  build: () => [{ el: 'bld', t: tr('t_build') + ' ' + tr('t_slots') }],
-  vehicles: () => [{ el: 'bld', t: tr('t_vehicles') }],
-  care: () => [{ el: 'bld', t: tr('t_care') }],
-  air: () => [{ el: 'bld', t: tr('t_air') }],
+  orders: () => [{ el: ourHq, t: tr('t_hq') }], // (no order button: H/A/R on the keys)
+  build: () => [{ el: 'bcats', t: tr('t_build') + ' ' + tr('t_slots') }],
+  vehicles: () => [{ el: 'bcats', t: tr('t_vehicles') }],
+  care: () => [{ el: 'bcats', t: tr('t_care') }],
+  air: () => [{ el: 'bcats', t: tr('t_air') }],
   fog: () => [{ el: midMap, t: tr('t_fog', !!s.fogAt && s.t < s.fogAt) }],
   eye: () => [{ el: 'eye', t: tr('t_eye') }],
   c2: () => [{ el: ourHq, t: tr('t_c2') }],
@@ -448,7 +521,7 @@ function levelTour(n) {
 function freeTour() {
   const out = [{ el: midMap, t: tr('t_free', pctLose()) }];
   if (hqToPlace()) out.push({ el: 'hqb', t: tr('t_placeHq') });
-  out.push({ el: 'bld', t: tr('t_decoy') }, { el: 'silent', t: tr('t_silent') }, { el: 'power', t: tr('t_night') });
+  out.push({ el: 'bcats', t: tr('t_decoy') }, { el: 'power', t: tr('t_night') });
   if (s.scale > 1) out.push({ el: 'fhq', t: tr('t_scale', s.scale) });
   out.push({ el: 'gear', t: tr('t_play') });
   return out;
@@ -463,7 +536,7 @@ function fullTour() {
 }
 // only the controls this level has; the ones it adds pulse until first used
 // (the radio log #log stays hidden for now: the map says it)
-const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld'], vehicles: ['bld'], care: ['bld'], air: ['bld'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq'], support: [] };
+const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'bcats'], vehicles: ['bld', 'bcats'], care: ['bld', 'bcats'], air: ['bld', 'bcats'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq'], support: [] };
 // building kinds each level step brings
 const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage', 'depot'], air: ['aapost', 'atpost', 'jeepaa', 'jeepat', 'airfield'] };
 // an element shows when any of the level steps that bring it is there
@@ -475,6 +548,7 @@ function applyUi() {
   syncBuildMenu(fresh.flatMap(k => UI_BUILDS[k] || []));
   for (const k of fresh) for (const id of UI_EL[k] || [k]) $(id).classList.add('new');
   bar.classList.toggle('tut', !!s.ui && s.ui.length < 4);
+  document.body.classList.toggle('fullgame', !lvl); // (no squad or order buttons in the full game)
 }
 document.addEventListener('pointerdown', e => { const n = e.target.closest && e.target.closest('.new'); if (n) n.classList.remove('new'); }, true);
 // map size: a new map is made at once (the intro is still up, nothing has happened yet)

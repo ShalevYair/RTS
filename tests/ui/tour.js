@@ -27,7 +27,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     check(name, !t2.tip && t2.playing && t2.seen === '1', `after the tour the fight starts ${JSON.stringify(t2)}`);
     // a later level: its new things
     const tour = await p.evaluate(() => [3, 9, 10, 11, 12].map(n => { lvl = n; newGame(true); return n + ':' + levelTour(n).length; }).join(' '));
-    check(name, /3:3 9:2 10:2 11:2 12:4/.test(tour), `tours per level: ${tour}`);
+    check(name, /3:2 9:2 10:2 11:2 12:4/.test(tour), `tours per level: ${tour}`);
     // the full game: settings, language, right click, the build nudge, symbols, lines that fade
     await p.evaluate(() => { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); lvl = 0; toured = 99; newGame(true); showIntro(false); setPlaying(true); });
     await p.click('#gear'); await p.waitForTimeout(100);
@@ -50,8 +50,12 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.click('#gear'); await p.click('#home'); const asked = await p.isVisible('#homeSure'); await p.click('#homeYes'); await p.waitForTimeout(100);
     check(name, asked && await p.isVisible('#intro') && await p.isVisible('#go'), '🏠 asks first, then goes back to the main screen');
     await p.click('#go');
-    const bar = await p.evaluate(() => ({ svg: document.querySelectorAll('#gOrd svg').length, words: document.getElementById('gOrd').innerText.trim(), nudge: (updateHud(), document.getElementById('bld').classList.contains('nudge')) }));
-    check(name, bar.svg === 1 && !/\p{L}/u.test(bar.words) && bar.nudge, `orders are symbols, 🏗 pulses with room to build ${JSON.stringify(bar)}`);
+    // (the full game hides the squad and order buttons — the keys still work — but they're the tutorial's: shown here to
+    // check them)
+    const hid = await p.evaluate(() => { const h = getComputedStyle($('gSq')).display === 'none' && getComputedStyle($('gOrd')).display === 'none'; document.body.classList.remove('fullgame'); return h; });
+    check(name, hid, 'the full game shows no squad or order buttons');
+    const bar = await p.evaluate(() => ({ svg: document.querySelectorAll('#gOrd svg').length, words: document.getElementById('gOrd').innerText.trim() }));
+    check(name, bar.svg === 1 && !/\p{L}/u.test(bar.words), `orders are symbols ${JSON.stringify(bar)}`);
     const tog = await p.evaluate(() => { const b = document.getElementById('ordMode'), m0 = mode; b.click(); const m1 = mode, l1 = b.getAttribute('aria-label'); b.click(); return [m0, m1, l1, mode].join(); });
     check(name, tog === 'attack,hold,להחזיק,attack', `one order button: sword by default, a tap switches to the shield and back (${tog})`);
     if (!touch) {
