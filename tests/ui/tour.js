@@ -18,16 +18,16 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // level 1, first time (the tutorial: "tutorial", then the level): its tour; the game waits until it's done
     await p.click('#learn'); await p.click('#levels button:first-child'); await p.waitForTimeout(200);
     const t1 = await p.evaluate(() => ({ tip: !document.getElementById('tip').hidden, text: document.getElementById('tipT').textContent, n: document.getElementById('tipN').textContent, playing }));
-    check(name, t1.tip && !t1.playing && /1\/5/.test(t1.n), `level 1 tour: "${t1.text}" ${t1.n}, paused`);
+    check(name, t1.tip && !t1.playing && /1\/2/.test(t1.n), `level 1 tour: "${t1.text}" ${t1.n}, paused`);
     await p.screenshot({ path: `${OUT}/${name}-tour1.png` });
-    for (let i = 0; i < 3; i++) await p.click('#tipNext');
-    await p.screenshot({ path: `${OUT}/${name}-tour3.png` });
-    await p.click('#tipNext'); await p.click('#tipNext'); await p.waitForTimeout(100);
+    await p.click('#tipNext');
+    await p.screenshot({ path: `${OUT}/${name}-tour2.png` });
+    await p.click('#tipNext'); await p.waitForTimeout(100);
     const t2 = await p.evaluate(() => ({ tip: !document.getElementById('tip').hidden, playing, seen: localStorage.getItem('irts-tour') }));
     check(name, !t2.tip && t2.playing && t2.seen === '1', `after the tour the fight starts ${JSON.stringify(t2)}`);
     // a later level: its new things
-    const tour = await p.evaluate(() => [3, 9, 10, 11, 12].map(n => { lvl = n; newGame(true); return n + ':' + levelTour(n).length; }).join(' '));
-    check(name, /3:2 9:2 10:2 11:2 12:4/.test(tour), `tours per level: ${tour}`);
+    const tour = await p.evaluate(() => [3, 9, 10, 11, 12, 13].map(n => { lvl = n; newGame(true); return n + ':' + levelTour(n).length; }).join(' '));
+    check(name, /3:3 9:2 10:2 11:3 12:3 13:2/.test(tour), `tours per level: ${tour}`);
     // the full game: settings, language, right click, the build nudge, symbols, lines that fade
     await p.evaluate(() => { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); lvl = 0; toured = 99; newGame(true); showIntro(false); setPlaying(true); });
     await p.click('#gear'); await p.waitForTimeout(100);

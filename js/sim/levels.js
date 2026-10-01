@@ -4,8 +4,9 @@
 //   ui: squads = pick a squad · orders = hold / attack / retreat · build = buildings (and the slots counter)
 //       vehicles = jeep / tank workshops · care = medics and mechanics · air = aircraft and AA
 //       fog = fog of war (only what you see) · eye = drones · c2 = command friction (orders take time and are carried
-//       out roughly far from HQ, reports, radio log, calls) · fhq = forward HQs · support = the full game's open field:
-//       the HQ placed and put up by a bulldozer, which builds everything, and a signals truck
+//       out roughly far from HQ, reports, radio log, calls) · fhq = forward HQs · keys = no squad / order buttons,
+//       as in the full game (keys and the mouse only) · support = the full game's open field: the HQ placed and put up
+//       by a bulldozer, which builds everything · radio = and signals trucks
 // fogAt: the fog comes down that many seconds into the level. prebuilt: our extra buildings at the start (a full quota).
 const B_ALL = ['tent', 'jeepshop', 'tankshop', 'clinic', 'garage', 'depot'];
 const LEVELS = [
@@ -30,12 +31,15 @@ const LEVELS = [
   // 10. + distance: near HQ everything is as before; farther out orders take time, are carried out roughly, reports lag
   { ui: ['squads', 'orders', 'build', 'vehicles', 'care', 'air', 'fog', 'eye', 'c2'], nodes: ['hq', 'tent'], bot: 'normal', easy: true, can: { drone: true } },
   // 11. + forward HQs, on the big map: the quota is full, and only a forward HQ makes room (and control out there)
-  { ui: ['squads', 'orders', 'build', 'vehicles', 'care', 'air', 'fog', 'eye', 'c2', 'fhq'], nodes: ['hq', 'tent'], prebuilt: ['jeepshop', 'tankshop', 'clinic'], bot: 'normal', big: true, easy: true, can: { drone: true, fhq: true } },
-  // 12. + support, as in the full game: no HQ yet — place it, the bulldozer drives there and puts it up (and every
-  // building after it, only while it stands by the site); the signals truck sees far and gives control round it
-  { ui: ['squads', 'orders', 'build', 'vehicles', 'care', 'air', 'fog', 'eye', 'c2', 'fhq', 'support'], nodes: ['hq', 'tent'], bot: 'easy', big: true, field: true, can: { drone: true, fhq: true } },
+  // (and from here on, as in the full game: no squad or order buttons — the keys and the mouse)
+  { ui: ['squads', 'orders', 'build', 'vehicles', 'care', 'air', 'fog', 'eye', 'c2', 'fhq', 'keys'], nodes: ['hq', 'tent'], prebuilt: ['jeepshop', 'tankshop', 'clinic'], bot: 'normal', big: true, easy: true, can: { drone: true, fhq: true } },
+  // 12. + the open field, as in the full game: no HQ yet — place it, the bulldozer drives there and puts it up (and
+  // every building after it, only while it stands by the site). No signals trucks yet
+  { ui: ['squads', 'orders', 'build', 'vehicles', 'care', 'air', 'fog', 'eye', 'c2', 'fhq', 'keys', 'support'], nodes: ['hq', 'tent'], bot: 'normal', big: true, field: true, can: { drone: true, fhq: true } },
+  // 13. + signals trucks: they see far and give control round them
+  { ui: ['squads', 'orders', 'build', 'vehicles', 'care', 'air', 'fog', 'eye', 'c2', 'fhq', 'keys', 'support', 'radio'], nodes: ['hq', 'tent'], bot: 'normal', big: true, field: true, can: { drone: true, fhq: true } },
 ];
-const LEVEL_UI = ['squads', 'orders', 'build', 'vehicles', 'care', 'air', 'fog', 'eye', 'c2', 'fhq', 'support'], LEVEL_COLLAPSE = 0.25;
+const LEVEL_UI = ['squads', 'orders', 'build', 'vehicles', 'care', 'air', 'fog', 'eye', 'c2', 'fhq', 'keys', 'support', 'radio'], LEVEL_COLLAPSE = 0.25;
 // the tutorial should be won: from level 4 on the enemy starts smaller, its HQ half-built, and it produces at half
 // speed while we produce faster (LEVEL_PROD)
 const LEVEL_PROD = { blue: 1.4, red: 0.5 }, LEVEL_FOE_HQ = 0.5, LEVEL_FOE = [['inf', 0.85, 0.3, 3]];
@@ -89,7 +93,7 @@ function level(n, seed = 1, W = 1000, opts = {}) {
   s.collapseAt = LEVEL_COLLAPSE;
   if (!L.nodes.includes('tent')) { s.collapseAfter = 0; for (const q of s.squads) if (q.side === 'red') q.trait = 'aggressive'; }
   // (the open field: each side places its HQ; the enemy builds slower)
-  if (L.field) { openField(s); s.prodRate = { ...LEVEL_PROD }; s.collapseAfter = 120; return s; }
+  if (L.field) { s.noRadio = !L.ui.includes('radio'); openField(s); s.prodRate = { ...LEVEL_PROD }; s.collapseAfter = 120; return s; }
   updatePower(s); visibility(s);
   s.rep = {}; for (const q of s.squads) sendReport(s, q);
   return s;

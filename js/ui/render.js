@@ -1076,9 +1076,11 @@ const MINI_W = 360;
 function drawMini() {
   const m = $('mini'), vr = viewRect(), all = !vr || (vr.w >= s.W - 1 && vr.h >= s.H - 1);
   m.hidden = all || !$('intro').hidden || !$('end').hidden;
+  // (the message list stands under it, below where it reaches when it grows under the mouse)
+  const fd = $('feed'); fd.classList.toggle('underMini', !m.hidden);
   if (m.hidden) return;
   const w = MINI_W, h = Math.round(w * s.H / s.W), k = w / s.W;
-  if (m.width !== w || m.height !== h) { m.width = w; m.height = h; m.style.setProperty('--ar', (s.W / s.H).toFixed(3)); }
+  if (m.width !== w || m.height !== h) { m.width = w; m.height = h; m.style.setProperty('--ar', (s.W / s.H).toFixed(3)); fd.style.setProperty('--ar', (s.W / s.H).toFixed(3)); }
   const c = m.getContext('2d'); c.setTransform(k, 0, 0, k, 0, 0);
   c.fillStyle = colors.ground; c.fillRect(0, 0, s.W, s.H);
   c.fillStyle = hexA(colors.tree, 0.35); for (const hl of s.hills) { c.beginPath(); c.ellipse(hl.x, hl.y, hl.r, hl.r * hl.e, hl.a, 0, Math.PI * 2); c.fill(); }
