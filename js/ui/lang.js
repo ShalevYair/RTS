@@ -2,8 +2,8 @@
 // data-t (text), data-al (aria-label) and data-tip (the short tooltip); the scripts call tr(key, …args).
 let lang = 'he';
 try { const l = localStorage.getItem('irts-lang'); if (l === 'he' || l === 'en') lang = l; } catch (e) { /* storage unavailable */ }
-const EN_TYPES = { inf: 'Infantry', tank: 'Tanks', air: 'Aircraft', aa: 'Anti-air', at: 'Anti-tank', jeep: 'Jeeps', ajeep: 'AA jeeps', tjeep: 'AT jeeps', med: 'Medics', mech: 'Mechanics', truck: 'Supply trucks', dozer: 'Bulldozers', radio: 'Signals trucks' };
-const EN_STRUCTS = { hq: 'HQ', fhq: 'Forward HQ', drone: 'Drone', tent: 'Tent', aapost: 'AA tent', atpost: 'AT tent', decoy: 'Fake HQ', jeepshop: 'Jeep workshop', jeepaa: 'AA jeep workshop', jeepat: 'AT jeep workshop', tankshop: 'Tank workshop', airfield: 'Airfield', clinic: 'Medic tent', garage: 'Garage', depot: 'Supply depot' };
+const EN_TYPES = { inf: 'Infantry', tank: 'Tanks', air: 'Aircraft', aa: 'Anti-air', at: 'Anti-tank', jeep: 'Jeeps', ajeep: 'AA jeeps', tjeep: 'AT jeeps', med: 'Medics', mech: 'Mechanics', truck: 'Supply trucks', dozer: 'Bulldozers', radio: 'Signals trucks' , heli: 'Attack helicopters', gunship: 'Gunships', lift: 'Transport helicopters', ssm: 'Missile trucks', arrow: 'Arrow trucks', dome: 'Iron Dome trucks', commando: 'Commandos'};
+const EN_STRUCTS = { hq: 'HQ', fhq: 'Forward HQ', drone: 'Drone', tent: 'Tent', aapost: 'AA tent', atpost: 'AT tent', decoy: 'Fake HQ', jeepshop: 'Jeep workshop', jeepaa: 'AA jeep workshop', jeepat: 'AT jeep workshop', tankshop: 'Tank workshop', airfield: 'Airfield', heliatk: 'Attack helipad', heligun: 'Gunship helipad', helilift: 'Transport helipad', ssmshop: 'Missile works', arrowsite: 'Arrow site', domesite: 'Iron Dome site', commandopost: 'Commando base', clinic: 'Medic tent', garage: 'Garage', depot: 'Supply depot' };
 const EN_NAMES = { 'כהן': 'Cohen', 'לוי': 'Levi', 'מזרחי': 'Mizrahi', 'פרץ': 'Peretz', 'ביטון': 'Biton', 'אברהם': 'Avraham', 'פרידמן': 'Friedman', 'אזולאי': 'Azoulay', 'דהן': 'Dahan', 'שפירא': 'Shapira' };
 const EN_DIFFS = { easy: 'Easy', normal: 'Normal', hard: 'Hard' };
 const EN_STYLES = { steady: 'Steady', rush: 'Rusher', turtle: 'Turtle', flank: 'Flanker' };
@@ -39,13 +39,13 @@ const STR = {
     sqTip: (name, boss, home) => `${name} · סרן ${boss}${home ? '' : ' · בלי מבנה, בלי תגבורת'}`,
     buildItem: (sec, unit) => `${unit} · כל ${sec} ש׳`, slotsLeft: n => n ? `עוד ${n} מבנים` : 'אין מקום למבנה נוסף (🏕️ פיקוד קדמי מוסיף)',
     victory: 'ניצחון', defeat: 'הפסד', skip: 'דלג', tipCtrlGroup: 'Ctrl+מספר: הנבחרים הופכים לקבוצה', errLogged: 'נרשמה תקלה ביומן (Ctrl+Shift+L לשמירה)', st_retreat: 'נסוג', st_heal: 'בטיפול', st_ammo: 'בדרך לתחמושת', st_build: 'בונה', st_idle: 'ממתין', st_fight: 'בקרב', st_move: 'בדרך', st_hold: 'מחזיק', st_silent: 'בשקט אלחוטי', foe: 'אויב',
-    bp_tents: 'אוהלים', bpn_tents: 'חי"ר, נ"ט, נ"מ, חובשים', bp_shops: 'סדנאות', bpn_shops: "טנקים, ג'יפים", bp_jeeps: "סדנת ג'יפים", bpn_jeeps: 'קל, נ"ט, נ"מ', bp_service: 'שירות', bpn_service: 'מוסך, אספקה, פיתיון',
+    bp_tents: 'אוהלים', bpn_tents: 'חי"ר, נ"ט, נ"מ, חובשים, קומנדו', bp_shops: 'סדנאות', bpn_shops: "טנקים, ג'יפים, טילים", bp_defense: 'הגנה מטילים', bpn_defense: 'חץ, כיפת ברזל', bp_jeeps: "סדנת ג'יפים", bpn_jeeps: 'קל, נ"ט, נ"מ', bp_service: 'שירות', bpn_service: 'מוסך, אספקה, פיתיון, הגנה', bp_air: 'תעופה', bpn_air: 'מטוסים, מסוקים', bp_helis: 'מנחת מסוקים', bpn_helis: 'קרב, מקלע, תובלה',
     placeHq: 'בחר איפה להקים את המפקדה 🏰 — ברצועה הירוקה. הטרקטור 🚜 ייסע לשם ויקים אותה.', hqWhy: { nodozer: 'אין טרקטור 🚜 שיקים אותה', band: 'רק ברצועה הירוקה בצד שלך', bad: 'אי אפשר כאן' },
     why: { nodozer: 'אין טרקטור 🚜 — הוא בונה את המבנים', nohq: 'קודם מקימים את המפקדה 🏰', q: 'השליטה כאן חלשה מדי לבנייה', limit: 'המכסה מלאה — הקם 🏕️ פיקוד קדמי', gap: 'קרוב מדי למבנה אחר', bad: 'מחוץ למפה' },
     noVoice: 'אין קול עברי במכשיר, רק צליל קשר',
     b_tent: 'חי"ר: זול ומהיר, מחזיק שטח', b_aapost: 'נ"מ: פוגע במטוסים ורחפנים', b_jeepshop: "ג'יפים: מהירים ורואים רחוק; חזקים מול חי\"ר",
     b_atpost: 'נ"ט: חיילים עם טילים נגד טנקים ורכבים', b_jeepaa: "ג'יפי נ\"מ: מהירים, נגד מטוסים; זמן ייצור כפול", b_jeepat: "ג'יפי נ\"ט: מהירים, נגד טנקים; זמן ייצור כפול",
-    b_tankshop: 'טנקים: חזקים מול רכבים, דורסים חיילים; נ"ט פוגע בהם', b_airfield: 'מטוסים: חזקים מול טנקים וג\'יפים; רק נ"מ פוגע בהם',
+    b_tankshop: 'טנקים: חזקים מול רכבים, דורסים חיילים; נ"ט פוגע בהם', b_airfield: 'מטוסים: חזקים מול טנקים וג\'יפים; רק נ"מ פוגע בהם', b_heliatk: 'מסוקי קרב: טילים נגד מטוסים, מסוקים ורכבים; מרחפים במקום', b_heligun: 'מסוקי מקלע: חזקים מול חיילים; מרחפים במקום', b_commandopost: 'קומנדו: האויב לא רואה אותם (רק צמוד אליו); ירייה אחת הורגת חייל; 20 ש׳ ליד מבנה אויב — והוא מתפוצץ', b_ssmshop: 'משאיות טילי קרקע-קרקע: מבנה רגיל בפגיעה אחת, המפקדה בארבע; יורות על מבנה שראית, אחרי 10 ש׳ עמידה', b_arrowsite: 'משאיות חץ: מיירטות טילי קרקע-קרקע, טיל בדקה כל אחת', b_domesite: 'משאיות כיפת ברזל: עוצרות טילים של מטוסים, מסוקים ונ"ט באזור שלהן', b_helilift: 'מסוקי תובלה: עד 10 חיילים (גם קומנדו) — לחיצה על המסוק מעלה את הנבחרים, ואז לחיצה על המפה מורידה אותם שם',
     b_clinic: 'חובשים: מרפאים חי"ר ונ"מ', b_garage: "מכונאים: מתקנים ג'יפים וטנקים", b_depot: 'משאיות אספקה: ממלאות תחמושת',
     next: 'הבא', done: 'יאללה!', skip: 'דלג',
     t_goal1: 'המטרה: לשבור את האויב — להשמיד את המפקדה שלו, או להוריד את כל הצבא שלו (כוחות ומבנים) מתחת לקו. נתחיל בפשוט: כוח מול כוח.',
@@ -56,7 +56,7 @@ const STR = {
     t_silent: '📻 / 🤫 שקט אלחוטי לכוח שבחרת: לא מדווח, נע לאט ובלי אבק — והאויב לא שומע אותו. רכב שנוסע מהר מעלה אבק שנראה מרחוק.',
     t_night: '🌙 כל כמה דקות יורד לילה: רואים פחות והפקודות איטיות. רחפנים ומבנים רואים כרגיל. מפקד ששורד קרבות צובר ניסיון ⭐.',
     t_scale: k => `מפה גדולה: פי ${k} מבנים ופיקודים קדמיים.`,
-    ni_build: n => `בבנייה · עוד ${n} ש׳`, ni_next: (u, n) => `${u} הבא בעוד ${n} ש׳`, ni_full: 'הכוח מלא', ni_site: n => `נבנה · ${n}%`, ni_wait: n => `${n}% · ממתין לטרקטור 🚜`, fhqCan: 'אפשר להקים פיקוד קדמי 🏕️', droneCan: 'אפשר להטיס רחפן', ni_seen: n => `נראה לפני ${n} ש׳`,
+    ni_build: n => `בבנייה · עוד ${n} ש׳`, ni_next: (u, n) => `${u} הבא בעוד ${n} ש׳`, ni_full: 'הכוח מלא', ni_site: n => `נבנה · ${n}%`, ni_wait: n => `${n}% · ממתין לטרקטור 🚜`, hqReadyNote: 'המפקדה מוכנה! אפשר להתחיל לבנות.', fhqCan: 'אפשר להקים פיקוד קדמי 🏕️', droneCan: 'אפשר להטיס רחפן', ni_seen: n => `נראה לפני ${n} ש׳`,
     t_you: 'זה הכוח שלך (כחול). האויב — באדום.',
     t_hq: 'המפקדה שלך. אם היא נופלת — הפסדת (וכך גם האויב). חיילים שעומדים לידה בלי קרב מתקנים אותה, וכך כל מבנה.',
     t_power: n => `העוצמה שלך מכל הכוחות במפה. מי שיורד מתחת ל-${n}% — מפסיד. המטרה: לשבור את האויב.`,
@@ -65,7 +65,7 @@ const STR = {
     t_squads: 'סוגי הכוחות שלך: לחיצה (או המספר) בוחרת את כל הכוחות מהסוג. ★ = כולם יחד, במבנה. בחרת כמה? 🔗 מאחד אותם לקבוצה.' + (TOUCH ? '' : ' קליק ימני: אף אחד; קליק ימני שני: כולם.'),
     group: 'קבוצה', tipGroup: 'לאחד לקבוצה (L): נבחרים יחד ופועלים יחד', tipUngroup: 'לפרק את הקבוצה (L)',
     t_hold: 'להחזיק: ללכת למקום ולהגן עליו.', t_attack: 'לתקוף: לתפוס את האזור ולרדוף אחרי האויב שם.', t_retreat: 'לסגת: הביתה, להתרפא ולהתמלא.',
-    packBlock: 'פריסה בקובייה', packLine: 'פריסה בשורה',
+    trophy: 'מעיל רוח', trophyGo: m => `🛡️ מעיל רוח · ${m} דק׳ בלי טנקים`, trophyOn: s => `מעיל רוח: עוד ${s} ש׳`, trophyHas: 'הטנקים יוצאים עם מעיל רוח', launchAt: 'שיגור', boarded: n => `${n} על המסוק`, noRoom: 'אין מקום במסוק', packBlock: 'פריסה בקובייה', packLine: 'פריסה בשורה', razeQ: n => `האם אתה בטוח שאתה רוצה להרוס את ה${n}?`,
     t_build: 'בנייה: בחר מבנה ואז מקום ירוק במפה. כל מבנה מקים כוח וממלא אותו.', t_slots: 'המספר עליו: כמה מבנים יש לך מתוך המכסה.', t_order: 'הפקודה בלחיצה על המפה: חרב = לתקוף, מגן = להחזיק. לחיצה כאן מחליפה.', tipSwitch: 'לחיצה מחליפה',
     t_vehicles: "חדש: 🔧 ג'יפים (מהירים) ו-🏭 טנקים (חזקים).",
     t_care: 'חדש: 🏥 חובשים, 🛠️ מכונאים ו-📦 משאיות אספקה. פצועים ומי שנגמרה לו התחמושת הולכים אליהם לבד.',
@@ -105,13 +105,13 @@ const STR = {
     sqTip: (name, boss, home) => `${name} · Capt. ${boss}${home ? '' : ' · no building, no reinforcements'}`,
     buildItem: (sec, unit) => `${unit} · every ${sec} s`, slotsLeft: n => n ? `${n} more buildings` : 'No room for another building (a 🏕️ forward HQ adds some)',
     victory: 'VICTORY', defeat: 'DEFEAT', skip: 'Skip', tipCtrlGroup: 'Ctrl+number: make the picked a group', errLogged: 'A fault was logged (Ctrl+Shift+L to save it)', st_retreat: 'falling back', st_heal: 'being treated', st_ammo: 'going for ammunition', st_build: 'building', st_idle: 'waiting', st_fight: 'fighting', st_move: 'on the way', st_hold: 'holding', st_silent: 'radio silence', foe: 'enemy',
-    bp_tents: 'Tents', bpn_tents: 'Infantry, AT, AA, medics', bp_shops: 'Workshops', bpn_shops: 'Tanks, jeeps', bp_jeeps: 'Jeep workshop', bpn_jeeps: 'Light, AT, AA', bp_service: 'Service', bpn_service: 'Garage, supply, decoy',
+    bp_tents: 'Tents', bpn_tents: 'Infantry, AT, AA, medics, commandos', bp_shops: 'Workshops', bpn_shops: 'Tanks, jeeps, missiles', bp_defense: 'Missile defence', bpn_defense: 'Arrow, Iron Dome', bp_jeeps: 'Jeep workshop', bpn_jeeps: 'Light, AT, AA', bp_service: 'Service', bpn_service: 'Garage, supply, decoy, defence', bp_air: 'Aviation', bpn_air: 'Aircraft, helicopters', bp_helis: 'Helipad', bpn_helis: 'Attack, gunship, transport',
     placeHq: 'Pick where your HQ 🏰 goes, in the green strip. The bulldozer 🚜 drives there and puts it up.', hqWhy: { nodozer: 'No bulldozer 🚜 to put it up', band: 'Only in the green strip on your side', bad: 'Not here' },
     why: { nodozer: 'No bulldozer 🚜 — it puts the buildings up', nohq: 'Set up the HQ 🏰 first', q: 'Control here is too weak to build', limit: 'No free slot — set up a 🏕️ forward HQ', gap: 'Too close to another building', bad: 'Off the map' },
     noVoice: 'No English voice on this device, only a radio sound',
     b_tent: 'Infantry: cheap and quick, holds ground', b_aapost: 'Anti-air: hits aircraft and drones', b_jeepshop: 'Jeeps: fast, see far; strong vs infantry',
     b_atpost: 'Anti-tank: soldiers with missiles against tanks and vehicles', b_jeepaa: 'AA jeeps: fast, against aircraft; twice as long to make', b_jeepat: 'AT jeeps: fast, against tanks; twice as long to make',
-    b_tankshop: 'Tanks: strong vs vehicles, run over soldiers; anti-tank hurts them', b_airfield: 'Aircraft: strong vs tanks and jeeps; only AA hits them',
+    b_tankshop: 'Tanks: strong vs vehicles, run over soldiers; anti-tank hurts them', b_airfield: 'Aircraft: strong vs tanks and jeeps; only AA hits them', b_heliatk: 'Attack helicopters: missiles vs aircraft, helicopters and vehicles; they hover', b_heligun: 'Gunships: strong vs soldiers; they hover', b_commandopost: 'Commandos: the enemy can\'t see them (only right by it); one shot kills a soldier; 20 s by an enemy building and it blows up', b_ssmshop: 'Surface-to-surface missile trucks: a building in one hit, the HQ in four; they fire at a building you have seen, after standing 10 s', b_arrowsite: 'Arrow trucks: they shoot down surface-to-surface missiles, one a minute each', b_domesite: 'Iron Dome trucks: they stop aircraft, helicopter and anti-tank missiles over their area', b_helilift: 'Transport helicopters: up to 10 soldiers (commandos too) — click the helicopter to put the picked ones on, then the map to set them down there',
     b_clinic: 'Medics: heal infantry and AA', b_garage: 'Mechanics: repair jeeps and tanks', b_depot: 'Supply trucks: refill ammunition',
     next: 'Next', done: "Let's go!", skip: 'Skip',
     t_goal1: 'The goal: break the enemy — destroy its HQ, or bring its whole army (forces and buildings) below the line. We start simple: force against force.',
@@ -122,7 +122,7 @@ const STR = {
     t_silent: '📻 / 🤫 radio silence for the picked squad: no reports, slow and dustless — and the enemy can\'t hear it. A vehicle driving fast raises dust seen from afar.',
     t_night: '🌙 Every few minutes night falls: shorter sight, slower orders. Drones and buildings see as usual. A commander who survives fights gains experience ⭐.',
     t_scale: k => `A big map: ${k}× the buildings and forward HQs.`,
-    ni_build: n => `building · ${n}s left`, ni_next: (u, n) => `next ${u} in ${n}s`, ni_full: 'squad full', ni_site: n => `going up · ${n}%`, ni_wait: n => `${n}% · waiting for a bulldozer 🚜`, fhqCan: 'A forward HQ 🏕️ can be set up', droneCan: 'A drone is ready to fly', ni_seen: n => `seen ${n}s ago`,
+    ni_build: n => `building · ${n}s left`, ni_next: (u, n) => `next ${u} in ${n}s`, ni_full: 'squad full', ni_site: n => `going up · ${n}%`, ni_wait: n => `${n}% · waiting for a bulldozer 🚜`, hqReadyNote: 'Headquarters is ready! You can start building.', fhqCan: 'A forward HQ 🏕️ can be set up', droneCan: 'A drone is ready to fly', ni_seen: n => `seen ${n}s ago`,
     t_you: 'This is your force (blue). The enemy is red.',
     t_hq: 'Your HQ. If it falls, you have lost (and so has the enemy if theirs does). Soldiers standing by it with no fight repair it, and any building.',
     t_power: n => `Your share of all the power on the map. Whoever drops below ${n}% loses. The goal: break the enemy.`,
@@ -131,7 +131,7 @@ const STR = {
     t_squads: 'Your kinds of forces: a tap (or its number) picks all the squads of that kind. ★ = all together, in formation. Picked several? 🔗 ties them into a group.' + (TOUCH ? '' : ' Right click: none; right click again: all.'),
     group: 'Group', tipGroup: 'Tie into a group (L): picked together, acting together', tipUngroup: 'Break the group up (L)',
     t_hold: 'Hold: go there and defend it.', t_attack: 'Attack: take the area and chase the enemy there.', t_retreat: 'Retreat: home, to heal and refill.',
-    packBlock: 'In a block', packLine: 'In a line',
+    trophy: 'Trophy', trophyGo: m => `🛡️ Trophy · ${m} min with no tanks`, trophyOn: s => `Trophy: ${s} s to go`, trophyHas: 'Tanks come out with Trophy', launchAt: 'Launch', boarded: n => `${n} on board`, noRoom: 'No room on board', packBlock: 'In a block', packLine: 'In a line', razeQ: n => `Are you sure you want to pull down the ${n}?`,
     t_build: 'Build: pick a building, then a green spot on the map. Each building raises a force and keeps it filled.', t_slots: 'Its number: how many buildings you have, of your limit.', t_order: 'The order a tap on the map gives: sword = attack, shield = hold. A tap here switches.', tipSwitch: 'a tap switches',
     t_vehicles: 'New: 🔧 jeeps (fast) and 🏭 tanks (strong).',
     t_care: 'New: 🏥 medics, 🛠️ mechanics and 📦 supply trucks. The wounded, and those out of ammunition, go to them on their own.',

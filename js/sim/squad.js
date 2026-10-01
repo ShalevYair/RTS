@@ -3,8 +3,9 @@ function updateSquad(s, sq, dt) {
   const m = s.units.filter(u => u.squad === sq.id);
   sq.count = m.length;
   if (!m.length) {
+    if (sq.aboard) { sq.count = 0; return; } // (all on board a helicopter: not gone)
     if (!sq.dead) {
-      sq.dead = true; sq.strength = 0; report(s, sq, 'הכוח הושמד'); sq.silent = false; sendReport(s, sq, 'lost');
+      sq.dead = true; sq.deadAt = s.t; sq.strength = 0; report(s, sq, 'הכוח הושמד'); sq.silent = false; sendReport(s, sq, 'lost');
       Object.assign(sq, newBoss(s, sq.side)); sq.xp = 0; // the commander fell with his squad; the refills bring a new one
     }
     return;
@@ -28,7 +29,8 @@ function updateSquad(s, sq, dt) {
   const c = { x: sq.cx, y: sq.cy };
   if (fresh) sendReport(s, sq);
   // heavy losses: under the line after being above it (a squad still filling up hasn't lost anything)
-  if (!sq.retreating && sq.order.type !== 'retreat' && sq.strength < retreatAt(s, sq) && sq.peak >= retreatAt(s, sq)) {
+  // (part of it on board a helicopter isn't a loss)
+  if (!sq.retreating && !sq.boarding && !sq.aboard && sq.order.type !== 'retreat' && sq.strength < retreatAt(s, sq) && sq.peak >= retreatAt(s, sq)) {
     sq.retreating = true;
     report(s, sq, `אבדות כבדות (${Math.round(sq.strength * 100)}%), נסוג להתארגנות`); sendReport(s, sq, 'hit');
   }
@@ -125,14 +127,15 @@ function updateUnit(s, u, sq, dt) {
     if (u.rearm) {
       const f = rearmSpot(s, u), d = dist(u, f);
       if (d < AIR_ORBIT * 1.5) { u.rearmT += dt; if (u.rearmT >= REARM_TIME) { u.ammo = T.ammo; u.rearm = false; u.rearmT = 0; } }
-      circle(s, u, f.x, f.y, AIR_ORBIT * 0.7, dt); // (over the field while they rearm it)
+      if (T.hover) { if (d > 6) moveTo(s, u, f.x + u.sx * 14, f.y + u.sy * 14, 1, dt); } // (a helicopter sets down by its pad)
+      else circle(s, u, f.x, f.y, AIR_ORBIT * 0.7, dt); // (over the field while they rearm it)
       return;
     }
   }
   // care: badly hurt, the unit leaves the fight on its own for the nearest medic / mechanic (or home), holding its fire
   if (CARER[u.type]) {
     if (!u.care && u.hp < CARE_AT * T.hp) u.care = true;
-    else if (u.care && u.hp >= CARE_DONE * T.hp) u.care = false;
+    else if (u.care && u.hp >= (u.careFull ? 0.995 : CARE_DONE) * T.hp) { u.care = false; u.careFull = false; } // (sent by the player: until whole)
   }
   // and low on ammunition: off to the nearest supply truck (or home), holding fire, until refilled
   if (s.supply && SUPPLY[u.type]) {
@@ -140,48 +143,56 @@ function updateUnit(s, u, sq, dt) {
     else if (u.resup && u.sup >= SUPPLY_DONE) u.resup = false;
   } else u.resup = false;
   if (u.care || u.resup) { const f = careSpot(s, u, sq, u.care ? CARER[u.type] : 'truck'); if (dist(u, f) > CARE_R * 0.6) moveTo(s, u, f.x, f.y, 1.15, dt); return; }
+  // (on its way to get on a helicopter: straight to it, not to a place in a line)
+  if (sq.boarding) { const L = s.units.find(m => m.id === sq.boarding); if (L) { moveTo(s, u, L.x, L.y, 1.1, dt); return; } }
   u.hush = sq.silent; // (radio silence: quiet driving, no dust)
   const o = effOrder(s, sq), retreat = sq.retreating || o.type === 'retreat';
   const anchor = retreat ? homeOf(s, sq) : o;
   const up = 1 + ELEV_BONUS * (u.lvl || 0), range = T.range * up, sight = T.sight * up; // higher ground: further
   const leash = o.r * TRAITS[sq.trait].leash;
+  // (AA soldiers at something on the ground: their rifle — gun — not their missiles)
+  const gunAt = e => T.gun && !(e.kind ? false : TYPES[e.type].air) ? T.gun : null, reach = e => { const G = gunAt(e); return G ? G.range * up : range; };
+  const hk = hurtK(u); // (hurt: weaker and slower)
   let best = null, bd = Infinity, bw = Infinity, near = null, nd = Infinity;
   for (const e of s.units) {
     if (e.side === u.side || e.hp <= 0 || !MULT[u.type][e.type]) continue; // 0 = can't hit it (only AA hits aircraft)
     // prefer targets this unit type is effective against
     // prefer what this unit hurts most, and finishing off the wounded
-    const d = dist(u, e), w = d / (MULT[u.type][e.type] + 0.2) * (0.6 + 0.4 * e.hp / TYPES[e.type].hp);
-    if (d <= range && w < nd) { nd = w; near = e; }
-    if (!retreat && d <= sight && dist(anchor, e) <= leash + range && w < bw) { bw = w; bd = d; best = e; }
+    const d = dist(u, e), w = d / (MULT[u.type][e.type] + 0.2) * (0.6 + 0.4 * e.hp / TYPES[e.type].hp), rg = reach(e);
+    if (d <= rg && w < nd) { nd = w; near = e; }
+    if (!retreat && d <= sight && dist(anchor, e) <= leash + rg && w < bw) { bw = w; bd = d; best = e; }
   }
-  const tgt = best && bd <= range ? best : near;
+  const bestR = best ? reach(best) : range, tgt = best && bd <= bestR ? best : near;
   // nothing else to shoot at: hit an enemy forward HQ or (AA only) a drone in range
-  if (!tgt && !retreat && u.cd === 0 && !T.care) {
-    const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= range + nodeR(n));
+  if (!tgt && !retreat && u.cd === 0 && !T.care && !T.stealth) { // (a commando doesn't shoot at buildings: he blows them up)
+    const G = n => n.kind !== 'drone' && T.gun ? T.gun : null; // (a building: the rifle too; a drone: a missile)
+    const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= (G(n) ? G(n).range * up : range) + nodeR(n));
     if (n) {
-      u.engaged = true; n.hp -= T.dmg * NODE_MULT[u.type]; u.cd = T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
+      const g = G(n), as = g ? g.as : u.type;
+      u.engaged = true; if (!shield(s, as, n)) n.hp -= (g ? g.dmg * NODE_MULT[as] : T.dmg * NODE_MULT[u.type]) * hk; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
       u.aim = Math.atan2(n.y - u.y, n.x - u.x); u.lastFire = s.t;
-      shot(s, u, n);
-      s.fx.push({ x: n.x, y: n.y, life: IMPACT[u.type].life, max: IMPACT[u.type].life, size: IMPACT[u.type].size, wait: SHOT_TIME[u.type] });
+      shot(s, u, n, as);
+      s.fx.push({ x: n.x, y: n.y, life: IMPACT[as].life, max: IMPACT[as].life, size: IMPACT[as].size, wait: SHOT_TIME[as] });
     }
   }
   if (tgt) {
     u.engaged = true;
     if (u.cd === 0) {
-      const hit = friendlyFire(s, u, sq, tgt) || tgt;
-      hit.hp -= T.dmg * MULT[u.type][hit.type]; hit.by = sq.id; u.cd = T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
-      const fx = IMPACT[u.type];
-      s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[u.type] });
+      const hit = friendlyFire(s, u, sq, tgt) || tgt, g = gunAt(hit), as = g ? g.as : u.type;
+      // (a missile may be stopped: Iron Dome, Trophy)
+      if (!shield(s, as, hit)) hit.hp -= (g ? g.dmg * MULT[as][hit.type] : T.dmg * MULT[u.type][hit.type]) * hk; hit.by = sq.id; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
+      const fx = IMPACT[as];
+      s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[as] });
       u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
-      shot(s, u, hit);
+      shot(s, u, hit, as);
     }
   }
   let tx, ty;
   // (a tank goes for soldiers it's shooting at, to run them over)
-  if (best && (bd > range * 0.9 || (u.type === 'tank' && FOOT.includes(best.type)))) { tx = best.x; ty = best.y; }
-  else if (best) { if (T.air) circle(s, u, best.x, best.y, range * 0.6, dt); return; } // (aircraft wheel over what they shoot at)
+  if (best && (bd > bestR * 0.9 || (u.type === 'tank' && FOOT.includes(best.type)))) { tx = best.x; ty = best.y; }
+  else if (best) { if (T.air && !T.hover) circle(s, u, best.x, best.y, range * 0.6, dt); return; } // (aircraft wheel over what they shoot at; helicopters hover)
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
-  else if (T.air) { const sr = o.r * 0.55; circle(s, u, anchor.x + u.sx * sr, anchor.y + u.sy * sr, AIR_ORBIT, dt); return; }
+  else if (T.air && !T.hover) { const sr = o.r * 0.55; circle(s, u, anchor.x + u.sx * sr, anchor.y + u.sy * sr, AIR_ORBIT, dt); return; }
   else { const sp = spacing(u.type), g = (u.slot || 0) * sp, b = (u.row || 0) * sp, a = sq.face || 0; tx = anchor.x - Math.sin(a) * g - Math.cos(a) * b; ty = anchor.y + Math.cos(a) * g - Math.sin(a) * b; } // in the line (or block)
   moveTo(s, u, tx, ty, (retreat ? 1.15 : 1) * (sq.silent ? SILENT_SPEED : 1), dt);
 }
@@ -199,6 +210,7 @@ function supplyUse(s, u) {
 // few steps climb or drop)
 function moveTo(s, u, tx, ty, fast, dt, keep) {
   const T = TYPES[u.type];
+  if (!T.air && !keep && !s.noGiveUp && singles(s, u.side) && giveUp(s, u, tx, ty)) return; // (the player's units: the AI's squads waited on them, and bot games stalled)
   if (!T.air && s.lakes.length) ({ x: tx, y: ty } = wade(s, u, tx, ty));
   if (!T.air) ({ x: tx, y: ty } = skirt(s, u, tx, ty));
   if (!T.air && !s.noSteer) ({ x: tx, y: ty } = steer(s, u, tx, ty, dt)); // (s.noSteer: off, to compare)
@@ -206,9 +218,25 @@ function moveTo(s, u, tx, ty, fast, dt, keep) {
   if (d <= 2 && !keep) { u.stuck = 0; return; }
   let slope = 1;
   if (!T.air) { const L = 6, e0 = elevAt(s, u), e1 = elevAt(s, { x: u.x + vx / d * L, y: u.y + vy / d * L }); slope = 1 - clamp((e1 - e0) / L * SLOPE_K, -SLOPE_MAX, SLOPE_MAX); }
-  const k = keep ? T.speed * fast * dt / Math.max(d, 1e-6) : Math.min(1, T.speed * slope * fast * dt / d); // (keep: at full speed, even past the point)
+  const sp = T.speed * hurtK(u); // (hurt: slower)
+  const k = keep ? sp * fast * dt / Math.max(d, 1e-6) : Math.min(1, sp * slope * fast * dt / d); // (keep: at full speed, even past the point)
   u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx);
   if (!T.air && !u.hush && d * k >= DUST_FAST * T.speed * dt) u.dustAt = s.t; // (driving fast: dust the enemy can see from afar)
+}
+// a ground unit that hasn't got any nearer to its spot (within GIVEUP_R of it) for GIVEUP_T s stops trying, stands
+// GIVEUP_REST–GIVEUP_REST + GIVEUP_JIT s, and tries again (a new spot: at once). true = stand this tick
+function giveUp(s, u, tx, ty) {
+  const gd = Math.hypot(tx - u.x, ty - u.y);
+  if (!u.goal || Math.hypot(u.goal.x - tx, u.goal.y - ty) > 20 || gd > GIVEUP_R || gd <= 2) { u.goal = { x: tx, y: ty, best: gd, t: s.t }; u.rest = 0; return false; }
+  if (u.rest > s.t) return true;
+  if (gd < u.goal.best - 4) { u.goal.best = gd; u.goal.t = s.t; return false; }
+  if (s.t - u.goal.t < GIVEUP_T) return false;
+  // (only when it's our own units in the way, and not in a fight: chasing, or blocked by the enemy, it keeps going)
+  const ru = TYPES[u.type].r;
+  if (s.t - u.lastFire < 3 || !s.units.some(b => b !== u && b.side === u.side && !TYPES[b.type].air && Math.hypot(b.x - u.x, b.y - u.y) < ru + TYPES[b.type].r + UNIT_GAP + 6)) { u.goal.t = s.t; u.goal.best = gd; return false; }
+  const h = Math.sin(u.id * 12.9898 + s.t * 78.233) * 43758.5453; // (how long: by the unit and the moment, not the game's dice)
+  u.rest = s.t + GIVEUP_REST + GIVEUP_JIT * (h - Math.floor(h)); u.goal.t = u.rest; u.goal.best = gd; u.stuck = 0;
+  return true;
 }
 // a ground unit about to run into another of its side turns aside (STEER_*): both moving — 90° to its right (the other does
 // the same: they pass); the other standing — 45°, away from it. One that means to move but hasn't got anywhere for
@@ -258,10 +286,23 @@ function skirt(s, u, tx, ty) {
 }
 // where a hurt unit goes: the nearest medic / mechanic of its side that isn't itself being treated, else home
 // (kind: who to go to — a medic / mechanic for treatment, a supply truck for ammunition)
+// — or the building that raises them (a medics' tent, a garage: by its edge), when that is nearer
 function careSpot(s, u, sq, kind = CARER[u.type]) {
   let best = null, bd = Infinity;
   for (const m of s.units) if (m.type === kind && m.side === u.side && m !== u && !m.care) { const d = dist(u, m); if (d < bd) { bd = d; best = m; } }
+  if (kind !== 'truck') for (const n of s.nodes) {
+    if (n.side !== u.side || n.hp <= 0 || s.t < n.ready || !STRUCTS[n.kind] || STRUCTS[n.kind].unit !== kind) continue;
+    const d = dist(u, n), e = nodeR(n) + TYPES[u.type].r + 8;
+    if (d - e < bd) { bd = d - e; best = d > 1 ? { x: n.x + (u.x - n.x) / d * e, y: n.y + (u.y - n.y) / d * e } : n; }
+  }
   return best || homeOf(s, sq);
+}
+// the player sends hurt units of these squads to be treated (the nearest medic / mechanic, or their building) until
+// whole; returns how many went
+function sendCare(s, ids) {
+  let n = 0;
+  for (const u of s.units) if (ids.includes(u.squad) && CARER[u.type] && u.hp < 0.97 * TYPES[u.type].hp) { u.care = true; u.careFull = true; n++; }
+  return n;
 }
 
 // Friendly fire (DESIGN.md §2): under fog, a shot at an enemy that has a unit of another friendly squad close
@@ -302,4 +343,5 @@ function wade(s, u, tx, ty) {
 }
 
 // a shot in flight, for the picture: from the shooter to where it lands, SHOT_TIME[kind] long (then a brief fade)
-const shot = (s, u, to) => s.shots.push({ x1: u.x, y1: u.y, x2: to.x, y2: to.y, dur: SHOT_TIME[u.type], life: SHOT_TIME[u.type] + 0.12, side: u.side, kind: u.type });
+// (kind: what it looks like — an AA soldier's rifle shot looks like an infantryman's)
+const shot = (s, u, to, kind = u.type) => s.shots.push({ x1: u.x, y1: u.y, x2: to.x, y2: to.y, dur: SHOT_TIME[kind], life: SHOT_TIME[kind] + 0.12, side: u.side, kind });

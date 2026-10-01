@@ -49,8 +49,8 @@ function quiet(seed) {
 }
 // full games: the AI builds clinics and garages, and games still finish
 let clinics = 0, garages = 0, fin = 0;
-for (let i = 0; i < 3; i++) {
-  const { s } = play(500 + i, 1200, ['normal', 'hard', 'normal'][i], { limit: 1200 });
+for (let i = 0; i < 5; i++) { // (games end sooner with hurt units weaker: five of them, so the later buildings come up)
+  const { s } = play(500 + i, 1200, ['normal', 'hard', 'normal', 'hard', 'normal'][i], { limit: 1200 });
   if (s.over) fin++;
   clinics += s.squads.filter(q => q.type === 'med').length; garages += s.squads.filter(q => q.type === 'mech').length;
 }

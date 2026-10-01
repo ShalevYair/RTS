@@ -67,24 +67,24 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
       const all = await p.evaluate(() => ({ sel, ord: !document.getElementById('gOrd').hidden, types: [...document.querySelectorAll('[data-ty]')].every(b => b.getAttribute('aria-pressed') === 'true') }));
       check(name, none.sel === null && !none.ord && all.sel === 'all' && all.ord && all.types, `right click: none picked, no orders ${JSON.stringify(none)}; again: all, every type lit ${JSON.stringify(all)}`);
       // a number picks every squad of its type
-      await p.keyboard.press('1'); const inf = await p.evaluate(() => selIds().map(id => s.squads.find(q => q.id === id).type).join());
+      await p.keyboard.press('1'); const inf = await p.evaluate(() => [...new Set(selIds().map(id => s.squads.find(q => q.id === id).type))].join()); // (each unit its own squad: all of them infantry)
       check(name, inf === 'inf', `1 (the first button) picks the infantry (${inf})`);
       // groups: pick both squads, 🔗 ties them; one button for the group, first; tapping one of them on the map picks
       // the group; an order moves them in rows; ✂ breaks it up
       await p.evaluate(() => select('all')); await p.evaluate(() => select(blueSquads().filter(q => !q.dead).map(q => q.id)));
       await p.click('#grp');
-      const g1 = await p.evaluate(() => ({ groups: groups.length, btns: [...document.querySelectorAll('#sqs button')].map(b => b.dataset.gr ? 'G' : b.dataset.ty).join(), icon: document.getElementById('grp').textContent }));
+      const g1 = await p.evaluate(() => ({ total: blueSquads().filter(q => !q.dead).length, groups: groups.length, btns: [...document.querySelectorAll('#sqs button')].map(b => b.dataset.gr ? 'G' : b.dataset.ty).join(), icon: document.getElementById('grp').textContent }));
       await p.evaluate(() => { select(null); const q = blueSquads()[0], r = cv.getBoundingClientRect(); tap({ clientX: r.left + view.cox + q.cx * view.css, clientY: r.top + view.coy + q.cy * view.css }); });
       const g2 = await p.evaluate(() => ({ n: selIds().length, pressed: document.querySelector('[data-gr]').getAttribute('aria-pressed') }));
       await p.screenshot({ path: `${OUT}/${name}-group.png` });
       await p.click('#grp'); const g3 = await p.evaluate(() => ({ groups: groups.length, btns: [...document.querySelectorAll('#sqs button')].length }));
-      check(name, g1.groups === 1 && g1.btns === 'G' && g1.icon === '✂' && g2.n === 2 && g2.pressed === 'true' && g3.groups === 0 && g3.btns === 2, `groups: tied ${JSON.stringify(g1)}, one tap on the map picks the group ${JSON.stringify(g2)}, broken up ${JSON.stringify(g3)}`);
+      check(name, g1.groups === 1 && g1.btns === 'G' && g1.icon === '✂' && g2.n === g1.total && g2.pressed === 'true' && g3.groups === 0 && g3.btns === 2, `groups: tied ${JSON.stringify(g1)}, one tap on the map picks the group ${JSON.stringify(g2)}, broken up ${JSON.stringify(g3)}`);
     }
     await p.screenshot({ path: `${OUT}/${name}-bar.png` });
     // level 10: our squads out of the exact picture show faintly where they probably are
-    await p.evaluate(() => { lvl = 10; newGame(true); showIntro(false); const q = blueSquads()[0]; Sim.order(s, q.id, 'attack', s.W * 0.7, s.H * 0.5); for (let i = 0; i < 30 * 30; i++) Sim.step(s, 1 / 30); cam = { x: s.W / 2, y: s.H / 2, z: 1 }; applyView(); });
+    await p.evaluate(() => { lvl = 10; newGame(true); showIntro(false); const q = blueSquads()[0]; window.__gq = q.id; Sim.order(s, q.id, 'hold', s.W * 0.45, s.H * 0.5); for (let i = 0; i < 30 * 20; i++) Sim.step(s, 1 / 30); cam = { x: s.W / 2, y: s.H / 2, z: 1 }; applyView(); });
     await p.waitForTimeout(300);
-    const g = await p.evaluate(() => { const q = blueSquads()[0], p = guessAt(q); return { shown: sqShown(q), off: Math.round(Math.hypot(p.x - q.cx, p.y - q.cy)) }; });
+    const g = await p.evaluate(() => { const q = s.squads.find(k => k.id === __gq), p = guessAt(q); return { shown: sqShown(q), off: Math.round(Math.hypot(p.x - q.cx, p.y - q.cy)) }; });
     check(name, !g.shown && g.off < 150, `out of the exact picture: a guess ${g.off} from the truth`);
     await p.screenshot({ path: `${OUT}/${name}-guess.png` });
     // a level played again (another visit): its tour shows again; the full game has its own (the HQ, what's new)

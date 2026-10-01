@@ -60,3 +60,5 @@ const note = (s, msg) => report(s, null, msg);
 // command friction (orders as delayed messages, carried out "roughly", reports, calls, friendly fire): part of the fog,
 // unless a game turns it off (s.c2 = false: the tutorial's first fog level has only the fog)
 const friction = s => s.fog && s.c2 !== false;
+// how much of its speed and firepower a hurt unit keeps (HURT_AT / HURT_K)
+const hurtK = u => { const f = u.hp / TYPES[u.type].hp; let i = 0; while (i < HURT_AT.length && f < HURT_AT[i]) i++; return HURT_K[i]; };

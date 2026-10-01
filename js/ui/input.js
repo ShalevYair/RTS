@@ -10,7 +10,8 @@ const tapR = r => Math.max(r, 14 / view.css);
 function hitSquad(x, y) {
   for (const q of s.squads) { const p = q.side === 'blue' && !q.dead && !sqShown(q) && guessAt(q); if (p && Math.hypot(p.x - x, p.y - y) < tapR(24)) return q.id; }
   const tol = Math.max(12, 22 / view.css); let best = null, bd = tol;
-  for (const u of s.units) { if (u.side !== 'blue' || (Sim.friction(s) && !sqShown(s.squads.find(q => q.id === u.squad) || {}))) continue; const d = Math.hypot(u.x - x, u.y - y); if (d < bd) { bd = d; best = u.squad; } }
+  // (a long vehicle — a truck, a tank — is hit anywhere on its picture, not only near its middle)
+  for (const u of s.units) { if (u.side !== 'blue' || (Sim.friction(s) && !sqShown(s.squads.find(q => q.id === u.squad) || {}))) continue; const d = Math.hypot(u.x - x, u.y - y) - Math.max(0, (SIZE[u.type] || 0) * 0.9 - tol * 0.5); if (d < bd) { bd = d; best = u.squad; } }
   return best;
 }
 // the enemy under a spot, as blue knows it: a unit or building in sight, a remembered building, a sighting under fog
@@ -38,15 +39,20 @@ function nodeInfo(n) {
   if (n.side !== 'blue') return out.join(' · ');
   if (Sim.isSite(n) && s.t < n.ready) out.push(tr(n.working ? 'ni_site' : 'ni_wait', Math.round(100 * n.work / n.need)));
   else if (s.t < n.ready) out.push(tr('ni_build', Math.ceil(n.ready - s.t)));
+  else if (S.upgrade && n.upg) out.push(tr('trophyOn', Math.ceil(n.upg.until - s.t)));
   else if (S.unit) {
-    const q = s.squads.find(q => q.id === n.squad && !q.dead), have = q ? s.units.filter(u => u.squad === q.id).length : 0;
-    out.push(q && have >= q.size ? tr('ni_full') : tr('ni_next', tn(S.unit), Math.max(1, Math.ceil((1 - (n.prog || 0)) * S.every))));
+    if (S.upgrade && s.trophy && s.trophy.blue) out.push(tr('trophyHas'));
+    const have = s.units.filter(u => { const q = s.squads.find(k => k.id === u.squad); return q && (q.home === n.id); }).length;
+    out.push(have >= (s.singles ? Sim.BUILD_UNITS : S.size) ? tr('ni_full') : tr('ni_next', tn(S.unit), Math.max(1, Math.ceil((1 - (n.prog || 0)) * S.every))));
   }
   return out.join(' · ');
 }
 // a squad tapped: Shift adds it to what's picked, or takes it out (with its group); a double click picks every squad
 // of its kind on the screen; else it alone (its group)
 let lastPick = { id: null, t: 0 };
+// a hurt unit of ours that can be sent to be treated (not on its way already)
+const CARE_SHOW = 0.97, hurtUnit = u => u.side === 'blue' && Sim.CARER[u.type] && u.hp < CARE_SHOW * Sim.TYPES[u.type].hp && !u.care;
+const careable = id => s.units.some(u => u.squad === id && hurtUnit(u));
 const DBL_MS = 380;
 function pickAt(id, e) {
   const q = s.squads.find(k => k.id === id), now = performance.now(), dbl = lastPick.id === id && now - lastPick.t < DBL_MS;
@@ -94,14 +100,38 @@ function tap(e) {
   if (hqArmed) { placeHq(x, y); return; }
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
   const hit = hitSquad(x, y);
+  // a transport helicopter of ours clicked with soldiers picked: they go to it and get on
+  const hq_ = hit && s.squads.find(q => q.id === hit);
+  if (hq_ && hq_.type === 'lift') {
+    const riders = (sel === 'all' ? [] : selIds()).filter(id => { const q = s.squads.find(k => k.id === id); return q && Sim.RIDERS.includes(q.type); });
+    if (riders.length) {
+      const L = s.units.find(u => u.squad === hit), room = Sim.TYPES.lift.cap - ((L && L.cargo) || []).length;
+      if (room <= 0) { const p = onScreen(x, y); toast(tr('noRoom'), p.x, p.y); return; }
+      if (Sim.board(s, riders, hit)) { pings.push({ x, y, t: performance.now() }); Radio.hear({ kind: 'go', id: riders[0] }); }
+      return;
+    }
+  }
+  // a hurt unit of ours already picked (its ✡ pulsing over it), clicked again: the picked hurt ones go to be treated
+  if (hit && !e.shiftKey && sel !== 'all' && isSel(hit) && careable(hit) && !(lastPick.id === hit && performance.now() - lastPick.t < DBL_MS)) {
+    if (Sim.sendCare(s, selIds())) { pings.push({ x, y, t: performance.now() }); Radio.hear({ kind: 'go', id: hit }); }
+    return;
+  }
   if (hit) { pickAt(hit, e); return; }
+  // our transport helicopters picked, soldiers on board: a click on the map sets them down there
+  const lifts = (sel === 'all' ? [] : selIds()).filter(id => { const q = s.squads.find(k => k.id === id); const L = q && q.type === 'lift' && s.units.find(u => u.squad === id); return L && L.cargo && L.cargo.length; });
+  if (lifts.length && lifts.length === selIds().length) {
+    lifts.forEach((id, i) => Sim.unload(s, id, x + (i - (lifts.length - 1) / 2) * 50, y));
+    pings.push({ x, y, t: performance.now() }); Radio.hear({ kind: 'go', id: lifts[0] }); return;
+  }
   // tapping one of our buildings picks it (and the squad it raises), its line shown by it
   const home = hitNode(x, y, 'blue');
   // (a site of ours with a bulldozer picked: it goes to build there, first thing)
   const dz = home && pickedDozer();
   if (dz && Sim.isSite(home) && s.t < home.ready && Sim.assignSite(s, s.squads.find(q => q.id === dz), home, true)) { pings.push({ x: home.x, y: home.y, t: performance.now() }); return; }
   if (home) {
-    if (home.squad && s.squads.some(q => q.id === home.squad && !q.dead)) pickSquad(home.squad); else select(null);
+    // (its units — each its own squad now — all picked)
+    const mine = s.squads.filter(q => !q.dead && (q.home === home.id || q.id === home.squad)).map(q => q.id);
+    if (mine.length > 1) pickIds(mine); else if (mine.length) pickSquad(mine[0]); else select(null);
     selNode = home.id; const r = cv.getBoundingClientRect();
     toast(nodeInfo(home), home.x * view.css + view.cox + r.left, (home.y - 26) * view.css + view.coy + r.top, 2600);
     return;
@@ -109,9 +139,16 @@ function tap(e) {
   // a building of ours picked: where its squads go once out (and its squad now, if it's out), "on our way"
   const rn = rallyNode();
   if (rn) {
-    Sim.rally(s, rn.id, x, y); const q = rn.squad && s.squads.find(k => k.id === rn.squad && !k.dead);
-    if (q) Sim.order(s, q.id, 'attack', x, y, true);
-    pings.push({ x, y, t: performance.now() }); Radio.hear({ kind: 'go', id: q ? q.id : undefined }); return;
+    Sim.rally(s, rn.id, x, y); const qs = rn.kind === 'hq' ? [] : s.squads.filter(k => !k.dead && (k.home === rn.id || k.id === rn.squad)).map(k => k.id);
+    if (qs.length > 1) Sim.formation(s, qs, 'attack', x, y, true); else if (qs.length) Sim.order(s, qs[0], 'attack', x, y, true);
+    pings.push({ x, y, t: performance.now() }); Radio.hear({ kind: 'go', id: qs[0] }); return;
+  }
+  // missile trucks picked and a known enemy building clicked: they set up and launch at it (the others attack it)
+  const ssm = (sel === 'all' ? [] : selIds()).filter(id => { const q = s.squads.find(k => k.id === id); return q && q.type === 'ssm'; });
+  if (ssm.length && Sim.knownFoeNode(s, 'blue', x, y, 30)) {
+    Sim.launch(s, ssm, x, y); pings.push({ x, y, t: performance.now(), foe: true }); Radio.hear({ kind: 'attacking', id: ssm[0] });
+    const rest = selIds().filter(id => !ssm.includes(id)); if (rest.length) { const keep = sel; sel = rest.length === 1 ? rest[0] : rest; issue('attack', x, y, undefined, true); sel = keep; }
+    return;
   }
   // at an enemy: an attack on it, whatever the order button says
   const foe = selIds().length || sel === 'all' ? hitFoe(x, y) : null;
@@ -147,7 +184,7 @@ function cursorAt(x, y) {
 }
 let curNow = null, lastMouse = null;
 // a production building of ours picked: a click on the map is its rally point
-const rallyNode = () => { const n = selNode != null && s.nodes.find(k => k.id === selNode && k.hp > 0 && k.side === 'blue'); return n && Sim.STRUCTS[n.kind].unit && s.t >= n.ready ? n : null; };
+const rallyNode = () => { const n = selNode != null && s.nodes.find(k => k.id === selNode && k.hp > 0 && k.side === 'blue'); return n && (Sim.STRUCTS[n.kind].unit || n.kind === 'hq') ? n : null; }; // (also while it goes up; the HQ: its bulldozers and signals trucks)
 function setCursor(cur) {
   curNow = cur; const c = Array.isArray(cur) ? cur[Math.floor(performance.now() / AIM_MS) % cur.length] : cur;
   if (cv.style.cursor !== c) cv.style.cursor = c;
@@ -255,6 +292,32 @@ function unpick() {
   if (eyeArmed || buildArmed || fhqArmed || hqArmed || !$('buildm').hidden) { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; $('buildm').hidden = true; syncButtons(); return; }
   if (uiHas('squads')) select(sel === null ? 'all' : null);
 }
+// the upgrade button (Trophy) over our picked tank workshop: shown while it can be had; the time left while it's made
+function syncUpgrade() {
+  const b = $('upgBtn'), n = selNode != null && s.nodes.find(k => k.id === selNode && k.side === 'blue' && k.hp > 0 && Sim.STRUCTS[k.kind].upgrade && s.t >= k.ready);
+  const show = !!n && !(s.trophy && s.trophy.blue) && !s.over;
+  b.hidden = !show; if (!show) return;
+  const p = onScreen(n.x, n.y - Sim.STRUCTS[n.kind].r - 18);
+  b.style.left = p.x + 'px'; b.style.top = p.y + 'px';
+  const txt = n.upg ? tr('trophyOn', Math.ceil(n.upg.until - s.t)) : tr('trophyGo', Math.round(Sim.TROPHY_BUILD / 60));
+  if (b.textContent !== txt) b.textContent = txt; b.disabled = !!n.upg; b.dataset.id = n.id;
+}
+$('upgBtn').addEventListener('click', e => { e.stopPropagation(); if (Sim.upgrade(s, 'blue', +$('upgBtn').dataset.id)) { syncUpgrade(); updateHud(); } });
+// pulling down a picked building of ours (not the HQ): the question first; the game waits meanwhile
+let razeId = null, razeWasPlaying = false;
+function askRaze() {
+  const n = selNode != null && s.nodes.find(k => k.id === selNode && k.side === 'blue' && k.hp > 0);
+  if (!n || n.kind === 'hq') return false;
+  razeId = n.id; razeWasPlaying = playing; setPlaying(false);
+  $('razeQ').textContent = tr('razeQ', sn(n.kind)); $('razeSure').hidden = false; $('razeYes').focus(); return true;
+}
+function endRaze(yes) {
+  $('razeSure').hidden = true;
+  if (yes && Sim.demolish(s, 'blue', razeId)) { selNode = null; select(null); }
+  razeId = null; if (razeWasPlaying) setPlaying(true);
+}
+$('razeYes').addEventListener('click', () => endRaze(true));
+$('razeNo').addEventListener('click', () => endRaze(false));
 // edge scroll: where the mouse is (null when it has left the window)
 let mouseAt = null;
 window.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') mouseAt = { x: e.clientX, y: e.clientY }; });
@@ -282,6 +345,10 @@ document.addEventListener('keydown', e => {
   if (!$('intro').hidden) { if (e.key === 'Escape') $('go').click(); return; }
   if (e.ctrlKey && e.shiftKey && e.code === 'KeyL') { e.preventDefault(); saveLog(); return; } // (the log, as a file)
   if (!$('end').hidden) return;
+  // the "pull it down?" question: Enter = yes, Escape = no
+  if (!$('razeSure').hidden) { if (e.key === 'Enter') { e.preventDefault(); $('razeYes').click(); } else if (e.key === 'Escape') $('razeNo').click(); return; }
+  // Delete / Backspace on a picked building of ours: pull it down, once the player says yes
+  if ((e.key === 'Delete' || e.key === 'Backspace') && askRaze()) { e.preventDefault(); return; }
   // physical key codes, so the shortcuts also work on a Hebrew keyboard layout
   const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : /^(Digit|Numpad)\d$/.test(e.code) ? e.code.slice(-1) : e.key.toLowerCase();
   // keys for controls this level doesn't have yet do nothing

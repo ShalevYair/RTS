@@ -133,9 +133,11 @@ function updateHud() {
   $('fhqN').textContent = Sim.fhqCount(s, 'blue') >= Sim.fhqMax(s) ? Sim.fhqMax(s) + '/' + Sim.fhqMax(s) : cd.fhq > 0 ? Math.ceil(cd.fhq) : ''; $('fhq').setAttribute('aria-disabled', String(!Sim.canBuildFhq(s, bsq)));
   // a green halo, pulsing, round whatever can be used now (a drone to send, a forward HQ to place; the building
   // kinds: syncCats); the two buttons show what they'd put down then: the drone, the forward HQ
-  const canEye = D.stock >= 1 && !$('eye').hidden, canFhq = uiHas('fhq') && !!s.t && !fhqArmed && Sim.canBuildFhq(s, bsq) && Sim.fhqCount(s, 'blue') < Sim.fhqMax(s);
+  // (a forward HQ can be placed: its cooldown done, room for one more, and a builder for it — whatever is picked)
+  const canEye = D.stock >= 1 && !$('eye').hidden, canFhq = uiHas('fhq') && !!s.t && !fhqArmed && s.cd.blue.fhq <= 0 && Sim.fhqCount(s, 'blue') < Sim.fhqMax(s) && (Sim.canBuildFhq(s, bsq) || fhqCrews().length > 0);
   $('eye').classList.toggle('can', canEye && !eyeArmed); $('fhq').classList.toggle('can', canFhq);
   btnPic('eye', canEye ? 'drone' : null); btnPic('fhq', canFhq ? 'fhq' : null);
+  if (!$('hqb').hidden) hqPic();
   if (s.fog !== fogWas) { fogWas = s.fog; syncButtons(); } // the tutorial's fog comes down mid-level
   $('fhq').style.setProperty('--p', (1 - cd.fhq / N.fhq.every).toFixed(2));
   $('moon').hidden = Sim.nightAt(s) < 0.5;
@@ -152,7 +154,7 @@ function updateHud() {
   }
   // each type's strength: the average of its squads (as reported)
   for (const b of document.querySelectorAll('[data-ty],[data-gr]')) {
-    const l = btnIds(b).map(id => s.squads.find(q => q.id === id)), st = l.length ? l.reduce((a, q) => a + Math.min(1, pos(q).strength), 0) / l.length : 0;
+    const l = btnIds(b).map(id => s.squads.find(q => q.id === id)).filter(Boolean), st = l.length ? l.reduce((a, q) => a + Math.min(1, (pos(q) || { strength: 0 }).strength), 0) / l.length : 0; // (a squad not reported yet: 0)
     b.style.setProperty('--st', st.toFixed(2));
   }
   const call = s.calls[0], cq = call && s.squads.find(q => q.id === call.sq);
@@ -181,7 +183,7 @@ $('all').addEventListener('click', () => select('all'));
 // picked group <number> (g.key); the number picks it, and pressed again brings the camera to the middle of its squads.
 // 🔗 (L) ties what's picked into a group on the first free number; ✂ unties it. A squad is in one group at most; a group
 // with no squads left is gone (one made with 🔗 once it's down to one squad).
-const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'med', 'mech', 'truck', 'dozer', 'radio'];
+const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'heli', 'gunship', 'lift', 'ssm', 'arrow', 'dome', 'commando', 'med', 'mech', 'truck', 'dozer', 'radio'];
 let groups = [], nextGroup = 1;
 const groupOf = id => groups.find(g => g.ids.includes(id));
 const aliveBlue = () => new Set(s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id));
@@ -284,17 +286,20 @@ function believedShare() {
 // control is strong enough. The pages: BUILD_PAGES (a page's entries: buildings, or 'page:<name>' for a sub-page);
 // BUILD_UP: where ‹ goes back to.
 const BUILD_PAGES = {
-  root: ['page:tents', 'page:shops', 'airfield', 'page:service'],
-  tents: ['tent', 'atpost', 'aapost', 'clinic'],
-  shops: ['tankshop', 'page:jeeps'],
+  root: ['page:tents', 'page:shops', 'page:air', 'page:service'],
+  air: ['airfield', 'page:helis'],
+  helis: ['heliatk', 'heligun', 'helilift'],
+  tents: ['tent', 'atpost', 'aapost', 'clinic', 'commandopost'],
+  shops: ['tankshop', 'page:jeeps', 'ssmshop'],
   jeeps: ['jeepshop', 'jeepat', 'jeepaa'],
-  service: ['garage', 'depot', 'decoy'],
+  service: ['garage', 'depot', 'decoy', 'page:defense'],
+  defense: ['arrowsite', 'domesite'],
 };
-const BUILD_UP = { tents: 'root', shops: 'root', service: 'root', jeeps: 'shops' };
-// the column top left: the root page's kinds (the airfield on its own)
-const BUILD_CATS = ['tents', 'shops', 'airfield', 'service'];
+const BUILD_UP = { tents: 'root', shops: 'root', service: 'root', air: 'root', jeeps: 'shops', helis: 'air', defense: 'service' };
+// the column top left: the root page's kinds (aviation: the airfield and the helipads)
+const BUILD_CATS = ['tents', 'shops', 'air', 'service'];
 // (the picture on a page's button)
-const PAGE_PIC = { tents: 'tent', shops: 'tankshop', jeeps: 'jeepshop', service: 'garage' };
+const PAGE_PIC = { tents: 'tent', shops: 'tankshop', jeeps: 'jeepshop', service: 'garage', air: 'airfield', helis: 'heliatk', defense: 'arrowsite' };
 let buildPage = 'root';
 // the drone and forward-HQ buttons: their icons from art/ (ICONS, white on clear) instead of the drawn ones
 for (const [id, k] of [['eye', 'drone'], ['fhq', 'fhq']]) {
@@ -316,6 +321,13 @@ function btnPic(id, what) {
     src = btnPics[key] || src;
   }
   if (im.getAttribute('src') !== src) { im.src = src; im.classList.toggle('real', src !== ICONS[id === 'eye' ? 'drone' : 'fhq']); }
+}
+// the 🏰 button (placing the HQ): the HQ itself, small, in our colour (the emoji until its picture is in)
+function hqPic() {
+  const b = $('hqb'), key = 'hq' + colors.blue; if (b.dataset.pic === key || !hasBuildingPic('hq')) return;
+  if (!btnPics[key]) { const p = buildingPic('hq', colors.blue, 40); if (!p) return; btnPics[key] = p.toDataURL(); }
+  const im = b.querySelector('img.pic') || document.createElement('img'); im.className = 'ico pic real'; im.alt = ''; im.setAttribute('aria-hidden', 'true'); im.src = btnPics[key];
+  if (b.firstChild && b.firstChild.nodeType === 3) b.firstChild.remove(); if (!im.isConnected) b.prepend(im); b.dataset.pic = key;
 }
 function initBuildMenu() {
   const m = $('buildm'), back = document.createElement('button');
@@ -341,7 +353,7 @@ function initBuildMenu() {
   for (const g of BUILD_CATS) {
     const b = document.createElement('button');
     b.dataset.cat = g; b.dataset.tip = 'bcat'; b.innerHTML = '<canvas width="96" height="96"></canvas><span></span>';
-    b.tipText = () => (g === 'airfield' ? sn(g) : tr('bp_' + g) + ' · ' + tr('bpn_' + g)) + ' · ' + tr('slotsLeft', Math.max(0, Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue')));
+    b.tipText = () => tr('bp_' + g) + ' · ' + tr('bpn_' + g) + ' · ' + tr('slotsLeft', Math.max(0, Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue')));
     b.addEventListener('click', () => pickCat(g, b));
     cats.appendChild(b);
   }
@@ -356,7 +368,9 @@ function pickCat(g, b) {
   const open = !m.hidden && m.dataset.open === g;
   buildArmed = null; m.hidden = true; m.classList.remove('side');
   if (!open) {
-    if (g === 'airfield') buildArmed = 'airfield';
+    // (a page with only one building this game — the airfield in the tutorial — arms it at once)
+    const one = pageItems(g);
+    if (one.length === 1 && !one[0].startsWith('page:')) buildArmed = one[0];
     else { m.dataset.open = g; m.classList.add('side'); m.style.setProperty('--bmTop', (b.getBoundingClientRect().top - $('stage').getBoundingClientRect().top) + 'px'); m.hidden = false; showBuildPage(g); }
   }
   hideTip(); syncButtons();
@@ -366,10 +380,10 @@ function syncCats() {
   const root = new Set(pageItems('root')), full = buildFull() || !!(s.hqPending && s.hqPending.blue), m = $('buildm');
   for (const b of document.querySelectorAll('[data-cat]')) {
     const g = b.dataset.cat;
-    b.hidden = !root.has(g === 'airfield' ? g : 'page:' + g);
+    b.hidden = !root.has('page:' + g);
     b.setAttribute('aria-disabled', String(full && !buildArmed));
     b.classList.toggle('can', !full && !buildArmed && m.hidden && !b.hidden && !!s.t); // (room to build: the halo)
-    b.setAttribute('aria-expanded', String(g === 'airfield' ? buildArmed === 'airfield' : !m.hidden && m.dataset.open === g || !!buildArmed && pageHas(g, buildArmed)));
+    b.setAttribute('aria-expanded', String(!m.hidden && m.dataset.open === g || !!buildArmed && pageHas(g, buildArmed)));
   }
 }
 const pageHas = (g, k) => BUILD_PAGES[g].some(e => e.startsWith('page:') ? pageHas(e.slice(5), k) : e === k);
@@ -382,7 +396,7 @@ function nameBuildMenu() {
     b.querySelector('small').textContent = S.unit ? tr('buildItem', S.every, tn(S.unit)) : tr('decoyItem', Sim.DECOY_MAX);
   }
   for (const b of document.querySelectorAll('[data-cat]')) {
-    const g = b.dataset.cat; b.querySelector('span').textContent = g === 'airfield' ? sn(g) : tr('bp_' + g);
+    const g = b.dataset.cat; b.querySelector('span').textContent = tr('bp_' + g);
     const c = b.querySelector('canvas'), x = c.getContext('2d'), src = buildingPic(PAGE_PIC[g] || g, colors.blue, 40), mm = src.width * 0.17;
     x.clearRect(0, 0, 96, 96); x.drawImage(src, mm, mm, src.width - 2 * mm, src.width - 2 * mm, 0, 0, 96, 96);
   }
@@ -413,7 +427,7 @@ function syncBuildMenu(fresh) {
   }
   const has = g => BUILD_PAGES[g].some(e => e.startsWith('page:') ? has(e.slice(5)) : fresh.includes(e));
   for (const b of document.querySelectorAll('[data-page]')) b.classList.toggle('new', has(b.dataset.page));
-  for (const b of document.querySelectorAll('[data-cat]')) b.classList.toggle('new', b.dataset.cat === 'airfield' ? fresh.includes('airfield') : has(b.dataset.cat));
+  for (const b of document.querySelectorAll('[data-cat]')) b.classList.toggle('new', has(b.dataset.cat));
 }
 const buildFull = () => Sim.buildCount(s, 'blue') >= Sim.buildLimit(s, 'blue');
 const blink = el => { el.classList.remove('blink'); void el.offsetWidth; el.classList.add('blink'); };
@@ -538,7 +552,7 @@ function fullTour() {
 // (the radio log #log stays hidden for now: the map says it)
 const UI_EL = { squads: ['gSq'], orders: ['gOrd'], build: ['bld', 'bcats'], vehicles: ['bld', 'bcats'], care: ['bld', 'bcats'], air: ['bld', 'bcats'], fog: [], eye: ['eye'], c2: [], fhq: ['fhq'], support: [] };
 // building kinds each level step brings
-const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage', 'depot'], air: ['aapost', 'atpost', 'jeepaa', 'jeepat', 'airfield'] };
+const UI_BUILDS = { build: ['tent'], vehicles: ['jeepshop', 'tankshop'], care: ['clinic', 'garage', 'depot'], air: ['aapost', 'atpost', 'jeepaa', 'jeepat', 'airfield', 'heliatk', 'heligun', 'helilift', 'ssmshop', 'arrowsite', 'domesite', 'commandopost'] };
 // an element shows when any of the level steps that bring it is there
 const UI_EL_ANY = id => Object.keys(UI_EL).some(k => UI_EL[k].includes(id) && uiHas(k));
 function applyUi() {

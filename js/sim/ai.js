@@ -95,6 +95,19 @@ function radioStation(s, sq, mine, k) {
   return threatAt(s, sq.side, p, AI_NEAR) ? careStation(s, sq, mine) : p;
 }
 
+// missiles: each truck not yet launching goes for the best building we know — the HQ (or what passes for it) first,
+// else the nearest; and Trophy on the tanks, a few minutes in
+function aiSpecial(s, side) {
+  const foe = foeOf(side), known = s.nodes.filter(n => n.side === foe && n.hp > 0 && n.kind !== 'drone' && (!s.fog || s.visNodes[side].has(n.id) || s.memNodes[side][n.id]));
+  for (const q of s.squads) {
+    if (q.side !== side || q.dead || q.type !== 'ssm' || q.fire || !known.length) continue;
+    const kindOf = n => s.fog && s.memNodes[side][n.id] && !s.visNodes[side].has(n.id) ? s.memNodes[side][n.id].kind : n.kind;
+    const hq = known.find(n => kindOf(n) === 'hq'), t = hq || known.slice().sort((a, b) => Math.hypot(a.x - q.cx, a.y - q.cy) - Math.hypot(b.x - q.cx, b.y - q.cy))[0];
+    const p = s.fog && !s.visNodes[side].has(t.id) && s.memNodes[side][t.id] ? s.memNodes[side][t.id] : t;
+    launch(s, [q.id], p.x, p.y);
+  }
+  if (s.t > 360 && !(s.trophy && s.trophy[side])) for (const n of s.nodes) if (n.side === side && n.kind === 'tankshop' && s.t >= n.ready && !n.upg) { upgrade(s, side, n.id); break; }
+}
 function think(s, side, level) {
   const D = DIFFS[level] || DIFFS.normal, foe = foeOf(side), taken = new Map();
   // open field: first the HQ — a spot in our strip (away from the middle of it now and then), the command tanks go
@@ -123,8 +136,10 @@ function think(s, side, level) {
   const St = AI_STYLES[s.style[side]] || AI_STYLES.steady, home = hqOf(s, side) || s.bases[side];
   const fighters = mine.filter(q => !TYPES[q.type].care);
   const stayHome = St.wait && s.t < 300 && !(fighters.length >= St.wait && s.t > 150) && share(s, side) < 0.55; // (never past 5 minutes)
+  if (can.build) aiSpecial(s, side);
   let nth = 0, radios = 0;
   for (const sq of mine) {
+    if (sq.type === 'ssm' && sq.fire) continue; // (setting up to launch: it stays put)
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
     // support: bulldozers go where their sites are (on their own); signals trucks stay a little behind the squads
     if (TYPES[sq.type].support) { if (sq.type === 'radio') { const p = radioStation(s, sq, mine, radios++); setOrder(sq, 'hold', p.x, p.y); } continue; }
@@ -138,7 +153,7 @@ function think(s, side, level) {
       cands.push({ x: k.x, y: k.y, w: 0, edge: true });
     }
     // structures: production and forward HQs matter most; aircraft go for them when there's nothing better
-    if (!(MULT[sq.type].air > 0)) for (const n of structs) cands.push({ x: n.x, y: n.y, w: n.kind === 'hq' ? 120 : n.kind === 'fhq' ? -60 : -30 });
+    if (!(MULT[sq.type].air > 0) || TYPES[sq.type].hover) for (const n of structs) cands.push({ x: n.x, y: n.y, w: n.kind === 'hq' ? 120 : n.kind === 'fhq' ? -60 : -30 });
     // staying home: only what comes close; else a guard spot a little out from the HQ, toward the enemy
     if (stayHome) {
       for (let i = cands.length - 1; i >= 0; i--) if (dist(cands[i], home) > AI_HOME_R) cands.splice(i, 1);
@@ -150,7 +165,7 @@ function think(s, side, level) {
       const mass = D.mass && (!friction(s) || quality(s, side, p) >= FF_MASS_Q);
       let sc = dist(c, p) + p.w + (mass ? -150 : 200) * (taken.get(p.x + ',' + p.y) || 0);
       if (D.smart && p.edge) sc -= 60 * edgeAt(s, sq, p);
-      if (D.smart && sq.type === 'air') for (const { q, k } of foes) if (k.type === 'aa' && Math.hypot(k.x - p.x, k.y - p.y) < 150) sc += 300 * k.strength;
+      if (D.smart && TYPES[sq.type].air) for (const { q, k } of foes) if (k.type === 'aa' && Math.hypot(k.x - p.x, k.y - p.y) < 150) sc += 300 * k.strength;
       return sc;
     };
     let best = null, bs = Infinity;

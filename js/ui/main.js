@@ -2,10 +2,11 @@
 function newGame(skipIntro) {
   const seed = (Date.now() % 1e6) | 0;
   // big: 2× wide and 2× high, never narrower than 2000 (a phone held upright would get a thin strip)
-  if (lvl) s = Sim.level(lvl, seed, worldWidth());
+  // (the player's units: each its own squad — singles)
+  if (lvl) s = Sim.level(lvl, seed, worldWidth(), { singles: true });
   else {
     const k = hugeMap ? 4 : 2; // big: 2× wide and high; huge: 4×
-    s = bigMap ? Sim.create(seed, k * Math.max(1000, worldWidth()), diff, k * Sim.H) : Sim.create(seed, worldWidth(), diff); s.fog = fog;
+    s = bigMap ? Sim.create(seed, k * Math.max(1000, worldWidth()), diff, k * Sim.H, { singles: true }) : Sim.create(seed, worldWidth(), diff, Sim.H, { singles: true }); s.fog = fog;
     // the full game opens on an open field: each side picks where its HQ goes (tests may keep the fixed HQ)
     let fixed = false; try { fixed = localStorage.getItem('irts-fixedhq') === '1'; } catch (e) { /* storage unavailable */ }
     if (!fixed) Sim.openField(s);
@@ -52,6 +53,7 @@ function frameBody(now) {
   cv.style.transform = shake && !reduceMotion ? `translate(${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px, ${((Math.random() - 0.5) * 2 * shake).toFixed(1)}px)` : '';
   for (const k of s.marks) if (!k.heard) {
     k.heard = true; if (!playing) continue;
+    if (k.kind === 'hqReady') toast(tr('hqReadyNote'), innerWidth / 2, 90, 5000); // written as well as said
     // the order reaching the squad: its reply (attacking, on the way…), as it was given
     Radio.hear(k.kind === 'ack' ? { kind: orderSay[k.id] || replyOf(k.type), id: k.id } : k);
   }
@@ -74,7 +76,7 @@ function frameBody(now) {
   if (replayAuto && !$('end').hidden && !$('replayBox').hidden && now - replayAt > 180) {
     replayAt = now; const sc = $('scrub'), i = (+sc.value + 1) % (+sc.max + 1); sc.value = i; drawReplay(i);
   }
-  if (outro) outroTick(now, dt); else { edgeScroll(dt); tickCursor(); }
+  if (outro) outroTick(now, dt); else { edgeScroll(dt); tickCursor(); syncUpgrade(); }
   draw(); if (outro) drawOutro(now); drawBox(); drawMini();
   if (now - hudAt > 200) { hudAt = now; updateHud(); }
 }

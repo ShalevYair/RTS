@@ -6,8 +6,8 @@
 // colour and size. Drawn on a 40-unit footprint and scaled.
 const artCache = new Map(), ART_RES = 3;
 const STONE = '#d8d0bf', STONE_DK = '#a39a88', WOOD = '#8d6b43', WOOD_DK = '#5e4629', METAL = '#6f757a', SAND = '#cdb88e';
-function buildingPic(kind, col, px) {
-  const key = kind + col + px; let pic = artCache.get(key); if (pic) return pic;
+function buildingPic(kind, col, px, bare) {
+  const key = kind + col + px + (bare ? '|bare' : ''); let pic = artCache.get(key); if (pic) return pic;
   const P = px * ART_RES / 40, w = Math.ceil(px * 1.7 * ART_RES);
   pic = document.createElement('canvas'); pic.width = pic.height = w;
   const c = pic.getContext('2d');
@@ -16,7 +16,7 @@ function buildingPic(kind, col, px) {
   if (im) {
     const dw = px * 1.35 * ART_RES, dh = dw * im.height / im.width, x0 = (w - dw) / 2, y0 = (w - dh) / 2 - dh * 0.06, sh = shadowPic(own);
     // (its shadow first: to the south-east, as every shadow)
-    if (sh) { const f = dw / im.width, o = dw * 0.05; c.globalAlpha = SHADOW_A; c.drawImage(sh, x0 - SHADOW_PAD * f + o, y0 - SHADOW_PAD * f + o * 1.25, sh.width * f, sh.height * f); c.globalAlpha = 1; }
+    if (sh && !bare) { const f = dw / im.width, o = dw * 0.05; c.globalAlpha = SHADOW_A; c.drawImage(sh, x0 - SHADOW_PAD * f + o, y0 - SHADOW_PAD * f + o * 1.25, sh.width * f, sh.height * f); c.globalAlpha = 1; }
     c.drawImage(im, x0, y0, dw, dh); artCache.set(key, pic); return pic;
   }
   c.translate(w / 2, w / 2); c.scale(P, P); c.lineJoin = 'round'; c.lineCap = 'round';
@@ -124,7 +124,12 @@ function buildingPic(kind, col, px) {
   shadowOff(); artCache.set(key, pic); return pic;
 }
 // what a building sprite is drawn as on a canvas (dx: the picture's width in world units)
-function drawBuilding(c, kind, col, x, y, px) { const pic = buildingPic(kind, col, px), w = pic.width / ART_RES; c.drawImage(pic, x - w / 2, y - w / 2, w, w); }
+// (on the map: its picture bare, its shadow cast by the sun of the moment; in the menus, with the noon one in it)
+function drawBuilding(c, kind, col, x, y, px) {
+  const own = BUILDING_PIC[kind], im = own && sprite.img[own];
+  if (im) { const dw = px * 1.35, dh = dw * im.height / im.width; drawShadowPic(c, own, x, y - dh * 0.06, dw, dh, 0, dw * 0.05); }
+  const pic = buildingPic(kind, col, px, !!im), w = pic.width / ART_RES; c.drawImage(pic, x - w / 2, y - w / 2, w, w);
+}
 // the HQ's flag, waving (on the keep's pole)
 function drawFlag(c, x, y, k, col) {
   const t = performance.now() / 260, px = x, py = y - 19 * k;
@@ -149,7 +154,13 @@ function drawSmoke(c) {
   const dt = artT === null || s.t < artT ? 0 : Math.min(0.1, s.t - artT); artT = s.t;
   if (dt > 0) {
     const vis = u => !s.fog || ((u.side === 'blue' || s.vis.blue.has(u.id)) && shownAt(u)), v0 = viewRect();
-    for (const u of s.units) { const T = Sim.TYPES[u.type]; if (!T.air && CAR.has(u.type) && u.hp < T.hp * 0.5 && vis(u) && Math.random() < dt * 3) puff(u.x, u.y - 3, true); }
+    // (a hurt vehicle or aircraft smokes by how hurt it is, as its dot: yellow a wisp now and then, orange more and
+    // greyer, red thick and dark)
+    for (const u of s.units) {
+      const T = Sim.TYPES[u.type]; if (!(CAR.has(u.type) || T.air) || !vis(u)) continue;
+      const f = u.hp / T.hp, lvl = f < 0.3 ? 2 : f < 0.6 ? 1 : f < 0.95 ? 0 : -1; if (lvl < 0) continue;
+      if (Math.random() < dt * [0.8, 2.2, 4.5][lvl]) puff(u.x, u.y - 3, lvl > 0, [0.6, 0.9, 1.25][lvl]);
+    }
     for (const f of s.fallen) if (CAR.has(f.type) && s.t - f.t < 10 && (!s.fog || shownAt(f)) && Math.random() < dt * 5) puff(f.x, f.y - 2, true, 1.3);
     for (const n of s.nodes) {
       if (n.kind === 'drone' || !nodeShown(n)) continue;
@@ -250,14 +261,16 @@ function drawVignette(c) {
 // ---- night: the map dark blue, but light where there's light — our buildings (and the enemy's we can see), fires,
 // explosions — cut out of the dark, with a warm glow ----
 // (NIGHT_DARK: how much of the light the full night takes away)
-const nightCv = document.createElement('canvas'), NIGHT_DARK = 0.72;
+// (the dark at NIGHT_RES of the canvas, scaled up: it's all soft gradients, and full size it was slow)
+const nightCv = document.createElement('canvas'), NIGHT_DARK = 0.72, NIGHT_RES = 0.34;
 function drawNightLit(c) {
   const k = Sim.nightAt(s); if (!k) return;
-  if (nightCv.width !== cv.width || nightCv.height !== cv.height) { nightCv.width = cv.width; nightCv.height = cv.height; }
+  const nw = Math.ceil(cv.width * NIGHT_RES), nh = Math.ceil(cv.height * NIGHT_RES);
+  if (nightCv.width !== nw || nightCv.height !== nh) { nightCv.width = nw; nightCv.height = nh; }
   const g = nightCv.getContext('2d');
   g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, nightCv.width, nightCv.height);
   g.fillStyle = `rgba(8,14,40,${(NIGHT_DARK * k).toFixed(3)})`; g.fillRect(0, 0, nightCv.width, nightCv.height);
-  g.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy); g.globalCompositeOperation = 'destination-out';
+  g.setTransform(view.scale * NIGHT_RES, 0, 0, view.scale * NIGHT_RES, view.ox * NIGHT_RES, view.oy * NIGHT_RES); g.globalCompositeOperation = 'destination-out';
   const lights = [];
   for (const n of s.nodes) if (n.kind !== 'drone' && nodeShown(n) && s.t >= n.ready) lights.push([n.x, n.y, Sim.STRUCTS[n.kind].r * 2.5 + 20, 0.8]);
   // (a blast lights its surroundings softly — no flash of the whole screen)
@@ -266,7 +279,7 @@ function drawNightLit(c) {
   for (const u of s.units) if (u.side === 'blue' && !Sim.TYPES[u.type].air && (!s.fog || shownAt(u))) lights.push([u.x, u.y, CAR.has(u.type) ? 28 : 16, 0.5]);
   for (const f of s.fallen) if (CAR.has(f.type) && s.t - f.t < 10 && (!s.fog || shownAt(f))) lights.push([f.x, f.y, 34, 0.7 * (1 - (s.t - f.t) / 10)]);
   for (const [x, y, r, a] of lights) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
-  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(nightCv, 0, 0); c.restore();
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(nightCv, 0, 0, cv.width, cv.height); c.restore();
   // and a warm glow over the lit spots
   c.save(); c.globalCompositeOperation = 'lighter';
   for (const [x, y, r, a] of lights) { const gr = c.createRadialGradient(x, y, 0, x, y, r * 0.6); gr.addColorStop(0, `rgba(255,170,80,${0.18 * a * k})`); gr.addColorStop(1, 'rgba(255,150,60,0)'); c.fillStyle = gr; ring(x, y, r * 0.6); c.fill(); }
@@ -348,6 +361,29 @@ function spritePic(k, col) {
   }
   c.putImageData(d, 0, 0); sprite.pic.set(key, p); return p;
 }
+// ---- the sun (the full game, with its night): it crosses the sky once a day — the day's NIGHT_LEVELS minutes from
+// dawn to dusk — and every shadow (hills, trees, buildings, units) turns with it a minute at a time, eased over
+// NIGHT_FADE s: long to the west at dawn, short to the south-east at noon (as before), long to the north-east at dusk;
+// gone in the dark. Without night: noon all day. SUN: x, y = a shadow's offset per unit of height; a = how dark;
+// up = how high it stands (the hills' cast shadows); key = the minute (the ground is drawn again when it changes).
+const SUN_DAWN = 160, SUN_SWEEP = 210, SUN_LONG = 1.4; // (degrees: the shadows' way at dawn, and how far they turn by dusk; how much longer low down)
+let SUN = { x: 1, y: 1.25, a: 1, up: 1, lx: -1, ly: -1, hill: 'noon', key: 'noon' };
+function sunAt(i) { // (minute i of the day: how far through the daylight, 0 dawn … 1 dusk)
+  const L = Sim.NIGHT_LEVELS, n = L.length, m = ((i % n) + n) % n;
+  let k = 0; while (k < n && L[(m - k + n) % n] < 1 && L[(m - k - 1 + n) % n] < 1) k++; // (minutes since the dark lifted)
+  const day = L.filter(v => v < 1).length;
+  return Math.min(1, k / Math.max(1, day - 1));
+}
+function sunTick() {
+  if (!s || !s.night) { if (SUN.key !== 'noon') SUN = { x: 1, y: 1.25, a: 1, up: 1, lx: -1, ly: -1, hill: 'noon', key: 'noon' }; return; }
+  const i = Math.floor(s.t / Sim.NIGHT_STEP), f = Math.min(1, (s.t - i * Sim.NIGHT_STEP) / Sim.NIGHT_FADE), e = i === 0 ? 1 : f * f * (3 - 2 * f);
+  const p0 = sunAt(i - 1), p1 = sunAt(i), dark = Sim.nightAt(s);
+  const at = p => { const th = (SUN_DAWN - SUN_SWEEP * p) * Math.PI / 180, len = 1 + SUN_LONG * Math.abs(2 * p - 1); return { cx: Math.cos(th) * 1.6 * len, cy: Math.sin(th) * 1.6 * len, th, len }; };
+  const a0 = at(p0), a1 = at(p1);
+  // (how dark the shadows are: faint in the twilight, none at night — but a low sun's long shadows still show)
+  const a = Math.sqrt(Math.max(0, 1 - dark));
+  SUN = { x: a0.cx + (a1.cx - a0.cx) * e, y: a0.cy + (a1.cy - a0.cy) * e, a, up: 1 / a1.len, lx: -Math.cos(a1.th), ly: -Math.sin(a1.th), hill: i % Sim.NIGHT_LEVELS.length, key: i + ':' + Math.round(a * 4) };
+}
 // a picture's shadow: its outline in black, blurred (cached; SHADOW_PAD px of room around it for the blur)
 const SHADOW_PAD = 8;
 function shadowPic(k) {
@@ -363,15 +399,18 @@ const SHADOW_OFF = 0.1, SHADOW_AIR = 0.9, SHADOW_A = 0.42;
 function drawShadowPic(c, k, x, y, w, h, rot, off) {
   const p = shadowPic(k); if (!p) return;
   const sx = w / (p.width - 2 * SHADOW_PAD), sy = h / (p.height - 2 * SHADOW_PAD);
-  c.save(); c.globalAlpha *= SHADOW_A; c.shadowBlur = 0; c.shadowColor = 'transparent'; c.translate(x + off, y + off * 1.25); c.rotate(rot);
+  if (SUN.a <= 0.02) return; // (night: none)
+  c.save(); c.globalAlpha *= SHADOW_A * SUN.a; c.shadowBlur = 0; c.shadowColor = 'transparent'; c.translate(x + off * SUN.x, y + off * SUN.y); c.rotate(rot);
   c.drawImage(p, -p.width / 2 * sx, -p.height / 2 * sy, p.width * sx, p.height * sy); c.restore();
 }
 // how long a unit's picture is on the map, in its size k (as long as the drawn glyph)
 // (soldiers: by how wide they are across the shoulders, SPRITE_ACROSS — a launcher makes one much longer than the next)
-const SPRITE_LEN = { jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, air: 2, tank: 1.9, dozer: 1.9, radio: 1.9, inf: 1, at: 1, aa: 1, med: 1 }, TURRET_K = 0.86;
-const SPRITE_ACROSS = { inf: 1.9, at: 1.9, aa: 1.9, med: 1.9 };
+const SPRITE_LEN = { commando: 1, ssm: 1.9, arrow: 1.9, dome: 1.9, lift: 2.1, heli: 1.9, gunship: 1.9, jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, air: 2, tank: 1.9, dozer: 1.9, radio: 1.9, inf: 1, at: 1, aa: 1, med: 1 }, TURRET_K = 0.95;
+const SPRITE_ACROSS = { commando: 1.9, inf: 1.9, at: 1.9, aa: 1.9, med: 1.9 };
 // a building's picture: art/b_<kind> (the fake HQ looks just like the real one; the armed jeeps' workshops, the jeeps')
-const BUILDING_PIC = new Proxy({}, { get: (_, kind) => { const k = kind === 'decoy' ? 'hq' : kind; return sprite.img['b_' + k] || !/^jeepa[at]$/.test(k) ? 'b_' + k : 'b_jeepshop'; } });
+// (and the gunship's helipad, the attack helicopters' one, unless it has its own)
+const PIC_LIKE = { jeepaa: 'jeepshop', jeepat: 'jeepshop', heligun: 'heliatk', helilift: 'heliatk', ssmshop: 'tankshop', arrowsite: 'aapost', domesite: 'aapost', commandopost: 'tent' };
+const BUILDING_PIC = new Proxy({}, { get: (_, kind) => { const k = kind === 'decoy' ? 'hq' : kind; return sprite.img['b_' + k] || !PIC_LIKE[k] ? 'b_' + k : 'b_' + PIC_LIKE[k]; } });
 const hasSprite = type => type === 'tank' ? !!(sprite.img.tank_hull && sprite.img.tank_turret) : !!(SPRITE_LEN[type] && sprite.img[type]);
 const hasBuildingPic = kind => !!(BUILDING_PIC[kind] && sprite.img[BUILDING_PIC[kind]]);
 // a unit drawn from its picture when there is one (else the drawn glyph): turned to its heading, a tank's turret to
@@ -379,8 +418,12 @@ const hasBuildingPic = kind => !!(BUILDING_PIC[kind] && sprite.img[BUILDING_PIC[
 function drawUnitPic(c, type, x, y, k, col, hd, aim, recoil = 0) {
   if (type !== 'tank') {
     const S = SPRITES[type], p = spritePic(type, col), sc = SPRITE_ACROSS[type] ? SPRITE_ACROSS[type] * k / S.h : SPRITE_LEN[type] * k / S.w;
-    if (col !== 'wreck') drawShadowPic(c, type, x, y, S.w * sc, S.h * sc, hd, k * (type === 'air' ? SHADOW_AIR : SHADOW_OFF));
+    if (col !== 'wreck') drawShadowPic(c, type, x, y, S.w * sc, S.h * sc, hd, k * (Sim.TYPES[type].air ? SHADOW_AIR : SHADOW_OFF));
     c.save(); c.translate(x, y); c.rotate(hd); c.drawImage(p, -S.w / 2 * sc, -S.h / 2 * sc, S.w * sc, S.h * sc); c.restore();
+    if (Sim.TYPES[type].hover && col !== 'wreck') { // (a helicopter's rotor, turning over its picture; a transport's two)
+      if (type === 'lift') for (const f of [0.55, -0.55]) drawRotor(c, x + Math.cos(hd) * k * f, y + Math.sin(hd) * k * f, k * 0.75, 'rgba(30,30,30,.9)');
+      else drawRotor(c, x, y, k, 'rgba(30,30,30,.9)');
+    }
     return;
   }
   const H = SPRITES.tank_hull, T = SPRITES.tank_turret, sc = SPRITE_LEN.tank * k / H.w;
@@ -443,12 +486,12 @@ function drawScenery(c) {
   const pick = it => { const L = it.t === 'rock' ? (it.hi && it.s >= 10 / WORLD_K ? P.rock : low) : P[it.t]; return L[it.v % L.length]; }; // (the slab only big: small, it's a grey square)
   // first the shadows (trees and bushes: to the south-east, like everything else; a tree, taller, casts farther),
   // so no shadow falls over a neighbour's crown
-  c.save(); c.globalAlpha = TREE_SHADOW_A;
+  c.save(); c.globalAlpha = TREE_SHADOW_A * SUN.a;
   for (const it of decor.rocks.items) {
     if (it.t === 'rock' || it.gone || it.x < x0 || it.x > x1 || it.y < y0 || it.y > y1) continue;
     const im = pick(it), p = shadowPic(keyOf.get(im)); if (!p) continue;
     const w = it.s, sc = w / im.width, off = w * (it.t === 'tree' ? TREE_SHADOW : TREE_SHADOW * 0.5);
-    c.drawImage(p, it.x - p.width / 2 * sc + off, it.y - p.height / 2 * sc + off * 1.25, p.width * sc, p.height * sc);
+    if (SUN.a > 0.02) c.drawImage(p, it.x - p.width / 2 * sc + off * SUN.x, it.y - p.height / 2 * sc + off * SUN.y, p.width * sc, p.height * sc);
   }
   c.restore();
   for (const it of decor.rocks.items) {

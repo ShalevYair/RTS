@@ -19,7 +19,9 @@ const TYPES = {
   inf:  { name: 'חי"ר',  hp: 60,  speed: 26, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 3, rein: 7, cost: 1 },
   tank: { name: 'טנקים', hp: 150, speed: 37, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 13, rein: 12, cost: 2 },
   air:  { name: 'מטוסים', hp: 90, speed: 80, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 9, rein: 15, air: true, ammo: 10, cost: 2 },
-  aa:   { name: 'נ"מ',   hp: 70,  speed: 29, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 3, rein: 9, cost: 1 },
+  // (AA soldiers: missiles only at what flies; at the ground a rifle — gun: an infantryman's range and pace, half his
+  // hitting power, hitting as infantry does, MULT.inf)
+  aa:   { name: 'נ"מ',   hp: 70,  speed: 29, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 3, rein: 9, cost: 1, gun: { range: 50, dmg: 3.5, cd: 0.8, as: 'inf' } },
   jeep: { name: "ג'יפים", hp: 80,  speed: 60, range: 60,  dmg: 6,  cd: 0.7, sight: 170, r: 8, rein: 8, cost: 1 },
   // anti-tank soldiers: like AA, but their launcher is for armour
   at:   { name: 'נ"ט',   hp: 60,  speed: 27, range: 95, dmg: 26, cd: 2.0, sight: 125, r: 3, rein: 9, cost: 1 },
@@ -33,43 +35,67 @@ const TYPES = {
   // support (the full game): a bulldozer builds the HQ, forward HQs and every building (only while it stands by the
   // site); a signals truck sees far and gives control around it (NODES.radio). Neither fights; both come from the HQ.
   dozer: { name: 'טרקטורים', hp: 120, speed: 30, range: 0, dmg: 0, cd: 1, sight: 110, r: 9, rein: 8, cost: 1, care: true, support: true },
+  // helicopters (from a helipad): they hover — hold a spot, stand over what they shoot — where planes circle.
+  // AA hits them hard, and flying low, soldiers and jeeps a little too. heli: missiles (aircraft, helicopters,
+  // vehicles); gunship: a machine gun (soldiers)
+  heli:    { name: 'מסוקי קרב', hp: 110, speed: 55, range: 90, dmg: 16, cd: 1.4, sight: 150, r: 9, rein: 15, air: true, hover: true, ammo: 8, cost: 2 },
+  gunship: { name: 'מסוקי מקלע', hp: 100, speed: 60, range: 70, dmg: 6, cd: 0.35, sight: 150, r: 9, rein: 15, air: true, hover: true, ammo: 30, cost: 2 },
+  // the transport helicopter: no gun; carries up to `cap` soldiers (any kind on foot, commandos too) — see special.js
+  lift:    { name: 'מסוקי תובלה', hp: 130, speed: 70, range: 0, dmg: 0, cd: 1, sight: 150, r: 10, rein: 15, air: true, hover: true, care: true, cap: 10, cost: 2 },
+  // missiles (special.js): a surface-to-surface missile truck; and the missile defences' trucks — Arrow (against those
+  // missiles) and Iron Dome (against the short ones: aircraft's, helicopters', anti-tank). None of them fights.
+  ssm:     { name: 'משאיות טילים', hp: 100, speed: 35, range: 0, dmg: 0, cd: 1, sight: 110, r: 9, rein: 8, care: true, cost: 2 },
+  arrow:   { name: 'משאיות חץ', hp: 90, speed: 38, range: 0, dmg: 0, cd: 1, sight: 120, r: 9, rein: 8, care: true, cost: 2 },
+  dome:    { name: 'משאיות כיפת ברזל', hp: 90, speed: 38, range: 0, dmg: 0, cd: 1, sight: 120, r: 9, rein: 8, care: true, cost: 2 },
+  // the commando (special.js): the enemy doesn't see him — only right by its drone or signals truck, close by its
+  // units or buildings, or for a moment when he fires; he sees round him as a drone does (all of it made out). One
+  // shot kills a soldier (a few seconds between); by an enemy building, standing still, he blows it up (the HQ: four)
+  commando: { name: 'קומנדו', hp: 70, speed: 30, range: 70, dmg: 70, cd: 3, sight: 200, r: 3, rein: 8, cost: 2, stealth: true },
   radio: { name: 'משאיות קשר', hp: 90, speed: 42, range: 0, dmg: 0, cd: 1, sight: 510, r: 8, rein: 8, cost: 1, care: true, support: true },
 };
 // logistics: ground fighters carry SUPPLY shots, one used per shot. Low (below SUPPLY_LOW of a load) a unit goes on
 // its own to the nearest supply truck, or home, holding its fire until refilled to SUPPLY_DONE. Within SUPPLY_R of a
 // truck, or by one of its side's buildings (a forward HQ too), it refills SUPPLY_FILL of a load per second.
 // Only where s.supply is on (the full game, and the tutorial from its care level).
-const SUPPLY = { inf: 150, jeep: 150, tank: 60, aa: 60, at: 40, ajeep: 60, tjeep: 40 }, SUPPLY_LOW = 0.1, SUPPLY_DONE = 0.9, SUPPLY_FILL = 0.12, SUPPLY_R = 40;
+const SUPPLY = { commando: 40, inf: 150, jeep: 150, tank: 60, aa: 60, at: 40, ajeep: 60, tjeep: 40 }, SUPPLY_LOW = 0.1, SUPPLY_DONE = 0.9, SUPPLY_FILL = 0.12, SUPPLY_R = 40;
 // care: a unit below CARE_AT of its health leaves the fight on its own and goes to the nearest unit that treats its
 // kind (CARER), or home if there is none; it doesn't shoot until back at CARE_DONE. Within CARE_R of a medic /
 // mechanic it heals CARE_HEAL per second.
-const CARER = { inf: 'med', aa: 'med', at: 'med', med: 'med', jeep: 'mech', ajeep: 'mech', tjeep: 'mech', tank: 'mech', mech: 'mech', truck: 'mech', dozer: 'mech', radio: 'mech' };
+const CARER = { commando: 'med', ssm: 'mech', arrow: 'mech', dome: 'mech', inf: 'med', aa: 'med', at: 'med', med: 'med', jeep: 'mech', ajeep: 'mech', tjeep: 'mech', tank: 'mech', mech: 'mech', truck: 'mech', dozer: 'mech', radio: 'mech' };
 const CARE_AT = 0.4, CARE_DONE = 0.9, CARE_R = 30, CARE_HEAL = 9;
 // power (for collapse) per full-health unit
-const UNIT_VALUE = { inf: 1, aa: 1.5, at: 1.5, jeep: 1.5, ajeep: 2.5, tjeep: 2.5, tank: 3, air: 4, med: 1, mech: 1.5, truck: 1.5, dozer: 1.5, radio: 1.5 };
+const UNIT_VALUE = { commando: 2, ssm: 2.5, arrow: 2, dome: 2, lift: 3, heli: 4, gunship: 3.5, inf: 1, aa: 1.5, at: 1.5, jeep: 1.5, ajeep: 2.5, tjeep: 2.5, tank: 3, air: 4, med: 1, mech: 1.5, truck: 1.5, dozer: 1.5, radio: 1.5 };
 // Damage multiplier MULT[attacker][target]. Range order: aa > air > tank > inf
 // impact explosion per attacker: big for tanks/aircraft, smaller for AA, tiny for infantry
 // how long a shot flies (s): bullets (infantry, jeeps) are quick, shells slower, missiles (aircraft, AA) slowest;
 // its blast shows when it lands. Only a look: the damage is dealt when fired.
-const SHOT_TIME = { inf: 0.1, jeep: 0.1, tank: 0.25, air: 0.45, aa: 0.5, at: 0.35, ajeep: 0.5, tjeep: 0.35 };
-const IMPACT = { tank: { size: 18, life: 0.5 }, air: { size: 18, life: 0.5 }, aa: { size: 10, life: 0.35 }, inf: { size: 4, life: 0.22 }, jeep: { size: 6, life: 0.25 }, at: { size: 14, life: 0.45 }, ajeep: { size: 10, life: 0.35 }, tjeep: { size: 14, life: 0.45 } };
+const SHOT_TIME = { commando: 0.1, heli: 0.45, gunship: 0.1, inf: 0.1, jeep: 0.1, tank: 0.25, air: 0.45, aa: 0.5, at: 0.35, ajeep: 0.5, tjeep: 0.35 };
+const IMPACT = { commando: { size: 4, life: 0.22 }, heli: { size: 16, life: 0.45 }, gunship: { size: 5, life: 0.22 }, tank: { size: 18, life: 0.5 }, air: { size: 18, life: 0.5 }, aa: { size: 10, life: 0.35 }, inf: { size: 4, life: 0.22 }, jeep: { size: 6, life: 0.25 }, at: { size: 14, life: 0.45 }, ajeep: { size: 10, life: 0.35 }, tjeep: { size: 14, life: 0.45 } };
 // only AA (soldiers and AA jeeps) can hit aircraft (and drones): every other air column is 0, and 0 means "can't target".
 // Anti-tank (soldiers and AT jeeps) is strong against vehicles, weak against people
 // (medics are hit like infantry, mechanics like jeeps; care squads hit nothing)
 const MULT = {
-  inf:   { inf: 1, tank: 0.4, air: 0, aa: 1, jeep: 0.8, med: 1, mech: 0.8, truck: 0.8, at: 1, ajeep: 0.8, tjeep: 0.8, dozer: 0.8, radio: 0.8 },
-  tank:  { inf: 1.0, tank: 1, air: 0, aa: 1.0, jeep: 1.3, med: 1.0, mech: 1.3, truck: 1.3, at: 1.0, ajeep: 1.3, tjeep: 1.3, dozer: 1.3, radio: 1.3 },
-  air:   { inf: 0.4, tank: 2, air: 0, aa: 0.5, jeep: 1.5, med: 0.4, mech: 1.5, truck: 1.5, at: 0.4, ajeep: 1.5, tjeep: 1.5, dozer: 1.5, radio: 1.5 },
-  aa:    { inf: 0.25, tank: 0.2, air: 2.2, aa: 0.25, jeep: 0.3, med: 0.25, mech: 0.3, truck: 0.3, at: 0.25, ajeep: 0.3, tjeep: 0.3, dozer: 0.3, radio: 0.3 },
-  jeep:  { inf: 1.2, tank: 0.3, air: 0, aa: 1, jeep: 1, med: 1.2, mech: 1, truck: 1, at: 1.2, ajeep: 1, tjeep: 1, dozer: 1, radio: 1 },
-  at:    { inf: 0.2, tank: 2.2, air: 0, aa: 0.2, jeep: 1.5, med: 0.2, mech: 1.5, truck: 1.5, at: 0.2, ajeep: 1.5, tjeep: 1.5, dozer: 1.5, radio: 1.5 },
-  ajeep: { inf: 0.25, tank: 0.2, air: 1.7, aa: 0.25, jeep: 0.3, med: 0.25, mech: 0.3, truck: 0.3, at: 0.25, ajeep: 0.3, tjeep: 0.3, dozer: 0.3, radio: 0.3 },
-  tjeep: { inf: 0.2, tank: 1.9, air: 0, aa: 0.2, jeep: 1.3, med: 0.2, mech: 1.3, truck: 1.3, at: 0.2, ajeep: 1.3, tjeep: 1.3, dozer: 1.3, radio: 1.3 },
-  med:   { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0 },
-  mech:  { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0 },
-  truck: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0 },
-  dozer: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0 },
-  radio: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0 },
+  inf:   { inf: 1, tank: 0.4, air: 0, aa: 1, jeep: 0.8, med: 1, mech: 0.8, truck: 0.8, at: 1, ajeep: 0.8, tjeep: 0.8, dozer: 0.8, radio: 0.8, heli: 0.25, gunship: 0.25, lift: 0.25, ssm: 0.8, arrow: 0.8, dome: 0.8, commando: 1 },
+  tank:  { inf: 1.0, tank: 1, air: 0, aa: 1.0, jeep: 1.3, med: 1.0, mech: 1.3, truck: 1.3, at: 1.0, ajeep: 1.3, tjeep: 1.3, dozer: 1.3, radio: 1.3, heli: 0, gunship: 0, lift: 0, ssm: 1.3, arrow: 1.3, dome: 1.3, commando: 1.0 },
+  air:   { inf: 0.4, tank: 2, air: 0, aa: 0.5, jeep: 1.5, med: 0.4, mech: 1.5, truck: 1.5, at: 0.4, ajeep: 1.5, tjeep: 1.5, dozer: 1.5, radio: 1.5, heli: 0, gunship: 0, lift: 0, ssm: 1.5, arrow: 1.5, dome: 1.5, commando: 0.4 },
+  aa:    { inf: 0.25, tank: 0.2, air: 2.2, aa: 0.25, jeep: 0.3, med: 0.25, mech: 0.3, truck: 0.3, at: 0.25, ajeep: 0.3, tjeep: 0.3, dozer: 0.3, radio: 0.3, heli: 2.2, gunship: 2.2, lift: 2.2, ssm: 0.3, arrow: 0.3, dome: 0.3, commando: 0.25 },
+  jeep:  { inf: 1.2, tank: 0.3, air: 0, aa: 1, jeep: 1, med: 1.2, mech: 1, truck: 1, at: 1.2, ajeep: 1, tjeep: 1, dozer: 1, radio: 1, heli: 0.25, gunship: 0.25, lift: 0.25, ssm: 1, arrow: 1, dome: 1, commando: 1.2 },
+  at:    { inf: 0.2, tank: 2.2, air: 0, aa: 0.2, jeep: 1.5, med: 0.2, mech: 1.5, truck: 1.5, at: 0.2, ajeep: 1.5, tjeep: 1.5, dozer: 1.5, radio: 1.5, heli: 0, gunship: 0, lift: 0, ssm: 1.5, arrow: 1.5, dome: 1.5, commando: 0.2 },
+  ajeep: { inf: 0.25, tank: 0.2, air: 1.7, aa: 0.25, jeep: 0.3, med: 0.25, mech: 0.3, truck: 0.3, at: 0.25, ajeep: 0.3, tjeep: 0.3, dozer: 0.3, radio: 0.3, heli: 1.7, gunship: 1.7, lift: 1.7, ssm: 0.3, arrow: 0.3, dome: 0.3, commando: 0.25 },
+  tjeep: { inf: 0.2, tank: 1.9, air: 0, aa: 0.2, jeep: 1.3, med: 0.2, mech: 1.3, truck: 1.3, at: 0.2, ajeep: 1.3, tjeep: 1.3, dozer: 1.3, radio: 1.3, heli: 0, gunship: 0, lift: 0, ssm: 1.3, arrow: 1.3, dome: 1.3, commando: 0.2 },
+  med:   { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0, heli: 0, gunship: 0, lift: 0, ssm: 0, arrow: 0, dome: 0, commando: 0 },
+  mech:  { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0, heli: 0, gunship: 0, lift: 0, ssm: 0, arrow: 0, dome: 0, commando: 0 },
+  truck: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0, heli: 0, gunship: 0, lift: 0, ssm: 0, arrow: 0, dome: 0, commando: 0 },
+  dozer: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0, heli: 0, gunship: 0, lift: 0, ssm: 0, arrow: 0, dome: 0, commando: 0 },
+  radio: { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0, heli: 0, gunship: 0, lift: 0, ssm: 0, arrow: 0, dome: 0, commando: 0 },
+  // (air: 1 = it can go for anything flying — an unknown air track, a drone: the attack helicopter's missiles do)
+  heli:    { inf: 0.4, tank: 1.8, air: 1, aa: 0.5, jeep: 1.5, med: 0.4, mech: 1.5, truck: 1.5, at: 0.4, ajeep: 1.5, tjeep: 1.5, dozer: 1.5, radio: 1.5, heli: 1.2, gunship: 1.2, lift: 1.2, ssm: 1.5, arrow: 1.5, dome: 1.5, commando: 0.4 },
+  gunship: { inf: 1.6, tank: 0.15, air: 0, aa: 1.4, jeep: 0.6, med: 1.6, mech: 0.6, truck: 0.6, at: 1.6, ajeep: 0.6, tjeep: 0.6, dozer: 0.6, radio: 0.6, heli: 0, gunship: 0, lift: 0, ssm: 0.6, arrow: 0.6, dome: 0.6, commando: 1.6 },
+  lift:    { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0, heli: 0, gunship: 0, lift: 0, ssm: 0, arrow: 0, dome: 0, commando: 0 },
+  ssm:     { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0, heli: 0, gunship: 0, lift: 0, ssm: 0, arrow: 0, dome: 0, commando: 0 },
+  arrow:   { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0, heli: 0, gunship: 0, lift: 0, ssm: 0, arrow: 0, dome: 0, commando: 0 },
+  dome:    { inf: 0, tank: 0, air: 0, aa: 0, jeep: 0, med: 0, mech: 0, truck: 0, at: 0, ajeep: 0, tjeep: 0, dozer: 0, radio: 0, heli: 0, gunship: 0, lift: 0, ssm: 0, arrow: 0, dome: 0, commando: 0 },
+  commando: { inf: 1, tank: 0.05, air: 0, aa: 1, jeep: 0.1, med: 1, mech: 0.1, truck: 0.1, at: 1, ajeep: 0.1, tjeep: 0.1, dozer: 0.1, radio: 0.1, heli: 0, gunship: 0, lift: 0, ssm: 0.1, arrow: 0.1, dome: 0.1, commando: 1 },
 };
 const TRAITS = {
   aggressive: { name: 'תוקפני', leash: 1.8, retreatAt: 0.15, support: 420 },
@@ -95,12 +121,23 @@ const STRUCTS = {
   tent:     { name: 'אוהל',        icon: '⛺', hp: 400,  value: 3, unit: 'inf',  build: 20, every: 15,  size: 6, r: 21, cat: 'tents' },
   atpost:   { name: 'אוהל נ"ט',    icon: '🚀', hp: 450,  value: 4, unit: 'at',   build: 30, every: 30,  size: 4, r: 21, cat: 'tents' },
   aapost:   { name: 'אוהל נ"מ',    icon: '📡', hp: 450,  value: 4, unit: 'aa',   build: 30, every: 30,  size: 4, r: 21, cat: 'tents' },
+  // the commando base (3 minutes to set up, one every 2 minutes, at most 4)
+  commandopost: { name: 'בסיס קומנדו', icon: '🗡️', hp: 400, value: 4, unit: 'commando', build: 180, every: 120, size: 4, r: 21, cat: 'tents' },
   clinic:   { name: 'אוהל חובשים', icon: '🏥', hp: 350,  value: 3, unit: 'med',  build: 20, every: 25,  size: 2, r: 21, cat: 'tents' },
-  tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 50, every: 60,  size: 3, r: 36, cat: 'shops' },
+  tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 50, every: 60,  size: 3, r: 36, cat: 'shops', upgrade: 'trophy' },
+  // the missile works: surface-to-surface missile trucks (3 minutes to set up, one every 2 minutes, at most 3)
+  ssmshop:  { name: 'מפעל טילים', icon: '🚀', hp: 600, value: 6, unit: 'ssm', build: 180, every: 120, size: 3, r: 32, cat: 'shops' },
+  // the missile defences (the service menu's page): Arrow, Iron Dome
+  arrowsite: { name: 'אתר חץ', icon: '🛡️', hp: 500, value: 5, unit: 'arrow', build: 120, every: 60, size: 3, r: 28, cat: 'defense' },
+  domesite:  { name: 'אתר כיפת ברזל', icon: '🛡️', hp: 450, value: 4, unit: 'dome', build: 60, every: 60, size: 4, r: 28, cat: 'defense' },
   jeepshop: { name: "סדנת ג'יפים", icon: '🔧', hp: 450,  value: 4, unit: 'jeep', build: 25, every: 25,  size: 4, r: 28, cat: 'jeeps' },
   // the same workshop, set up for armed jeeps: each takes twice as long (badge: what's on the back)
   jeepat:   { name: "סדנת ג'יפי נ\"ט", icon: '🔧', hp: 450, value: 4, unit: 'tjeep', build: 25, every: 50, size: 3, badge: '🚀', r: 28, cat: 'jeeps' },
   jeepaa:   { name: "סדנת ג'יפי נ\"מ", icon: '🔧', hp: 450, value: 4, unit: 'ajeep', build: 25, every: 50, size: 3, badge: '✈️', r: 28, cat: 'jeeps' },
+  // helipads (the aviation menu's second page): attack helicopters, gunships
+  heliatk:  { name: 'מנחת מסוקי קרב', icon: '🚁', hp: 550, value: 7, unit: 'heli', build: 50, every: 90, size: 2, badge: '🚀', r: 36, cat: 'helis' },
+  helilift: { name: 'מנחת מסוקי תובלה', icon: '🚁', hp: 500, value: 5, unit: 'lift', build: 40, every: 90, size: 1, badge: '🪂', r: 36, cat: 'helis' },
+  heligun:  { name: 'מנחת מסוקי מקלע', icon: '🚁', hp: 550, value: 7, unit: 'gunship', build: 50, every: 90, size: 2, badge: '🔫', r: 36, cat: 'helis' },
   airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2, r: 45, cat: 'air' },
   garage:   { name: 'מוסך',        icon: '🛠️', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2, r: 28, cat: 'service' },
   depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 28, cat: 'service' },
@@ -124,7 +161,14 @@ const SKIRT_AHEAD = 30, SKIRT_STEP = 30;
 // head-on pass each other; the other standing: 45°, to the side away from it. One that hasn't got anywhere for
 // STUCK_T s, though it means to move, takes a detour to its right for DETOUR_T s.)
 const STEER_LOOK = 14, STUCK_T = 1.5, DETOUR_T = 1.2;
-const UNIT_GAP = 10, CRUSH_DPS = 90, FOOT = ['inf', 'aa', 'at', 'med'];
+// (and one that can't get to its spot — others stand there — gives up: no nearer to it for GIVEUP_T s within
+// GIVEUP_R of it, it stands where it is GIVEUP_REST s (and up to GIVEUP_JIT more), then tries again; before, they shoved
+// one another without end)
+const GIVEUP_T = 3, GIVEUP_R = 120, GIVEUP_REST = 3, GIVEUP_JIT = 2;
+// a hurt unit is slower and weaker, by its health (as its dot on the map: yellow, orange under 60%, red under 30%):
+// HURT_K = [over 95% … , under 30%]
+const HURT_AT = [0.95, 0.6, 0.3], HURT_K = [1, 0.9, 0.75, 0.55];
+const UNIT_GAP = 10, CRUSH_DPS = 90, FOOT = ['inf', 'aa', 'at', 'med', 'commando'];
 // how hard a unit is to push aside when two bump (soldiers 1)
 // (SLIDE: how much of a push goes sideways)
 const MASS = { tank: 6, jeep: 2, ajeep: 2, tjeep: 2, mech: 2, truck: 2, dozer: 3, radio: 2 }, SLIDE = 0.35;
@@ -172,7 +216,7 @@ const SPREAD = 120, SPREAD_POW = 1.5, BOLD_STRETCH = 0.6;
 // The hard AI only masses squads on one target where its control is at least FF_MASS_Q.
 const FF_CHANCE = 0.08, FF_R = 60, FF_NOTE = 8, FF_MASS_Q = 0.5;
 // damage to structures by attacker type (AA is the only thing that can hit a drone)
-const NODE_MULT = { inf: 0.6, tank: 1.5, air: 1.2, aa: 1.5, jeep: 0.8, at: 1.5, ajeep: 0.8, tjeep: 1.3 };
+const NODE_MULT = { commando: 0.3, ssm: 0, arrow: 0, dome: 0, lift: 0, heli: 1.2, gunship: 0.6, inf: 0.6, tank: 1.5, air: 1.2, aa: 1.5, jeep: 0.8, at: 1.5, ajeep: 0.8, tjeep: 1.3 };
 // formations: a squad stands in a line across the way to the enemy (the nearest one seen within FACE_R, else the enemy
 // HQ), its units LINE_GAP + 2r apart; it turns toward a new threat at FACE_TURN rad/s. Ordering all squads at once
 // lines them up in rows, front to back (FORM_ROW): tanks, jeeps, infantry, AA, medics and mechanics; aircraft over the
@@ -182,7 +226,7 @@ const NODE_MULT = { inf: 0.6, tank: 1.5, air: 1.2, aa: 1.5, jeep: 0.8, at: 1.5, 
 // (sq.pack: 'line' / 'block' set by the player, else by that count). Vehicles VEH_GAP apart, soldiers LINE_GAP.
 const PACK_AT = 10, VEH_GAP = 18;
 const FACE_R = 320, FACE_TURN = 0.8, LINE_GAP = 20, ROW_GAP = 70, SIDE_GAP = 40;
-const FORM_ROW = { tank: 0, jeep: 1, tjeep: 1, ajeep: 1, air: 1.5, inf: 2, at: 2.5, aa: 3, med: 4, mech: 4, truck: 4, radio: 5, dozer: 5 };
+const FORM_ROW = { commando: 2, ssm: 5, arrow: 5, dome: 5, lift: 4, heli: 1.5, gunship: 1.5, tank: 0, jeep: 1, tjeep: 1, ajeep: 1, air: 1.5, inf: 2, at: 2.5, aa: 3, med: 4, mech: 4, truck: 4, radio: 5, dozer: 5 };
 const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
 // difficulty: how often the AI re-plans and how well it decides (never extra units or vision).
@@ -196,14 +240,14 @@ const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
 // forward HQs: a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
 const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
-const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'airfield', 'jeepat', 'garage', 'tankshop', 'jeepaa'], AI_READY = 0.6;
+const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'airfield', 'jeepat', 'garage', 'domesite', 'heliatk', 'tankshop', 'heligun', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost'], AI_READY = 0.6;
 // the AI's style, picked per game for red (blue bots play 'steady'): what it builds first, how worn a squad may be
 // and still attack (ready), and how it goes about it — rush attacks early and often; turtle holds near home until it
 // has `wait` squads (or the upper hand), striking only what comes close; flank goes round by the map's edge.
 const AI_STYLES = {
   steady: { name: 'שקול',  icon: '🦉', plan: AI_PLAN, ready: AI_READY },
-  rush:   { name: 'מסתער', icon: '⚡', plan: ['jeepshop', 'tent', 'tankshop', 'jeepat', 'depot', 'aapost', 'clinic', 'airfield', 'garage'], ready: 0.45 },
-  turtle: { name: 'מתבצר', icon: '🐢', plan: ['aapost', 'tankshop', 'atpost', 'depot', 'clinic', 'jeepaa', 'airfield', 'tankshop', 'garage', 'tent'], ready: 0.7, wait: 5 },
+  rush:   { name: 'מסתער', icon: '⚡', plan: ['jeepshop', 'tent', 'tankshop', 'heligun', 'jeepat', 'depot', 'aapost', 'clinic', 'airfield', 'garage'], ready: 0.45 },
+  turtle: { name: 'מתבצר', icon: '🐢', plan: ['aapost', 'tankshop', 'atpost', 'depot', 'clinic', 'jeepaa', 'heliatk', 'airfield', 'tankshop', 'garage', 'tent'], ready: 0.7, wait: 5 },
   flank:  { name: 'מאגף',  icon: '↪', plan: AI_PLAN, ready: AI_READY, flank: true },
 };
 // AI_SILENT_R: the hard AI sends squads going farther than this in radio silence
@@ -236,9 +280,29 @@ const UNCLEAR_Q = 0.5, UNCLEAR_K = 0.5;
 // map's width (any height); its CMD_TANKS command tanks drive there and set it up (HQ_WARM s to build). Until it
 // stands the command tanks carry the command (NODES.cmd) and nothing can be built; losing them first loses the game.
 const HQ_BAND = 0.2, HQ_WARM = 20, CMD_TANKS = 2;
+// the player's buildings (singles): one unit out at a time, and at most BUILD_UNITS alive from each building
+const BUILD_UNITS = 4;
 // support (the full game, s.dozers): each side starts with a bulldozer and a signals truck; the HQ sends out another
 // of each every SUPPORT_EVERY s while it has fewer than SUPPORT_CAP. A building goes up only while a bulldozer stands
 // within DOZER_R of it (its work: the building's time, HQ_WARM for the HQ, the forward HQ's warm-up).
 // A bulldozer works from a corner of the site, DOZER_R past its footprint. The first forward HQ may be set up
 // FHQ_AFTER_HQ s after the HQ stands (none before it).
+// the transport helicopter: soldiers board it within BOARD_R of it while it stands; it sets them down LAND_T s after it
+// gets where it was sent, within DROP_R round it
+const BOARD_R = 26, LAND_T = 1.5, DROP_R = 30;
+// missiles: a truck stands SSM_SETUP s still, then launches at a building its side knows; the missile flies SSM_FLIGHT s
+// (the launch shows the enemy where the truck is); a building goes down in one hit, the HQ in SSM_HQ_HITS; soldiers
+// and vehicles within SSM_SPLASH take SSM_SPLASH_DMG. The truck launches again after SSM_RELOAD s.
+// Arrow: a truck takes on an enemy missile halfway, anywhere within ARROW_R_K of the map's height of it, ARROW_P of
+// the time; ARROW_RELOAD s to load the next. Iron Dome: the short missiles (MISSILE_SHOTS: aircraft, attack
+// helicopters, anti-tank) at anything of its side within DOME_R_K of the map's height; DOME_RELOAD s between.
+// Trophy (the tank workshop's upgrade, TROPHY_BUILD s with no tanks): every tank out after it (or back by a workshop)
+// stops TROPHY_MAX of those missiles, one more every TROPHY_EVERY s; never shells or bullets.
+const SSM_SETUP = 10, SSM_FLIGHT = 10, SSM_RELOAD = 60, SSM_HQ_HITS = 4, SSM_SPLASH = 40, SSM_SPLASH_DMG = 60;
+const ARROW_R_K = 1, ARROW_P = 0.9, ARROW_RELOAD = 60, DOME_R_K = 0.5, DOME_RELOAD = 60;
+const MISSILE_SHOTS = ['air', 'heli', 'at', 'tjeep'], TROPHY_MAX = 3, TROPHY_EVERY = 30, TROPHY_BUILD = 180;
+// the commando: seen by the enemy only within STEALTH_EYE of its drone or signals truck, STEALTH_NEAR of its units or
+// buildings, or for STEALTH_FIRE s after he fires; a charge on a building takes PLANT_T s standing by it (within its
+// edge + PLANT_R), and brings it down (the HQ: a quarter — four together, at once)
+const STEALTH_EYE = 40, STEALTH_NEAR = 25, STEALTH_FIRE = 4, PLANT_T = 20, PLANT_R = 15;
 const SUPPORT_EVERY = 120, SUPPORT_CAP = 3, DOZER_R = 40, FHQ_AFTER_HQ = 60;

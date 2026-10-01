@@ -44,18 +44,19 @@ const LEVEL_PROD = { blue: 1.4, red: 0.5 }, LEVEL_FOE_HQ = 0.5, LEVEL_FOE = [['i
 function setForces(s, side, list) {
   const gone = new Set(s.squads.filter(q => q.side === side).map(q => q.id));
   s.squads = s.squads.filter(q => !gone.has(q.id)); s.units = s.units.filter(u => !gone.has(u.squad));
-  for (const n of s.nodes) if (gone.has(n.squad)) n.squad = null;
+  for (const n of s.nodes) if (gone.has(n.squad)) { n.squad = null; n.squads = []; }
   for (const [type, fx, fy, n] of list) {
-    const x = s.W * fx, y = s.H * fy, sq = makeSquad(s, side, type, null, x, y);
-    sq.size = n; fillSquad(s, sq, x, y);
+    const x = s.W * fx, y = s.H * fy;
+    if (singles(s, side)) { raiseSingles(s, side, type, null, x, y, n); continue; } // (the player's: each unit its own squad)
+    const sq = makeSquad(s, side, type, null, x, y); sq.size = n; fillSquad(s, sq, x, y);
   }
 }
 
 // level n (1-based) on a map W wide; null past the last level
-function level(n, seed = 1, W = 1000) {
+function level(n, seed = 1, W = 1000, opts = {}) {
   const L = LEVELS[n - 1];
   if (!L) return null;
-  const s = L.big ? create(seed, 2 * Math.max(1000, W), L.bot || 'easy', 2 * H) : create(seed, W, L.bot || 'easy');
+  const s = L.big ? create(seed, 2 * Math.max(1000, W), L.bot || 'easy', 2 * H, opts) : create(seed, W, L.bot || 'easy', H, opts);
   s.level = n; s.night = false; s.scale = 1; s.ui = L.ui.slice(); s.fog = L.ui.includes('fog') && !L.fogAt; s.c2 = L.ui.includes('c2');
   if (L.fogAt) s.fogAt = L.fogAt;
   s.supply = L.ui.includes('care'); // ammunition runs out from the level that brings medics, mechanics and supply trucks

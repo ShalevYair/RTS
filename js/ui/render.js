@@ -158,7 +158,15 @@ function poly(c, pts, k) {
 // unit / facility glyphs: soldier, missile, tank (with barrel), plane
 // step: how far along its stride / tracks the unit is (radians; 0 = standing): legs swing, treads run, bodies bob
 let glyphRecoil = 0; // (0..1: how far a tank's barrel is kicked back, for the unit being drawn)
+// a helicopter's main rotor: a faint disc and two blades turning fast
+function drawRotor(c, x, y, k, col) {
+  const a = reduceMotion ? 0.6 : performance.now() / 45, r = k * 0.82, a0 = c.globalAlpha;
+  c.save(); c.translate(x, y); c.globalAlpha = a0 * 0.18; c.fillStyle = '#ddd'; c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.fill();
+  c.globalAlpha = a0 * 0.7; c.strokeStyle = col; c.lineWidth = Math.max(1, k * 0.06); c.lineCap = 'round';
+  c.beginPath(); for (const b of [a, a + Math.PI / 2]) { c.moveTo(-Math.cos(b) * r, -Math.sin(b) * r); c.lineTo(Math.cos(b) * r, Math.sin(b) * r); } c.stroke(); c.restore();
+}
 function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step = 0) {
+  if (type === 'commando') return glyph(c, 'inf', x, y, k, shade(fill, -0.35), outline, hd, aim, lw, step); // (a commando: a soldier, darker)
   const sw = Math.sin(step) * 0.26 * k, bob = step ? Math.abs(Math.sin(step)) * 0.12 * k : 0;
   c.save(); c.translate(x, y - bob); c.lineJoin = 'round'; c.lineCap = 'round';
   const paint = () => { if (outline) { c.lineWidth = lw; c.strokeStyle = outline; c.stroke(); } c.fillStyle = fill; c.fill(); };
@@ -167,6 +175,22 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     c.strokeStyle = fill; c.lineWidth = w; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
   };
   if (type === 'air') { c.rotate(hd); c.beginPath(); poly(c, PLANE, k); paint(); }
+  else if (type === 'lift') {
+    // a transport helicopter from above: a long body and two big rotors, front and back
+    c.rotate(hd); c.beginPath(); c.roundRect ? c.roundRect(-k * 0.85, -k * 0.24, k * 1.7, k * 0.48, k * 0.22) : c.rect(-k * 0.85, -k * 0.24, k * 1.7, k * 0.48); paint();
+    c.rotate(-hd);
+    for (const f of [0.55, -0.55]) drawRotor(c, Math.cos(hd) * k * f, Math.sin(hd) * k * f, k * 0.75, outline || fill);
+  }
+  else if (type === 'heli' || type === 'gunship') {
+    // a helicopter from above: the cabin, the tail boom with its small rotor, stub wings (missiles) or a gun, and the
+    // big rotor turning over it all (drawRotor)
+    c.rotate(hd); c.beginPath(); c.ellipse(k * 0.12, 0, k * 0.46, k * 0.27, 0, 0, Math.PI * 2); paint();
+    c.beginPath(); c.rect(-k * 0.95, -k * 0.06, k * 0.7, k * 0.12); paint();
+    c.beginPath(); c.rect(-k * 1.0, -k * 0.2, k * 0.1, k * 0.4); paint();
+    if (type === 'heli') { c.beginPath(); c.rect(0, -k * 0.46, k * 0.12, k * 0.92); paint(); }
+    else { c.beginPath(); c.rect(k * 0.45, -k * 0.04, k * 0.3, k * 0.08); paint(); }
+    c.rotate(-hd); drawRotor(c, k * 0.12 * Math.cos(hd), k * 0.12 * Math.sin(hd), k, outline || fill);
+  }
   else if (type === 'aa' || type === 'at') {
     // anti-aircraft: a soldier with a launcher tube on his shoulder, pointing where he aims (up, at aircraft);
     // anti-tank: the same, level, with a fat warhead
@@ -192,6 +216,14 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     c.rotate(aim - hd); barrel(0, 0, 1.3 * k * (1 - 0.28 * glyphRecoil), 0, 0.22 * k);
     c.beginPath(); c.arc(0, 0, 0.36 * k, 0, Math.PI * 2); paint();
     if (outline) { c.fillStyle = 'rgba(255,255,255,.3)'; c.beginPath(); c.arc(-0.1 * k, -0.1 * k, 0.16 * k, 0, Math.PI * 2); c.fill(); }
+  } else if (type === 'ssm' || type === 'arrow' || type === 'dome') {
+    // a missile truck: the cab in front, a launcher on the back — one long missile, two (Arrow), a box of tubes (Dome)
+    c.rotate(hd); c.beginPath(); c.rect(-0.85 * k, -0.42 * k, 1.7 * k, 0.84 * k); paint();
+    c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0.5 * k, -0.38 * k, 0.35 * k, 0.76 * k);
+    c.fillStyle = outline ? '#e8e2d0' : fill;
+    if (type === 'ssm') c.fillRect(-0.8 * k, -0.11 * k, 1.25 * k, 0.22 * k);
+    else if (type === 'arrow') { c.fillRect(-0.75 * k, -0.3 * k, 1.1 * k, 0.16 * k); c.fillRect(-0.75 * k, 0.14 * k, 1.1 * k, 0.16 * k); }
+    else for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { c.beginPath(); c.arc(-0.55 * k + i * 0.32 * k, -0.15 * k + j * 0.3 * k, 0.11 * k, 0, Math.PI * 2); c.fill(); }
   } else if (type === 'truck') {
     // supply truck: a cargo box behind a darker cab, with a crate mark
     c.rotate(hd); c.beginPath(); c.rect(-0.8 * k, -0.45 * k, 1.6 * k, 0.9 * k); paint();
@@ -278,15 +310,36 @@ function relief(E) {
 // dark one and a light one — from the height grid, worked out once per map. SHADE_Z: how tall a contour line is
 // (world units; more = steeper, stronger shading); SUN_UP: how high the sun stands (its shadows' slope).
 const SHADE_Z = 14, SUN_UP = 0.42, SHADE_DARK = 0.44, SHADE_LITE = 0.3, CAST_DARK = 0.24;
-function hillShade(E) {
+// (as a job: a few rows at a time, so a new sun's shading is worked out over some frames — on the huge map it takes
+// ~100 ms — while the last one still shows; hillShade does it all at once)
+// every frame: when the sun has moved on, the hills' new shading a few rows at a time (at most SHADE_MS a frame);
+// done, it takes over (and the ground is drawn again)
+const SHADE_MS = 5;
+function sunShadeTick() {
+  const R = decor && decor.hills; if (!R || !R.shade || R.shadeOf !== s.elev) return;
+  // (the same minute of the day, the same shading: each is worked out once a map, SHADES kept)
+  if (!R.job && R.sunKey !== SUN.hill) {
+    R.done = R.done || {}; const had = R.done[SUN.hill];
+    if (had) { R.shade = had; R.sunKey = SUN.hill; return; }
+    R.job = hillShadeJob(s.elev, SUN); R.jobKey = SUN.hill;
+  }
+  if (!R.job) return;
+  const t0 = performance.now(); let r;
+  while (!(r = R.job.next()).done) if (performance.now() - t0 > SHADE_MS) return;
+  R.shade = r.value; R.sunKey = R.jobKey; R.done[R.jobKey] = r.value; R.job = null;
+}
+function hillShade(E, sun = SUN) { const j = hillShadeJob(E, sun); let r; while (!(r = j.next()).done); return r.value; }
+function* hillShadeJob(E, sun) {
   const W = E.w, H = E.h, g = E.g, dark = document.createElement('canvas'), lite = document.createElement('canvas');
   dark.width = lite.width = W; dark.height = lite.height = H;
   const dc = dark.getContext('2d'), lc = lite.getContext('2d'), di = dc.createImageData(W, H), li = lc.createImageData(W, H);
   const at = (i, j) => g[Math.max(0, Math.min(H - 1, j)) * W + Math.max(0, Math.min(W - 1, i))];
-  const L = [-1, -1, 1.4], Ln = Math.hypot(...L), l = L.map(v => v / Ln), flat = l[2];
-  // (the sun's way across the grid, back toward it: a step to the north-west per cell)
-  const step = Math.SQRT2 * ELEV, rise = SUN_UP * step / SHADE_Z; // (how many lines the ray climbs per step)
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+  // (toward the sun: north-west at noon; lower in the morning and evening — longer shadows)
+  const hz = Math.hypot(sun.lx, sun.ly) || 1, L = [sun.lx / hz * Math.SQRT2, sun.ly / hz * Math.SQRT2, 1.4 * sun.up], Ln = Math.hypot(...L), l = L.map(v => v / Ln), flat = l[2];
+  // (the sun's way across the grid, back toward it: a step of the longer side per cell)
+  const m = Math.max(Math.abs(sun.lx), Math.abs(sun.ly)) || 1, sx = sun.lx / m, sy = sun.ly / m;
+  const step = Math.hypot(sx, sy) * ELEV, rise = SUN_UP * sun.up * step / SHADE_Z; // (how many lines the ray climbs per step)
+  for (let j = 0; j < H; j++) { if (j % 12 === 11) yield; for (let i = 0; i < W; i++) {
     const k = j * W + i, e = g[k];
     // the slope, over two cells each way (smoother than next-door cells)
     const dx = (at(i + 2, j) - at(i - 2, j)) * SHADE_Z / (4 * ELEV), dy = (at(i, j + 2) - at(i, j - 2)) * SHADE_Z / (4 * ELEV);
@@ -295,14 +348,14 @@ function hillShade(E) {
     // cast shadow: something higher between here and the sun
     let h = e, cast = 0;
     for (let s2 = 1; s2 < 60; s2++) {
-      h += rise; const t = at(i - s2, j - s2); if (t > h) { cast = Math.min(1, (t - h) * 0.9); break; }
+      h += rise; const t = at(Math.round(i + sx * s2), Math.round(j + sy * s2)); if (t > h) { cast = Math.min(1, (t - h) * 0.9); break; }
       if (h > HILL_TOP) break;
     }
     sh = Math.min(0.7, sh + cast * CAST_DARK); if (cast) hi *= 0.3;
     di.data[k * 4 + 3] = 255 * sh; li.data[k * 4 + 3] = 255 * hi;
     di.data[k * 4] = 14; di.data[k * 4 + 1] = 20; di.data[k * 4 + 2] = 34; // (a cool dark)
     li.data[k * 4] = 255; li.data[k * 4 + 1] = 244; li.data[k * 4 + 2] = 210; // (a warm light)
-  }
+  } }
   dc.putImageData(di, 0, 0); lc.putImageData(li, 0, 0);
   return { dark, lite };
 }
@@ -348,10 +401,12 @@ function mix(a, b, u, k = 0) {
 const bg = { cv: document.createElement('canvas'), key: '', x0: 0, y0: 0, w: 0, h: 0 }, BG_MARGIN = 160;
 function drawGround(c) {
   const sc = view.scale, vx0 = -view.ox / sc, vy0 = -view.oy / sc, vw = cv.width / sc, vh = cv.height / sc;
-  const key = [sc.toFixed(4), cv.width, cv.height, colors.ground, colors.hill, colors.tree, s.seed, s.W].join();
+  sunTick(); sunShadeTick(); // (the sun turns a minute at a time: the ground, its hills' and trees' shadows, drawn again then)
+  // (the sun: drawn again once its hills' shading for the new minute is ready — once a minute, not twice)
+  const key = [sc.toFixed(4), cv.width, cv.height, colors.ground, colors.hill, colors.tree, s.seed, s.W, decor.hills.sunKey].join();
   if (key !== bg.key || vx0 < bg.x0 || vy0 < bg.y0 || vx0 + vw > bg.x0 + bg.w || vy0 + vh > bg.y0 + bg.h) {
-    const d = Math.min(2, window.devicePixelRatio || 1), k = d / (window.devicePixelRatio || 1); // cache pixels per canvas pixel
-    const m = BG_MARGIN * (window.devicePixelRatio || 1) / sc; // the margin, in world units
+    const k = 1; // cache pixels per canvas pixel
+    const m = BG_MARGIN * DPR() / sc; // the margin, in world units
     bg.key = key; bg.x0 = vx0 - m; bg.y0 = vy0 - m; bg.w = vw + 2 * m; bg.h = vh + 2 * m;
     bg.cv.width = Math.ceil(bg.w * sc * k); bg.cv.height = Math.ceil(bg.h * sc * k);
     const g = bg.cv.getContext('2d');
@@ -402,7 +457,8 @@ function drawTerrain(c, W, H, mid) {
   // every fifth a little stronger
   const R = decor.hills, key = colors.tree + colors.ground + colors.grass2;
   if (R.theme !== key) { R.relief = relief(s.elev); R.theme = key; }
-  if (R.shadeOf !== s.elev) { R.shade = hillShade(s.elev); R.shadeOf = s.elev; }
+  // (a new map: its shading now; a new sun: worked out over the next frames, see sunShadeTick)
+  if (R.shadeOf !== s.elev) { R.shade = hillShade(s.elev); R.shadeOf = s.elev; R.sunKey = SUN.hill; R.job = null; R.done = { [SUN.hill]: R.shade }; }
   const rocky = tilePat(c, 'rocky');
   if (rocky) c.globalAlpha = RELIEF_OVER_TILES;
   c.drawImage(R.relief, -ELEV / 2, -ELEV / 2, R.relief.width * ELEV, R.relief.height * ELEV);
@@ -410,7 +466,9 @@ function drawTerrain(c, W, H, mid) {
   if (rocky) drawStony(c, rocky);
   // (the light and shade over it all, the textures too)
   c.imageSmoothingEnabled = true;
-  for (const L of [R.shade.dark, R.shade.lite]) c.drawImage(L, -ELEV / 2, -ELEV / 2, L.width * ELEV, L.height * ELEV);
+  // (in the dark: no light, and the shade only faintly)
+  [R.shade.dark, R.shade.lite].forEach((L, k) => { c.globalAlpha = k ? SUN.a : 0.35 + 0.65 * SUN.a; c.drawImage(L, -ELEV / 2, -ELEV / 2, L.width * ELEV, L.height * ELEV); });
+  c.globalAlpha = 1;
   c.strokeStyle = shade(colors.tree, -0.35); c.lineCap = 'round';
   R.contours.forEach((p, k) => { c.globalAlpha = (k + 1) % 5 ? 0.13 : 0.26; c.lineWidth = (k + 1) % 5 ? 0.9 : 1.4; c.stroke(p); });
   c.globalAlpha = 1;
@@ -445,7 +503,7 @@ function drawTerrain(c, W, H, mid) {
 }
 
 // drone: a quadcopter from above — four rotors on an X frame
-const AMMO = '#e0b020', GLOW = { inf: 2.5, aa: 2.5, at: 2.5, med: 2.5 }; // (the vehicles, big now, need none)
+const AMMO = '#e0b020', GLOW = { commando: 2.5, inf: 2.5, aa: 2.5, at: 2.5, med: 2.5 }; // (the vehicles, big now, need none)
 function drawDrone(c, x, y, k, col, rot = 0, spin = 0) {
   c.save(); c.translate(x, y); c.rotate(rot); c.lineWidth = k * 0.16; c.strokeStyle = colors.outline;
   c.beginPath(); c.moveTo(-k * 0.7, -k * 0.7); c.lineTo(k * 0.7, k * 0.7); c.moveTo(k * 0.7, -k * 0.7); c.lineTo(-k * 0.7, k * 0.7); c.stroke();
@@ -461,13 +519,15 @@ function drawDrone(c, x, y, k, col, rot = 0, spin = 0) {
 }
 
 // fog of war: dim everything outside what blue can see (units' sight, own base, held points)
-const fogCv = document.createElement('canvas'), fctx = fogCv.getContext('2d');
+const fogCv = document.createElement('canvas'), fctx = fogCv.getContext('2d'), FOG_RES = 0.5;
 function drawFog() {
   const f = fctx;
-  if (fogCv.width !== cv.width || fogCv.height !== cv.height) { fogCv.width = cv.width; fogCv.height = cv.height; }
+  // (at FOG_RES of the canvas, scaled up: its edges are soft anyway, and a full-size layer every frame was slow)
+  const fw = Math.ceil(cv.width * FOG_RES), fh = Math.ceil(cv.height * FOG_RES);
+  if (fogCv.width !== fw || fogCv.height !== fh) { fogCv.width = fw; fogCv.height = fh; }
   f.setTransform(1, 0, 0, 1, 0, 0); f.globalCompositeOperation = 'source-over';
   f.clearRect(0, 0, fogCv.width, fogCv.height);
-  f.setTransform(view.scale, 0, 0, view.scale, view.ox, view.oy);
+  f.setTransform(view.scale * FOG_RES, 0, 0, view.scale * FOG_RES, view.ox * FOG_RES, view.oy * FOG_RES);
   f.fillStyle = colors.fog; f.fillRect(0, 0, s.W, s.H);
   f.globalCompositeOperation = 'destination-out'; f.fillStyle = '#000';
   const hole = (x, y, r) => {
@@ -478,7 +538,7 @@ function drawFog() {
   // our squads lift the fog around them only where they're drawn (not around a guess)
   for (const q of s.squads) if (q.side === 'blue' && !q.dead && sqShown(q)) hole(q.cx, q.cy, Sim.TYPES[q.type].sight * (1 - 0.4 * Sim.nightAt(s)) + 30);
   for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, n.kind === 'drone' ? Sim.DRONE_SIGHT + 15 : n.kind === 'fhq' ? Sim.NODES.fhq.sight : n.kind === 'hq' ? Sim.STRUCTS.hq.sight + 20 : 170);
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = s.fogAt ? Math.min(1, (s.t - s.fogAt) / 3) : 1; ctx.drawImage(fogCv, 0, 0); ctx.restore();
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = s.fogAt ? Math.min(1, (s.t - s.fogAt) / 3) : 1; ctx.drawImage(fogCv, 0, 0, cv.width, cv.height); ctx.restore();
 }
 
 // enemy as blobs of uncertainty: tight when just seen, spreading and fading with the age of the sighting
@@ -524,6 +584,9 @@ function clearEyes() {
   for (const n of s.nodes) if (n.side === 'blue' && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready) eyes.l.push({ x: n.x, y: n.y, r2: Sim.DRONE_SIGHT ** 2 });
   const rr = Sim.TYPES.radio.sight * (1 - 0.4 * Sim.nightAt(s));
   for (const u of s.units) if (u.side === 'blue' && u.type === 'radio') eyes.l.push({ x: u.x, y: u.y, r2: rr * rr });
+  // (a commando sees round him as a drone does)
+  const cr = Sim.TYPES.commando.sight * (1 - 0.4 * Sim.nightAt(s));
+  for (const u of s.units) if (u.side === 'blue' && u.type === 'commando') eyes.l.push({ x: u.x, y: u.y, r2: cr * cr });
   return eyes.l;
 }
 const shownAt = p => !Sim.friction(s) || clearEyes().some(e => (e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= e.r2) || Sim.quality(s, 'blue', p) >= 1;
@@ -679,7 +742,7 @@ function drawBuildArea(c) {
 }
 // event reports appear where they happened, pop in and fade out
 // (not shown: arrived, roger, contact — the voice says them — nor the envelopes of orders on their way)
-const MARK = { promo: '⭐', unclear: '❓', hit: '💥', lost: '✖', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕️', nodeLost: '💥', ff: '⚠' };
+const MARK = { missile: '🚀', intercept: '💥', promo: '⭐', unclear: '❓', hit: '💥', lost: '✖', flag: '🚩', flagLost: '🏳', call: '📞', fhq: '🏕️', nodeLost: '💥', ff: '⚠' };
 // orders still on their way: an envelope runs from HQ toward the squad
 function drawMail(c) {
   const hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq') || { x: s.bases.blue.x, y: s.H / 2 };
@@ -806,11 +869,15 @@ function drawUnits(c, show) {
     // (a soldier standing easy sways a little: never quite still)
     // (and every second or two turns where he stands, 30–60° one way or the other: lookAround)
     const sway = SPRITE_ACROSS[u.type] && !recent && !reduceMotion ? Math.sin(performance.now() / 900 + u.id * 1.7) * 0.07 + lookAround(u) : 0;
+    const ga = c.globalAlpha; if (u.type === 'commando' && u.side === 'blue') c.globalAlpha = ga * 0.7; // (ours a little see-through: hidden from the enemy)
     if (hasSprite(u.type)) { stride(u); drawUnitPic(c, u.type, u.x, u.y, k, colors[u.side], (SPRITE_ACROSS[u.type] && recent ? u.aim : u.hd) + sway, aim, glyphRecoil); }
     else glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim, glow ? 0.9 : 1.2, T.air ? 0 : stride(u));
-    glyphRecoil = 0;
+    glyphRecoil = 0; c.globalAlpha = ga;
     if (glow) c.shadowBlur = 0;
     if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
+    if (u.type === 'commando' && u.plant > 0) { c.strokeStyle = '#ff7a3d'; c.lineWidth = 2; c.beginPath(); c.arc(u.x, u.y, k + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * u.plant / Sim.PLANT_T); c.stroke(); }
+    if (u.type === 'tank' && u.side === 'blue' && u.trophy !== undefined) for (let i = 0; i < Sim.TROPHY_MAX; i++) { c.fillStyle = i < u.trophy ? '#ffd54a' : 'rgba(255,255,255,.3)'; ring(u.x + (i - 1) * 4, u.y + k * 0.9, 1.4); c.fill(); }
+    if (u.type === 'lift' && u.side === 'blue' && u.cargo && u.cargo.length) label('👥' + u.cargo.length, u.x, u.y - k - 6, colors.ink);
     // (no ammunition or care marks, no health bar: a hurt unit of ours has its dot, see healthDot)
     if (u.side === 'blue' && isSel(u.squad) && !(sel === 'all' && u.type === 'dozer')) { // (all picked: every one but the bulldozers)
       // picked: a faint light ring close round the unit
@@ -818,6 +885,19 @@ function drawUnits(c, show) {
     }
   }
   for (const u of hurt) healthDot(c, u);
+  // a hurt unit picked (not just "all"): a red Star of David pulsing over it — click it again to send it to be treated
+  if (sel !== 'all' && sel != null) for (const u of hurt) if (isSel(u.squad) && hurtUnit(u)) starOfDavid(c, u.x, u.y - SIZE[u.type] * (Sim.TYPES[u.type].air ? 1.2 : 1.05) - 9 / view.css);
+}
+function starOfDavid(c, x, y) {
+  const f = reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(performance.now() / 160), r = (7 + 2 * f) / view.css;
+  c.save(); c.globalAlpha = 0.7 + 0.3 * f; c.lineJoin = 'round';
+  for (const pass of [0, 1]) {
+    c.lineWidth = (pass ? 1.8 : 4) / view.css; c.strokeStyle = pass ? '#e01b24' : 'rgba(255,255,255,.95)';
+    for (const a0 of [-Math.PI / 2, Math.PI / 2]) {
+      c.beginPath(); for (let i = 0; i < 3; i++) { const a = a0 + i * Math.PI * 2 / 3; c[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * r, y + Math.sin(a) * r); } c.closePath(); c.stroke();
+    }
+  }
+  c.restore();
 }
 
 // a standing soldier looks round: a new turn (30–60°, either way, from his heading) every 1–2 s, eased in over LOOK_EASE s
@@ -828,6 +908,22 @@ function lookAround(u) {
   const turn = k => k % 3 === 0 ? 0 : (lookHash(k * 7.7 + u.id) < 0.5 ? -1 : 1) * (0.52 + lookHash(k * 3.3 + u.id) * 0.53);
   const a0 = turn(i - 1), a1 = turn(i), e = Math.min(1, f * per / LOOK_EASE);
   return a0 + (a1 - a0) * e * e * (3 - 2 * e);
+}
+// surface-to-surface missiles in flight (s.missiles): an arc up from the truck and down on the target, a smoke trail
+// behind, a shadow on the ground below; seen by both sides
+const MISSILE_ARC = 0.35; // (how high, of the way's length)
+function drawMissiles(c) {
+  for (const m of s.missiles || []) {
+    const T = Sim.SSM_FLIGHT, at = f => { const g = Math.min(1, Math.max(0, f)), L = Math.hypot(m.x - m.x0, m.y - m.y0); return { x: m.x0 + (m.x - m.x0) * g, y: m.y0 + (m.y - m.y0) * g, h: Math.sin(Math.PI * g) * L * MISSILE_ARC }; };
+    const f = (s.t - m.t0) / T, p = at(f), q = at(f - 0.03);
+    c.globalAlpha = 0.25; c.fillStyle = '#000'; ring(p.x + p.h * 0.15, p.y + p.h * 0.1, 3); c.fill(); // (its shadow)
+    c.globalAlpha = 0.45; c.strokeStyle = '#d8d8d0'; c.lineWidth = 3; c.beginPath();
+    for (let k = 0; k <= 10; k++) { const r = at(f - 0.12 * k / 10); c.lineTo(r.x, r.y - r.h); } c.stroke();
+    c.globalAlpha = 1; c.save(); c.translate(p.x, p.y - p.h); c.rotate(Math.atan2((p.y - p.h) - (q.y - q.h), p.x - q.x));
+    c.fillStyle = colors[m.side]; c.beginPath(); c.moveTo(9, 0); c.lineTo(-7, -2.5); c.lineTo(-7, 2.5); c.closePath(); c.fill();
+    c.fillStyle = '#ffb347'; c.beginPath(); c.arc(-8, 0, 2.2 + Math.random() * 1.2, 0, Math.PI * 2); c.fill(); c.restore();
+  }
+  c.globalAlpha = 1;
 }
 function draw() {
   const c = ctx, W = s.W, H = s.H, mid = W / 2;
@@ -841,7 +937,7 @@ function draw() {
   for (const sh of s.shots) {
     const k = Math.min(1, (sh.dur + 0.12 - sh.life) / sh.dur), x = sh.x1 + (sh.x2 - sh.x1) * k, y = sh.y1 + (sh.y2 - sh.y1) * k;
     const dx = sh.x2 - sh.x1, dy = sh.y2 - sh.y1, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
-    if (sh.kind === 'air' || sh.kind === 'aa' || sh.kind === 'at' || sh.kind === 'ajeep' || sh.kind === 'tjeep') {
+    if (sh.kind === 'air' || sh.kind === 'heli' || sh.kind === 'arrow' || sh.kind === 'dome' || sh.kind === 'aa' || sh.kind === 'at' || sh.kind === 'ajeep' || sh.kind === 'tjeep') {
       const back = Math.min(d * k, 40);
       c.globalAlpha = 0.35 * (k < 1 ? 1 : sh.life / 0.12); c.strokeStyle = '#d8d8d0'; c.lineWidth = 2.5;
       c.beginPath(); c.moveTo(x - ux * back, y - uy * back); c.lineTo(x, y); c.stroke();
@@ -904,8 +1000,8 @@ function draw() {
     }
     drawGuess(c, q, guessAt(q), on);
   }
-  drawPicked(c); drawPings(c);
-  drawVignette(c);
+  drawMissiles(c);
+  drawPicked(c); drawPings(c); // (the vignette: #vig, in CSS — a full-screen layer drawn every frame was slow)
 }
 // a squad's units are drawn as they are with no command friction, or while all of them are in the exact picture
 // (else only its symbol, see drawGuess)

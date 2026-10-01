@@ -3,6 +3,7 @@ function spawn(s, sq, x, y) {
   const T = TYPES[sq.type], a = s.rand() * Math.PI * 2, m = Math.sqrt(s.rand());
   s.units.push({ id: s.nextId++, side: sq.side, squad: sq.id, type: sq.type,
     x: clamp(x + Math.cos(a) * m * 20, 5, s.W - 5), y: clamp(y + Math.sin(a) * m * 20, 5, s.H - 5),
+    trophy: sq.type === 'tank' && s.trophy && s.trophy[sq.side] ? TROPHY_MAX : undefined,
     hp: T.hp, sup: 1, hd: sq.side === 'blue' ? 0 : Math.PI, aim: sq.side === 'blue' ? 0 : Math.PI, lastFire: -99, ammo: T.ammo || 0, rearm: false, rearmT: 0, cd: s.rand() * T.cd, sx: Math.cos(a) * m, sy: Math.sin(a) * m, engaged: false });
 }
 
@@ -115,6 +116,20 @@ function makeSquad(s, side, type, home, x, y, trait = 'balanced') {
   s.squads.push(sq);
   return sq;
 }
+// the player's units are each their own squad (singles); the AI keeps its squads of several (its commanders sent
+// singles in one at a time, and bot games stalled)
+// (on when the game is made with { singles: true } — the UI's games; the tests' games keep squads)
+const singles = (s, side) => !!s.singles && !(s.bots || []).includes(side);
+// every unit its own squad (sq.single): n of them, one a squad, standing in a line across the way to the enemy at
+// (x, y); home: the building that raised them (it refills them). Returns the squads.
+function raiseSingles(s, side, type, home, x, y, n, trait) {
+  const out = [], sp = TYPES[type].r * 2 + (FOOT.includes(type) ? LINE_GAP : VEH_GAP);
+  for (let i = 0; i < n; i++) {
+    const yy = clamp(y + (i - (n - 1) / 2) * sp, 10, s.H - 10), q = makeSquad(s, side, type, home, x, yy, trait);
+    q.size = 1; q.single = true; spawn(s, q, x, yy); q.count = 1; q.cx = x; q.cy = yy; q.born = true; out.push(q);
+  }
+  return out;
+}
 const fillSquad = (s, sq, x, y) => {
   for (let k = 0; k < sq.size; k++) spawn(s, sq, x, y);
   const c0 = bodyCenter(s.units.filter(u => u.squad === sq.id)); sq.cx = c0.x; sq.cy = c0.y; sq.count = sq.size; sq.born = true;
@@ -122,7 +137,7 @@ const fillSquad = (s, sq, x, y) => {
 
 // Opening (DESIGN.md §3): HQ, a tent with its infantry, and one jeep squad without a building
 // mapH: the world's height (H = the small map; up to MAP_H_MAX for the big one, DESIGN.md §5)
-function create(seed = 1, W = 1000, diff = 'normal', mapH = H) {
+function create(seed = 1, W = 1000, diff = 'normal', mapH = H, opts = {}) {
   const h = clamp(Math.round(mapH) || H, H, MAP_H_MAX);
   W = clamp(Math.round(W) || 1000, 700, MAP_W_MAX);
   const s = { W, H: h, seed, t: 0, over: null, nextId: 1, nextSq: 0, rand: rng(seed), hills: [], lakes: [],
@@ -132,7 +147,7 @@ function create(seed = 1, W = 1000, diff = 'normal', mapH = H) {
     rep: {}, marks: [], outbox: [], calls: [], nextCall: 1, hist: [], histIn: 0, names: { blue: SURNAMES.slice(), red: SURNAMES.slice() }, lastBuild: {},
     log2: { orders: 0, delay: 0, answered: 0, missed: 0, off: 0, offN: 0, ff: 0 }, ff: [], power: { blue: 0, red: 0 }, peak: { blue: 0, red: 0 }, plan: { blue: 0, red: 0 },
     nodes: [], nextNode: 1, visNodes: { blue: new Set(), red: new Set() }, cd: { blue: { fhq: 0 }, red: { fhq: 0 } }, drones: { blue: { stock: 1, next: NODES.drone.every }, red: { stock: 1, next: NODES.drone.every } },
-    diff: diff in DIFFS ? diff : 'normal', bots: ['red'], botDiff: 'normal', aiFhq: { blue: null, red: null }, supply: true, fallen: [], night: true };
+    diff: diff in DIFFS ? diff : 'normal', bots: ['red'], singles: !!opts.singles, botDiff: 'normal', aiFhq: { blue: null, red: null }, supply: true, fallen: [], night: true };
   s.log2.unclear = 0;
   // bigger maps allow more: the big one 2× the buildings and forward HQs, the huge one 4×
   s.scale = h > 2 * H * 1.5 ? 4 : h > H ? 2 : 1;
@@ -144,10 +159,18 @@ function create(seed = 1, W = 1000, diff = 'normal', mapH = H) {
     const b = s.bases[side], dir = side === 'blue' ? 1 : -1;
     addStruct(s, side, 'hq', b.x + dir * (STRUCTS.hq.r - 30), h / 2, true); // (all of it on the map)
     const tent = addStruct(s, side, 'tent', b.x + dir * 75, h / 2 - 130, true);
-    const inf = makeSquad(s, side, 'inf', tent.id, b.x + dir * 150, h / 2 - 130, side === 'blue' ? 'aggressive' : 'balanced');
-    tent.squad = inf.id; fillSquad(s, inf, inf.order.x, inf.order.y);
-    const jeep = makeSquad(s, side, 'jeep', null, b.x + dir * 150, h / 2 + 130);
-    fillSquad(s, jeep, jeep.order.x, jeep.order.y);
+    // (the player's: each soldier and jeep its own squad)
+    const trait = side === 'blue' ? 'aggressive' : 'balanced';
+    if (singles(s, side)) {
+      const inf = raiseSingles(s, side, 'inf', tent.id, b.x + dir * 150, h / 2 - 130, STRUCTS.tent.size, trait);
+      tent.squads = inf.map(q => q.id); tent.squad = inf[inf.length - 1].id;
+      raiseSingles(s, side, 'jeep', null, b.x + dir * 150, h / 2 + 130, 4);
+    } else {
+      const inf = makeSquad(s, side, 'inf', tent.id, b.x + dir * 150, h / 2 - 130, trait);
+      tent.squad = inf.id; fillSquad(s, inf, inf.order.x, inf.order.y);
+      const jeep = makeSquad(s, side, 'jeep', null, b.x + dir * 150, h / 2 + 130);
+      fillSquad(s, jeep, jeep.order.x, jeep.order.y);
+    }
   }
   updatePower(s);
   visibility(s);

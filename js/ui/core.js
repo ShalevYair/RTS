@@ -31,9 +31,9 @@ const TC = { inf: 'tInf', aa: 'tAa', at: 'tAa', tank: 'tTank', air: 'tAir', jeep
 // WORLD_K: the world is 1.5× bigger than the units (the sim's bodies 1/1.5 of their look before); everything drawn
 // for them is 1/WORLD_K and the camera opens / zooms WORLD_K× closer, so on screen they look the same
 const WORLD_K = 1.5;
-const SIZE = Object.fromEntries(Object.entries({ inf: 5, aa: 5.5, at: 5.5, tank: 40, air: 42, jeep: 26, ajeep: 26, tjeep: 26, med: 5, mech: 20, truck: 20, dozer: 24, radio: 22 }).map(([k, v]) => [k, v / WORLD_K]));
+const SIZE = Object.fromEntries(Object.entries({ commando: 5.5, ssm: 24, arrow: 22, dome: 22, lift: 40, heli: 36, gunship: 34, inf: 5, aa: 5.5, at: 5.5, tank: 40, air: 42, jeep: 26, ajeep: 26, tjeep: 26, med: 5, mech: 20, truck: 20, dozer: 24, radio: 22 }).map(([k, v]) => [k, v / WORLD_K]));
 // vehicles (tracks, dust, wrecks)
-const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck', 'dozer', 'radio']);
+const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck', 'dozer', 'radio', 'ssm', 'arrow', 'dome']);
 
 // ---- viewport: world is sized to the screen's aspect at game start; a camera (centre + zoom) looks at it ----
 // zoom 1 = the whole map fits; zooming in stops at ZOOM_PX screen px per world unit. The big map opens on our base at
@@ -41,13 +41,17 @@ const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck', 'dozer',
 // map size: small / big (the default) / huge (2× the big one each way); hugeMap implies bigMap
 let bigMap = true, hugeMap = false;
 try { const m = localStorage.getItem('irts-map'); bigMap = m !== 'small'; hugeMap = m === 'huge'; } catch (e) { /* storage unavailable */ }
+// the map is drawn at most MAX_DPR canvas pixels per screen pixel: on a dense screen (a laptop's 1.5–2×) every
+// full-screen layer — the ground, the fog, the night — cost 2–4× the pixels, and the game crawled (9 fps at 2×);
+// the browser scales it up, a little softer
+const MAX_DPR = 1, DPR = () => Math.min(window.devicePixelRatio || 1, MAX_DPR);
 const START_PX = 1 * WORLD_K, ZOOM_PX = 2.5 * WORLD_K;
 let view = { scale: 1, ox: 0, oy: 0, css: 1, cox: 0, coy: 0 }, cam = { x: 0, y: 0, z: 1 }, fit = null;
 function resize() {
   const r = stage.getBoundingClientRect(); if (!r.width || !r.height || !s) return;
   // keep the map clear of the top HUD strip and the bottom toolbar
   const { top, bottom } = pads(), availH = Math.max(100, r.height - top - bottom);
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = DPR();
   cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
   fit = { sc: Math.min(r.width / s.W, availH / s.H), w: r.width, h: availH, top, dpr };
   applyView();

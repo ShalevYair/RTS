@@ -12,7 +12,7 @@ ROOT = os.path.join(os.path.dirname(__file__), '..')
 SPRITES = {
     'jeep':        ('jeep.jpg',        'bluish',  False, None,       256),
     'tank_hull':   ('tank_hull.jpg',   'bluish',  False, (517, 506), 256),
-    'tank_turret': ('tank_turret.jpg', 'bluish',  False, (322, 600), None),  # (the hull's scale: they fit together)
+    'tank_turret': ('tank_turret.jpg', 'bluish',  False, (357, 516), None),  # (the hull's scale: they fit together; pivot = the body's middle, over the hull's ring)
     'ajeep':       ('jeep_aa.jpg',     'bluish',  False, None,       256),
     'tjeep':       ('jeep_at.jpg',     'bluish',  False, None,       256),
     'truck':       ('truck.jpg',       'bluish',  False, None,       256),
@@ -20,12 +20,19 @@ SPRITES = {
     'air':         ('plane.jpg',       'bluish',  False, None,       256),
     'dozer':       ('dozer.jpg',       'bluish',  False, None,       256),  # (these two: only once they're in art/)
     'radio':       ('radio.jpg',       'bluish',  False, None,       256),
+    'heli':        ('heli.jpg',        'bluish',  False, None,       256),  # (helicopters: only once they're in art/)
+    'gunship':     ('gunship.jpg',     'bluish',  False, None,       256),
+    'lift':        ('lift.jpg',        'bluish',  False, None,       256),
+    'ssm':         ('ssm.jpg',         'bluish',  False, None,       256),  # (missile trucks: only once they're in art/)
+    'arrow':       ('arrow.jpg',       'bluish',  False, None,       256),
+    'dome':        ('dome.jpg',        'bluish',  False, None,       256),
     'drone':       ('drone.jpg',       'pure',    False, None,       192),  # (pure white only: the rotor discs are light grey)
     # soldiers (only once they're in art/): rifleman, anti-tank, anti-air, medic
     'inf':         ('inf.jpg',         'white',   False, None,       160),
     'at':          ('at.jpg',          'white',   False, None,       160),
     'aa':          ('aa.jpg',          'white',   False, None,       160),
     'med':         ('med.jpg',         'white',   False, None,       160),
+    'commando':    ('commando.jpg',    'white',   False, None,       160),  # (only once it's in art/)
 }
 
 # and every building picture in art/ (b_<kind>.jpg / .png: seen at a slant from the south, on white)
