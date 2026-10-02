@@ -4,11 +4,12 @@
 const foeOf = side => side === 'blue' ? 'red' : 'blue';
 // how much enemy force sits near p, weighed by how this squad fares against it.
 // > 0: the squad has the upper hand there; < 0: it would be countered.
-function edgeAt(s, sq, p) {
+// (foes: what think already knows of them — [{ q, k }]; working it out again here for every target of every squad
+// was most of a big battle's time, the player's units being hundreds of singles)
+function edgeAt(s, sq, p, foes) {
   let e = 0;
-  for (const q of s.squads) {
-    const k = q.side !== sq.side && intel(s, sq.side, q);
-    if (!k || !k.type || Math.hypot(k.x - p.x, k.y - p.y) > AI_NEAR) continue; // unidentified: can't weigh it
+  for (const { q, k } of foes) {
+    if (!k.type || Math.hypot(k.x - p.x, k.y - p.y) > AI_NEAR) continue; // unidentified: can't weigh it
     e += (MULT[sq.type][k.type] - MULT[k.type][sq.type]) * k.strength * q.size;
   }
   return e;
@@ -150,9 +151,12 @@ function think(s, side, level) {
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
     if (D.smart && sq.strength < St.ready && !fighting) { const h = homeOf(s, sq); setOrder(sq, 'hold', h.x, h.y); continue; }
-    const cands = [];
+    const cands = [], seen = new Set();
     for (const { q, k } of foes) {
       if (!canHit(sq, k)) continue; // can't hurt it (aircraft for everyone but AA), as far as we can tell
+      // (one target for those close together: the player's units are singles — hundreds of targets, each weighed
+      // against all the rest)
+      const key = Math.floor(k.x / AI_CLUSTER) * 4096 + Math.floor(k.y / AI_CLUSTER); if (seen.has(key)) continue; seen.add(key);
       cands.push({ x: k.x, y: k.y, w: 0, edge: true });
     }
     // structures: production and forward HQs matter most; aircraft go for them when there's nothing better
@@ -167,7 +171,7 @@ function think(s, side, level) {
       // massing on one target where control is poor means shooting each other (friendly fire): spread out there
       const mass = D.mass && (!friction(s) || quality(s, side, p) >= FF_MASS_Q);
       let sc = dist(c, p) + p.w + (mass ? -150 : 200) * (taken.get(p.x + ',' + p.y) || 0);
-      if (D.smart && p.edge) sc -= 60 * edgeAt(s, sq, p);
+      if (D.smart && p.edge) sc -= 60 * edgeAt(s, sq, p, foes);
       if (D.smart && TYPES[sq.type].air) for (const { q, k } of foes) if (k.type === 'aa' && Math.hypot(k.x - p.x, k.y - p.y) < 150) sc += 300 * k.strength;
       return sc;
     };

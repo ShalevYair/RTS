@@ -30,6 +30,7 @@ function idLevel(s, side, p) {
 }
 const threatAt = (s, side, p, r) => s.units.some(u => u.side !== side && dist(u, p) <= r && seen(s, side, u));
 // seen = within sight of a friendly unit or structure, or it fired in the last FIRE_REVEAL seconds (muzzle flash)
+const EYE_CELL = 128;
 function visibility(s) {
   for (const side of ['blue', 'red']) {
     const eyes = s.units.filter(u => u.side === side);
@@ -38,8 +39,18 @@ function visibility(s) {
     // (the posts a side holds see round them: an observation tower far)
     if (s.posts) for (const p of s.posts) if (p.side === side) { const r = (p.kind === 'tower' ? TOWER_SIGHT : POST_SIGHT) * skySight(s, side); eyeS.push({ x: p.x, y: p.y, r2: r * r }); }
     // (lying in ambush under the trees: seen only close up, or by a drone / signals truck)
-    const close = e => eyes.some(u => (u.x - e.x) ** 2 + (u.y - e.y) ** 2 <= AMBUSH_NEAR * AMBUSH_NEAR) || clearAt(s, side, e);
-    const inSight = p => eyeS.some(k => (k.x - p.x) ** 2 + (k.y - p.y) ** 2 <= k.r2);
+    // (our units near it only, from the tick's grid; and each eye listed in the squares of EYE_CELL its sight reaches,
+    // so a unit is tested against those only — every eye for every enemy was slow with hundreds on each side)
+    const near = (e, R) => around(s, e.x, e.y, R).some(u => u.side === side && u.hp > 0 && (u.x - e.x) ** 2 + (u.y - e.y) ** 2 <= R * R);
+    const close = e => near(e, AMBUSH_NEAR) || clearAt(s, side, e);
+    const EG = new Map();
+    for (const k of eyeS) {
+      const r = Math.sqrt(k.r2);
+      for (let i = Math.floor((k.x - r) / EYE_CELL); i <= Math.floor((k.x + r) / EYE_CELL); i++) for (let j = Math.floor((k.y - r) / EYE_CELL); j <= Math.floor((k.y + r) / EYE_CELL); j++) {
+        const c = i * 4096 + j; let l = EG.get(c); if (!l) EG.set(c, l = []); l.push(k);
+      }
+    }
+    const inSight = p => { const l = EG.get(Math.floor(p.x / EYE_CELL) * 4096 + Math.floor(p.y / EYE_CELL)); return !!l && l.some(k => (k.x - p.x) ** 2 + (k.y - p.y) ** 2 <= k.r2); };
     const v = new Set(), vq = new Set();
     for (const e of s.units) {
       if (e.side === side) continue;
@@ -69,7 +80,7 @@ function visibility(s) {
       // not seen, but its vehicles raise dust within DUST_SEE of our eyes: "something moves" there
       else if (s.fog && q.side !== side && DUSTY.includes(q.type)) {
         let x = 0, y = 0, n = 0;
-        for (const e of of.get(q.id) || []) if (s.t - (e.dustAt ?? -9) < 0.5 && (eyes.some(u => dist(u, e) <= DUST_SEE) || s.nodes.some(k => k.side === side && k.hp > 0 && k.kind !== 'decoy' && dist(k, e) <= DUST_SEE))) { x += e.x; y += e.y; n++; }
+        for (const e of of.get(q.id) || []) if (s.t - (e.dustAt ?? -9) < 0.5 && (near(e, DUST_SEE) || s.nodes.some(k => k.side === side && k.hp > 0 && k.kind !== 'decoy' && dist(k, e) <= DUST_SEE))) { x += e.x; y += e.y; n++; }
         if (n) {
           const prev = s.mem[side][q.id], keep = prev && s.t - prev.t <= TRACK_GAP ? prev : null, j = () => (s.rand() * 2 - 1) * DUST_NOISE;
           s.mem[side][q.id] = { x: clamp(x / n + j(), 0, s.W), y: clamp(y / n + j(), 0, s.H), t: s.t, dust: true,

@@ -157,7 +157,7 @@ function supportSpawn(s, dt) {
     for (const [type, dy, kind] of [['dozer', 30, 'dozerReady'], ['radio', -30, 'radioReady']]) {
       if ((type === 'radio' && s.noRadio) || s.squads.filter(q => q.side === side && q.type === type && !q.dead).length >= SUPPORT_CAP) continue;
       const q = supportSquad(s, side, type, h.x + dir * 45, h.y + dy);
-      const go = outSpot(s, side, h); if (go) order(s, q.id, 'hold', go.x + dy, go.y, true); // (the HQ's rally point, or the front; a bulldozer with work goes to its site)
+      const go = outSpot(s, side, h, type); if (go) order(s, q.id, 'hold', go.x + dy, go.y, true); // (the HQ's rally point, or the front — not a bulldozer; one with work goes to its site)
       if (side === 'blue') { report(s, q, type === 'dozer' ? 'טרקטור מוכן' : 'משאית קשר מוכנה'); s.marks.push({ x: q.cx, y: q.cy, kind, t: s.t, who: q.name, id: q.id }); }
     }
   }
@@ -297,6 +297,8 @@ function setFront(s, side, x, y) {
   s.front = s.front || {}; s.front[side] = Number.isFinite(x) ? { x: clamp(x, 0, s.W), y: clamp(y, 0, s.H), t: s.t } : null; return true;
 }
 // where a unit new out of n goes: its rally point or the front, whichever was set last (null: stays by it).
+// a forward HQ of the side on its way (a squad driving to set it up, the order still a message) or going up
+const fhqUnderway = (s, side) => s.nodes.some(n => n.side === side && n.kind === 'fhq' && n.hp > 0 && s.t < n.ready) || s.squads.some(q => q.side === side && !q.dead && q.fhqAt) || s.outbox.some(m => m.side === side && m.kind === 'build');
 // Missile trucks never go to the front (FRONT_NOT): they fire from far behind
 function outSpot(s, side, n, type) {
   const f = !FRONT_NOT.includes(type) && s.front && s.front[side], r = n && n.rally;
@@ -316,7 +318,9 @@ function freeSpot(s, side, p, type, self) {
 }
 const goOut = (s, q, p) => { if (p) { const c = TYPES[q.type].air ? p : freeSpot(s, q.side, p, q.type, q); order(s, q.id, TYPES[q.type].care ? 'hold' : 'attack', c.x, c.y, true); } };
 function updateStructs(s, dt) {
-  for (const side of ['blue', 'red']) for (const k in s.cd[side]) s.cd[side][k] = Math.max(0, s.cd[side][k] - dt);
+  // (the player's wait for the next forward HQ runs only once the last one stands: not while it's on its way or going
+  // up; the AI's as before — changed, bot games on the big map stalled)
+  for (const side of ['blue', 'red']) for (const k in s.cd[side]) if (k !== 'fhq' || !(singles(s, side) && fhqUnderway(s, side))) s.cd[side][k] = Math.max(0, s.cd[side][k] - dt);
   droneSupply(s, dt);
   const arrived = new Set(s.squads.filter(q => q.arrived && !q.dead && !q.retreating).map(q => q.id));
   const idle = s.units.filter(u => !TYPES[u.type].air && arrived.has(u.squad) && !u.care && !u.resup && !(s.t - u.lastFire < REPAIR_QUIET));

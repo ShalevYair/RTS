@@ -23,7 +23,7 @@ function updateSquad(s, sq, dt, of) {
     const cols = blockCols(line.length), rows = Math.ceil(line.length / cols);
     line.forEach((u, i) => { const c = i % cols, r = Math.floor(i / cols), inRow = r < rows - 1 ? cols : line.length - r * cols; u.slot = c - (inRow - 1) / 2; u.row = r - (rows - 1) / 2; });
   } else line.forEach((u, i) => { u.slot = i - (line.length - 1) / 2; u.row = 0; });
-  if (sq.order.form && !sq.support && !sq.order.form.fixed) placeForm(s, sq, dt); // (fixed: placed once, when the order came)
+  if (sq.order.form && !sq.support && (!sq.order.form.fixed || sq.order.form.march)) placeForm(s, sq, dt); // (fixed: placed once, when the order came — marching, with the rest)
   const want = faceAt(s, sq.side, effOrder(s, sq), sq.order.form && sq.order.form.fa);
   sq.face = sq.face === undefined ? want : turnTo(sq.face, want, FACE_TURN * dt);
   const c = { x: sq.cx, y: sq.cy };
@@ -136,6 +136,9 @@ function underFire(s) {
     } else if (sq.arrived && MULT[u.type][a.type] > 0 && s.t - u.lastFire > 1.5) { sq.reactAt = s.t; selfOrder(sq, 'attack', a.x, a.y); }
   }
 }
+// how often a unit chooses its target anew, in ticks: the player's every SCAN_EVERY (twice that in the light mode), the
+// AI's every SCAN_AI (every tick, as before: less often, bot games on the big map stalled)
+const scanEvery = (s, u) => singles(s, u.side) ? (s.lite ? 2 * SCAN_EVERY : SCAN_EVERY) : SCAN_AI;
 function updateUnit(s, u, sq, dt) {
   const T = TYPES[u.type];
   u.cd = Math.max(0, u.cd - dt); u.engaged = false;
@@ -167,20 +170,28 @@ function updateUnit(s, u, sq, dt) {
   const o = effOrder(s, sq), retreat = sq.retreating || o.type === 'retreat';
   const anchor = retreat ? homeOf(s, sq) : o;
   // higher ground: further; the dark and the weather nearer, a held radar further (rk: what's left of the range)
-  const up = 1 + ELEV_BONUS * (u.lvl || 0), rk = envRange(s, u), range = T.range * up * rk, sight = T.sight * up * envSight(s, u);
+  const up = 1 + ELEV_RANGE * (u.lvl || 0), rk = envRange(s, u), range = T.range * up * rk, sight = T.sight * (1 + ELEV_SIGHT * (u.lvl || 0)) * envSight(s, u);
   const leash = o.r * TRAITS[sq.trait].leash;
   // (AA soldiers at something on the ground: their rifle — gun — not their missiles)
   const gunAt = e => T.gun && !(e.kind ? false : TYPES[e.type].air) ? T.gun : null, reach = e => { const G = gunAt(e); return G ? G.range * up * rk : range; };
   const hk = hurtK(u); // (hurt: weaker and slower)
   let best = null, bd = Infinity, bw = Infinity, near = null, nd = Infinity;
   const lim = Math.max(sight, range, T.gun ? T.gun.range * up * rk : 0); // (nothing further than this counts: a quick square test first)
-  for (const e of around(s, u.x, u.y, lim)) {
-    if (e.side === u.side || e.hp <= 0 || e.x - u.x > lim || u.x - e.x > lim || e.y - u.y > lim || u.y - e.y > lim || !MULT[u.type][e.type]) continue; // 0 = can't hit it (only AA hits aircraft)
-    // prefer targets this unit type is effective against
-    // prefer what this unit hurts most, and finishing off the wounded
-    const d = dist(u, e), w = d / (MULT[u.type][e.type] + 0.2) * (0.6 + 0.4 * e.hp / TYPES[e.type].hp), rg = reach(e);
-    if (d <= rg && w < nd) { nd = w; near = e; }
-    if (!retreat && d <= sight && dist(anchor, e) <= leash + rg && w < bw) { bw = w; bd = d; best = e; }
+  // (the target is chosen anew every SCAN_EVERY ticks, each unit in its turn — or at once if it's gone; in between
+  // the same one: every unit weighing every unit near it, every tick, was most of a big battle's time)
+  const gone = e => e && e.hp <= 0;
+  if (!u.pick || (s.tk + u.id) % scanEvery(s, u) === 0 || gone(u.pick.best) || gone(u.pick.near) || u.pick.retreat !== retreat) {
+    for (const e of around(s, u.x, u.y, lim)) {
+      if (e.side === u.side || e.hp <= 0 || e.x - u.x > lim || u.x - e.x > lim || e.y - u.y > lim || u.y - e.y > lim || !MULT[u.type][e.type]) continue; // 0 = can't hit it (only AA hits aircraft)
+      // prefer what this unit hurts most, and finishing off the wounded
+      const d = dist(u, e), w = d / (MULT[u.type][e.type] + 0.2) * (0.6 + 0.4 * e.hp / TYPES[e.type].hp), rg = reach(e);
+      if (d <= rg && w < nd) { nd = w; near = e; }
+      if (!retreat && d <= sight && dist(anchor, e) <= leash + rg && w < bw) { bw = w; bd = d; best = e; }
+    }
+    u.pick = { best, near, retreat };
+  } else {
+    best = u.pick.best; near = u.pick.near; bd = best ? dist(u, best) : Infinity;
+    if (near && dist(u, near) > reach(near)) near = null; // (moved out of reach since)
   }
   const bestR = best ? reach(best) : range, tgt = best && bd <= bestR ? best : near;
   // nothing else to shoot at: hit an enemy forward HQ or (AA only) a drone in range
@@ -210,8 +221,13 @@ function updateUnit(s, u, sq, dt) {
     }
   }
   let tx, ty;
-  // (a tank goes for soldiers it's shooting at, to run them over)
-  if (best && (bd > bestR * 0.9 || (u.type === 'tank' && FOOT.includes(best.type)))) { tx = best.x; ty = best.y; }
+  // (a tank goes for soldiers it's shooting at, to run them over — close ones only: from afar, every tank drove into the
+  // enemy, bumping)
+  // (the player's units — the AI's as before: changed, bot games stalled)
+  const mine = singles(s, u.side);
+  if (best && (bd > bestR * 0.9 || (u.type === 'tank' && FOOT.includes(best.type) && (!mine || bd < CRUSH_GO)))) { tx = best.x; ty = best.y; }
+  // (attacking, and shooting at something — a unit out of the leash, a building: it stands where it can, not on top of it)
+  else if (mine && u.engaged && !retreat && !T.air) return;
   else if (best) { if (T.air && !T.hover) circle(s, u, best.x, best.y, range * 0.6, dt); return; } // (aircraft wheel over what they shoot at; helicopters hover)
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
   else if (T.air && !T.hover) { const sr = o.r * 0.55; circle(s, u, anchor.x + u.sx * sr, anchor.y + u.sy * sr, AIR_ORBIT, dt); return; }
@@ -273,7 +289,7 @@ function giveUp(s, u, tx, ty) {
   if (s.t - u.goal.t < GIVEUP_T) return false;
   // (only when it's our own units in the way, and not in a fight: chasing, or blocked by the enemy, it keeps going)
   const ru = TYPES[u.type].r;
-  if (s.t - u.lastFire < 3 || !s.units.some(b => b !== u && b.side === u.side && !TYPES[b.type].air && Math.hypot(b.x - u.x, b.y - u.y) < ru + TYPES[b.type].r + UNIT_GAP + 6)) { u.goal.t = s.t; u.goal.best = gd; return false; }
+  if (s.t - u.lastFire < 3 || !around(s, u.x, u.y, ru + MAX_R + UNIT_GAP + 6).some(b => b !== u && b.side === u.side && b.hp > 0 && !TYPES[b.type].air && Math.hypot(b.x - u.x, b.y - u.y) < ru + TYPES[b.type].r + UNIT_GAP + 6)) { u.goal.t = s.t; u.goal.best = gd; return false; }
   const h = Math.sin(u.id * 12.9898 + s.t * 78.233) * 43758.5453; // (how long: by the unit and the moment, not the game's dice)
   u.rest = s.t + GIVEUP_REST + GIVEUP_JIT * (h - Math.floor(h)); u.goal.t = u.rest; u.goal.best = gd; u.stuck = 0;
   return true;
@@ -283,7 +299,7 @@ function giveUp(s, u, tx, ty) {
 // STUCK_T s (a lake's corner, between buildings) takes a detour to its right for DETOUR_T s.
 const rot = (x, y, a) => ({ x: x * Math.cos(a) - y * Math.sin(a), y: x * Math.sin(a) + y * Math.cos(a) });
 function steer(s, u, tx, ty, dt) {
-  const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy), ru = TYPES[u.type].r;
+  const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy), ru = bodyR(s, u);
   const at = u.was ? Math.hypot(u.x - u.was.x, u.y - u.was.y) : 0; u.was = { x: u.x, y: u.y };
   if (d < 8) { u.stuck = 0; return { x: tx, y: ty }; }
   u.moving = s.t; // (it means to move this tick)
@@ -297,7 +313,7 @@ function steer(s, u, tx, ty, dt) {
   const dodging = u.dodge && u.dodge.until > s.t;
   for (const b of around(s, u.x, u.y, ru + MAX_R + UNIT_GAP + STEER_LOOK)) {
     if (b === u || TYPES[b.type].air) continue;
-    const ox = b.x - u.x, oy = b.y - u.y, rr = ru + TYPES[b.type].r + UNIT_GAP, look = rr + STEER_LOOK;
+    const ox = b.x - u.x, oy = b.y - u.y, rr = ru + bodyR(s, b) + UNIT_GAP, look = rr + STEER_LOOK;
     if (ox > look || ox < -look || oy > look || oy < -look) continue;
     const along = ox * ux + oy * uy, cross = ox * uy - oy * ux; // (cross > 0: it's on our left)
     if (along <= 0 || along > look || Math.abs(cross) >= rr * 0.8 || along >= d) continue; // (behind, beside, or past the goal)
@@ -319,7 +335,7 @@ function steer(s, u, tx, ty, dt) {
   if (!mine) { const r = rot(ux, uy, oc > 0 ? Math.PI / 4 : -Math.PI / 4); return { x: u.x + r.x * step, y: u.y + r.y * step }; }
   if (canYield(s, o)) {
     const sg = Math.abs(oc) > 1 ? Math.sign(oc) : (o.id % 2 ? 1 : -1); // (oc > 0: it's on our left — further left)
-    o.yield = { x: uy * sg, y: -ux * sg, k: ru + TYPES[o.type].r + UNIT_GAP + 4, until: s.t + YIELD_T, by: u.id };
+    o.yield = { x: uy * sg, y: -ux * sg, k: ru + bodyR(s, o) + UNIT_GAP + 4, until: s.t + YIELD_T, by: u.id };
     return { x: tx, y: ty };
   }
   if (og) return { x: tx, y: ty }; // (on our spot and can't move: going round it gets nowhere)

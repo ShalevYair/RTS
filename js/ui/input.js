@@ -76,17 +76,16 @@ function hitFoeSquad(x, y) {
   return null;
 }
 // a squad's line: its kind and size, how strong, what it's doing (ours), and what it's for
+// the mouse over a squad: what it is, its health, its ammunition (where it has any), what it's for — a line each
+// (the enemy's: marked so)
 function squadInfo(q) {
-  const us = s.units.filter(u => u.squad === q.id), T = Sim.TYPES[q.type], hp = us.reduce((a, u) => a + u.hp, 0) / Math.max(1, us.length * T.hp);
-  const out = [`${tn(q.type)} ×${us.length}`, Math.round(hp * 100) + '%'];
-  if (q.side === 'blue') {
-    const st = q.retreating || q.order.type === 'retreat' ? 'st_retreat' : us.some(u => u.care) ? 'st_heal' : us.some(u => u.resup) ? 'st_ammo'
-      : q.type === 'dozer' ? (q.jobAt ? 'st_build' : 'st_idle') : q.fire || us.some(u => s.t - (u.lastFire ?? -99) < 3) ? 'st_fight'
-      : !q.arrived ? 'st_move' : q.order.type === 'hold' ? 'st_hold' : 'st_idle';
-    out.push(tr(st)); if (q.silent) out.push(tr('st_silent'));
-  } else out.unshift(tr('foe'));
-  const ex = (WIKI_UNIT[lang] || WIKI_UNIT.he)[q.type]; if (ex) out.push(ex.split(/(?<=\.)\s/)[0]);
-  return out.join(' · ');
+  const us = s.units.filter(u => u.squad === q.id), T = Sim.TYPES[q.type], n = Math.max(1, us.length);
+  const hp = us.reduce((a, u) => a + u.hp, 0) / (n * T.hp);
+  const am = T.ammo ? us.reduce((a, u) => a + u.ammo / T.ammo, 0) / n : s.supply && Sim.SUPPLY[q.type] ? us.reduce((a, u) => a + (u.sup ?? 1), 0) / n : null;
+  const out = [(q.side === 'blue' ? '' : tr('foe') + ' · ') + tn(q.type) + (us.length > 1 ? ' ×' + us.length : ''), tr('ti_hp', Math.round(hp * 100))];
+  if (am !== null && q.side === 'blue') out.push(tr('ti_ammo', Math.round(am * 100)));
+  const role = (ROLE[lang] || ROLE.he)[q.type]; if (role) out.push(role);
+  return out.join('\n');
 }
 // a tap on the map: select, place, or give the order
 function tap(e) {
@@ -101,6 +100,7 @@ function tap(e) {
   if (frontArmed) { placeFront(x, y); return; }
   if (hqArmed) { placeHq(x, y); return; }
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
+  selPost = hitPost(x, y); // (a post clicked: the ring of where it works, until the next click — field.js)
   const hit = hitSquad(x, y);
   // a transport helicopter of ours clicked with soldiers picked: they go to it and get on
   const hq_ = hit && s.squads.find(q => q.id === hit);
@@ -224,29 +224,30 @@ function hover(e) {
 cv.addEventListener('pointermove', hover);
 cv.addEventListener('pointerleave', () => { lastMouse = null; hoverNode = null; clearTimeout(hoverT); if (tipFor === 'node') hideTip(); });
 // Mouse: a left click gives the order (or picks the squad under it); left-drag draws a rectangle that picks every squad
-// in it; right-drag gives the order with a facing (from where it starts, the front toward where it's dragged), a right
-// click clears the pick; middle-drag pans; the wheel zooms;
+// in it; the left button held still a moment (MOUSE_HOLD_MS), then dragged: the order with a facing and a depth (an
+// arrow from where it starts: the front toward where it's dragged, the rows spread over its length); a right click
+// clears the pick; right- or middle-drag pans; the wheel zooms;
 // the view also slides when the pointer rests at a screen edge. Touch: one finger pans, two pinch; press and hold, then
 // drag, is the order with a facing.
 // A press that moves more than DRAG_PX is not a tap.
 const DRAG_PX = 8, touches = new Map();
 let drag = null, boxSel = null, faceDrag = null;
-const HOLD_MS = 450;
+const HOLD_MS = 450, MOUSE_HOLD_MS = 260;
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
   const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed && !frontArmed;
   const free = !eyeArmed && !buildArmed && !fhqArmed && !hqArmed;
-  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0, face: e.pointerType === 'mouse' && e.button === 2 && free, right: e.pointerType === 'mouse' && e.button === 2 } : { moved: true };
-  if (drag.face) { const r = cv.getBoundingClientRect(); faceDrag = { x0: e.clientX - r.left, y0: e.clientY - r.top, x1: e.clientX - r.left, y1: e.clientY - r.top }; }
-  // touch: held still for a moment, the drag that follows sets a facing
-  if (e.pointerType !== 'mouse' && touches.size === 1 && free) {
+  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0, face: false, right: e.pointerType === 'mouse' && e.button === 2 } : { moved: true };
+  // touch, or the left button with something picked: held still for a moment, the drag that follows sets a facing
+  const mouseHold = e.pointerType === 'mouse' && e.button === 0 && free && sel !== null;
+  if ((e.pointerType !== 'mouse' || mouseHold) && touches.size === 1 && free) {
     const d = drag; d.hold = setTimeout(() => {
       if (drag !== d || d.moved || touches.size !== 1) return;
       const r = cv.getBoundingClientRect(); d.face = true; faceDrag = { x0: d.x - r.left, y0: d.y - r.top, x1: d.x - r.left, y1: d.y - r.top };
       try { navigator.vibrate && navigator.vibrate(15); } catch (err) { /* no vibration */ }
-    }, HOLD_MS);
+    }, e.pointerType === 'mouse' ? MOUSE_HOLD_MS : HOLD_MS);
   }
 });
 cv.addEventListener('pointermove', e => {
@@ -286,7 +287,10 @@ cv.addEventListener('pointerup', e => {
     if (!menu.hidden || s.over) return;
     if (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) < DRAG_PX * 2) { if (d.right) unpick(); else tap(e); return; } // a plain right click: clear the pick; a hold: the order
     const w = p => ({ x: (p.x - view.cox) / view.css, y: (p.y - view.coy) / view.css }), a = w({ x: f.x0, y: f.y0 }), z = w({ x: f.x1, y: f.y1 });
-    issue(mode, a.x, a.y, Math.atan2(z.y - a.y, z.x - a.x)); return;
+    // (the forces between the arrow's tail — the last row — and its head — the first, facing on that way): short = close
+    // together, long = spread deep
+    const L = Math.hypot(z.x - a.x, z.y - a.y), fa = Math.atan2(z.y - a.y, z.x - a.x);
+    issue(mode, (a.x + z.x) / 2, (a.y + z.y) / 2, fa, false, false, L); return;
   }
   if (d && d.box && d.moved && b) { if (!menu.hidden || s.over) return; pickBox(b, e.shiftKey); return; }
   if (d && d.right && !d.moved) { unpick(); return; }
@@ -349,9 +353,10 @@ mini.addEventListener('pointerdown', e => { try { mini.setPointerCapture(e.point
 mini.addEventListener('pointermove', e => { if (e.buttons) miniLook(e); });
 document.addEventListener('keydown', e => {
   if (e.target.closest('input,textarea')) return;
+  if (e.ctrlKey && e.shiftKey && e.code === 'KeyL') { e.preventDefault(); saveLog(); return; } // (the log, as a file)
+  if (e.key === 'F8') { e.preventDefault(); Prof.toggle(); return; } // (the speed, live: prof.js)
   if (tour) { if (e.key === 'Escape') tourNext(true); else if (e.key === 'Enter' || e.key === ' ' || e.key.startsWith('Arrow')) { e.preventDefault(); tourNext(); } return; }
   if (!$('intro').hidden) { if (e.key === 'Escape') $('go').click(); return; }
-  if (e.ctrlKey && e.shiftKey && e.code === 'KeyL') { e.preventDefault(); saveLog(); return; } // (the log, as a file)
   if (!$('end').hidden) return;
   // the "pull it down?" question: Enter = yes, Escape = no
   if (!$('razeSure').hidden) { if (e.key === 'Enter') { e.preventDefault(); $('razeYes').click(); } else if (e.key === 'Escape') $('razeNo').click(); return; }
@@ -371,14 +376,14 @@ document.addEventListener('keydown', e => {
   else if (k === 'l' && uiHas('squads')) toggleGroup();
   else if (k === 's' && !$('silent').hidden) toggleSilent();
   else if (k === 'p') { // line ↔ block for what's picked
-    const ids = sel === 'all' ? s.squads.filter(q => q.side === 'blue' && !q.dead && q.type !== 'dozer').map(q => q.id) : selIds(), to = ids.length && Sim.pack(s, ids);
+    const ids = sel === 'all' ? s.squads.filter(q => q.side === 'blue' && !q.dead && inAll(q)).map(q => q.id) : selIds(), to = ids.length && Sim.pack(s, ids);
     if (to) toast(tr(to === 'block' ? 'packBlock' : 'packLine'), innerWidth / 2, innerHeight / 2, 1200);
   }
   else if (k === '0') select('all');
   else if (k === 'h') { mode = 'hold'; syncButtons(); }
   else if (k === 'a') { mode = 'attack'; syncButtons(); }
   else if (k === 'r') issue('retreat');
-  else if (k === ' ') { e.preventDefault(); if (!e.repeat) talkDown(); } // (a tap: pause / go on; held: a spoken order — field.js)
+  else if (k === ' ') { e.preventDefault(); if (!e.repeat) setPlaying(!playing); }
   else if (k === 'd') toggleEye();
   else if (k === 'b') buildHere();
   else if (k === 'g') toggleBuild();
@@ -387,6 +392,3 @@ document.addEventListener('keydown', e => {
   else if (e.key === '+' || e.key === '=' || e.key === '-') zoomAt(fit.w / 2, fit.top + fit.h / 2, e.key === '-' ? 1 / 1.25 : 1.25);
   else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; frontArmed = false; $('buildm').hidden = true; syncButtons(); closeMenu(); }
 });
-// Space let go: the pause, or the spoken order (field.js); the window left with it held: nothing
-document.addEventListener('keyup', e => { if ((e.code === 'Space' || e.key === ' ') && talk) { e.preventDefault(); talkUp(); } });
-window.addEventListener('blur', () => talkBlur()); // (not dropped: see field.js)

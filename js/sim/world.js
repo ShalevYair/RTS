@@ -194,18 +194,28 @@ function bodyCenter(m) {
 
 // units don't stand on each other: overlapping ones are pushed apart; a tank goes over enemy soldiers
 // instead, crushing them. Ground units are pushed out of buildings too.
+// the room a unit takes: its body; the player's vehicles VEH_ROOM more (see config)
+const bodyR = (s, u) => TYPES[u.type].r * (s.singles && !FOOT.includes(u.type) && !TYPES[u.type].air && singles(s, u.side) ? VEH_ROOM : 1);
 function separate(s, dt = 0) {
   const us = s.units;
-  // (pairs in order across the map: past the widest possible touch, MAXR, nothing further right can touch)
-  let maxR = 0; for (const u of us) maxR = Math.max(maxR, TYPES[u.type].r);
-  const xs = us.slice().sort((a, b) => a.x - b.x), far = 2 * maxR + UNIT_GAP;
-  for (let i = 0; i < xs.length; i++) {
-    const a = xs[i], ra = TYPES[a.type].r, aAir = !TYPES[a.type].air;
-    for (let j = i + 1; j < xs.length; j++) {
-      const b = xs[j];
-      if (b.x - a.x >= far) break;
+  // (pairs near each other only: a grid of squares as wide as the widest touch, each unit against the ones in its
+  // square and the 8 round it. It was the units in order across the map, cut off past that width: in a battle,
+  // with hundreds in a column, every one went over all the others above and below it)
+  let maxR = 0; for (const u of us) maxR = Math.max(maxR, bodyR(s, u));
+  const far = 2 * maxR + UNIT_GAP, G = new Map(), cell = u => Math.floor(u.x / far) * 65536 + Math.floor(u.y / far);
+  // (in order across the map, as before: the same pairs in the same order, the same pushes)
+  const xs = us.slice().sort((a, b) => a.x - b.x);
+  xs.forEach((u, i) => { u.si = i; const k = cell(u); let l = G.get(k); if (!l) G.set(k, l = []); l.push(u); });
+  const near = [];
+  for (const a of xs) {
+    const ra = bodyR(s, a), aAir = !TYPES[a.type].air, ci = Math.floor(a.x / far), cj = Math.floor(a.y / far);
+    near.length = 0;
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) { const l = G.get((ci + di) * 65536 + cj + dj); if (l) for (const b of l) if (b.si > a.si) near.push(b); }
+    near.sort((p, q) => p.si - q.si);
+    {
+      for (const b of near) {
       if (aAir !== !TYPES[b.type].air) continue; // air and ground don't collide
-      const min = ra + TYPES[b.type].r + UNIT_GAP, dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+      const min = ra + bodyR(s, b) + UNIT_GAP, dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
       if (d2 < min * min) {
         const crush = a.side !== b.side && (a.type === 'tank' && FOOT.includes(b.type) ? b : b.type === 'tank' && FOOT.includes(a.type) ? a : null);
         if (crush) { crush.hp -= CRUSH_DPS * dt; crush.by = (crush === a ? b : a).squad; continue; }
@@ -215,13 +225,17 @@ function separate(s, dt = 0) {
         const tx = nx - ny * SLIDE, ty = ny + nx * SLIDE;
         a.x -= tx * p * ka; a.y -= ty * p * ka; b.x += tx * p * kb; b.y += ty * p * kb;
       }
+      }
     }
   }
   // (posts block the way too)
   const blocks = s.nodes.filter(n => n.kind !== 'drone' && n.hp > 0).map(n => ({ x: n.x, y: n.y, r: STRUCTS[n.kind].r }));
   if (s.posts) for (const p of s.posts) blocks.push({ x: p.x, y: p.y, r: POSTS[p.kind].r });
+  // (each listed in the squares it reaches over, so a unit tests the ones by it only)
+  const BC = 128, BG = new Map();
+  for (const n of blocks) { const R = n.r + maxR; for (let i = Math.floor((n.x - R) / BC); i <= Math.floor((n.x + R) / BC); i++) for (let j = Math.floor((n.y - R) / BC); j <= Math.floor((n.y + R) / BC); j++) { const k = i * 65536 + j; let l = BG.get(k); if (!l) BG.set(k, l = []); l.push(n); } }
   for (const u of us) {
-    if (!TYPES[u.type].air) for (const n of blocks) {
+    if (!TYPES[u.type].air) for (const n of BG.get(Math.floor(u.x / BC) * 65536 + Math.floor(u.y / BC)) || []) {
       const r = n.r + TYPES[u.type].r, dx = u.x - n.x, dy = u.y - n.y, d2 = dx * dx + dy * dy;
       if (d2 < r * r) { const d = Math.sqrt(d2) || 0.01, nx = d2 ? dx / d : (u.side === 'blue' ? 1 : -1), ny = d2 ? dy / d : 0; u.x = n.x + nx * r; u.y = n.y + ny * r; }
     }

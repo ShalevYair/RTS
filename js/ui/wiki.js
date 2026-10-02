@@ -80,7 +80,7 @@ const WIKI = {
       <li>🗼 מגדל תצפית: רואה רחוק מאוד · 📶 אנטנה: שליטה מלאה סביבה · 🧱 בונקר: עד 4 חיילים לידו חוטפים חצי נזק</li></ul>
       <h3>מזג אוויר</h3><p>🌧 גשם בכל המפה, ו-🌫 ערפל בוקר רק בשפלה (על ההר מעליו): כל אחד מוריד 20% מהראייה, מהטווח ומהפגיעה. מצטבר עם הלילה.</p>
       <h3>דרכים ומארבים</h3><p>רכב על דרך נוסע מהר ב-30%. חיילים וג'יפים שעומדים בשקט בין העצים ולא יורים — נראים רק מקרוב, או מרחפן ומשאית קשר.</p>
-      <h3>פקודות בקול 🎙</h3><p>החזק <kbd>רווח</kbd>, או לחץ על 🎙 מעל הכפתורים למטה משמאל, ודבר: "טנקים לרדאר", "כוח 2 לנקודה 4", "חיילים להחזיק בבונקר", "כולם לסגת". <kbd>Alt</kbd>+מספר שומר את המסך כנקודה, <kbd>Shift</kbd>+מספר קופץ אליה. "לשם" = איפה שהעכבר. Chrome או Edge, עם אינטרנט. את המיקרופון מאשרים פעם אחת ב-"מיקרופון לפקודות" בתפריט הראשי; כשהמשחק נפתח דרך play.bat הדפדפן זוכר את האישור.</p>`],
+      <h3>פקודות בקול 🎙</h3><p>לחץ על 🎙 מעל הכפתורים למטה משמאל — המיקרופון נשאר פתוח עד לחיצה נוספת, וכל משפט הוא פקודה: "טנקים לרדאר", "כוח 2 לנקודה 4", "חיילים להחזיק בבונקר", "כולם לסגת". <kbd>Alt</kbd>+מספר שומר את המסך כנקודה, <kbd>Shift</kbd>+מספר קופץ אליה. "לשם" = איפה שהעכבר. Chrome או Edge, עם אינטרנט. את המיקרופון מאשרים פעם אחת ב-"מיקרופון לפקודות" בתפריט הראשי; כשהמשחק נפתח דרך play.bat הדפדפן זוכר את האישור.</p>`],
     ['🪖', 'יחידות', () => wikiCards('unit')],
     ['🏗', 'מבנים', () => `<p>בונים מתפריט הבנייה 🏗 (<kbd>G</kbd>), רק איפה שהשטח ירוק. כל מבנה ייצור מקים כוח משלו וממלא אותו. הכוח הראשון יוצא מלא.</p>` + wikiCards('struct')],
     ['🚜', 'תמיכה ואספקה', `<h2>תמיכה ואספקה</h2>
@@ -93,7 +93,7 @@ const WIKI = {
       <li><kbd>1</kbd>–<kbd>9</kbd> בחירת סוג כוח · <kbd>0</kbd> כולם</li><li><kbd>A</kbd> לתקוף · <kbd>H</kbd> להחזיק · <kbd>R</kbd> לסגת</li>
       <li><kbd>G</kbd> בנייה · <kbd>B</kbd> פיקוד קדמי · <kbd>D</kbd> רחפן · <kbd>S</kbd> שקט אלחוטי · <kbd>P</kbd> שורה / קובייה</li>
       <li><kbd>L</kbd> לקשור / לפרק קבוצה · <kbd>Ctrl</kbd>+מספר קבוצה · <kbd>F</kbd> מסך מלא · <kbd>Esc</kbd> ביטול</li>
-      <li><kbd>רווח</kbd> לחיצה = עצירה, החזקה = פקודה בקול · <kbd>Alt</kbd>+מספר שמירת נקודה · <kbd>Shift</kbd>+מספר קפיצה אליה</li></ul>`],
+      <li><kbd>רווח</kbd> עצירה · <kbd>Alt</kbd>+מספר שמירת נקודה · <kbd>Shift</kbd>+מספר קפיצה אליה</li></ul>`],
   ],
   en: [
     ['🎯', 'The goal', `<h2>The goal</h2>
@@ -119,7 +119,7 @@ const WIKI = {
       <li>🗼 Observation tower: sees very far · 📶 Antenna: full control round it · 🧱 Bunker: up to 4 soldiers by it take half the damage</li></ul>
       <h3>Weather</h3><p>🌧 Rain over the whole map, and 🌫 morning fog only on the plain (on a hill you're above it): each takes 20% off sight, range and hits. It adds up with the night.</p>
       <h3>Roads and ambushes</h3><p>A vehicle on a road goes 30% faster. Soldiers and jeeps standing still among trees, not firing, are seen only up close, or by a drone or signals truck.</p>
-      <h3>Spoken orders 🎙</h3><p>Hold <kbd>Space</kbd>, or click 🎙 above the bottom-left buttons, and speak: "tanks to the radar", "group 2 to point 4", "soldiers hold the bunker", "everyone retreat". <kbd>Alt</kbd>+number saves the view as a point, <kbd>Shift</kbd>+number jumps there. "There" = where the mouse is. Chrome or Edge, online.</p>`],
+      <h3>Spoken orders 🎙</h3><p>Click 🎙 above the bottom-left buttons — the microphone stays open until another click, and each sentence is an order: "tanks to the radar", "group 2 to point 4", "soldiers hold the bunker", "everyone retreat". <kbd>Alt</kbd>+number saves the view as a point, <kbd>Shift</kbd>+number jumps there. "There" = where the mouse is. Chrome or Edge, online.</p>`],
     ['🪖', 'Units', () => wikiCards('unit')],
     ['🏗', 'Buildings', () => `<p>Build from the build menu 🏗 (<kbd>G</kbd>), only where the ground is green. Each production building raises a squad of its own and keeps it full. The first squad comes out whole.</p>` + wikiCards('struct')],
     ['🚜', 'Support and supply', `<h2>Support and supply</h2>
@@ -132,7 +132,7 @@ const WIKI = {
       <li><kbd>1</kbd>–<kbd>9</kbd> pick a kind · <kbd>0</kbd> all</li><li><kbd>A</kbd> attack · <kbd>H</kbd> hold · <kbd>R</kbd> fall back</li>
       <li><kbd>G</kbd> build · <kbd>B</kbd> forward HQ · <kbd>D</kbd> drone · <kbd>S</kbd> radio silence · <kbd>P</kbd> line / block</li>
       <li><kbd>L</kbd> group / ungroup · <kbd>Ctrl</kbd>+number group · <kbd>F</kbd> full screen · <kbd>Esc</kbd> cancel</li>
-      <li><kbd>Space</kbd> tap = pause, hold = spoken order · <kbd>Alt</kbd>+number save a point · <kbd>Shift</kbd>+number jump there</li></ul>`],
+      <li><kbd>Space</kbd> pause · <kbd>Alt</kbd>+number save a point · <kbd>Shift</kbd>+number jump there</li></ul>`],
   ],
 };
 // the cards: every unit / building with its picture and the game's own numbers
@@ -159,7 +159,7 @@ function wikiShow(i) {
   const body = pages[i][2]; $('wikiText').innerHTML = typeof body === 'function' ? body() : body; $('wikiText').scrollTop = 0;
   // (the cards' pictures, in our colour)
   $('wikiText').querySelectorAll('canvas[data-unit]').forEach(cv => { const ty = cv.dataset.unit; if (hasSprite(ty) && ty !== 'air') { const g = cv.getContext('2d'); g.clearRect(0, 0, 64, 64); drawUnitPic(g, ty, 32, 32, 58 / (SPRITE_LEN[ty] || 1.9), colors.blue, 0, 0); } else drawSquadIcon(cv, ty); }); // (vehicles: as big as the card allows)
-  $('wikiText').querySelectorAll('canvas[data-struct]').forEach(cv => { const g = cv.getContext('2d'), p = buildingPic(cv.dataset.struct, colors.blue, 40); g.clearRect(0, 0, 64, 64); g.drawImage(p, -8, -8, 80, 80); });
+  $('wikiText').querySelectorAll('canvas[data-struct]').forEach(cv => { const g = cv.getContext('2d'), p = buildingPic(cv.dataset.struct, colors.blue, 40); g.clearRect(0, 0, 64, 64); const k = 80 / Math.max(p.width, p.height), w = p.width * k, h = p.height * k; g.drawImage(p, 32 - w / 2, 32 - h / 2, w, h); }); // (a tall one, the tower: all of it)
 }
 function openWiki() {
   const pages = WIKI[lang === 'en' ? 'en' : 'he'], nav = $('wikiNav'); nav.textContent = '';

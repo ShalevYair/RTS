@@ -50,7 +50,7 @@ function spread(s, q) {
 }
 {
   // forward HQs: one every 3 minutes, never more than 3 standing
-  const s = Sim.create(5, 1000, 'normal'); s.bots = []; s.fog = false;
+  const s = Sim.create(5, 1000, 'normal'); s.bots = []; s.fog = false; s.singles = true; // (the player's game: the wait starts once it stands)
   s.units = s.units.filter(u => u.side === 'blue'); s.noReinforce = true;
   const j = s.squads.find(q => q.type === 'jeep' && q.side === 'blue');
   let made = 0;
@@ -59,7 +59,8 @@ function spread(s, q) {
     Sim.step(s, 1 / 30);
     if (Sim.buildFhq(s, j.id)) made++;
     if (k === 0) ok(!Sim.buildFhq(s, j.id) && Math.round(s.cd.blue.fhq) === 180, 'the next forward HQ only 3 minutes later');
-    step(s, 181);
+    if (k === 0) { step(s, 20); ok(Math.round(s.cd.blue.fhq) === 180, 'the 3 minutes start only once it stands (not while it goes up)'); step(s, 191); }
+    else step(s, 211); // (30 s going up, then the 3 minutes)
   }
   ok(made === 3 && Sim.fhqCount(s, 'blue') === 3, `at most 3 forward HQs (${made} of 5 tries)`);
   s.nodes.find(n => n.kind === 'fhq').hp = 0; Sim.step(s, 1 / 30);

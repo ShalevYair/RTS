@@ -39,7 +39,7 @@ const STR = {
     call: (boss, name) => `📞 סרן ${boss} (${name}): לחץ כבד. להחזיק או לסגת?`,
     sqTip: (name, boss, home) => `${name} · סרן ${boss}${home ? '' : ' · בלי מבנה, בלי תגבורת'}`,
     buildItem: (sec, unit) => `${unit} · כל ${sec} ש׳`, slotsLeft: n => n ? `עוד ${n} מבנים` : 'אין מקום למבנה נוסף (🏕️ פיקוד קדמי מוסיף)',
-    victory: 'ניצחון', defeat: 'הפסד', skip: 'דלג', tipCtrlGroup: 'Ctrl+מספר: הנבחרים הופכים לקבוצה', errLogged: 'נרשמה תקלה ביומן (Ctrl+Shift+L לשמירה)', st_retreat: 'נסוג', st_heal: 'בטיפול', st_ammo: 'בדרך לתחמושת', st_build: 'בונה', st_idle: 'ממתין', st_fight: 'בקרב', st_move: 'בדרך', st_hold: 'מחזיק', st_silent: 'בשקט אלחוטי', foe: 'אויב',
+    victory: 'ניצחון', defeat: 'הפסד', skip: 'דלג', tipCtrlGroup: 'Ctrl+מספר: הנבחרים הופכים לקבוצה', errLogged: 'נרשמה תקלה ביומן (Ctrl+Shift+L לשמירה)', ti_hp: n => `תקינות ${n}%`, ti_ammo: n => `תחמושת ${n}%`, logSaved: 'היומן נשמר: commander-log.json בתיקיית ההורדות', liteOn: 'המשחק איטי — הגרפיקה הופחתה כדי לשמור על מהירות', st_retreat: 'נסוג', st_heal: 'בטיפול', st_ammo: 'בדרך לתחמושת', st_build: 'בונה', st_idle: 'ממתין', st_fight: 'בקרב', st_move: 'בדרך', st_hold: 'מחזיק', st_silent: 'בשקט אלחוטי', foe: 'אויב',
     bp_tents: 'אוהלים', bpn_tents: 'חי"ר, נ"ט, נ"מ, חובשים, קומנדו', bp_shops: 'סדנאות', bpn_shops: "טנקים, ג'יפים, טילים", bp_defense: 'הגנה מטילים', bpn_defense: 'חץ, כיפת ברזל', bp_jeeps: "סדנת ג'יפים", bpn_jeeps: 'קל, נ"ט, נ"מ', bp_service: 'שירות', bpn_service: 'מוסך, אספקה, פיתיון, הגנה', bp_air: 'תעופה', bpn_air: 'מטוסים, מסוקים', bp_helis: 'מנחת מסוקים', bpn_helis: 'קרב, מקלע, תובלה',
     placeHq: 'בחר איפה להקים את המפקדה 🏰 — ברצועה הירוקה. הטרקטור 🚜 ייסע לשם ויקים אותה.', hqWhy: { nodozer: 'אין טרקטור 🚜 שיקים אותה', band: 'רק ברצועה הירוקה בצד שלך', bad: 'אי אפשר כאן' },
     why: { nodozer: 'אין טרקטור 🚜 — הוא בונה את המבנים', nohq: 'קודם מקימים את המפקדה 🏰', q: 'השליטה כאן חלשה מדי לבנייה', limit: 'המכסה מלאה — הקם 🏕️ פיקוד קדמי', gap: 'קרוב מדי למבנה אחר', bad: 'מחוץ למפה', max: 'אפשר רק 3 כאלה' },
@@ -101,14 +101,15 @@ const STR = {
     fx_antenna: 'שליטה מלאה סביבו: פקודות מהירות ומדויקות', fx_bunker: 'עד 4 חיילים לידו חוטפים חצי נזק',
     wx_rain: '🌧 גשם: רואים, יורים ופוגעים פחות', wx_fog: '🌫 ערפל בוקר בשפלה: מי שעל ההר מעליו',
     ptSaved: n => `נקודה ${n} נשמרה (Shift+${n} חוזר אליה)`, ptNone: n => `נקודה ${n} לא מוגדרת (Alt+${n} שומר)`,
-    micAsk: 'מיקרופון לפקודות', mic: 'פקודה בקול', tipMic: 'פקודה בקול: לחץ ודבר (או החזק רווח) — למשל "טנקים לרדאר"', micOk: '🎙 המיקרופון מאושר. במשחק: החזק רווח או לחץ 🎙 ודבר.', micFile: 'המשחק נפתח מקובץ, ולכן הדפדפן ישאל שוב בכל ביקור. כדי שיזכור — פתח דרך play.bat.',
+    micGate: 'כדי לתת פקודות קוליות יש לאפשר שימוש במיקרופון. אחרי האישור הדפדפן ישאל פעם אחת.', micYes: 'אפשר מיקרופון', micNo: 'לא עכשיו',
+    micAsk: 'מיקרופון לפקודות', mic: 'פקודה בקול', tipMic: 'פקודות בקול: לחיצה פותחת את המיקרופון (כל משפט = פקודה, למשל "טנקים לרדאר"), לחיצה נוספת סוגרת', micOk: '🎙 המיקרופון מאושר. במשחק: לחץ 🎙 ודבר.', micFile: 'המשחק נפתח מקובץ, ולכן הדפדפן שואל על המיקרופון שוב ושוב. כדי שישאל פעם אחת — פתח את המשחק דרך play.bat.',
     vListen: 'מקשיב…', vNoSR: 'הדפדפן לא תומך בזיהוי דיבור. נסה Chrome או Edge.', vNoMic: 'אין גישה למיקרופון', vNet: 'זיהוי הדיבור צריך אינטרנט', vAgain: 'לא הבנתי, חזור',
     vWho: 'מי? למשל: טנקים, כוח 2, כולם', vWhere: 'לאן? למשל: לרדאר, לנקודה 3, לשם', vNone: k => `אין ${k}`, vNoGroup: n => `אין כוח ${n}`, vNoFront: 'אין חזית',
     vGroup: n => `כוח ${n}`, vPoint: n => `נקודה ${n}`, vPicked: 'הנבחרים', vAll: 'כולם', vThere: 'לשם',
     t_posts: 'מבנים ניטרליים: רדאר, תחנת כוח ודלק, מחסנים, בתי חולים, מוסכים, מגדלי תצפית, אנטנות ובונקרים. חייל שנכנס כובש (ונשאר בפנים); חייל אויב מחזיר אותו לאף אחד, ושני — לאויב. עכבר מעל מבנה = מה הוא נותן.',
     t_weather: '🌧 גשם ו-🌫 ערפל בוקר (רק בשפלה) מורידים 20% מהראייה, מהטווח ומהפגיעה. על דרך רכבים מהירים יותר. חיילים שעומדים בשקט בין העצים כמעט לא נראים.',
-    t_voice: '🎙 החזק רווח ודבר: "טנקים לרדאר", "כוח 2 לנקודה 4", "כולם לסגת". Alt+מספר שומר את המסך כנקודה, Shift+מספר קופץ אליה. לחיצה קצרה על רווח עדיין עוצרת.',
-    tip_posts: 'מבנה ניטרלי: חייל שנכנס כובש אותו. עכבר מעליו = מה הוא נותן.', tip_voice: 'החזק רווח ודבר: "טנקים לרדאר", "כוח 2 לנקודה 4". Alt+מספר שומר נקודה.',
+    t_voice: '🎙 לחץ על 🎙 ודבר (נשאר פתוח עד לחיצה נוספת): "טנקים לרדאר", "כוח 2 לנקודה 4", "כולם לסגת". Alt+מספר שומר את המסך כנקודה, Shift+מספר קופץ אליה.',
+    tip_posts: 'מבנה ניטרלי: חייל שנכנס כובש אותו. עכבר מעליו = מה הוא נותן.', tip_voice: 'לחץ 🎙 ודבר: "טנקים לרדאר", "כוח 2 לנקודה 4". Alt+מספר שומר נקודה.',
   },
   en: {
     title: 'The Commander', map: 'Battle map', mini: 'Minimap: tap to look there',
@@ -134,7 +135,7 @@ const STR = {
     call: (boss, name) => `📞 Capt. ${boss} (${name}): heavy pressure. Hold or retreat?`,
     sqTip: (name, boss, home) => `${name} · Capt. ${boss}${home ? '' : ' · no building, no reinforcements'}`,
     buildItem: (sec, unit) => `${unit} · every ${sec} s`, slotsLeft: n => n ? `${n} more buildings` : 'No room for another building (a 🏕️ forward HQ adds some)',
-    victory: 'VICTORY', defeat: 'DEFEAT', skip: 'Skip', tipCtrlGroup: 'Ctrl+number: make the picked a group', errLogged: 'A fault was logged (Ctrl+Shift+L to save it)', st_retreat: 'falling back', st_heal: 'being treated', st_ammo: 'going for ammunition', st_build: 'building', st_idle: 'waiting', st_fight: 'fighting', st_move: 'on the way', st_hold: 'holding', st_silent: 'radio silence', foe: 'enemy',
+    victory: 'VICTORY', defeat: 'DEFEAT', skip: 'Skip', tipCtrlGroup: 'Ctrl+number: make the picked a group', errLogged: 'A fault was logged (Ctrl+Shift+L to save it)', ti_hp: n => `Health ${n}%`, ti_ammo: n => `Ammunition ${n}%`, logSaved: 'The log was saved: commander-log.json in Downloads', liteOn: 'The game is slow — lighter graphics to keep it moving', st_retreat: 'falling back', st_heal: 'being treated', st_ammo: 'going for ammunition', st_build: 'building', st_idle: 'waiting', st_fight: 'fighting', st_move: 'on the way', st_hold: 'holding', st_silent: 'radio silence', foe: 'enemy',
     bp_tents: 'Tents', bpn_tents: 'Infantry, AT, AA, medics, commandos', bp_shops: 'Workshops', bpn_shops: 'Tanks, jeeps, missiles', bp_defense: 'Missile defence', bpn_defense: 'Arrow, Iron Dome', bp_jeeps: 'Jeep workshop', bpn_jeeps: 'Light, AT, AA', bp_service: 'Service', bpn_service: 'Garage, supply, decoy, defence', bp_air: 'Aviation', bpn_air: 'Aircraft, helicopters', bp_helis: 'Helipad', bpn_helis: 'Attack, gunship, transport',
     placeHq: 'Pick where your HQ 🏰 goes, in the green strip. The bulldozer 🚜 drives there and puts it up.', hqWhy: { nodozer: 'No bulldozer 🚜 to put it up', band: 'Only in the green strip on your side', bad: 'Not here' },
     why: { nodozer: 'No bulldozer 🚜 — it puts the buildings up', nohq: 'Set up the HQ 🏰 first', q: 'Control here is too weak to build', limit: 'No free slot — set up a 🏕️ forward HQ', gap: 'Too close to another building', bad: 'Off the map', max: 'Only 3 of these' },
@@ -196,14 +197,15 @@ const STR = {
     fx_antenna: 'full control round it: orders fast and exact', fx_bunker: 'up to 4 soldiers by it take half the damage',
     wx_rain: '🌧 Rain: shorter sight and range, fewer hits', wx_fog: '🌫 Morning fog on the plain: on a hill you are above it',
     ptSaved: n => `Point ${n} saved (Shift+${n} goes back)`, ptNone: n => `Point ${n} isn't set (Alt+${n} saves it)`,
-    micAsk: 'Microphone for orders', mic: 'Spoken order', tipMic: 'A spoken order: click and speak (or hold Space), e.g. "tanks to the radar"', micOk: '🎙 Microphone allowed. In the game: hold Space or click 🎙 and speak.', micFile: 'The game was opened from a file, so the browser will ask again each visit. To have it remembered, open it with play.bat.',
+    micGate: 'To give spoken orders, allow the microphone. The browser will then ask once.', micYes: 'Allow microphone', micNo: 'Not now',
+    micAsk: 'Microphone for orders', mic: 'Spoken order', tipMic: 'Spoken orders: a click opens the microphone (each sentence = an order, e.g. "tanks to the radar"), another click closes it', micOk: '🎙 Microphone allowed. In the game: click 🎙 and speak.', micFile: 'The game was opened from a file, so the browser keeps asking about the microphone. To be asked once, open the game with play.bat.',
     vListen: 'Listening…', vNoSR: "This browser can't recognise speech. Try Chrome or Edge.", vNoMic: 'No access to the microphone', vNet: 'Speech recognition needs the internet', vAgain: 'Say again?',
     vWho: 'Who? e.g. tanks, group 2, everyone', vWhere: 'Where? e.g. to the radar, to point 3, there', vNone: k => `No ${k}`, vNoGroup: n => `No group ${n}`, vNoFront: 'No front set',
     vGroup: n => `Group ${n}`, vPoint: n => `Point ${n}`, vPicked: 'The picked', vAll: 'Everyone', vThere: 'There',
     t_posts: "Neutral buildings: a radar, power and fuel stations, depots, hospitals, motor pools, observation towers, antennas and bunkers. A soldier who walks in takes it (and stays inside); an enemy soldier makes it no one's, a second makes it theirs. Mouse over one = what it gives.",
     t_weather: '🌧 Rain and 🌫 morning fog (only on the plain) take 20% off sight, range and hits. Vehicles go faster on roads. Soldiers standing still among trees are hard to see.',
-    t_voice: '🎙 Hold Space and speak: "tanks to the radar", "group 2 to point 4", "everyone retreat". Alt+number saves the view as a point, Shift+number jumps there. A short tap on Space still pauses.',
-    tip_posts: 'A neutral building: a soldier who walks in takes it. Mouse over it = what it gives.', tip_voice: 'Hold Space and speak: "tanks to the radar", "group 2 to point 4". Alt+number saves a point.',
+    t_voice: '🎙 Click 🎙 and speak (it stays open until another click): "tanks to the radar", "group 2 to point 4", "everyone retreat". Alt+number saves the view as a point, Shift+number jumps there.',
+    tip_posts: 'A neutral building: a soldier who walks in takes it. Mouse over it = what it gives.', tip_voice: 'Click 🎙 and speak: "tanks to the radar", "group 2 to point 4". Alt+number saves a point.',
   },
 };
 const tr = (k, ...a) => { const v = STR[lang][k] ?? STR.he[k] ?? k; return typeof v === 'function' ? v(...a) : v; };
@@ -224,6 +226,15 @@ applyLang();
 const tipEl = $('tip');
 let tipFor = null, tipTimer = 0, tipHide = 0;
 // r: the target's screen rectangle (a point is a zero-size one); the bubble sits above it, or below near the top
+// what each kind is for, in a few words (the mouse over a squad)
+const ROLE = {
+  he: { inf: 'לוחם בחיילים', at: 'צייד טנקים', aa: 'מפיל מטוסים ומסוקים', med: 'מטפל בחיילים פצועים', mech: 'מתקן רכבים', jeep: 'סיור מהיר', ajeep: 'נ״מ נייד — נגד מטוסים ומסוקים',
+    tjeep: 'נ״ט נייד — נגד טנקים', tank: 'שובר קווים — נגד רכבים, חיילים ומבנים', air: 'תוקף מהאוויר', heli: 'צייד רכבים ומסוקים', gunship: 'מחסל חיילים', lift: 'מוביל חיילים',
+    truck: 'מביא תחמושת', dozer: 'בונה ומתקן מבנים', radio: 'עיניים ושליטה בשטח', ssm: 'משמיד מבנים מרחוק', arrow: 'מיירט טילים', dome: 'מגן מטילים קצרים', commando: 'מפוצץ מבנים בשקט' },
+  en: { inf: 'Fights soldiers', at: 'Tank hunter', aa: 'Shoots down aircraft and helicopters', med: 'Treats wounded soldiers', mech: 'Repairs vehicles', jeep: 'Fast scout', ajeep: 'Mobile AA — against aircraft and helicopters',
+    tjeep: 'Mobile AT — against tanks', tank: 'Breaks lines — vehicles, soldiers and buildings', air: 'Strikes from the air', heli: 'Hunts vehicles and helicopters', gunship: 'Kills soldiers', lift: 'Carries soldiers',
+    truck: 'Brings ammunition', dozer: 'Builds and repairs', radio: 'Eyes and control in the field', ssm: 'Destroys buildings from afar', arrow: 'Intercepts missiles', dome: 'Stops short-range missiles', commando: 'Blows up buildings quietly' },
+};
 function showTip(text, r, nav) {
   clearTimeout(tipHide);
   $('tipT').textContent = text; $('tipNav').hidden = !nav;

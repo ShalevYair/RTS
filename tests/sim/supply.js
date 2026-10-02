@@ -40,7 +40,7 @@ function quiet(seed) {
   const s = quiet(5); s.units = s.units.filter(u => u.side === 'blue');
   const tq = Sim._makeSquad(s, 'blue', 'tank', null, 200, 300); tq.size = 3; Sim._fillSquad(s, tq, 200, 300);
   const ids = s.squads.filter(q => q.side === 'blue').map(q => q.id);
-  Sim.formation(s, ids, 'hold', 500, 300, true, Math.PI / 2); step(s, 3);
+  Sim.formation(s, ids, 'hold', 500, 300, true, Math.PI / 2); step(s, 30); // (they march there together: the middle at the slowest's pace)
   const at = t => s.squads.find(q => q.side === 'blue' && q.type === t).order;
   ok(at('tank').y > at('jeep').y && at('jeep').y > at('inf').y && Math.abs(at('tank').x - 500) < 15, `pointing south: tanks ${at('tank').y.toFixed(0)}, jeeps ${at('jeep').y.toFixed(0)}, infantry ${at('inf').y.toFixed(0)} (y grows southward)`);
 }

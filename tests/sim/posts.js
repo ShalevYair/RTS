@@ -105,12 +105,13 @@ const soldier = (s, side, type, x, y) => { const q = Sim._makeSquad(s, side, typ
   const u = s.units.find(k => k.side === 'blue' && k.type === 'inf'), e = s.units.find(k => k.side === 'red' && k.type === 'inf');
   Sim.setCover(s, [{ x: 600, y: 300, r: 30 }]);
   s.units = s.units.filter(k => k.side !== 'blue' || k === u); // (alone in its squad: no line to stand in)
-  const q = s.squads.find(k => k.id === u.squad); q.size = 1; u.x = 600; u.y = 300; q.order = { type: 'hold', x: 600, y: 300, r: 60 };
-  e.x = 700; e.y = 300; e.cd = 1e9; const eq = s.squads.find(k => k.id === e.squad); eq.order = { type: 'hold', x: 700, y: 300, r: 60 }; u.cd = 1e9;
+  // (short leashes: each stays where it's put — with the height's smaller range they walked at each other, to 50 apart)
+  const q = s.squads.find(k => k.id === u.squad); q.size = 1; u.x = 600; u.y = 300; q.order = { type: 'hold', x: 600, y: 300, r: 5 };
+  e.x = 700; e.y = 300; e.cd = 1e9; const eq = s.squads.find(k => k.id === e.squad); eq.order = { type: 'hold', x: 700, y: 300, r: 5 }; u.cd = 1e9;
   step(s, 1); const moving = s.vis.red.has(u.id);
   step(s, 6);
   ok(moving && !s.vis.red.has(u.id), 'seen while it moved in; still in the trees, it is gone from sight');
-  e.x = 640; step(s, 0.2);
+  e.x = 640; e.y = 300; step(s, 0.2);
   ok(s.vis.red.has(u.id), 'close up: seen');
 }
 {

@@ -359,19 +359,22 @@ function* hillShadeJob(E, sun) {
   dc.putImageData(di, 0, 0); lc.putImageData(li, 0, 0);
   return { dark, lite };
 }
-// contour lines at 1, 2, … lines high, traced over the height grid (marching squares); one path per height
+// contour lines at 1, 2, … lines high, traced over the height grid (marching squares); a path per height in each
+// square of CONT_CELL (a tile strokes only the squares over it: the whole map's paths cost the most of a tile)
+const CONT_CELL = 256;
 function contours(E) {
-  const out = [], g = E.g;
+  const out = { cells: new Map(), n: 0 }, g = E.g;
   let top = 0; for (const v of g) if (v > top) top = v;
-  for (let L = 1; L <= Math.floor(top); L++) {
-    const p = new Path2D();
+  out.n = Math.floor(top);
+  for (let L = 1; L <= out.n; L++) {
+    const at = (x, y) => { const k = Math.floor(x / CONT_CELL) + ',' + Math.floor(y / CONT_CELL); let l = out.cells.get(k); if (!l) out.cells.set(k, l = []); return l[L - 1] || (l[L - 1] = new Path2D()); };
     for (let j = 0; j < E.h - 1; j++) for (let i = 0; i < E.w - 1; i++) {
       const k = j * E.w + i, a = g[k], b = g[k + 1], c = g[k + E.w + 1], d = g[k + E.w];
       const m = (a >= L) | (b >= L) << 1 | (c >= L) << 2 | (d >= L) << 3;
       if (m === 0 || m === 15) continue;
       const x = i * ELEV, y = j * ELEV, f = (u, v) => (L - u) / (v - u) * ELEV;
       const top_ = [x + f(a, b), y], right = [x + ELEV, y + f(b, c)], bot = [x + f(d, c), y + ELEV], left = [x, y + f(a, d)];
-      const seg = (P, Q) => { p.moveTo(P[0], P[1]); p.lineTo(Q[0], Q[1]); };
+      const p = at(x, y), seg = (P, Q) => { p.moveTo(P[0], P[1]); p.lineTo(Q[0], Q[1]); };
       switch (m) {
         case 1: case 14: seg(left, top_); break; case 2: case 13: seg(top_, right); break;
         case 3: case 12: seg(left, right); break; case 4: case 11: seg(right, bot); break;
@@ -379,7 +382,6 @@ function contours(E) {
         case 5: seg(left, top_); seg(right, bot); break; case 10: seg(top_, right); seg(left, bot); break;
       }
     }
-    out.push(p);
   }
   return out;
 }
@@ -404,10 +406,13 @@ function mix(a, b, u, k = 0) {
 // whole again at every pan past the margin, every zoom step and twice a second while tanks crushed trees: 100–170ms
 // each, the game stuttered.
 const bg = { key: '', of: null, sc: 0, tw: 0, tiles: new Map(), old: [], x0: 0, y0: 0, w: 0, h: 0, cv: document.createElement('canvas') };
-const BG_TILE = 384, BG_MS = 5, BG_KEEP = 70;
+const BG_TILE = 384, BG_MS = 5, BG_KEEP = 70, BG_STILL = 250;
 bg.cv.width = bg.cv.height = BG_TILE;
-function bgPaint(t) {
-  const sc = bg.sc, g = bg.cv.getContext('2d'); // (one canvas paints them all: the textures' patterns made once)
+function bgPaint(t, quick) {
+  bg.quick = !!quick; t.rough = !!quick; // (quick: while the camera moves — see drawGround)
+  // (straight into the tile's own canvas: painted on one and copied, each copy waited for all the painting)
+  if (!t.cv) { t.cv = document.createElement('canvas'); t.cv.width = t.cv.height = BG_TILE; }
+  const sc = bg.sc, g = t.cv.getContext('2d');
   bg.x0 = t.x0; bg.y0 = t.y0; bg.w = bg.h = bg.tw; // (what's in this tile: drawScenery draws only that)
   g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   g.fillStyle = colors.ground; g.fillRect(0, 0, BG_TILE, BG_TILE);
@@ -416,8 +421,6 @@ function bgPaint(t) {
   if (grass) { g.fillStyle = grass; g.fillRect(t.x0, t.y0, bg.tw, bg.tw); g.globalAlpha = GROUND_TINT; g.fillStyle = colors.ground; g.fillRect(t.x0, t.y0, bg.tw, bg.tw); g.globalAlpha = 1; }
   // (off the map: the grass only)
   if (t.x0 < s.W && t.x0 + bg.tw > 0 && t.y0 < s.H && t.y0 + bg.tw > 0) drawTerrain(g, s.W, s.H, s.W / 2);
-  if (!t.cv) { t.cv = document.createElement('canvas'); t.cv.width = t.cv.height = BG_TILE; }
-  const tc = t.cv.getContext('2d'); tc.globalCompositeOperation = 'copy'; tc.drawImage(bg.cv, 0, 0);
   t.stale = false;
 }
 // a picture on the height grid (a pixel a cell: the relief, the shading, the stony mask), only the part over the tile
@@ -460,12 +463,18 @@ function drawGround(c) {
   }
   const covered = t => bg.old.some(o => o.x0 < t.x0 + tw && o.y0 < t.y0 + tw && o.x0 + o.tw > t.x0 && o.y0 + o.tw > t.y0);
   const t0 = performance.now(); let n = 0;
-  const todo = [...shown.filter(t => !t.cv).sort(near), ...shown.filter(t => t.cv && t.stale).sort(near), ...ring.filter(t => t.stale).sort(near)];
+  // (the camera moving — a pan, a zoom: new tiles quick and rough, the ground, its colours and shading only; painted
+  // whole once it has stood BG_STILL ms. Every tile whole while panning was the slow part of it)
+  const ck = view.ox + ',' + view.oy + ',' + sc, now = performance.now();
+  if (ck !== bg.cam) { bg.cam = ck; bg.movedAt = now; }
+  const moving = now - (bg.movedAt || 0) < BG_STILL;
+  const redo = t => t.stale || (!moving && t.rough);
+  const todo = [...shown.filter(t => !t.cv).sort(near), ...shown.filter(t => t.cv && redo(t)).sort(near), ...ring.filter(t => !moving && redo(t)).sort(near)];
   for (const t of todo) {
     // (a blank on screen with nothing under it is painted now; the rest while the frame has time, one at least)
     const must = !t.cv && shown.includes(t) && !covered(t);
     if (!must && (n > 0 || !shown.includes(t)) && performance.now() - t0 > BG_MS) continue;
-    bgPaint(t); n++;
+    bgPaint(t, moving && !t.cv ? true : moving && t.rough); n++;
   }
   // (the old tiles under, until every tile on screen is the new one)
   if (shown.every(t => t.cv)) bg.old = [];
@@ -496,7 +505,7 @@ function drawTerrain(c, W, H, mid) {
     decor.tufts.forEach((p, k) => { c.fillStyle = shade(colors.grass2, -0.2 + 0.32 * k / (n - 1)); c.fill(p); });
     drawGrain(c, W, H);
   }
-  for (const f of decor.fields) {
+  if (!bg.quick) for (const f of decor.fields) {
     c.save(); c.translate(f.x, f.y); c.rotate(f.a); c.fillStyle = shade(colors.field, f.t); c.fillRect(-f.w / 2, -f.h / 2, f.w, f.h);
     c.strokeStyle = shade(colors.field2, f.t); c.lineWidth = 3;
     for (let x = -f.w / 2 + 4; x < f.w / 2; x += f.gap) { c.beginPath(); c.moveTo(x, -f.h / 2); c.lineTo(x, f.h / 2); c.stroke(); }
@@ -526,16 +535,22 @@ function drawTerrain(c, W, H, mid) {
   if (rocky) c.globalAlpha = RELIEF_OVER_TILES;
   drawGridPic(c, R.relief);
   c.globalAlpha = 1;
-  if (rocky) drawStony(c, rocky);
+  if (rocky && !bg.quick) drawStony(c, rocky);
   // (the light and shade over it all, the textures too)
   c.imageSmoothingEnabled = true;
   // (in the dark: no light, and the shade only faintly)
   [R.shade.dark, R.shade.lite].forEach((L, k) => { c.globalAlpha = k ? SUN.a : 0.35 + 0.65 * SUN.a; drawGridPic(c, L); });
   c.globalAlpha = 1;
+  if (bg.quick) return; // (quick: the rest when the camera stands)
   c.strokeStyle = shade(colors.tree, -0.35); c.lineCap = 'round';
   // (far out the thin ones are under a pixel: left out — the whole map's lines cost the most of a tile there)
   const thin = c.getTransform().a >= 0.7;
-  R.contours.forEach((p, k) => { if (!thin && (k + 1) % 5) return; c.globalAlpha = (k + 1) % 5 ? 0.13 : 0.26; c.lineWidth = (k + 1) % 5 ? 0.9 : 1.4; c.stroke(p); });
+  const C = R.contours, ci0 = Math.floor((bg.x0 - ELEV) / CONT_CELL), ci1 = Math.floor((bg.x0 + bg.w + ELEV) / CONT_CELL), cj0 = Math.floor((bg.y0 - ELEV) / CONT_CELL), cj1 = Math.floor((bg.y0 + bg.h + ELEV) / CONT_CELL);
+  for (let k = 0; k < C.n; k++) {
+    if (!thin && (k + 1) % 5) continue;
+    c.globalAlpha = (k + 1) % 5 ? 0.13 : 0.26; c.lineWidth = (k + 1) % 5 ? 0.9 : 1.4;
+    for (let i = ci0; i <= ci1; i++) for (let j = cj0; j <= cj1; j++) { const l = C.cells.get(i + ',' + j), p = l && l[k]; if (p) c.stroke(p); }
+  }
   c.globalAlpha = 1;
   // roads: thin dirt tracks in the colour of the land they cross, only a little lighter, with a faint darker edge
   // (colours per stretch, remade when the theme changes)
@@ -1001,7 +1016,7 @@ function drawUnits(c, show) {
     if (u.type === 'ssm' && u.side === 'blue') { const f = 1 - (u.reload || 0) / Sim.SSM_RELOAD; c.lineWidth = 2.2 / view.css; c.strokeStyle = 'rgba(0,0,0,.35)'; ring(u.x, u.y, k * 1.15); c.stroke(); c.strokeStyle = f >= 1 ? '#ffd54a' : 'rgba(255,255,255,.8)'; c.beginPath(); c.arc(u.x, u.y, k * 1.15, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); c.stroke(); }
     if (u.type === 'lift' && u.side === 'blue' && u.cargo && u.cargo.length) label('👥' + u.cargo.length, u.x, u.y - k - 6, colors.ink);
     // (no ammunition or care marks, no health bar: a hurt unit of ours has its dot, see healthDot)
-    if (u.side === 'blue' && isSel(u.squad) && !(sel === 'all' && u.type === 'dozer')) { // (all picked: every one but the bulldozers)
+    if (u.side === 'blue' && isSel(u.squad) && !(sel === 'all' && NOT_ALL.includes(u.type))) { // (all picked: every one but the bulldozers)
       // picked: a faint light ring close round the unit
       c.globalAlpha = 0.4; c.strokeStyle = colors.halo; c.lineWidth = 1; ring(u.x, u.y, k * (u.type === 'tank' ? 0.95 : 1) + 2.5); c.stroke(); c.globalAlpha = 1;
     }
@@ -1067,26 +1082,35 @@ function draw() {
       c.beginPath(); c.moveTo(x - ux * back, y - uy * back); c.lineTo(x, y); c.stroke();
       if (k < 1) { c.globalAlpha = 1; c.strokeStyle = sh.kind !== 'air' ? '#fff1a8' : colors[sh.side]; c.lineWidth = 2.2; c.beginPath(); c.moveTo(x - ux * 5, y - uy * 5); c.lineTo(x, y); c.stroke(); c.fillStyle = '#ffb040'; ring(x - ux * 6, y - uy * 6, 1.6); c.fill(); }
     } else if (k < 1) {
-      const tank = sh.kind === 'tank', len = tank ? 9 : 5;
-      c.globalAlpha = 1; c.shadowColor = '#ffcf6a'; c.shadowBlur = tank ? 6 : 3; c.strokeStyle = tank ? '#ffe2a0' : '#fff6c8'; c.lineWidth = tank ? 2.6 : 1.4;
-      c.beginPath(); c.moveTo(x - ux * len, y - uy * len); c.lineTo(x, y); c.stroke(); c.shadowBlur = 0;
+      // (a tracer: a longer faint tail, a bright head — added light, no blur)
+      const tank = sh.kind === 'tank', len = tank ? 22 : 12;
+      c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = 0.35; c.strokeStyle = tank ? '#ff9a3c' : '#ffd36a'; c.lineWidth = tank ? 4 : 2.2;
+      c.beginPath(); c.moveTo(x - ux * len, y - uy * len); c.lineTo(x, y); c.stroke();
+      c.globalAlpha = 1; c.strokeStyle = tank ? '#fff0c0' : '#fffbe0'; c.lineWidth = tank ? 2 : 1.1;
+      c.beginPath(); c.moveTo(x - ux * len * 0.4, y - uy * len * 0.4); c.lineTo(x, y); c.stroke();
+      c.globalCompositeOperation = 'source-over';
     }
   }
   c.restore(); c.globalAlpha = 1;
   // units: exact picture without fog; under fog what we see where the picture is exact (see shownAt)
   if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); tracks.length = 0; dust.length = 0; }
-  drawTracks(c); drawFallen(c); drawDust(c);
+  if (!lite) { drawTracks(c); drawDust(c); } drawFallen(c); // (the light mode: no tracks or dust)
   if (!s.fog) drawUnits(c, () => true);
   else { const whole = new Set(s.squads.filter(q => q.side === 'blue' && sqShown(q)).map(q => q.id)); drawUnits(c, u => (u.side === 'blue' ? whole.has(u.squad) : s.vis.blue.has(u.id)) && shownAt(u)); drawGhosts(c); }
   // explosions: fireball, smoke ring for medium+, sparks for big
   for (const f of s.fx) {
     if (f.wait > 0) continue; // its shot is still flying
     const t = 1 - f.life / f.max, a = 1 - t, R = f.size, r = R * (0.35 + 0.65 * Math.sqrt(t));
+    // (once, as it goes off: a little smoke left behind, rising — drawSmoke)
+    if (!f.smoked && R >= 8) { f.smoked = true; const n = R >= 26 ? 3 : R >= 18 ? 2 : 1; for (let i = 0; i < n; i++) puff(f.x + (Math.random() - 0.5) * R * 0.6, f.y, R >= 18, 0.7 + R / 30); }
     const g = c.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
     g.addColorStop(0, `rgba(255,255,220,${a})`); g.addColorStop(0.35, `rgba(255,200,60,${a * 0.9})`);
     g.addColorStop(0.7, `rgba(240,90,20,${a * 0.6})`); g.addColorStop(1, 'rgba(120,40,10,0)');
-    c.fillStyle = g; ring(f.x, f.y, r); c.fill();
+    c.globalCompositeOperation = 'lighter'; c.fillStyle = g; ring(f.x, f.y, r); c.fill(); c.globalCompositeOperation = 'source-over'; // (added light: a glow)
+    // (a dark scorch of smoke under it, and for the bigger ones a shockwave running out over the ground)
     if (R >= 10) { c.strokeStyle = `rgba(70,70,70,${a * 0.5})`; c.lineWidth = R >= 18 ? 3 : 2; ring(f.x, f.y, r * 1.3); c.stroke(); }
+    if (R >= 14 && t < 0.6) { c.strokeStyle = `rgba(255,240,210,${(0.6 - t) * 0.7})`; c.lineWidth = 1.5; ring(f.x, f.y, R * (0.6 + t * 2.4)); c.stroke(); }
     if (R >= 18) {
       c.strokeStyle = `rgba(255,220,120,${a})`; c.lineWidth = 1.5;
       for (let i = 0; i < 6; i++) {
@@ -1095,7 +1119,7 @@ function draw() {
       }
     }
   }
-  drawSmoke(c); drawFlashes(c); drawClouds(c); drawWeather(c); // (rain, the morning fog: field.js)
+  drawSmoke(c); drawFlashes(c); if (!lite) drawClouds(c); drawWeather(c); // (rain, the morning fog: field.js)
   drawNightLit(c);
   if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); }
   drawPosts(c); drawNodes(c); drawDozerJobs(c);
@@ -1207,10 +1231,14 @@ function drawBox() {
     c.save(); c.setTransform(fit.dpr, 0, 0, fit.dpr, 0, 0); c.strokeStyle = colors.blue; c.fillStyle = colors.blue; c.lineWidth = 3; c.lineCap = 'round';
     c.beginPath(); c.arc(f.x0, f.y0, 6, 0, Math.PI * 2); c.fill();
     if (L > 10) {
-      c.beginPath(); c.moveTo(f.x0, f.y0); c.lineTo(f.x1, f.y1); c.stroke();
+      // (where the forces will stand: a band from the tail — the last row — to the head — the first, the front)
+      const W = 45, px = -Math.sin(a) * W, py = Math.cos(a) * W;
+      c.globalAlpha = 0.14; c.beginPath(); c.moveTo(f.x0 + px, f.y0 + py); c.lineTo(f.x1 + px, f.y1 + py); c.lineTo(f.x1 - px, f.y1 - py); c.lineTo(f.x0 - px, f.y0 - py); c.closePath(); c.fill();
+      c.globalAlpha = 1; c.beginPath(); c.moveTo(f.x0, f.y0); c.lineTo(f.x1, f.y1); c.stroke();
       c.beginPath(); c.moveTo(f.x1, f.y1); c.lineTo(f.x1 - Math.cos(a - 0.45) * 14, f.y1 - Math.sin(a - 0.45) * 14); c.lineTo(f.x1 - Math.cos(a + 0.45) * 14, f.y1 - Math.sin(a + 0.45) * 14); c.closePath(); c.fill();
-      // the front: a line across the arrow at its start
-      c.globalAlpha = 0.6; c.beginPath(); c.moveTo(f.x0 - Math.sin(a) * 40, f.y0 + Math.cos(a) * 40); c.lineTo(f.x0 + Math.sin(a) * 40, f.y0 - Math.cos(a) * 40); c.stroke();
+      // the front: a line across the head; the last row: a fainter one across the tail
+      c.globalAlpha = 0.8; c.beginPath(); c.moveTo(f.x1 + px, f.y1 + py); c.lineTo(f.x1 - px, f.y1 - py); c.stroke();
+      c.globalAlpha = 0.4; c.beginPath(); c.moveTo(f.x0 + px, f.y0 + py); c.lineTo(f.x0 - px, f.y0 - py); c.stroke();
     }
     c.restore();
   }
