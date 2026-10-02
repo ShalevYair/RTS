@@ -152,6 +152,8 @@ function tap(e) {
     const rest = selIds().filter(id => !ssm.includes(id)); if (rest.length) { const keep = sel; sel = rest.length === 1 ? rest[0] : rest; issue('attack', x, y, undefined, true); sel = keep; }
     return;
   }
+  // a post not ours, with soldiers picked: in to take it (yellow arrows)
+  if (sendCapture(hitPost(x, y))) return;
   // at an enemy: an attack on it, whatever the order button says
   const foe = selIds().length || sel === 'all' ? hitFoe(x, y) : null;
   if (foe) { issue('attack', foe.x, foe.y, undefined, true); return; }
@@ -163,26 +165,29 @@ const DRONE_CUR = (() => {
   const arms = "<path d='M9 9L23 23M23 9L9 23'/><circle cx='8' cy='8' r='5'/><circle cx='24' cy='8' r='5'/><circle cx='8' cy='24' r='5'/><circle cx='24' cy='24' r='5'/>";
   return svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><g fill='none' stroke='#fff' stroke-width='4' stroke-linecap='round'>${arms}</g><g fill='none' stroke='#223' stroke-width='2' stroke-linecap='round'>${arms}</g><rect x='12.5' y='12.5' width='7' height='7' rx='2' fill='#4a90e2' stroke='#223' stroke-width='1.5'/></svg>`, 16, 16);
 })();
+// placing the front (🚩 armed): the flag itself, as it stands on the map — a pole, its foot where it goes
+const FLAG_CUR = svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='40' height='48' viewBox='0 0 40 48'><filter id='f' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='1.2' dy='1.6' stdDeviation='1.3' flood-opacity='.5'/></filter><g filter='url(#f)'><path d='M7 45V4' stroke='#1b2430' stroke-width='5' stroke-linecap='round'/><path d='M7 45V4' stroke='#fff' stroke-width='2.6' stroke-linecap='round'/><path d='M7 4Q20 2 33 10L7 20Z' fill='#3b7dd8' stroke='#fff' stroke-width='2' stroke-linejoin='round'/><ellipse cx='7' cy='45' rx='4' ry='1.8' fill='#3b7dd8' stroke='#fff' stroke-width='1'/></g></svg>`, 7, 45);
 // the plain pointer: an arrow twice the system one's size, white with a dark edge and a soft shadow
 const ARROW_CUR = svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='46' viewBox='0 0 34 46'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#fff'/><stop offset='1' stop-color='#d9e2ec'/></linearGradient><filter id='f' x='-20%' y='-20%' width='160%' height='160%'><feDropShadow dx='1.5' dy='2' stdDeviation='1.6' flood-opacity='.45'/></filter></defs><path filter='url(#f)' d='M3 2L3 36L11.5 28.5L17.5 42L23.5 39.2L17.6 26L29 26Z' fill='url(#g)' stroke='#1b2430' stroke-width='2.2' stroke-linejoin='round'/></svg>`, 3, 2).replace(', crosshair', ', default');
 // with something picked: a sight — a ring and four arrows pointing at the middle, breathing in and out (AIM_FRAMES
-// pictures, one every AIM_MS; tickCursor swaps them); green for an order, red at an enemy
+// pictures, one every AIM_MS; tickCursor swaps them); green for an order, red at an enemy, yellow over a post to take
 const AIM_FRAMES = 8, AIM_MS = 85;
 const aimCur = col => Array.from({ length: AIM_FRAMES }, (_, i) => {
   const d = 15 + 5 * (0.5 + 0.5 * Math.cos(i / AIM_FRAMES * Math.PI * 2)), arrow = a => `<g transform='rotate(${a} 28 28)'><path d='M28 ${28 - d}l-6 -8h4v-6h4v6h4z'/></g>`;
   const g = `<circle cx='28' cy='28' r='9'/>${[0, 90, 180, 270].map(arrow).join('')}`;
   return svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'><g stroke='#fff' stroke-width='4' stroke-linejoin='round' fill='#fff'>${g}</g><g stroke='${col}' stroke-width='1.6' stroke-linejoin='round' fill='${col}'><circle cx='28' cy='28' r='9' fill='none' stroke-width='2.4'/>${[0, 90, 180, 270].map(arrow).join('')}</g><circle cx='28' cy='28' r='2' fill='${col}'/></svg>`, 28, 28);
 });
-const AIM_GO = aimCur('#2e9e4f'), AIM_FOE = aimCur('#d8342c');
+const AIM_GO = aimCur('#2e9e4f'), AIM_FOE = aimCur('#d8342c'), AIM_CAP = aimCur('#e0a800'); // (yellow: soldiers into a post, to take it)
 // the cursor for where the mouse is (an array: an animated one)
 function cursorAt(x, y) {
   const picked = sel === 'all' || selIds().length > 0;
   if (eyeArmed) return DRONE_CUR;
-  if (buildArmed || fhqArmed || hqArmed || frontArmed) return 'copy';
+  if (frontArmed) return FLAG_CUR;
+  if (buildArmed || fhqArmed || hqArmed) return 'copy';
   if (hitSquad(x, y) || hitNode(x, y, 'blue')) return rallyNode() && !hitNode(x, y, 'blue') ? AIM_GO : 'pointer';
   if (rallyNode()) return AIM_GO; // (a building of ours picked: a click says where its squads go)
   if (!picked) return ARROW_CUR;
-  return hitFoe(x, y) ? AIM_FOE : AIM_GO;
+  return hitFoe(x, y) ? AIM_FOE : canTake(hitPost(x, y)) ? AIM_CAP : AIM_GO;
 }
 let curNow = null, lastMouse = null;
 // a production building of ours picked: a click on the map is its rally point
@@ -205,14 +210,15 @@ function hover(e) {
   // the line of what's under the mouse — a squad (ours, or the enemy's in sight), else a building: after 400 ms on the
   // same one, gone when the mouse leaves it
   const q = !n && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed ? hitSquad(x, y) || hitFoeSquad(x, y) : null;
-  const key = q ? 'q' + q : n ? (n.mem ? 'm' : '') + n.id : null;
+  const pt = !n && !q ? hitPost(x, y) : null; // (a post: who holds it, what it gives)
+  const key = q ? 'q' + q : n ? (n.mem ? 'm' : '') + n.id : pt ? 'p' + pt.id : null;
   if (key === hoverNode) return;
   hoverNode = key; clearTimeout(hoverT); if (tipFor === 'node') hideTip();
-  if (n || q) hoverT = setTimeout(() => {
+  if (n || q || pt) hoverT = setTimeout(() => {
     if (hoverNode !== key || tour || tipFor === 'toast') return;
-    const r = cv.getBoundingClientRect(), sq = q && s.squads.find(k => k.id === q), at = sq ? guessAt(sq) || { x: sq.cx, y: sq.cy } : n;
+    const r = cv.getBoundingClientRect(), sq = q && s.squads.find(k => k.id === q), at = sq ? guessAt(sq) || { x: sq.cx, y: sq.cy } : n || pt;
     if (!at) return;
-    showTip(sq ? squadInfo(sq) : nodeInfo(n), { left: at.x * view.css + view.cox + r.left, top: (at.y - 26) * view.css + view.coy + r.top, width: 0, height: 0 }); tipFor = 'node';
+    showTip(sq ? squadInfo(sq) : n ? nodeInfo(n) : postInfo(pt), { left: at.x * view.css + view.cox + r.left, top: (at.y - 26) * view.css + view.coy + r.top, width: 0, height: 0 }); tipFor = 'node';
   }, 400);
 }
 cv.addEventListener('pointermove', hover);
@@ -356,9 +362,11 @@ document.addEventListener('keydown', e => {
   // keys for controls this level doesn't have yet do nothing
   const need = /^\d$/.test(k) ? 'squads' : 'har'.includes(k) ? 'orders' : { d: 'eye', b: 'fhq', g: 'build' }[k];
   if (need && !uiHas(need)) return;
-  // Ctrl / Alt + a number: what's picked becomes that group; the number alone: the button with that number (a second
-  // press brings the camera there)
-  if (/^[1-9]$/.test(k) && (e.ctrlKey || e.metaKey || e.altKey)) { e.preventDefault(); keyGroup(+k); }
+  // Ctrl + a number: what's picked becomes that group; the number alone: the button with that number (a second press
+  // brings the camera there). Alt + a number: this view is saved as that point; Shift + it: back to it (field.js)
+  if (/^\d$/.test(k) && e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); saveView(+k); }
+  else if (/^\d$/.test(k) && e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); goView(+k); }
+  else if (/^[1-9]$/.test(k) && (e.ctrlKey || e.metaKey)) { e.preventDefault(); keyGroup(+k); }
   else if (/^[1-9]$/.test(k)) { const kb = document.querySelector(`#sqs kbd[data-k="${k}"]`); if (kb) kb.parentElement.click(); }
   else if (k === 'l' && uiHas('squads')) toggleGroup();
   else if (k === 's' && !$('silent').hidden) toggleSilent();
@@ -370,7 +378,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'h') { mode = 'hold'; syncButtons(); }
   else if (k === 'a') { mode = 'attack'; syncButtons(); }
   else if (k === 'r') issue('retreat');
-  else if (k === ' ') { e.preventDefault(); setPlaying(!playing); }
+  else if (k === ' ') { e.preventDefault(); if (!e.repeat) talkDown(); } // (a tap: pause / go on; held: a spoken order — field.js)
   else if (k === 'd') toggleEye();
   else if (k === 'b') buildHere();
   else if (k === 'g') toggleBuild();
@@ -379,3 +387,6 @@ document.addEventListener('keydown', e => {
   else if (e.key === '+' || e.key === '=' || e.key === '-') zoomAt(fit.w / 2, fit.top + fit.h / 2, e.key === '-' ? 1 / 1.25 : 1.25);
   else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; frontArmed = false; $('buildm').hidden = true; syncButtons(); closeMenu(); }
 });
+// Space let go: the pause, or the spoken order (field.js); the window left with it held: nothing
+document.addEventListener('keyup', e => { if ((e.code === 'Space' || e.key === ' ') && talk) { e.preventDefault(); talkUp(); } });
+window.addEventListener('blur', () => talkBlur()); // (not dropped: see field.js)

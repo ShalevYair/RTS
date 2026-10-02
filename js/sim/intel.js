@@ -11,7 +11,8 @@ function intel(s, side, q) {
 // everything a drone or a signals truck of the side sees is made out in full (and, in the UI, drawn as it is) — not
 // only its full-control ring
 function clearAt(s, side, p) {
-  for (const n of s.nodes) if (n.side === side && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready && dist(n, p) <= DRONE_SIGHT) return true;
+  const ds = DRONE_SIGHT * skySight(s, side); // (the dark and the rain: nearer)
+  for (const n of s.nodes) if (n.side === side && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready && dist(n, p) <= ds) return true;
   for (const u of s.units) if (u.side === side && (u.type === 'radio' || u.type === 'commando') && dist(u, p) <= sightOf(s, u)) return true;
   return false;
 }
@@ -34,12 +35,16 @@ function visibility(s) {
     const eyes = s.units.filter(u => u.side === side);
     // (each eye's sight worked out once a tick, not once for every enemy it might see)
     const eyeS = eyes.map(u => { const r = sightOf(s, u); return { x: u.x, y: u.y, r2: r * r }; });
+    // (the posts a side holds see round them: an observation tower far)
+    if (s.posts) for (const p of s.posts) if (p.side === side) { const r = (p.kind === 'tower' ? TOWER_SIGHT : POST_SIGHT) * skySight(s, side); eyeS.push({ x: p.x, y: p.y, r2: r * r }); }
+    // (lying in ambush under the trees: seen only close up, or by a drone / signals truck)
+    const close = e => eyes.some(u => (u.x - e.x) ** 2 + (u.y - e.y) ** 2 <= AMBUSH_NEAR * AMBUSH_NEAR) || clearAt(s, side, e);
     const inSight = p => eyeS.some(k => (k.x - p.x) ** 2 + (k.y - p.y) ** 2 <= k.r2);
     const v = new Set(), vq = new Set();
     for (const e of s.units) {
       if (e.side === side) continue;
-      if (TYPES[e.type].stealth ? stealthSeen(s, side, e, eyes) : s.t - e.lastFire < FIRE_REVEAL || nodeSees(s, side, e) ||
-          inSight(e)) { v.add(e.id); vq.add(e.squad); }
+      if (TYPES[e.type].stealth ? stealthSeen(s, side, e, eyes) : s.t - e.lastFire < FIRE_REVEAL || (ambushed(s, e) ? close(e) : nodeSees(s, side, e) ||
+          inSight(e))) { v.add(e.id); vq.add(e.squad); }
     }
     s.vis[side] = v; s.visSq[side] = vq;
     // enemy forward HQs / drones: seen when a unit or a working node of ours has them in sight

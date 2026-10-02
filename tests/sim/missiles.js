@@ -8,7 +8,13 @@ const step = (s, sec) => { for (let i = 0; i < 30 * sec; i++) Sim.step(s, 1 / 30
 const fresh = () => { const s = Sim.create(9, 1400, 'normal'); s.bots = []; s.fog = false; s.noReinforce = true; s.units = []; s.squads = []; return s; };
 const mk = (s, side, t, n, x, y) => { const q = Sim._makeSquad(s, side, t, null, x, y); q.size = n; Sim._fillSquad(s, q, x, y); return q; };
 const S = Sim.STRUCTS;
-ok(S.ssmshop.build === 180 && S.ssmshop.every === 120 && S.ssmshop.size === 3 && S.arrowsite.build === 120 && S.domesite.build === 60, 'missile works 3 min, a truck every 2 min, 3 at most; Arrow 2 min, Iron Dome 1 min');
+ok(S.ssmshop.build === 180 && S.ssmshop.every === 120 && S.ssmshop.size === 1 && S.ssmshop.keep === 1 && Sim.SSM_RELOAD === 120 && S.arrowsite.build === 120 && S.domesite.build === 60, 'missile works 3 min, one truck (every 2 min after a loss), a missile every 2 min; Arrow 2 min, Iron Dome 1 min');
+{
+  // at most 3 missile works a side
+  const s = fresh(); s.builds = null; let n = 0;
+  for (let i = 0; i < 5; i++) if (Sim.build(s, 'blue', 'ssmshop', 150 + (i % 2) * 90, 150 + i * 90)) n++;
+  ok(n === 3 && Sim.buildCheck(s, 'blue', 400, 500, 'ssmshop') === 'max', `3 missile works at most (${n} put up; then: ${Sim.buildCheck(s, 'blue', 400, 500, 'ssmshop')})`);
+}
 {
   const s = fresh(), t = mk(s, 'blue', 'ssm', 1, 200, 320), tent = s.nodes.find(n => n.side === 'red' && n.kind === 'tent'), hq = s.nodes.find(n => n.side === 'red' && n.kind === 'hq');
   ok(!Sim.launch(s, [t.id], 700, 100), 'no launch at an empty spot');

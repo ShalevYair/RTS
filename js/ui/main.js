@@ -7,6 +7,8 @@ function newGame(skipIntro) {
   else {
     const k = hugeMap ? 4 : 2; // big: 2× wide and high; huge: 4×
     s = bigMap ? Sim.create(seed, k * Math.max(1000, worldWidth()), diff, k * Sim.H, { singles: true }) : Sim.create(seed, worldWidth(), diff, Sim.H, { singles: true }); s.fog = fog;
+    // the big maps: posts to take, the weather, fast roads, ambushes (field.js; none on the small map)
+    if (bigMap) Sim.extras(s);
     // the full game opens on an open field: each side picks where its HQ goes (tests may keep the fixed HQ)
     let fixed = false; try { fixed = localStorage.getItem('irts-fixedhq') === '1'; } catch (e) { /* storage unavailable */ }
     if (!fixed) Sim.openField(s);
@@ -21,7 +23,12 @@ function newGame(skipIntro) {
     cam = { x: at.x, y: at.y, z: -1, px: TUT_PX, ahead: TUT_AHEAD };
   }
   // in the tutorial a tap on the map attacks (hold / retreat come later)
-  feedClear(); decor = makeDecor(s); Sim.setCover(s, decor.rocks.items.filter(it => it.t === 'tree').map(it => (it.r = it.s * 0.4, it))); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();
+  feedClear(); decor = makeDecor(s);
+  // (no trees on the posts; the roads go to the sim, for the vehicles' speed)
+  if (s.posts) for (const it of decor.rocks.items) if (s.posts.some(p => Math.hypot(p.x - it.x, p.y - it.y) < Sim.POSTS[p.kind].r * 1.5 + 18)) it.gone = 1;
+  if (s.extras) Sim.setRoads(s, decor.roads);
+  views = {}; wxWas = { rain: false, fog: false };
+  Sim.setCover(s, decor.rocks.items.filter(it => it.t === 'tree').map(it => (it.r = it.s * 0.4, it))); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();
   $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
   $('end').hidden = true; $('share').textContent = tr('share'); outro = null; $('outro').hidden = true; try { $('outroVid').pause(); } catch (e) { /* no video */ }
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);

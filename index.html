@@ -80,6 +80,7 @@
         <div class="sideBtns">
           <button class="sideBtn" id="learn"><span aria-hidden="true">🎓</span><span data-t="learn"></span></button>
           <button class="sideBtn" id="wikiBtn"><span aria-hidden="true">📖</span><span data-t="wiki"></span></button>
+          <button class="sideBtn" id="micBtn"><span aria-hidden="true">🎙️</span><span data-t="micAsk"></span></button>
           <button class="sideBtn" id="moreBtn" aria-expanded="false"><span aria-hidden="true">⚙</span><span data-t="more"></span></button>
         </div>
         <div id="moreBox" class="moreBox" hidden></div>
@@ -114,6 +115,7 @@
   <!-- bottom left, one above the other: the HQ to place, the forward HQ, the drone (each with a ring filling up to the
        next one) -->
   <div class="bar glass" id="bar" role="toolbar">
+    <button id="mic" class="icon" aria-pressed="false" data-al="mic" data-tip="tipMic" hidden>🎙️</button>
     <button id="hqb" class="icon" data-al="hqb" data-tip="tipHqb" hidden>🏰</button>
     <button id="eye" class="icon node" aria-pressed="false" data-al="eye" data-tip="eye"><svg class="ico" viewBox="-12 -12 24 24" aria-hidden="true"><path d="M-7-7L7 7M7-7L-7 7" stroke="currentColor" stroke-width="2"/><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="-7" cy="-7" r="4.2"/><circle cx="7" cy="-7" r="4.2"/><circle cx="-7" cy="7" r="4.2"/><circle cx="7" cy="7" r="4.2"/></g><rect x="-3" y="-3" width="6" height="6" rx="1.5" fill="currentColor"/></svg><b id="eyeN"></b><i></i></button>
     <button id="bld" class="icon" aria-expanded="false" data-al="bld" data-tip="bld">🏗️<b id="slotN"></b></button>
@@ -137,6 +139,7 @@
 
 <script src="js/sim/config.js"></script>
 <script src="js/sim/util.js"></script>
+<script src="js/sim/weather.js"></script>
 <script src="js/sim/world.js"></script>
 <script src="js/sim/control.js"></script>
 <script src="js/sim/command.js"></script>
@@ -144,6 +147,7 @@
 <script src="js/sim/intel.js"></script>
 <script src="js/sim/structures.js"></script>
 <script src="js/sim/special.js"></script>
+<script src="js/sim/posts.js"></script>
 <script src="js/sim/ai.js"></script>
 <script src="js/sim/levels.js"></script>
 <script src="js/sim/step.js"></script>
@@ -159,6 +163,7 @@
 <script src="js/ui/wiki.js"></script>
 <script src="js/ui/input.js"></script>
 <script src="js/ui/coach.js"></script>
+<script src="js/ui/field.js"></script>
 <script src="js/ui/main.js"></script>
 </body>
 </html>

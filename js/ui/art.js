@@ -13,6 +13,7 @@ function buildingPic(kind, col, px, bare) {
   const c = pic.getContext('2d');
   // a building with its own picture (art/): recoloured, about as wide as the drawn one
   const own = BUILDING_PIC[kind], im = own && spritePic(own, col);
+  const S = Sim.STRUCTS[kind] || Sim.POSTS[kind]; // (a post is drawn like a building)
   if (im) {
     const dw = px * 1.35 * ART_RES, dh = dw * im.height / im.width, x0 = (w - dw) / 2, y0 = (w - dh) / 2 - dh * 0.06, sh = shadowPic(own);
     // (its shadow first: to the south-east, as every shadow)
@@ -119,7 +120,7 @@ function buildingPic(kind, col, px, bare) {
     for (const [x, y] of [[6, -8], [11, -8], [6, -3], [11, -3], [8.5, -5.5]]) crate(x, y, 2.4);
     barrel(-10, 9); barrel(-5.5, 9); barrel(-1, 9); crate(8, 8, 2.6);
   } else {
-    c.font = '30px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(Sim.STRUCTS[kind].icon, 0, 2); // (anything new: its emoji)
+    c.font = '30px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(S.icon, 0, 2); // (anything new: its emoji)
   }
   shadowOff(); artCache.set(key, pic); return pic;
 }
@@ -347,7 +348,7 @@ function spritePic(k, col) {
   const im = sprite.img[k]; if (!im) return null;
   p = document.createElement('canvas'); p.width = im.width; p.height = im.height;
   const c = p.getContext('2d'); c.drawImage(im, 0, 0);
-  const d = c.getImageData(0, 0, p.width, p.height), a = d.data, wreck = col === 'wreck', [hue] = wreck ? [0] : toHsl(...rgbOf(col));
+  const d = c.getImageData(0, 0, p.width, p.height), a = d.data, wreck = col === 'wreck', [hue, csat] = wreck ? [0, 1] : toHsl(...rgbOf(col)), grey = csat < 0.15; // (grey: a post of no one's)
   for (let i = 0; i < a.length; i += 4) {
     if (!a[i + 3] || (!a[i] && !a[i + 1] && !a[i + 2])) continue; // (clear, or the shadow)
     const [h, sat, l] = toHsl(a[i], a[i + 1], a[i + 2]);
@@ -356,7 +357,7 @@ function spritePic(k, col) {
     // saturation), with a soft edge; made the side's colour, a little stronger so a faded red still reads red
     const blue = a[i + 2] - Math.max(a[i], a[i + 1]), w = Math.min(1, (blue - 10) / 12);
     if (w <= 0 || h < 195 || h > 270) continue;
-    const [r, g, b] = fromHsl(hue, Math.min(1, Math.max(sat * 1.5, 0.5)), l);
+    const [r, g, b] = fromHsl(hue, grey ? 0 : Math.min(1, Math.max(sat * 1.5, 0.5)), l);
     a[i] += (r - a[i]) * w; a[i + 1] += (g - a[i + 1]) * w; a[i + 2] += (b - a[i + 2]) * w;
   }
   c.putImageData(d, 0, 0); sprite.pic.set(key, p); return p;
@@ -409,7 +410,8 @@ const SPRITE_LEN = { commando: 1, ssm: 1.9, arrow: 1.9, dome: 1.9, lift: 2.1, he
 const SPRITE_ACROSS = { commando: 1.9, inf: 1.9, at: 1.9, aa: 1.9, med: 1.9 };
 // a building's picture: art/b_<kind> (the fake HQ looks just like the real one; the armed jeeps' workshops, the jeeps')
 // (and the gunship's helipad, the attack helicopters' one, unless it has its own)
-const PIC_LIKE = { jeepaa: 'jeepshop', jeepat: 'jeepshop', heligun: 'heliatk', helilift: 'heliatk', ssmshop: 'tankshop', arrowsite: 'aapost', domesite: 'aapost', commandopost: 'tent' };
+// (the posts: until their own pictures are in — b_supply, b_hospital, b_motorpool… — a building that looks the part)
+const PIC_LIKE = { supply: 'depot', hospital: 'clinic', motorpool: 'garage', jeepaa: 'jeepshop', jeepat: 'jeepshop', heligun: 'heliatk', helilift: 'heliatk', ssmshop: 'tankshop', arrowsite: 'aapost', domesite: 'aapost', commandopost: 'tent' };
 const BUILDING_PIC = new Proxy({}, { get: (_, kind) => { const k = kind === 'decoy' ? 'hq' : kind; return sprite.img['b_' + k] || !PIC_LIKE[k] ? 'b_' + k : 'b_' + PIC_LIKE[k]; } });
 const hasSprite = type => type === 'tank' ? !!(sprite.img.tank_hull && sprite.img.tank_turret) : !!(SPRITE_LEN[type] && sprite.img[type]);
 const hasBuildingPic = kind => !!(BUILDING_PIC[kind] && sprite.img[BUILDING_PIC[kind]]);
@@ -435,12 +437,13 @@ function drawUnitPic(c, type, x, y, k, col, hd, aim, recoil = 0) {
   c.restore();
 }
 
-// ---- where an order went: four arrows closing on the spot (green; red at an enemy), and the picked building ----
+// ---- where an order went: four arrows closing on the spot (green; red at an enemy; yellow into a post to take it),
+// and the picked building ----
 const PING_MS = 650;
 function drawPings(c) {
   const now = performance.now(), px = 1 / view.css; pings = pings.filter(p => now - p.t < PING_MS);
   for (const p of pings) {
-    const f = (now - p.t) / PING_MS, d = (8 + 22 * (1 - f) * (1 - f)) * px, a = f < 0.7 ? 1 : (1 - f) / 0.3, col = p.foe ? '#e8392e' : '#34b35a';
+    const f = (now - p.t) / PING_MS, d = (8 + 22 * (1 - f) * (1 - f)) * px, a = f < 0.7 ? 1 : (1 - f) / 0.3, col = p.foe ? '#e8392e' : p.cap ? '#f2c230' : '#34b35a';
     c.save(); c.translate(p.x, p.y); c.globalAlpha = a; c.lineJoin = 'round';
     for (let i = 0; i < 4; i++) {
       c.save(); c.rotate(Math.PI / 4 + i * Math.PI / 2); c.translate(d, 0);
@@ -481,21 +484,24 @@ function drawScenery(c) {
   if (!P.rock.length) return false;
   const slab = sprite.img.d_rock3, low = P.rock.filter(im => im !== slab); // (rock3, a flat slab: only up the hills)
   if (!low.length) low.push(...P.rock);
-  const x0 = bg.x0 - 90, y0 = bg.y0 - 90, x1 = bg.x0 + bg.w + 90, y1 = bg.y0 + bg.h + 90; // (big trees reach in from past the edge)
+  // (only what reaches into the tile being painted: a picture and its shadow, long at dawn and dusk; a fixed margin
+  // drew 3× the tile's trees, their shadows the slowest part of the ground)
+  const sl = 0.6 + TREE_SHADOW * Math.hypot(SUN.x, SUN.y) + 0.1, x0 = bg.x0, y0 = bg.y0, x1 = bg.x0 + bg.w, y1 = bg.y0 + bg.h;
+  const out = it => { const m = it.s * sl; return it.x < x0 - m || it.x > x1 + m || it.y < y0 - m || it.y > y1 + m; };
   const keyOf = new Map(Object.keys(sprite.img).filter(k => k.startsWith('d_')).map(k => [sprite.img[k], k]));
   const pick = it => { const L = it.t === 'rock' ? (it.hi && it.s >= 10 / WORLD_K ? P.rock : low) : P[it.t]; return L[it.v % L.length]; }; // (the slab only big: small, it's a grey square)
   // first the shadows (trees and bushes: to the south-east, like everything else; a tree, taller, casts farther),
   // so no shadow falls over a neighbour's crown
   c.save(); c.globalAlpha = TREE_SHADOW_A * SUN.a;
   for (const it of decor.rocks.items) {
-    if (it.t === 'rock' || it.gone || it.x < x0 || it.x > x1 || it.y < y0 || it.y > y1) continue;
+    if (it.t === 'rock' || it.gone || out(it)) continue;
     const im = pick(it), p = shadowPic(keyOf.get(im)); if (!p) continue;
     const w = it.s, sc = w / im.width, off = w * (it.t === 'tree' ? TREE_SHADOW : TREE_SHADOW * 0.5);
     if (SUN.a > 0.02) c.drawImage(p, it.x - p.width / 2 * sc + off * SUN.x, it.y - p.height / 2 * sc + off * SUN.y, p.width * sc, p.height * sc);
   }
   c.restore();
   for (const it of decor.rocks.items) {
-    if (it.x < x0 || it.x > x1 || it.y < y0 || it.y > y1) continue;
+    if (out(it)) continue;
     const im = pick(it), w = it.s, h = w * im.height / im.width;
     it.im = im; if (it.gone) continue; // (cleared or run over: see sceneryTick)
     c.drawImage(im, it.x - w / 2, it.y - h / 2, w, h);
@@ -532,18 +538,18 @@ function drawStony(c, pat) {
   const g = L.getContext('2d'); g.setTransform(T);
   g.fillStyle = pat; g.fillRect(-1e5, -1e5, 2e5, 2e5);
   g.globalCompositeOperation = 'destination-in'; g.imageSmoothingEnabled = true;
-  g.drawImage(stony.mask, -ELEV / 2, -ELEV / 2, E.w * ELEV, E.h * ELEV);
+  drawGridPic(g, stony.mask);
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(L, 0, 0); c.restore();
 }
 
 // ---- scenery that's cleared (a building going up there) or run over (a tank): taken out of the ground picture,
 // and drawn on top for a moment, sinking and fading ----
-const scen = { grid: null, of: null, gone: [], seen: new Set(), next: 0, dirty: false }, SCEN_CELL = 64, SCEN_FADE = 1800;
+const scen = { grid: null, of: null, gone: [], seen: new Set(), next: 0, redo: [] }, SCEN_CELL = 64, SCEN_FADE = 1800;
 function scenGrid() {
   if (scen.of === decor) return scen.grid;
   const G = new Map();
   for (const it of decor.rocks.items) { const k = Math.floor(it.x / SCEN_CELL) + ',' + Math.floor(it.y / SCEN_CELL); let l = G.get(k); if (!l) G.set(k, l = []); l.push(it); }
-  scen.grid = G; scen.of = decor; scen.gone = []; scen.seen = new Set(); return G;
+  scen.grid = G; scen.of = decor; scen.gone = []; scen.redo = []; scen.seen = new Set(); return G;
 }
 function scenNear(x, y, r, f) {
   const G = scenGrid();
@@ -551,15 +557,15 @@ function scenNear(x, y, r, f) {
     const l = G.get(i + ',' + j); if (l) for (const it of l) if (!it.gone && Math.hypot(it.x - x, it.y - y) < r) f(it);
   }
 }
-function scenKill(it) { it.gone = performance.now(); if (it.im) scen.gone.push(it); scen.dirty = true; }
+function scenKill(it) { it.gone = performance.now(); if (it.im) scen.gone.push(it); scen.redo.push(it); }
 // every few frames: new buildings clear their ground; tanks crush what they drive over (only with the pictures in)
 function sceneryTick() {
   if (!decor || !sprite.img.d_tree1) return;
   const now = performance.now(); if (now < scen.next) return; scen.next = now + 120;
   for (const n of s.nodes) if (!scen.seen.has(n.id) && n.kind !== 'drone' && nodeShown(n)) { scen.seen.add(n.id); scenNear(n.x, n.y, Sim.STRUCTS[n.kind].r * 1.5 + 18, scenKill); }
   for (const u of s.units) if (u.type === 'tank' && (u.side === 'blue' || !s.fog || s.vis.blue.has(u.id))) scenNear(u.x, u.y, SIZE.tank * 0.75, scenKill);
-  // (the ground picture is painted again, at most twice a second)
-  if (scen.dirty && now - (scen.painted || 0) > 500) { scen.dirty = false; scen.painted = now; bg.key = ''; }
+  // (the ground there is painted again, at most twice a second: only the tiles it was in)
+  if (scen.redo.length && now - (scen.painted || 0) > 500) { scen.painted = now; for (const it of scen.redo) bgDirty(it.x, it.y, it.s + 30); scen.redo = []; }
 }
 function drawGoneScenery(c) {
   const now = performance.now();

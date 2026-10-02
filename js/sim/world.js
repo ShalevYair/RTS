@@ -217,10 +217,12 @@ function separate(s, dt = 0) {
       }
     }
   }
-  const blocks = s.nodes.filter(n => n.kind !== 'drone' && n.hp > 0);
+  // (posts block the way too)
+  const blocks = s.nodes.filter(n => n.kind !== 'drone' && n.hp > 0).map(n => ({ x: n.x, y: n.y, r: STRUCTS[n.kind].r }));
+  if (s.posts) for (const p of s.posts) blocks.push({ x: p.x, y: p.y, r: POSTS[p.kind].r });
   for (const u of us) {
     if (!TYPES[u.type].air) for (const n of blocks) {
-      const r = STRUCTS[n.kind].r + TYPES[u.type].r, dx = u.x - n.x, dy = u.y - n.y, d2 = dx * dx + dy * dy;
+      const r = n.r + TYPES[u.type].r, dx = u.x - n.x, dy = u.y - n.y, d2 = dx * dx + dy * dy;
       if (d2 < r * r) { const d = Math.sqrt(d2) || 0.01, nx = d2 ? dx / d : (u.side === 'blue' ? 1 : -1), ny = d2 ? dy / d : 0; u.x = n.x + nx * r; u.y = n.y + ny * r; }
     }
     u.x = clamp(u.x, 5, s.W - 5); u.y = clamp(u.y, 5, s.H - 5);

@@ -137,8 +137,11 @@ function think(s, side, level) {
   const fighters = mine.filter(q => !TYPES[q.type].care);
   const stayHome = St.wait && s.t < 300 && !(fighters.length >= St.wait && s.t > 150) && share(s, side) < 0.55; // (never past 5 minutes)
   if (can.build) aiSpecial(s, side);
+  // posts: a squad of soldiers to each one we don't hold (they go on their own; the rest of think leaves them be)
+  const toPost = aiPosts(s, side, mine, setOrder);
   let nth = 0, radios = 0;
   for (const sq of mine) {
+    if (toPost.has(sq.id)) continue;
     if (sq.type === 'ssm' && sq.fire) continue; // (setting up to launch: it stays put)
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
     // support: bulldozers go where their sites are (on their own); signals trucks stay a little behind the squads

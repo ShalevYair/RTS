@@ -20,6 +20,7 @@ const buildCount = (s, side) => alive(s, side, PRODUCERS).length;
 function buildCheck(s, side, x, y, kind) {
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 20 || y < 20 || x > s.W - 20 || y > s.H - 20) return 'bad';
   if (s.hqPending && s.hqPending[side]) return 'nohq'; // (open field: the HQ first)
+  if (STRUCTS[kind] && STRUCTS[kind].max && alive(s, side, [kind]).length >= STRUCTS[kind].max) return 'max'; // (a missile factory: 3 a side)
   if (kind === 'decoy' ? alive(s, side, ['decoy']).length >= DECOY_MAX : buildCount(s, side) >= buildLimit(s, side)) return 'limit';
   if (quality(s, side, { x, y }, true) < BUILD_MIN_Q) return 'q'; // drones don't count
   if (lakeAt(s, { x, y }, LAKE_PAD)) return 'bad';
@@ -93,8 +94,9 @@ function dozerWork(s, dt) {
     const held = new Set(l.flatMap(q => q.jobs || []));
     for (const n of s.nodes) if (n.side === side && isSite(n) && n.hp > 0 && s.t < n.ready && !held.has(n.id)) assignSite(s, pickDozer(s, side, n), n);
   }
+  hqFix(s, dt);
   for (const sq of s.squads) {
-    if (sq.type !== 'dozer' || sq.dead) continue;
+    if (sq.type !== 'dozer' || sq.dead || sq.fixHq) continue;
     const n = jobOf(s, sq);
     if (!n) { sq.jobAt = null; sq.idleSaid = false; continue; }
     // (stopped with work left: once it gets where it was sent, it says it's waiting)
@@ -108,6 +110,37 @@ function dozerWork(s, dt) {
     // per site: pushed back by the building or others it would "arrive" again and again, several times a second
     const d = Math.hypot(sq.cx - n.x, sq.cy - n.y);
     if (sq.arrived && !m && sq.nudged !== n.id && d > dozerR(n) - 6 && d < 140 + STRUCTS[n.kind].r) { sq.order.x = p.x; sq.order.y = p.y; sq.arrived = false; sq.nudged = n.id; }
+  }
+}
+// the HQ hit (under FIX_AT of its health), and nothing has hit it for FIX_QUIET s: the nearest bulldozer drives to it
+// and mends it, DOZER_FIX hp/s while it stands by it (and the HQ isn't being hit), whatever it was doing — then back to its list. Ours and the enemy's alike. One the player sends
+// elsewhere meanwhile stops (and isn't sent again for FIX_SKIP s)
+function hqFix(s, dt) {
+  for (const side of ['blue', 'red']) {
+    const h = hqOf(s, side), l = dozers(s, side);
+    if (h) { if (h.hp < (h.hpWas ?? h.hp) - 0.01) h.hitAt = s.t; h.hpWas = h.hp; } // (when it was last hit)
+    if (!l.length) continue;
+    const want = h && s.t >= h.ready && h.hp < STRUCTS.hq.hp * FIX_AT, calm = h && !(s.t - h.hitAt < FIX_QUIET); // (sent once the attack is over)
+    let d = l.find(q => q.fixHq);
+    if (d && (!h || d.fixHq !== h.id || h.hp >= STRUCTS.hq.hp)) { d.fixHq = null; d.jobAt = null; d = null; } // (whole again: back to work)
+    if (!want) continue;
+    if (!d) {
+      if (!calm) continue;
+      // (one with nothing to build first; one at work only if the HQ is badly hurt — under FIX_BUSY: else a side with a
+      // single bulldozer stopped building whenever its HQ was scratched, and fell behind)
+      const ok = l.filter(q => !(q.fixSkip > s.t)), idle = ok.filter(q => !jobOf(s, q));
+      const free = idle.length ? idle : h.hp < STRUCTS.hq.hp * FIX_BUSY ? ok : []; if (!free.length) continue;
+      d = free.reduce((a, q) => Math.hypot(q.cx - h.x, q.cy - h.y) < Math.hypot(a.cx - h.x, a.cy - h.y) ? q : a);
+      d.fixHq = h.id; d.jobAt = 'fix'; const p = dozerSpot(s, h); order(s, d.id, 'hold', p.x, p.y, true);
+      if (side === 'blue') note(s, `${d.name} יוצא לתקן את המפקדה`);
+      continue;
+    }
+    // (the player sent it elsewhere: it stops)
+    const m = pending(s, d.id, 'order'), o = m || d.order, w = o.want || o, p = dozerSpot(s, h);
+    if (o.type !== 'hold' || Math.hypot(w.x - p.x, w.y - p.y) > 2) { d.fixHq = null; d.jobAt = null; d.fixSkip = s.t + FIX_SKIP; if (jobOf(s, d)) d.paused = true; continue; }
+    const u = s.units.find(k => k.squad === d.id);
+    if (d.arrived && !m && u && dist(u, h) > dozerR(h) - 6 && d.nudged !== 'fix' + h.id) { d.order.x = p.x; d.order.y = p.y; d.arrived = false; d.nudged = 'fix' + h.id; } // (stopped short, in the fog: the crew sees the HQ)
+    if (u && u.still && dist(u, h) <= dozerR(h) && !(s.t - h.hitAt < FIX_QUIET)) { h.hp = Math.min(STRUCTS.hq.hp, h.hp + DOZER_FIX * dt); h.hpWas = h.hp; h.dozerFix = s.t; }
   }
 }
 // a support squad of one, out of the HQ
@@ -219,7 +252,7 @@ const boost = (s, side) => BOOST_MAX * clamp((0.5 - share(s, side)) / (0.5 - BOO
 
 // idle units near a damaged building of their side mend it (mechanics faster); n.fixing = being mended now
 function repair(s, n, S, idle, dt) {
-  n.fixing = false;
+  n.fixing = s.t - (n.dozerFix ?? -9) < 0.2; // (a bulldozer mending the HQ)
   if (n.hp >= S.hp || n.kind === 'drone') return;
   let k = 0;
   for (const u of idle) {
@@ -239,7 +272,7 @@ function produceSquad(s, n, S, dt) {
   if (!sq || s.noReinforce) return;
   const have = s.units.filter(u => u.squad === sq.id).length;
   if (have >= sq.size) { n.prog = 0; return; }
-  n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) / S.every;
+  n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / S.every;
   if (n.prog >= 1) {
     n.prog = 0; const k = have || sq.born ? 1 : sq.size;
     for (let i = 0; i < k; i++) { spawn(s, sq, n.x, n.y); s.stats.rein[n.side]++; }
@@ -269,7 +302,19 @@ function outSpot(s, side, n, type) {
   const f = !FRONT_NOT.includes(type) && s.front && s.front[side], r = n && n.rally;
   return r && (!f || (r.t ?? 0) >= f.t) ? r : f || null;
 }
-const goOut = (s, q, p) => { if (p) order(s, q.id, TYPES[q.type].care ? 'hold' : 'attack', p.x, p.y, true); };
+// a free spot by p for one of ours of this type: the nearest on a spiral round it that no other of ours is going to
+// (everyone sent to the front went for its very point, and they shoved one another there for ever)
+function freeSpot(s, side, p, type, self) {
+  const r = TYPES[type].r, SP = 2 * r + UNIT_GAP + 8, taken = [];
+  for (const q of s.squads) if (q.side === side && !q.dead && q !== self && !TYPES[q.type].air && q.order && Math.hypot(q.order.x - p.x, q.order.y - p.y) < 400) taken.push({ x: q.order.x, y: q.order.y, r: TYPES[q.type].r });
+  for (let k = 0; k < 400; k++) {
+    const d = SP * 0.62 * Math.sqrt(k), a = k * 2.39996, c = { x: clamp(p.x + Math.cos(a) * d, 10, s.W - 10), y: clamp(p.y + Math.sin(a) * d, 10, s.H - 10) };
+    if (lakeAt(s, c)) continue;
+    if (taken.every(o => Math.hypot(o.x - c.x, o.y - c.y) >= r + o.r + UNIT_GAP + 6)) return c;
+  }
+  return p;
+}
+const goOut = (s, q, p) => { if (p) { const c = TYPES[q.type].air ? p : freeSpot(s, q.side, p, q.type, q); order(s, q.id, TYPES[q.type].care ? 'hold' : 'attack', c.x, c.y, true); } };
 function updateStructs(s, dt) {
   for (const side of ['blue', 'red']) for (const k in s.cd[side]) s.cd[side][k] = Math.max(0, s.cd[side][k] - dt);
   droneSupply(s, dt);
@@ -300,8 +345,8 @@ function updateStructs(s, dt) {
     n.squads = (n.squads || []).filter(id => s.squads.some(q => q.id === id && !q.dead && q.home === n.id));
     if (s.noReinforce) continue;
     const have = n.squads.length;
-    if (have >= BUILD_UNITS) { n.prog = 0; continue; }
-    n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) / S.every;
+    if (have >= (S.keep || BUILD_UNITS)) { n.prog = 0; continue; } // (a missile factory: one truck)
+    n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / S.every; // (a held power station: faster)
     if (n.prog >= 1) {
       n.prog = 0;
       const dir = n.side === 'blue' ? 1 : -1, k = 1;

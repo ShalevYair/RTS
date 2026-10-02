@@ -398,25 +398,88 @@ function mix(a, b, u, k = 0) {
 // The ground doesn't move, so it's painted once into a picture of the screen plus a margin (at up to 2 device pixels
 // per CSS pixel) and each frame only copies it; it's repainted when the view leaves that margin, the zoom or
 // window changes, a new map starts, or the theme changes.
-const bg = { cv: document.createElement('canvas'), key: '', x0: 0, y0: 0, w: 0, h: 0 }, BG_MARGIN = 160;
-function drawGround(c) {
-  const sc = view.scale, vx0 = -view.ox / sc, vy0 = -view.oy / sc, vw = cv.width / sc, vh = cv.height / sc;
-  sunTick(); sunShadeTick(); // (the sun turns a minute at a time: the ground, its hills' and trees' shadows, drawn again then)
-  // (the sun: drawn again once its hills' shading for the new minute is ready — once a minute, not twice)
-  const key = [sc.toFixed(4), cv.width, cv.height, colors.ground, colors.hill, colors.tree, s.seed, s.W, decor.hills.sunKey].join();
-  if (key !== bg.key || vx0 < bg.x0 || vy0 < bg.y0 || vx0 + vw > bg.x0 + bg.w || vy0 + vh > bg.y0 + bg.h) {
-    const k = 1; // cache pixels per canvas pixel
-    const m = BG_MARGIN * DPR() / sc; // the margin, in world units
-    bg.key = key; bg.x0 = vx0 - m; bg.y0 = vy0 - m; bg.w = vw + 2 * m; bg.h = vh + 2 * m;
-    bg.cv.width = Math.ceil(bg.w * sc * k); bg.cv.height = Math.ceil(bg.h * sc * k);
-    const g = bg.cv.getContext('2d');
-    g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = colors.ground; g.fillRect(0, 0, bg.cv.width, bg.cv.height);
-    g.setTransform(sc * k, 0, 0, sc * k, -bg.x0 * sc * k, -bg.y0 * sc * k);
-    const grass = tilePat(g, 'grass1');
-    if (grass) { g.fillStyle = grass; g.fillRect(bg.x0, bg.y0, bg.w, bg.h); g.globalAlpha = GROUND_TINT; g.fillStyle = colors.ground; g.fillRect(bg.x0, bg.y0, bg.w, bg.h); g.globalAlpha = 1; }
-    drawTerrain(g, s.W, s.H, s.W / 2);
+// the ground: painted into tiles of BG_TILE canvas pixels at the current zoom, each when it first comes near the
+// screen or goes out of date (the sun's next minute, the theme, a tree run over) — a few a frame (BG_MS), the old
+// picture shown until then (stretched, after a zoom). It used to be one picture of the screen and a margin, painted
+// whole again at every pan past the margin, every zoom step and twice a second while tanks crushed trees: 100–170ms
+// each, the game stuttered.
+const bg = { key: '', of: null, sc: 0, tw: 0, tiles: new Map(), old: [], x0: 0, y0: 0, w: 0, h: 0, cv: document.createElement('canvas') };
+const BG_TILE = 384, BG_MS = 5, BG_KEEP = 70;
+bg.cv.width = bg.cv.height = BG_TILE;
+function bgPaint(t) {
+  const sc = bg.sc, g = bg.cv.getContext('2d'); // (one canvas paints them all: the textures' patterns made once)
+  bg.x0 = t.x0; bg.y0 = t.y0; bg.w = bg.h = bg.tw; // (what's in this tile: drawScenery draws only that)
+  g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  g.fillStyle = colors.ground; g.fillRect(0, 0, BG_TILE, BG_TILE);
+  g.setTransform(sc, 0, 0, sc, -t.x0 * sc, -t.y0 * sc);
+  const grass = tilePat(g, 'grass1');
+  if (grass) { g.fillStyle = grass; g.fillRect(t.x0, t.y0, bg.tw, bg.tw); g.globalAlpha = GROUND_TINT; g.fillStyle = colors.ground; g.fillRect(t.x0, t.y0, bg.tw, bg.tw); g.globalAlpha = 1; }
+  // (off the map: the grass only)
+  if (t.x0 < s.W && t.x0 + bg.tw > 0 && t.y0 < s.H && t.y0 + bg.tw > 0) drawTerrain(g, s.W, s.H, s.W / 2);
+  if (!t.cv) { t.cv = document.createElement('canvas'); t.cv.width = t.cv.height = BG_TILE; }
+  const tc = t.cv.getContext('2d'); tc.globalCompositeOperation = 'copy'; tc.drawImage(bg.cv, 0, 0);
+  t.stale = false;
+}
+// a picture on the height grid (a pixel a cell: the relief, the shading, the stony mask), only the part over the tile
+// being painted (the whole of it, stretched, cost several ms a tile)
+function drawGridPic(c, L) {
+  const sx = Math.max(0, Math.floor((bg.x0 + ELEV / 2) / ELEV) - 1), sy = Math.max(0, Math.floor((bg.y0 + ELEV / 2) / ELEV) - 1);
+  const ex = Math.min(L.width, Math.ceil((bg.x0 + bg.w + ELEV / 2) / ELEV) + 1), ey = Math.min(L.height, Math.ceil((bg.y0 + bg.h + ELEV / 2) / ELEV) + 1);
+  if (ex > sx && ey > sy) c.drawImage(L, sx, sy, ex - sx, ey - sy, sx * ELEV - ELEV / 2, sy * ELEV - ELEV / 2, (ex - sx) * ELEV, (ey - sy) * ELEV);
+}
+// the tiles over (x, y, r) are painted again (a tree cleared or run over)
+function bgDirty(x, y, r) {
+  const tw = bg.tw; if (!tw) return;
+  for (let i = Math.floor((x - r) / tw); i <= Math.floor((x + r) / tw); i++) for (let j = Math.floor((y - r) / tw); j <= Math.floor((y + r) / tw); j++) {
+    const t = bg.tiles.get(i + ',' + j); if (t) t.stale = true;
   }
-  c.drawImage(bg.cv, bg.x0, bg.y0, bg.w, bg.h);
+}
+function drawGround(c) {
+  sunTick(); sunShadeTick(); // (the sun turns a minute at a time: the ground, its hills' and trees' shadows, drawn again then)
+  const sc = view.scale, vx0 = -view.ox / sc, vy0 = -view.oy / sc, vw = cv.width / sc, vh = cv.height / sc;
+  // (the tiles are painted at the zoom rounded up to a step of √2 and drawn a little smaller: a wheel notch inside the
+  // step paints nothing again)
+  const L = Math.pow(2, Math.ceil(Math.log2(sc) * 2 - 1e-6) / 2);
+  // (a new map: nothing of the old one; another step: the tiles there are stay, stretched, under the new ones until
+  // those are painted; the theme, the sun, a picture loaded: each tile painted again in its turn)
+  if (bg.of !== decor) { bg.of = decor; bg.tiles.clear(); bg.old = []; bg.sc = 0; }
+  if (L !== bg.sc) {
+    bg.old = bg.old.concat([...bg.tiles.values()].filter(t => t.cv)).slice(-BG_KEEP);
+    bg.tiles = new Map(); bg.sc = L; bg.tw = BG_TILE / L;
+  }
+  const key = [colors.ground, colors.hill, colors.tree, decor.hills.sunKey].join();
+  if (key !== bg.key) { bg.key = key; for (const t of bg.tiles.values()) t.stale = true; }
+  const tw = bg.tw, i0 = Math.floor(vx0 / tw), i1 = Math.floor((vx0 + vw) / tw), j0 = Math.floor(vy0 / tw), j1 = Math.floor((vy0 + vh) / tw);
+  const get = (i, j) => { const k = i + ',' + j; let t = bg.tiles.get(k); if (!t) bg.tiles.set(k, t = { i, j, x0: i * tw, y0: j * tw, tw, cv: null, stale: true }); return t; };
+  // what to paint, the middle of the screen first; then a ring around it on the map, ready for a pan
+  const cx = (i0 + i1) / 2, cy = (j0 + j1) / 2, near = (a, b) => Math.hypot(a.i - cx, a.j - cy) - Math.hypot(b.i - cx, b.j - cy);
+  const onMap = (i, j) => (i + 1) * tw > 0 && i * tw < s.W && (j + 1) * tw > 0 && j * tw < s.H;
+  const shown = [], ring = [];
+  for (let i = i0 - 1; i <= i1 + 1; i++) for (let j = j0 - 1; j <= j1 + 1; j++) {
+    if (i < i0 || i > i1 || j < j0 || j > j1) { if (onMap(i, j)) ring.push(get(i, j)); } else shown.push(get(i, j));
+  }
+  const covered = t => bg.old.some(o => o.x0 < t.x0 + tw && o.y0 < t.y0 + tw && o.x0 + o.tw > t.x0 && o.y0 + o.tw > t.y0);
+  const t0 = performance.now(); let n = 0;
+  const todo = [...shown.filter(t => !t.cv).sort(near), ...shown.filter(t => t.cv && t.stale).sort(near), ...ring.filter(t => t.stale).sort(near)];
+  for (const t of todo) {
+    // (a blank on screen with nothing under it is painted now; the rest while the frame has time, one at least)
+    const must = !t.cv && shown.includes(t) && !covered(t);
+    if (!must && (n > 0 || !shown.includes(t)) && performance.now() - t0 > BG_MS) continue;
+    bgPaint(t); n++;
+  }
+  // (the old tiles under, until every tile on screen is the new one)
+  if (shown.every(t => t.cv)) bg.old = [];
+  for (const o of bg.old) if (o.x0 < vx0 + vw && o.x0 + o.tw > vx0 && o.y0 < vy0 + vh && o.y0 + o.tw > vy0) c.drawImage(o.cv, o.x0, o.y0, o.tw, o.tw);
+  // (edge to edge at whole canvas pixels: no seams between them)
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+  const X = i => Math.round(view.ox + i * tw * sc), Y = j => Math.round(view.oy + j * tw * sc);
+  for (const t of shown) if (t.cv) { const x = X(t.i), y = Y(t.j); c.drawImage(t.cv, x, y, X(t.i + 1) - x, Y(t.j + 1) - y); }
+  c.restore();
+  // (far-off tiles let go)
+  if (bg.tiles.size > BG_KEEP) {
+    const far = [...bg.tiles.values()].sort((a, b) => near(b, a));
+    for (const t of far.slice(0, bg.tiles.size - BG_KEEP)) bg.tiles.delete(t.i + ',' + t.j);
+  }
 }
 function drawTerrain(c, W, H, mid) {
   c.globalAlpha = 0.75;
@@ -461,16 +524,18 @@ function drawTerrain(c, W, H, mid) {
   if (R.shadeOf !== s.elev) { R.shade = hillShade(s.elev); R.shadeOf = s.elev; R.sunKey = SUN.hill; R.job = null; R.done = { [SUN.hill]: R.shade }; }
   const rocky = tilePat(c, 'rocky');
   if (rocky) c.globalAlpha = RELIEF_OVER_TILES;
-  c.drawImage(R.relief, -ELEV / 2, -ELEV / 2, R.relief.width * ELEV, R.relief.height * ELEV);
+  drawGridPic(c, R.relief);
   c.globalAlpha = 1;
   if (rocky) drawStony(c, rocky);
   // (the light and shade over it all, the textures too)
   c.imageSmoothingEnabled = true;
   // (in the dark: no light, and the shade only faintly)
-  [R.shade.dark, R.shade.lite].forEach((L, k) => { c.globalAlpha = k ? SUN.a : 0.35 + 0.65 * SUN.a; c.drawImage(L, -ELEV / 2, -ELEV / 2, L.width * ELEV, L.height * ELEV); });
+  [R.shade.dark, R.shade.lite].forEach((L, k) => { c.globalAlpha = k ? SUN.a : 0.35 + 0.65 * SUN.a; drawGridPic(c, L); });
   c.globalAlpha = 1;
   c.strokeStyle = shade(colors.tree, -0.35); c.lineCap = 'round';
-  R.contours.forEach((p, k) => { c.globalAlpha = (k + 1) % 5 ? 0.13 : 0.26; c.lineWidth = (k + 1) % 5 ? 0.9 : 1.4; c.stroke(p); });
+  // (far out the thin ones are under a pixel: left out — the whole map's lines cost the most of a tile there)
+  const thin = c.getTransform().a >= 0.7;
+  R.contours.forEach((p, k) => { if (!thin && (k + 1) % 5) return; c.globalAlpha = (k + 1) % 5 ? 0.13 : 0.26; c.lineWidth = (k + 1) % 5 ? 0.9 : 1.4; c.stroke(p); });
   c.globalAlpha = 1;
   // roads: thin dirt tracks in the colour of the land they cross, only a little lighter, with a faint darker edge
   // (colours per stretch, remade when the theme changes)
@@ -536,8 +601,12 @@ function drawFog() {
     f.fillStyle = g; f.beginPath(); f.arc(x, y, r, 0, Math.PI * 2); f.fill();
   };
   // our squads lift the fog around them only where they're drawn (not around a guess)
-  for (const q of s.squads) if (q.side === 'blue' && !q.dead && sqShown(q)) hole(q.cx, q.cy, Sim.TYPES[q.type].sight * (1 - 0.4 * Sim.nightAt(s)) + 30);
-  for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, n.kind === 'drone' ? Sim.DRONE_SIGHT + 15 : n.kind === 'fhq' ? Sim.NODES.fhq.sight : n.kind === 'hq' ? Sim.STRUCTS.hq.sight + 20 : 170);
+  // (as far as they see now: the dark, the weather, a held radar)
+  for (const q of s.squads) if (q.side === 'blue' && !q.dead && sqShown(q)) hole(q.cx, q.cy, Sim.TYPES[q.type].sight * Sim.envSight(s, { side: 'blue', type: q.type, x: q.cx, y: q.cy }) + 30);
+  const sk = Sim.skySight(s, 'blue');
+  for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, (n.kind === 'drone' ? Sim.DRONE_SIGHT + 15 : n.kind === 'fhq' ? Sim.NODES.fhq.sight : n.kind === 'hq' ? Sim.STRUCTS.hq.sight + 20 : 170) * sk);
+  // (and our posts: an observation tower far)
+  for (const p of s.posts || []) if (p.side === 'blue') hole(p.x, p.y, (p.kind === 'tower' ? Sim.TOWER_SIGHT : Sim.POST_SIGHT) * sk);
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = s.fogAt ? Math.min(1, (s.t - s.fogAt) / 3) : 1; ctx.drawImage(fogCv, 0, 0, cv.width, cv.height); ctx.restore();
 }
 
@@ -582,32 +651,39 @@ const eyes = { s: null, t: -1, l: [] };
 function clearEyes() {
   if (eyes.s === s && eyes.t === s.t) return eyes.l;
   eyes.s = s; eyes.t = s.t; eyes.l = [];
-  for (const n of s.nodes) if (n.side === 'blue' && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready) eyes.l.push({ x: n.x, y: n.y, r2: Sim.DRONE_SIGHT ** 2 });
-  const rr = Sim.TYPES.radio.sight * (1 - 0.4 * Sim.nightAt(s));
-  for (const u of s.units) if (u.side === 'blue' && u.type === 'radio') eyes.l.push({ x: u.x, y: u.y, r2: rr * rr });
-  // (a commando sees round him as a drone does)
-  const cr = Sim.TYPES.commando.sight * (1 - 0.4 * Sim.nightAt(s));
-  for (const u of s.units) if (u.side === 'blue' && u.type === 'commando') eyes.l.push({ x: u.x, y: u.y, r2: cr * cr });
+  const ds = Sim.DRONE_SIGHT * Sim.skySight(s, 'blue');
+  for (const n of s.nodes) if (n.side === 'blue' && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready) eyes.l.push({ x: n.x, y: n.y, r2: ds * ds });
+  // (a signals truck, and a commando — he sees round him as a drone does: as far as the dark and the weather let them)
+  for (const u of s.units) if (u.side === 'blue' && (u.type === 'radio' || u.type === 'commando')) { const r = Sim.TYPES[u.type].sight * Sim.envSight(s, u); eyes.l.push({ x: u.x, y: u.y, r2: r * r }); }
   return eyes.l;
 }
 const shownAt = p => !Sim.friction(s) || clearEyes().some(e => (e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= e.r2) || Sim.quality(s, 'blue', p) >= 1;
 // control quality: a blue wash, deepest at full control and fading smoothly out to nothing (the rings of the rules
 // blend into each other on the map). Worked out once on a grid (a point every QC units) and redone only when the
 // nodes change.
-const qual = { cv: document.createElement('canvas'), key: '' }, QC = ELEV;
+// (worked out a few rows a frame, QUAL_MS, the old picture shown till then: the whole map at once, every time a
+// building or a drone came or went, was 120–250ms)
+const qual = { cv: document.createElement('canvas'), key: '', job: null }, QC = ELEV, QUAL_MS = 3;
 function drawQuality(c) {
   const nodes = s.nodes.filter(n => n.side === 'blue' && Sim.nodeSpec(n.kind) && n.hp > 0 && s.t >= n.ready);
   const key = s.seed + ':' + s.W + ':' + nodes.map(n => n.id).join() + ':' + colors.blue;
   if (key !== qual.key) {
-    qual.key = key;
-    const w = Math.ceil(s.W / QC) + 1, h = Math.ceil(s.H / QC) + 1, q = qual.cv; q.width = w; q.height = h;
-    const g = q.getContext('2d'), img = g.createImageData(w, h), d = img.data, [r0, g0, b0] = rgbOf(colors.blue);
-    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-      const k = j * w + i, v = Sim.quality(s, 'blue', { x: i * QC, y: j * QC }, false, true) - 0.15; // above the floor
-      if (v <= 0) continue;
-      d[k * 4] = r0; d[k * 4 + 1] = g0; d[k * 4 + 2] = b0; d[k * 4 + 3] = Math.round(255 * 0.24 * Math.pow(v / 0.85, 1.4));
+    const fresh = !qual.key.startsWith(s.seed + ':' + s.W + ':'); qual.key = key;
+    const w = Math.ceil(s.W / QC) + 1, h = Math.ceil(s.H / QC) + 1;
+    qual.job = { w, h, j: 0, img: new ImageData(w, h), rgb: rgbOf(colors.blue), now: fresh }; // (a new map: at once)
+  }
+  const J = qual.job;
+  if (J) {
+    const t0 = performance.now(), d = J.img.data, [r0, g0, b0] = J.rgb;
+    while (J.j < J.h && (J.now || performance.now() - t0 < QUAL_MS)) {
+      for (let i = 0, j = J.j; i < J.w; i++) {
+        const k = j * J.w + i, v = Sim.quality(s, 'blue', { x: i * QC, y: j * QC }, false, true) - 0.15; // above the floor
+        if (v <= 0) continue;
+        d[k * 4] = r0; d[k * 4 + 1] = g0; d[k * 4 + 2] = b0; d[k * 4 + 3] = Math.round(255 * 0.24 * Math.pow(v / 0.85, 1.4));
+      }
+      J.j++;
     }
-    g.putImageData(img, 0, 0);
+    if (J.j >= J.h) { const q = qual.cv; q.width = J.w; q.height = J.h; q.getContext('2d').putImageData(J.img, 0, 0); qual.job = null; }
   }
   c.drawImage(qual.cv, -QC / 2, -QC / 2, qual.cv.width * QC, qual.cv.height * QC);
 }
@@ -1019,10 +1095,10 @@ function draw() {
       }
     }
   }
-  drawSmoke(c); drawFlashes(c); drawClouds(c);
+  drawSmoke(c); drawFlashes(c); drawClouds(c); drawWeather(c); // (rain, the morning fog: field.js)
   drawNightLit(c);
   if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); }
-  drawNodes(c); drawDozerJobs(c);
+  drawPosts(c); drawNodes(c); drawDozerJobs(c);
   drawBuildArea(c);
   // our squads. Where the units themselves are drawn: their strength and ammunition over them, no badge. Where they
   // aren't (out of the exact picture under command friction): faint units where they probably are by now, and a
@@ -1108,6 +1184,8 @@ function drawMini() {
   const dot = (x, y, r, col, sq) => { c.fillStyle = col; c.beginPath(); if (sq) c.rect(x - r, y - r, 2 * r, 2 * r); else c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
   for (const n of s.nodes) if (nodeShown(n)) { if (n.kind === 'drone') { c.globalAlpha = 0.35; dot(n.x, n.y, 7, colors[n.side]); c.globalAlpha = 1; } else dot(n.x, n.y, 14, colors[n.side], true); }
   if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { c.globalAlpha = 0.5; const n = s.memNodes.blue[id]; dot(n.x, n.y, 14, colors.red, true); c.globalAlpha = 1; }
+  // (the posts: a diamond in the holder's colour, white for no one's)
+  for (const p of s.posts || []) { c.save(); c.translate(p.x, p.y); c.rotate(Math.PI / 4); c.fillStyle = p.side ? colors[p.side] : '#f2f2f2'; c.fillRect(-15, -15, 30, 30); c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeRect(-15, -15, 30, 30); c.restore(); }
   for (const q of s.squads) {
     if (q.dead) continue;
     // (ours out of the exact picture — in the fog: only just seen)
@@ -1119,6 +1197,7 @@ function drawMini() {
   for (const f of s.marks) if ((f.kind === 'missile' || f.kind === 'launch') && s.t - f.t < 6 && Math.floor((s.t - f.t) * 3) % 2 === 0) { c.fillStyle = f.kind === 'missile' ? colors.red : '#ffd54a'; c.beginPath(); c.arc(f.x, f.y, 34, 0, Math.PI * 2); c.fill(); c.lineWidth = 8; c.strokeStyle = '#fff'; c.stroke(); }
   for (const f of s.marks) { c.strokeStyle = f.kind === 'lost' || f.kind === 'ff' || f.kind === 'nodeLost' ? colors.red : colors.ink; c.lineWidth = 10; c.beginPath(); c.arc(f.x, f.y, 40 + 30 * (s.t - f.t), 0, Math.PI * 2); c.stroke(); }
   c.strokeStyle = colors.ink; c.lineWidth = 2 / k; c.strokeRect(vr.x, vr.y, vr.w, vr.h);
+  drawViews(c, k); // (the saved views' numbers)
 }
 
 // the selection rectangle while it's being drawn (screen pixels)

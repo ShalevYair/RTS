@@ -126,7 +126,7 @@ const STRUCTS = {
   clinic:   { name: 'אוהל חובשים', icon: '🏥', hp: 350,  value: 3, unit: 'med',  build: 20, every: 25,  size: 2, r: 21, cat: 'tents' },
   tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 50, every: 60,  size: 3, r: 36, cat: 'shops', upgrade: 'trophy' },
   // the missile works: surface-to-surface missile trucks (3 minutes to set up, one every 2 minutes, at most 3)
-  ssmshop:  { name: 'מפעל טילים', icon: '🚀', hp: 600, value: 6, unit: 'ssm', build: 180, every: 120, size: 3, r: 32, cat: 'shops' },
+  ssmshop:  { name: 'מפעל טילים', icon: '🚀', hp: 600, value: 6, unit: 'ssm', build: 180, every: 120, size: 1, keep: 1, max: 3, r: 32, cat: 'shops' }, // (at most max of it a side, keep trucks each)
   // the missile defences (the service menu's page): Arrow, Iron Dome
   arrowsite: { name: 'אתר חץ', icon: '🛡️', hp: 500, value: 5, unit: 'arrow', build: 120, every: 60, size: 3, r: 28, cat: 'defense' },
   domesite:  { name: 'אתר כיפת ברזל', icon: '🛡️', hp: 450, value: 4, unit: 'dome', build: 60, every: 60, size: 4, r: 28, cat: 'defense' },
@@ -161,6 +161,11 @@ const SKIRT_AHEAD = 30, SKIRT_STEP = 30;
 // head-on pass each other; the other standing: 45°, to the side away from it. One that hasn't got anywhere for
 // STUCK_T s, though it means to move, takes a detour to its right for DETOUR_T s.)
 const STEER_LOOK = 14, STUCK_T = 1.5, DETOUR_T = 1.2;
+// (one standing in the way: off at DODGE_A (75°) to the side away from it for DODGE_T–DODGE_T + DODGE_JIT s — sooner
+// back for its spot if the way is clear, but not before DODGE_MIN s; again within DODGE_AGAIN s: the same side)
+// (YIELD_T: how long one standing in the way steps aside for one coming through)
+const YIELD_T = 1.5;
+const DODGE_A = 75 * Math.PI / 180, DODGE_T = 3, DODGE_JIT = 2, DODGE_MIN = 0.8, DODGE_AGAIN = 2;
 // (and one that can't get to its spot — others stand there — gives up: no nearer to it for GIVEUP_T s within
 // GIVEUP_R of it, it stands where it is GIVEUP_REST s (and up to GIVEUP_JIT more), then tries again; before, they shoved
 // one another without end)
@@ -200,6 +205,8 @@ const NODES = {
   cmd:   { q: 1,    r0: 150, r1: 330 },
   // a signals truck: three times the area a drone shows (√3 its rings)
   radio: { q: 1,    r0: 190, r1: 540 },
+  // a signals antenna (a post) held by the side
+  antenna: { q: 1,  r0: 200, r1: 460 },
 };
 const Q_STEPS = 4, DRONE_SEE = 0.6;
 const Q_FLOOR = 0.15, FHQ_BUILDERS = ['tank', 'jeep', 'ajeep', 'tjeep'];
@@ -268,10 +275,43 @@ const SILENT_SPEED = 0.6, RADIO_NOISE = 90, RADIO_EVERY = 6;
 // dust: a vehicle driving fast (over DUST_FAST of its speed) is noticed by the enemy from DUST_SEE away, through the
 // fog, as "movement" within DUST_NOISE
 const DUST_SEE = 420, DUST_NOISE = 40, DUST_FAST = 0.7, DUSTY = ['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck'];
-// night (full game): the dark changes once every NIGHT_STEP s, by a quarter, along NIGHT_LEVELS (two minutes of day,
-// four to fall, two of night, four to lift), each change eased over NIGHT_FADE s. In the full dark units see
-// NIGHT_SIGHT less and orders take NIGHT_DELAY longer (by how dark it is); drones and buildings see as by day
-const NIGHT_LEVELS = [0, 0, 0.25, 0.5, 0.75, 1, 1, 0.75, 0.5, 0.25], NIGHT_STEP = 60, NIGHT_FADE = 8, NIGHT_SIGHT = 0.4, NIGHT_DELAY = 0.5;
+// night (full game): the dark changes once every NIGHT_STEP s, by a quarter, along NIGHT_LEVELS — noon, four steps
+// down to the full night, four back up (an 8-minute day) — each change eased over NIGHT_FADE s. In the full dark
+// everything sees NIGHT_SIGHT less (units, drones, signals trucks, buildings), shoots NIGHT_RANGE less far and misses
+// NIGHT_MISS of its shots; orders take NIGHT_DELAY longer (all by how dark it is)
+const NIGHT_LEVELS = [0, 0.25, 0.5, 0.75, 1, 0.75, 0.5, 0.25], NIGHT_STEP = 60, NIGHT_FADE = 8, NIGHT_SIGHT = 0.4, NIGHT_DELAY = 0.5, NIGHT_RANGE = 0.2, NIGHT_MISS = 0.25;
+// weather (the full game on the big maps, s.extras): rain now and then, all over the map; and a morning fog after the
+// night, only down on the plain (on a hill a unit is above it). Each takes WX_K off sight, range and the hits (where it
+// is), eased in and out over WX_FADE s; it all adds up with the night. Per day (8 minutes): rain with chance WX_RAIN_P,
+// WX_RAIN_T s long; morning fog with chance WX_FOG_P, from the first light for WX_FOG_T s
+const WX_K = 0.2, WX_FADE = 20, WX_RAIN_P = 0.45, WX_RAIN_T = [90, 180], WX_FOG_P = 0.6, WX_FOG_T = 150;
+// fast roads (s.extras): a vehicle on a road goes ROAD_FAST faster (the roads come from the UI's map, Sim.setRoads)
+const ROAD_FAST = 1.3, ROAD_CELL = 64;
+// ambush (s.extras): a unit standing still in the trees (AMBUSH_STILL s without moving, AMBUSH_QUIET s without firing)
+// is seen only from AMBUSH_NEAR, or by a drone / signals truck
+const AMBUSH_STILL = 3, AMBUSH_QUIET = 5, AMBUSH_NEAR = 50;
+// posts (s.extras): neutral buildings on the map, taken by soldiers. A soldier who walks into one that isn't his side's
+// goes in (and is gone): one of no side becomes his, the enemy's becomes no one's — a second one takes it. A commando
+// takes it whole and walks out again. They aren't counted in power and can't be destroyed.
+// n: how many on the big map and on the huge one
+const POSTS = {
+  radar:     { name: 'רדאר',       icon: '📡', r: 26, n: [1, 1] },
+  power:     { name: 'תחנת כוח',   icon: '⚡', r: 28, n: [1, 1] },
+  fuel:      { name: 'תחנת דלק',   icon: '⛽', r: 24, n: [1, 1] },
+  supply:    { name: 'מחסן אספקה', icon: '📦', r: 24, n: [2, 4] },
+  hospital:  { name: 'בית חולים',  icon: '🏥', r: 26, n: [2, 4] },
+  motorpool: { name: 'מוסך',       icon: '🛠️', r: 26, n: [2, 4] },
+  tower:     { name: 'מגדל תצפית', icon: '🗼', r: 18, n: [2, 4], hill: true },
+  antenna:   { name: 'אנטנת קשר',  icon: '📶', r: 18, n: [2, 4] },
+  bunker:    { name: 'בונקר',      icon: '🧱', r: 20, n: [2, 4] },
+};
+// radar: its side's units see and shoot RADAR_K further · power station: its side's buildings produce POWER_K faster ·
+// fuel station: its side's vehicles go FUEL_K faster · supply depot / hospital / garage: within POST_R of its edge,
+// ammunition refills, soldiers / vehicles heal POST_HEAL a second · observation tower: sees TOWER_SIGHT round it (any
+// post of a side sees POST_SIGHT) · signals antenna: control round it (NODES.antenna; not for building) · bunker: up to
+// BUNKER_MAX of its side's soldiers within BUNKER_R of its edge take BUNKER_K of the damage
+const RADAR_K = 0.1, POWER_K = 0.1, FUEL_K = 0.1, POST_R = 80, POST_HEAL = 20, TOWER_SIGHT = 460, POST_SIGHT = 120;
+const BUNKER_R = 30, BUNKER_MAX = 4, BUNKER_K = 0.5, CAPTURE_PAD = 6, CAPTURERS = ['inf', 'at', 'aa', 'commando'], POST_GAP = 170;
 // supply lines: a shot fired far from home (no building of the side within SUPPLY_FAR, no supply truck within
 // SUPPLY_NEAR) uses SUPPLY_FAR_K times the ammunition
 const SUPPLY_FAR = 350, SUPPLY_NEAR = 150, SUPPLY_FAR_K = 1.7;
@@ -289,6 +329,9 @@ const UNCLEAR_Q = 0.5, UNCLEAR_K = 0.5;
 const HQ_BAND = 0.2, HQ_WARM = 20, CMD_TANKS = 2;
 // the player's buildings (singles): one unit out at a time, and at most BUILD_UNITS alive from each building
 const BUILD_UNITS = 4;
+// the HQ under FIX_AT of its health: the nearest bulldozer with nothing to build (or under FIX_BUSY, the nearest) mends it, DOZER_FIX hp/s (one the player sends elsewhere
+// isn't sent again for FIX_SKIP s)
+const FIX_AT = 0.85, FIX_BUSY = 0.5, DOZER_FIX = 8, FIX_SKIP = 60, FIX_QUIET = 6; // (FIX_QUIET: mending only once nothing has hit it that long)
 // cover: soldiers and jeeps among trees are missed COVER_MISS of the times they'd be hit (the trees come from the UI's
 // scenery, Sim.setCover; none in Node)
 const COVER = ['inf', 'at', 'aa', 'med', 'commando', 'jeep', 'ajeep', 'tjeep'], COVER_MISS = 0.5, COVER_CELL = 64;
@@ -308,7 +351,7 @@ const BOARD_R = 26, LAND_T = 1.5, DROP_R = 30;
 // helicopters, anti-tank) at anything of its side within DOME_R_K of the map's height; DOME_RELOAD s between.
 // Trophy (the tank workshop's upgrade, TROPHY_BUILD s with no tanks): every tank out after it (or back by a workshop)
 // stops TROPHY_MAX of those missiles, one more every TROPHY_EVERY s; never shells or bullets.
-const SSM_SETUP = 10, SSM_FLIGHT = 10, SSM_RELOAD = 60, SSM_HQ_HITS = 4, SSM_SPLASH = 40, SSM_SPLASH_DMG = 60;
+const SSM_SETUP = 10, SSM_FLIGHT = 10, SSM_RELOAD = 120, SSM_HQ_HITS = 4, SSM_SPLASH = 40, SSM_SPLASH_DMG = 60;
 const ARROW_R_K = 1, ARROW_P = 0.9, ARROW_RELOAD = 60, DOME_R_K = 0.5, DOME_RELOAD = 60;
 const MISSILE_SHOTS = ['air', 'heli', 'at', 'tjeep'], TROPHY_MAX = 3, TROPHY_EVERY = 30, TROPHY_BUILD = 180;
 // the commando: seen by the enemy only within STEALTH_EYE of its drone or signals truck, STEALTH_NEAR of its units or

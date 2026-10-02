@@ -47,6 +47,8 @@ const TIPS = [
   ['lift', () => ourOf('lift'), () => !!ourOf('lift')],
   ['heli', () => ourOf('heli') || ourOf('gunship'), () => !!(ourOf('heli') || ourOf('gunship'))],
   ['commando', () => ourOf('commando'), () => !!ourOf('commando')],
+  ['posts', () => { const ours = s.units.filter(u => u.side === 'blue'); return s.posts && s.posts.slice().sort((a, b) => Math.min(...ours.map(u => Math.hypot(u.x - a.x, u.y - a.y))) - Math.min(...ours.map(u => Math.hypot(u.x - b.x, u.y - b.y))))[0]; }, () => !!s.posts && s.t > 15],
+  ['voice', null, () => !lvl && !TOUCH && s.t > 40 && !!(window.SpeechRecognition || window.webkitSpeechRecognition)],
   ['silence', null, () => !lvl && Sim.friction(s) && s.t > 90 && s.squads.some(q => q.side === 'blue' && !q.dead && Sim.quality(s, 'blue', { x: q.cx, y: q.cy }) < 0.5)],
 ];
 function tipCheck() {

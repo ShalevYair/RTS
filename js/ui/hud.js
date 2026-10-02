@@ -11,8 +11,9 @@ function pickSquad(id) { const g = groupOf(id); select(g ? g.ids.slice() : id); 
 // friction they say it when the message reaches them (the 'ack' report), else at once.
 const orderSay = {};
 const replyOf = (type, foe) => foe ? 'attacking' : type === 'retreat' ? 'retreating' : type === 'hold' ? 'holding' : 'go';
-// fa: the way the front should face (a drag), else toward the enemy; foe: the order is at an enemy (a red mark)
-function issue(type, x, y, fa, foe) {
+// fa: the way the front should face (a drag), else toward the enemy; foe: the order is at an enemy (a red mark); cap:
+// into a post, to take it (a yellow one)
+function issue(type, x, y, fa, foe, cap) {
   const all = sel === 'all';
   // (everyone: not the bulldozers — they'd leave their sites for the front)
   const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead && q.type !== 'dozer').map(q => q.id) : selIds();
@@ -24,7 +25,7 @@ function issue(type, x, y, fa, foe) {
   else for (const id of ids) ok = Sim.order(s, id, type, x, y, false, Number.isFinite(fa) ? { fa } : undefined) || ok;
   if (ok && all) Sim.note(s, 'כל הכוחות: ' + (type === 'hold' ? 'מחזיקים עמדה' : type === 'attack' ? 'תוקפים את האזור' : 'נסוגים הביתה'));
   if (ok) {
-    if (type !== 'retreat') pings.push({ x, y, t: performance.now(), foe: !!foe }); // four arrows closing on the spot
+    if (type !== 'retreat') pings.push({ x, y, t: performance.now(), foe: !!foe, cap: !!cap }); // four arrows closing on the spot (yellow: into a post)
     const say = replyOf(type, foe); for (const id of ids) orderSay[id] = say;
     if (!Sim.friction(s)) Radio.hear({ kind: say, id: ids[Math.floor(Math.random() * ids.length)] });
   }
@@ -60,7 +61,7 @@ function syncButtons() {
   $('fs').setAttribute('aria-pressed', String(fsOn()));
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
   document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.map === (hugeMap ? 'huge' : bigMap ? 'big' : 'small'))));
-  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq'); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); $('front').classList.toggle('set', !!(s.front && s.front.blue));
+  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq'); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); syncMic(); $('front').classList.toggle('set', !!(s.front && s.front.blue));
   $('fsRow').hidden = !fsCan() && !fsOn();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
   if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed) cv.style.cursor = eyeArmed ? DRONE_CUR : 'copy'; // (else the hover sets it)
@@ -480,6 +481,7 @@ $('moreBtn').addEventListener('click', () => { const b = $('moreBox'); b.hidden 
 // a game starts: the full one (no tutorial: as if it were skipped), or a tutorial level with its tour
 function startGame(level) {
   if (fsWant && fsCan()) fullScreen(true);
+  if (micWanted() && !micAsk.ok) micAsk(true); // (allowed before: asked again now, on this click, not at the first Space)
   lvl = level; newGame(true); showIntro(false);
   // a tutorial level, once per visit: the goal in a few words and what's new, one by one, then the fight
   // (irts-tour = 99: never — the UI tests)
@@ -515,6 +517,7 @@ const ourSquad = mapSpot(() => { const q = s.squads.find(q => q.side === 'blue' 
 const foeSquad = mapSpot(() => { const q = s.squads.find(q => q.side === 'red' && !q.dead); return q && { x: q.cx, y: q.cy }; });
 const ourType = type => mapSpot(() => { const q = s.squads.find(q => q.side === 'blue' && !q.dead && q.type === type); return q && { x: q.cx, y: q.cy }; });
 const ourHq = mapSpot(() => s.nodes.find(n => n.side === 'blue' && n.kind === 'hq'));
+const radarSpot = mapSpot(() => s.posts && s.posts.find(p => p.kind === 'radar'));
 const midMap = () => fit && { x: fit.w / 2, y: fit.top + fit.h / 2, w: 0, h: 0 };
 const TOUR = {
   squads: () => [{ el: ourSquad, t: tr(TOUCH ? 't_squadsT' : 't_squads') }], // (no squad buttons: picking is on the map, as in the full game)
@@ -547,6 +550,9 @@ function freeTour() {
   const out = [{ el: midMap, t: tr('t_free', pctLose()) }];
   if (hqToPlace()) out.push({ el: 'hqb', t: tr('t_placeHq') });
   out.push({ el: 'bcats', t: tr('t_decoy') }, { el: 'power', t: tr('t_night') });
+  // (the big maps: the posts, the weather and roads, spoken orders)
+  if (s.posts) out.push({ el: radarSpot, t: tr('t_posts') }, { el: midMap, t: tr('t_weather') });
+  if (!TOUCH) out.push({ el: midMap, t: tr('t_voice') });
   if (s.scale > 1) out.push({ el: 'fhq', t: tr('t_scale', s.scale) });
   out.push({ el: 'gear', t: tr('t_play') });
   return out;
@@ -600,6 +606,7 @@ function armFront() {
   frontArmed = true; eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; $('buildm').hidden = true; syncButtons();
 }
 $('front').addEventListener('click', armFront);
+$('mic').addEventListener('click', () => micClick()); $('micBtn').addEventListener('click', () => micAsk(false));
 function placeFront(x, y) { Sim.setFront(s, 'blue', x, y); frontArmed = false; pings.push({ x, y, t: performance.now() }); syncButtons(); }
 // open field: 🏰, then a spot in our strip; the command tanks drive there and set the HQ up (armed at the start)
 let hqArmed = false, hqTold = false;
@@ -685,7 +692,7 @@ document.querySelectorAll('[data-diff]').forEach(b => { b.textContent = diffName
 // ---- the message list, under the map: what matters (under attack, heavy losses, a squad or building lost, a missile,
 // friendly fire…), the newest on top pushing the older down; each for FEED_T s, fading away over its last FEED_FADE s.
 // A click takes the camera to where it happened. The same thing in the same area again soon: once (FEED_SAME_*) ----
-const FEED_KINDS = new Set(['hqHit', 'fhqHit', 'baseHit', 'contact', 'hit', 'lost', 'nodeLost', 'missile', 'ff', 'call', 'hqReady', 'intercept']);
+const FEED_KINDS = new Set(['hqHit', 'fhqHit', 'baseHit', 'contact', 'hit', 'lost', 'nodeLost', 'missile', 'ff', 'call', 'hqReady', 'intercept', 'flag', 'flagLost']);
 const FEED_T = 20, FEED_FADE = 8, FEED_MAX = 5, FEED_SAME_R = 300, FEED_SAME_T = 10;
 let feedSeen = [];
 function feedAdd(k) {
@@ -697,7 +704,7 @@ function feedAdd(k) {
   if (feedSeen.some(f => f.kind === k.kind && Math.hypot(f.x - k.x, f.y - k.y) < FEED_SAME_R)) return;
   feedSeen.push({ kind: k.kind, x: k.x, y: k.y, at: now });
   const box = $('feed'), b = document.createElement('button');
-  b.className = 'feedItem' + (/Hit|lost|nodeLost|missile|ff|hit/.test(k.kind) ? ' bad' : ''); b.textContent = text;
+  b.className = 'feedItem' + (/Hit|lost|Lost|missile|ff|hit/.test(k.kind) ? ' bad' : ''); b.textContent = text;
   b.style.setProperty('--life', FEED_T + 's'); b.style.setProperty('--fade', FEED_FADE + 's');
   b.addEventListener('click', e => { e.stopPropagation(); lookAt(k.x, k.y); });
   box.prepend(b); while (box.children.length > FEED_MAX) box.lastChild.remove();
