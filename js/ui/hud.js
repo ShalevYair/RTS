@@ -11,8 +11,9 @@ function pickSquad(id) { const g = groupOf(id); select(g ? g.ids.slice() : id); 
 // friction they say it when the message reaches them (the 'ack' report), else at once.
 const orderSay = {};
 const replyOf = (type, foe) => foe ? 'attacking' : type === 'retreat' ? 'retreating' : type === 'hold' ? 'holding' : 'go';
-// fa: the way the front should face (a drag), else toward the enemy; foe: the order is at an enemy (a red mark)
-function issue(type, x, y, fa, foe) {
+// fa: the way the front should face (a drag), else toward the enemy; foe: the order is at an enemy (a red mark); cap:
+// into a post, to take it (a yellow one)
+function issue(type, x, y, fa, foe, cap) {
   const all = sel === 'all';
   // (everyone: not the bulldozers — they'd leave their sites for the front)
   const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead && q.type !== 'dozer').map(q => q.id) : selIds();
@@ -24,7 +25,7 @@ function issue(type, x, y, fa, foe) {
   else for (const id of ids) ok = Sim.order(s, id, type, x, y, false, Number.isFinite(fa) ? { fa } : undefined) || ok;
   if (ok && all) Sim.note(s, 'כל הכוחות: ' + (type === 'hold' ? 'מחזיקים עמדה' : type === 'attack' ? 'תוקפים את האזור' : 'נסוגים הביתה'));
   if (ok) {
-    if (type !== 'retreat') pings.push({ x, y, t: performance.now(), foe: !!foe }); // four arrows closing on the spot
+    if (type !== 'retreat') pings.push({ x, y, t: performance.now(), foe: !!foe, cap: !!cap }); // four arrows closing on the spot (yellow: into a post)
     const say = replyOf(type, foe); for (const id of ids) orderSay[id] = say;
     if (!Sim.friction(s)) Radio.hear({ kind: say, id: ids[Math.floor(Math.random() * ids.length)] });
   }
@@ -60,7 +61,7 @@ function syncButtons() {
   $('fs').setAttribute('aria-pressed', String(fsOn()));
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
   document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.map === (hugeMap ? 'huge' : bigMap ? 'big' : 'small'))));
-  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq'); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); $('front').classList.toggle('set', !!(s.front && s.front.blue));
+  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq'); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); syncMic(); $('front').classList.toggle('set', !!(s.front && s.front.blue));
   $('fsRow').hidden = !fsCan() && !fsOn();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
   if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed) cv.style.cursor = eyeArmed ? DRONE_CUR : 'copy'; // (else the hover sets it)
@@ -480,6 +481,7 @@ $('moreBtn').addEventListener('click', () => { const b = $('moreBox'); b.hidden 
 // a game starts: the full one (no tutorial: as if it were skipped), or a tutorial level with its tour
 function startGame(level) {
   if (fsWant && fsCan()) fullScreen(true);
+  if (micWanted() && !micAsk.ok) micAsk(true); // (allowed before: asked again now, on this click, not at the first Space)
   lvl = level; newGame(true); showIntro(false);
   // a tutorial level, once per visit: the goal in a few words and what's new, one by one, then the fight
   // (irts-tour = 99: never — the UI tests)
@@ -604,6 +606,7 @@ function armFront() {
   frontArmed = true; eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; $('buildm').hidden = true; syncButtons();
 }
 $('front').addEventListener('click', armFront);
+$('mic').addEventListener('click', () => micClick()); $('micBtn').addEventListener('click', () => micAsk(false));
 function placeFront(x, y) { Sim.setFront(s, 'blue', x, y); frontArmed = false; pings.push({ x, y, t: performance.now() }); syncButtons(); }
 // open field: 🏰, then a spot in our strip; the command tanks drive there and set the HQ up (armed at the start)
 let hqArmed = false, hqTold = false;

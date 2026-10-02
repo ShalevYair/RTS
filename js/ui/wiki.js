@@ -13,7 +13,7 @@ const WIKI_UNIT = {
     heli: 'מסוקי קרב: מרחפים במקום ויורים טילים — במטוסים, במסוקים, בטנקים ובג׳יפים. נ"מ פוגע בהם חזק, וחיילים וג׳יפים קצת (הם טסים נמוך).',
     gunship: 'מסוקי מקלע: מרחפים מעל חיילים ומחסלים אותם. חלשים מול רכבים; נ"מ, חיילים וג׳יפים פוגעים בהם.',
     lift: 'מסוקי תובלה: לא יורים. נושאים עד 10 חיילים מכל סוג רגלי (גם קומנדו). בוחרים חיילים ולוחצים על המסוק — הם עולים; בוחרים את המסוק ולוחצים על המפה — הוא נוחת ומוריד אותם. מסוק שמופל — כולם איתו.',
-    ssm: 'משאיות טילי קרקע-קרקע: בוחרים ולוחצים על מבנה אויב שראית — המשאית עוצרת, מתכוננת 10 ש׳ ומשגרת (טיל בדקה). מבנה רגיל נהרס בפגיעה אחת, המפקדה בארבע. השיגור מגלה לאויב איפה היא.',
+    ssm: 'משאיות טילי קרקע-קרקע: בוחרים ולוחצים על מבנה אויב שראית — המשאית עוצרת, מתכוננת 10 ש׳ ומשגרת (טיל כל 2 דקות). מבנה רגיל נהרס בפגיעה אחת, המפקדה בארבע. השיגור מגלה לאויב איפה היא. עד 3 מפעלי טילים, ומשאית אחת מכל מפעל.',
     arrow: 'משאיות חץ: מיירטות טילי קרקע-קרקע באמצע הדרך, בטווח של כגובה המפה. טיל אחד בדקה לכל משאית.',
     dome: 'משאיות כיפת ברזל: עוצרות טילים קצרים — של מטוסים, מסוקי קרב ונ"ט — על כוחות ומבנים שלנו באזור שלהן. אחד בדקה לכל משאית.',
     commando: 'קומנדו: האויב לא רואה אותו — רק כשהוא ממש מתחת לרחפן או צמוד למשאית קשר, צמוד לכוחות או למבנים שלו, או רגע אחרי שהוא יורה. רואה סביבו כמו רחפן. ירייה אחת הורגת חייל (כל 3 ש׳). עומד 20 ש׳ ליד מבנה אויב — המבנה מתפוצץ; המפקדה צריכה ארבעה. עולה גם על מסוק תובלה.',
@@ -35,7 +35,7 @@ const WIKI_UNIT = {
     heli: 'Attack helicopters hover and fire missiles — at aircraft, helicopters, tanks and jeeps. AA hits them hard, soldiers and jeeps a little (they fly low).',
     gunship: 'Gunships hover over soldiers and cut them down. Weak against vehicles; AA, soldiers and jeeps hit them.',
     lift: 'Transport helicopters don\'t shoot. They carry up to 10 soldiers of any kind on foot (commandos too). Pick soldiers and click the helicopter — they get on; pick the helicopter and click the map — it lands and sets them down. Shot down, it takes them all.',
-    ssm: 'Surface-to-surface missile trucks: pick them and click an enemy building you have seen — the truck stops, sets up for 10 s and launches (one a minute). A building goes down in one hit, the HQ in four. The launch shows the enemy where it is.',
+    ssm: 'Surface-to-surface missile trucks: pick them and click an enemy building you have seen — the truck stops, sets up for 10 s and launches (one every 2 minutes). A building goes down in one hit, the HQ in four. The launch shows the enemy where it is. Up to 3 missile works, one truck each.',
     arrow: 'Arrow trucks shoot down surface-to-surface missiles halfway, anywhere within about the map\'s height. One a minute each.',
     dome: 'Iron Dome trucks stop the short missiles — aircraft\'s, attack helicopters\', anti-tank — at our forces and buildings over their area. One a minute each.',
     commando: 'Commandos: the enemy doesn\'t see one — only right under its drone or by its signals truck, close by its forces or buildings, or just after he fires. He sees round him as a drone does. One shot kills a soldier (every 3 s). Twenty seconds standing by an enemy building and it blows up; the HQ takes four. He rides the transport helicopter too.',
@@ -80,7 +80,7 @@ const WIKI = {
       <li>🗼 מגדל תצפית: רואה רחוק מאוד · 📶 אנטנה: שליטה מלאה סביבה · 🧱 בונקר: עד 4 חיילים לידו חוטפים חצי נזק</li></ul>
       <h3>מזג אוויר</h3><p>🌧 גשם בכל המפה, ו-🌫 ערפל בוקר רק בשפלה (על ההר מעליו): כל אחד מוריד 20% מהראייה, מהטווח ומהפגיעה. מצטבר עם הלילה.</p>
       <h3>דרכים ומארבים</h3><p>רכב על דרך נוסע מהר ב-30%. חיילים וג'יפים שעומדים בשקט בין העצים ולא יורים — נראים רק מקרוב, או מרחפן ומשאית קשר.</p>
-      <h3>פקודות בקול 🎙</h3><p>החזק <kbd>רווח</kbd> ודבר: "טנקים לרדאר", "כוח 2 לנקודה 4", "חיילים להחזיק בבונקר", "כולם לסגת". <kbd>Alt</kbd>+מספר שומר את המסך כנקודה, <kbd>Shift</kbd>+מספר קופץ אליה. "לשם" = איפה שהעכבר. Chrome או Edge, עם אינטרנט.</p>`],
+      <h3>פקודות בקול 🎙</h3><p>החזק <kbd>רווח</kbd>, או לחץ על 🎙 מעל הכפתורים למטה משמאל, ודבר: "טנקים לרדאר", "כוח 2 לנקודה 4", "חיילים להחזיק בבונקר", "כולם לסגת". <kbd>Alt</kbd>+מספר שומר את המסך כנקודה, <kbd>Shift</kbd>+מספר קופץ אליה. "לשם" = איפה שהעכבר. Chrome או Edge, עם אינטרנט. את המיקרופון מאשרים פעם אחת ב-"מיקרופון לפקודות" בתפריט הראשי; כשהמשחק נפתח דרך play.bat הדפדפן זוכר את האישור.</p>`],
     ['🪖', 'יחידות', () => wikiCards('unit')],
     ['🏗', 'מבנים', () => `<p>בונים מתפריט הבנייה 🏗 (<kbd>G</kbd>), רק איפה שהשטח ירוק. כל מבנה ייצור מקים כוח משלו וממלא אותו. הכוח הראשון יוצא מלא.</p>` + wikiCards('struct')],
     ['🚜', 'תמיכה ואספקה', `<h2>תמיכה ואספקה</h2>
@@ -119,7 +119,7 @@ const WIKI = {
       <li>🗼 Observation tower: sees very far · 📶 Antenna: full control round it · 🧱 Bunker: up to 4 soldiers by it take half the damage</li></ul>
       <h3>Weather</h3><p>🌧 Rain over the whole map, and 🌫 morning fog only on the plain (on a hill you're above it): each takes 20% off sight, range and hits. It adds up with the night.</p>
       <h3>Roads and ambushes</h3><p>A vehicle on a road goes 30% faster. Soldiers and jeeps standing still among trees, not firing, are seen only up close, or by a drone or signals truck.</p>
-      <h3>Spoken orders 🎙</h3><p>Hold <kbd>Space</kbd> and speak: "tanks to the radar", "group 2 to point 4", "soldiers hold the bunker", "everyone retreat". <kbd>Alt</kbd>+number saves the view as a point, <kbd>Shift</kbd>+number jumps there. "There" = where the mouse is. Chrome or Edge, online.</p>`],
+      <h3>Spoken orders 🎙</h3><p>Hold <kbd>Space</kbd>, or click 🎙 above the bottom-left buttons, and speak: "tanks to the radar", "group 2 to point 4", "soldiers hold the bunker", "everyone retreat". <kbd>Alt</kbd>+number saves the view as a point, <kbd>Shift</kbd>+number jumps there. "There" = where the mouse is. Chrome or Edge, online.</p>`],
     ['🪖', 'Units', () => wikiCards('unit')],
     ['🏗', 'Buildings', () => `<p>Build from the build menu 🏗 (<kbd>G</kbd>), only where the ground is green. Each production building raises a squad of its own and keeps it full. The first squad comes out whole.</p>` + wikiCards('struct')],
     ['🚜', 'Support and supply', `<h2>Support and supply</h2>

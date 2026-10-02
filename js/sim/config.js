@@ -126,7 +126,7 @@ const STRUCTS = {
   clinic:   { name: 'אוהל חובשים', icon: '🏥', hp: 350,  value: 3, unit: 'med',  build: 20, every: 25,  size: 2, r: 21, cat: 'tents' },
   tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 50, every: 60,  size: 3, r: 36, cat: 'shops', upgrade: 'trophy' },
   // the missile works: surface-to-surface missile trucks (3 minutes to set up, one every 2 minutes, at most 3)
-  ssmshop:  { name: 'מפעל טילים', icon: '🚀', hp: 600, value: 6, unit: 'ssm', build: 180, every: 120, size: 3, r: 32, cat: 'shops' },
+  ssmshop:  { name: 'מפעל טילים', icon: '🚀', hp: 600, value: 6, unit: 'ssm', build: 180, every: 120, size: 1, keep: 1, max: 3, r: 32, cat: 'shops' }, // (at most max of it a side, keep trucks each)
   // the missile defences (the service menu's page): Arrow, Iron Dome
   arrowsite: { name: 'אתר חץ', icon: '🛡️', hp: 500, value: 5, unit: 'arrow', build: 120, every: 60, size: 3, r: 28, cat: 'defense' },
   domesite:  { name: 'אתר כיפת ברזל', icon: '🛡️', hp: 450, value: 4, unit: 'dome', build: 60, every: 60, size: 4, r: 28, cat: 'defense' },
@@ -161,6 +161,11 @@ const SKIRT_AHEAD = 30, SKIRT_STEP = 30;
 // head-on pass each other; the other standing: 45°, to the side away from it. One that hasn't got anywhere for
 // STUCK_T s, though it means to move, takes a detour to its right for DETOUR_T s.)
 const STEER_LOOK = 14, STUCK_T = 1.5, DETOUR_T = 1.2;
+// (one standing in the way: off at DODGE_A (75°) to the side away from it for DODGE_T–DODGE_T + DODGE_JIT s — sooner
+// back for its spot if the way is clear, but not before DODGE_MIN s; again within DODGE_AGAIN s: the same side)
+// (YIELD_T: how long one standing in the way steps aside for one coming through)
+const YIELD_T = 1.5;
+const DODGE_A = 75 * Math.PI / 180, DODGE_T = 3, DODGE_JIT = 2, DODGE_MIN = 0.8, DODGE_AGAIN = 2;
 // (and one that can't get to its spot — others stand there — gives up: no nearer to it for GIVEUP_T s within
 // GIVEUP_R of it, it stands where it is GIVEUP_REST s (and up to GIVEUP_JIT more), then tries again; before, they shoved
 // one another without end)
@@ -324,6 +329,9 @@ const UNCLEAR_Q = 0.5, UNCLEAR_K = 0.5;
 const HQ_BAND = 0.2, HQ_WARM = 20, CMD_TANKS = 2;
 // the player's buildings (singles): one unit out at a time, and at most BUILD_UNITS alive from each building
 const BUILD_UNITS = 4;
+// the HQ under FIX_AT of its health: the nearest bulldozer with nothing to build (or under FIX_BUSY, the nearest) mends it, DOZER_FIX hp/s (one the player sends elsewhere
+// isn't sent again for FIX_SKIP s)
+const FIX_AT = 0.85, FIX_BUSY = 0.5, DOZER_FIX = 8, FIX_SKIP = 60, FIX_QUIET = 6; // (FIX_QUIET: mending only once nothing has hit it that long)
 // cover: soldiers and jeeps among trees are missed COVER_MISS of the times they'd be hit (the trees come from the UI's
 // scenery, Sim.setCover; none in Node)
 const COVER = ['inf', 'at', 'aa', 'med', 'commando', 'jeep', 'ajeep', 'tjeep'], COVER_MISS = 0.5, COVER_CELL = 64;
@@ -343,7 +351,7 @@ const BOARD_R = 26, LAND_T = 1.5, DROP_R = 30;
 // helicopters, anti-tank) at anything of its side within DOME_R_K of the map's height; DOME_RELOAD s between.
 // Trophy (the tank workshop's upgrade, TROPHY_BUILD s with no tanks): every tank out after it (or back by a workshop)
 // stops TROPHY_MAX of those missiles, one more every TROPHY_EVERY s; never shells or bullets.
-const SSM_SETUP = 10, SSM_FLIGHT = 10, SSM_RELOAD = 60, SSM_HQ_HITS = 4, SSM_SPLASH = 40, SSM_SPLASH_DMG = 60;
+const SSM_SETUP = 10, SSM_FLIGHT = 10, SSM_RELOAD = 120, SSM_HQ_HITS = 4, SSM_SPLASH = 40, SSM_SPLASH_DMG = 60;
 const ARROW_R_K = 1, ARROW_P = 0.9, ARROW_RELOAD = 60, DOME_R_K = 0.5, DOME_RELOAD = 60;
 const MISSILE_SHOTS = ['air', 'heli', 'at', 'tjeep'], TROPHY_MAX = 3, TROPHY_EVERY = 30, TROPHY_BUILD = 180;
 // the commando: seen by the enemy only within STEALTH_EYE of its drone or signals truck, STEALTH_NEAR of its units or

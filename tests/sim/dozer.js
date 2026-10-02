@@ -32,3 +32,26 @@ step(s, 70);
 ok(s.t >= f.ready, 'the forward HQ is up');
 step(s, 80);
 ok([a, b].every(n => s.t >= n.ready), 'then the rest, in order');
+{
+  // the HQ hit: the nearest bulldozer (ours and the enemy's) leaves its work, mends it, and goes back to its list
+  const g = Sim.openField(Sim.create(11, 2000, 'normal', 1280)); g.bots = []; g.fog = false;
+  Sim.planHq(g, 'blue', 250, 640); Sim.planHq(g, 'red', 1750, 640); step(g, 60);
+  const hs = ['blue', 'red'].map(side => g.nodes.find(n => n.side === side && n.kind === 'hq'));
+  ok(hs.every(h => h && g.t >= h.ready), 'both HQs up');
+  ok(Sim.build(g, 'blue', 'tent', 420, 500), 'a site for our bulldozer');
+  // (theirs has nothing to build: it goes at 60%; ours is at work: only once the HQ is badly hurt)
+  hs[0].hp = Sim.STRUCTS.hq.hp * 0.6; hs[1].hp = Sim.STRUCTS.hq.hp * 0.6; step(g, 8);
+  const busy = () => g.squads.find(q => q.side === 'blue' && q.type === 'dozer' && q.fixHq);
+  ok(!busy() && g.squads.some(q => q.side === 'red' && q.type === 'dozer' && q.fixHq), 'hit to 60%: their idle bulldozer goes to mend it, ours stays at its site');
+  hs[0].hp = Sim.STRUCTS.hq.hp * 0.4; step(g, 2);
+  ok(!busy(), 'not while the HQ is still being hit');
+  step(g, 8);
+  const fixers = ['blue', 'red'].map(side => g.squads.find(q => q.side === side && q.type === 'dozer' && q.fixHq));
+  ok(fixers.every(Boolean), 'under half, once the attack is over: ours leaves its site for it too');
+  step(g, 130);
+  ok(hs.every(h => h.hp >= Sim.STRUCTS.hq.hp * 0.99), `and the HQs are whole again (${hs.map(h => Math.round(h.hp)).join(', ')})`);
+  ok(fixers.every(q => !q.fixHq), 'the bulldozers are done with them');
+  const site = g.nodes.find(n => n.side === 'blue' && n.kind === 'tent');
+  step(g, 60);
+  ok(g.t >= site.ready, 'ours went back and put the tent up');
+}

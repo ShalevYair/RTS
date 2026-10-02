@@ -152,6 +152,8 @@ function tap(e) {
     const rest = selIds().filter(id => !ssm.includes(id)); if (rest.length) { const keep = sel; sel = rest.length === 1 ? rest[0] : rest; issue('attack', x, y, undefined, true); sel = keep; }
     return;
   }
+  // a post not ours, with soldiers picked: in to take it (yellow arrows)
+  if (sendCapture(hitPost(x, y))) return;
   // at an enemy: an attack on it, whatever the order button says
   const foe = selIds().length || sel === 'all' ? hitFoe(x, y) : null;
   if (foe) { issue('attack', foe.x, foe.y, undefined, true); return; }
@@ -163,26 +165,29 @@ const DRONE_CUR = (() => {
   const arms = "<path d='M9 9L23 23M23 9L9 23'/><circle cx='8' cy='8' r='5'/><circle cx='24' cy='8' r='5'/><circle cx='8' cy='24' r='5'/><circle cx='24' cy='24' r='5'/>";
   return svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><g fill='none' stroke='#fff' stroke-width='4' stroke-linecap='round'>${arms}</g><g fill='none' stroke='#223' stroke-width='2' stroke-linecap='round'>${arms}</g><rect x='12.5' y='12.5' width='7' height='7' rx='2' fill='#4a90e2' stroke='#223' stroke-width='1.5'/></svg>`, 16, 16);
 })();
+// placing the front (🚩 armed): the flag itself, as it stands on the map — a pole, its foot where it goes
+const FLAG_CUR = svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='40' height='48' viewBox='0 0 40 48'><filter id='f' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='1.2' dy='1.6' stdDeviation='1.3' flood-opacity='.5'/></filter><g filter='url(#f)'><path d='M7 45V4' stroke='#1b2430' stroke-width='5' stroke-linecap='round'/><path d='M7 45V4' stroke='#fff' stroke-width='2.6' stroke-linecap='round'/><path d='M7 4Q20 2 33 10L7 20Z' fill='#3b7dd8' stroke='#fff' stroke-width='2' stroke-linejoin='round'/><ellipse cx='7' cy='45' rx='4' ry='1.8' fill='#3b7dd8' stroke='#fff' stroke-width='1'/></g></svg>`, 7, 45);
 // the plain pointer: an arrow twice the system one's size, white with a dark edge and a soft shadow
 const ARROW_CUR = svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='46' viewBox='0 0 34 46'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#fff'/><stop offset='1' stop-color='#d9e2ec'/></linearGradient><filter id='f' x='-20%' y='-20%' width='160%' height='160%'><feDropShadow dx='1.5' dy='2' stdDeviation='1.6' flood-opacity='.45'/></filter></defs><path filter='url(#f)' d='M3 2L3 36L11.5 28.5L17.5 42L23.5 39.2L17.6 26L29 26Z' fill='url(#g)' stroke='#1b2430' stroke-width='2.2' stroke-linejoin='round'/></svg>`, 3, 2).replace(', crosshair', ', default');
 // with something picked: a sight — a ring and four arrows pointing at the middle, breathing in and out (AIM_FRAMES
-// pictures, one every AIM_MS; tickCursor swaps them); green for an order, red at an enemy
+// pictures, one every AIM_MS; tickCursor swaps them); green for an order, red at an enemy, yellow over a post to take
 const AIM_FRAMES = 8, AIM_MS = 85;
 const aimCur = col => Array.from({ length: AIM_FRAMES }, (_, i) => {
   const d = 15 + 5 * (0.5 + 0.5 * Math.cos(i / AIM_FRAMES * Math.PI * 2)), arrow = a => `<g transform='rotate(${a} 28 28)'><path d='M28 ${28 - d}l-6 -8h4v-6h4v6h4z'/></g>`;
   const g = `<circle cx='28' cy='28' r='9'/>${[0, 90, 180, 270].map(arrow).join('')}`;
   return svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'><g stroke='#fff' stroke-width='4' stroke-linejoin='round' fill='#fff'>${g}</g><g stroke='${col}' stroke-width='1.6' stroke-linejoin='round' fill='${col}'><circle cx='28' cy='28' r='9' fill='none' stroke-width='2.4'/>${[0, 90, 180, 270].map(arrow).join('')}</g><circle cx='28' cy='28' r='2' fill='${col}'/></svg>`, 28, 28);
 });
-const AIM_GO = aimCur('#2e9e4f'), AIM_FOE = aimCur('#d8342c');
+const AIM_GO = aimCur('#2e9e4f'), AIM_FOE = aimCur('#d8342c'), AIM_CAP = aimCur('#e0a800'); // (yellow: soldiers into a post, to take it)
 // the cursor for where the mouse is (an array: an animated one)
 function cursorAt(x, y) {
   const picked = sel === 'all' || selIds().length > 0;
   if (eyeArmed) return DRONE_CUR;
-  if (buildArmed || fhqArmed || hqArmed || frontArmed) return 'copy';
+  if (frontArmed) return FLAG_CUR;
+  if (buildArmed || fhqArmed || hqArmed) return 'copy';
   if (hitSquad(x, y) || hitNode(x, y, 'blue')) return rallyNode() && !hitNode(x, y, 'blue') ? AIM_GO : 'pointer';
   if (rallyNode()) return AIM_GO; // (a building of ours picked: a click says where its squads go)
   if (!picked) return ARROW_CUR;
-  return hitFoe(x, y) ? AIM_FOE : AIM_GO;
+  return hitFoe(x, y) ? AIM_FOE : canTake(hitPost(x, y)) ? AIM_CAP : AIM_GO;
 }
 let curNow = null, lastMouse = null;
 // a production building of ours picked: a click on the map is its rally point
@@ -384,4 +389,4 @@ document.addEventListener('keydown', e => {
 });
 // Space let go: the pause, or the spoken order (field.js); the window left with it held: nothing
 document.addEventListener('keyup', e => { if ((e.code === 'Space' || e.key === ' ') && talk) { e.preventDefault(); talkUp(); } });
-window.addEventListener('blur', () => { if (talk) { try { talk.rec && talk.rec.abort(); } catch (x) { /* ignore */ } talk = null; talkShow(''); } });
+window.addEventListener('blur', () => talkBlur()); // (not dropped: see field.js)

@@ -153,7 +153,7 @@ function updateUnit(s, u, sq, dt) {
   // care: badly hurt, the unit leaves the fight on its own for the nearest medic / mechanic (or home), holding its fire
   if (CARER[u.type]) {
     if (!u.care && u.hp < CARE_AT * T.hp) u.care = true;
-    else if (u.care && u.hp >= (u.careFull ? 0.995 : CARE_DONE) * T.hp) { u.care = false; u.careFull = false; const f = sq.single && !FRONT_NOT.includes(u.type) && s.front && s.front[u.side]; if (f) selfOrder(sq, 'attack', f.x, f.y); } // (sent by the player: until whole; treated: off to the front, if there is one)
+    else if (u.care && u.hp >= (u.careFull ? 0.995 : CARE_DONE) * T.hp) { u.care = false; u.careFull = false; const f = sq.single && !FRONT_NOT.includes(u.type) && s.front && s.front[u.side]; if (f) { const c = freeSpot(s, u.side, f, u.type, sq); selfOrder(sq, 'attack', c.x, c.y); } } // (sent by the player: until whole; treated: off to the front, if there is one)
   }
   // and low on ammunition: off to the nearest supply truck (or home), holding fire, until refilled
   if (s.supply && SUPPLY[u.type]) {
@@ -232,6 +232,7 @@ function supplyUse(s, u) {
 // few steps climb or drop)
 function moveTo(s, u, tx, ty, fast, dt, keep) {
   const T = TYPES[u.type];
+  if (!T.air && u.yield && u.yield.until > s.t) { tx += u.yield.x * u.yield.k; ty += u.yield.y * u.yield.k; } // (making room: off to the side)
   if (!T.air && !keep && !s.noGiveUp && singles(s, u.side) && giveUp(s, u, tx, ty)) return; // (the player's units: the AI's squads waited on them, and bot games stalled)
   if (!T.air && s.lakes.length) ({ x: tx, y: ty } = wade(s, u, tx, ty));
   if (!T.air) ({ x: tx, y: ty } = skirt(s, u, tx, ty));
@@ -267,6 +268,7 @@ function giveUp(s, u, tx, ty) {
   const gd = Math.hypot(tx - u.x, ty - u.y);
   if (!u.goal || Math.hypot(u.goal.x - tx, u.goal.y - ty) > 20 || gd > GIVEUP_R || gd <= 2) { u.goal = { x: tx, y: ty, best: gd, t: s.t }; u.rest = 0; return false; }
   if (u.rest > s.t) return true;
+  if (u.dodge && u.dodge.until > s.t) { u.goal.t = s.t; return false; } // (off round one in the way: not stuck)
   if (gd < u.goal.best - 4) { u.goal.best = gd; u.goal.t = s.t; return false; }
   if (s.t - u.goal.t < GIVEUP_T) return false;
   // (only when it's our own units in the way, and not in a fight: chasing, or blocked by the enemy, it keeps going)
@@ -285,26 +287,52 @@ function steer(s, u, tx, ty, dt) {
   const at = u.was ? Math.hypot(u.x - u.was.x, u.y - u.was.y) : 0; u.was = { x: u.x, y: u.y };
   if (d < 8) { u.stuck = 0; return { x: tx, y: ty }; }
   u.moving = s.t; // (it means to move this tick)
+  if (u.yield && u.yield.until > s.t) return { x: tx, y: ty }; // (stepping aside for one: straight there)
   u.stuck = at < TYPES[u.type].speed * dt * 0.15 ? (u.stuck || 0) + dt : 0;
   if (u.stuck > STUCK_T) { u.detour = s.t + DETOUR_T; u.stuck = 0; }
   const ux = vx / d, uy = vy / d, step = Math.min(d, 30);
   if (u.detour > s.t) { const r = rot(ux, uy, Math.PI / 2); return { x: u.x + r.x * step, y: u.y + r.y * step }; }
-  let o = null, oa = Infinity, oc = 0;
+  let o = null, oa = Infinity, oc = 0, og = false; // (og: it stands at our goal)
+  const mine = singles(s, u.side); // (the player's units: they make way and dodge, below)
+  const dodging = u.dodge && u.dodge.until > s.t;
   for (const b of around(s, u.x, u.y, ru + MAX_R + UNIT_GAP + STEER_LOOK)) {
     if (b === u || TYPES[b.type].air) continue;
     const ox = b.x - u.x, oy = b.y - u.y, rr = ru + TYPES[b.type].r + UNIT_GAP, look = rr + STEER_LOOK;
     if (ox > look || ox < -look || oy > look || oy < -look) continue;
     const along = ox * ux + oy * uy, cross = ox * uy - oy * ux; // (cross > 0: it's on our left)
     if (along <= 0 || along > look || Math.abs(cross) >= rr * 0.8 || along >= d) continue; // (behind, beside, or past the goal)
-    if (u.side !== b.side || Math.hypot(tx - b.x, ty - b.y) < rr * 1.5) continue; // (only our own: an enemy is what it goes for; nor one at the goal)
-    if (along < oa) { oa = along; o = b; oc = cross; }
+    if (u.side !== b.side) continue; // (only our own: an enemy is what it goes for)
+    const atGoal = Math.hypot(tx - b.x, ty - b.y) < rr * 1.5; if (atGoal && !mine) continue; // (the AI's: not one at the goal)
+    if (b.yield && b.yield.until > s.t && b.yield.by === u.id) continue; // (stepping aside for us)
+    if (along < oa) { oa = along; o = b; oc = cross; og = atGoal; }
   }
+  // (dodging: on that way till the straight one is clear — after DODGE_MIN s at least — or the time is up)
+  if (dodging && (o || s.t - u.dodge.from < DODGE_MIN)) { const r = rot(ux, uy, u.dodge.sg * DODGE_A); return { x: u.x + r.x * step, y: u.y + r.y * step }; }
+  if (dodging) u.dodge.until = s.t;
   if (!o) return { x: tx, y: ty };
   const moving = o.moving !== undefined && s.t - o.moving < 0.25;
   if (moving && Math.cos(o.hd - Math.atan2(uy, ux)) > 0.3) return { x: tx, y: ty }; // (going our way, ahead of us: no collision)
-  const r = rot(ux, uy, moving ? Math.PI / 2 : (oc > 0 ? Math.PI / 4 : -Math.PI / 4));
+  if (moving) { const r = rot(ux, uy, Math.PI / 2); return { x: u.x + r.x * step, y: u.y + r.y * step }; }
+  // (one standing in the way that can make room — not fighting, not a bulldozer at work, not stepping aside for
+  // another — steps aside, YIELD_D across our way, for YIELD_T s, and we go on: a tank comes through a row of jeeps)
+  // (the player's units only, like giving up: in the bots' squads it changed how their games went)
+  if (!mine) { const r = rot(ux, uy, oc > 0 ? Math.PI / 4 : -Math.PI / 4); return { x: u.x + r.x * step, y: u.y + r.y * step }; }
+  if (canYield(s, o)) {
+    const sg = Math.abs(oc) > 1 ? Math.sign(oc) : (o.id % 2 ? 1 : -1); // (oc > 0: it's on our left — further left)
+    o.yield = { x: uy * sg, y: -ux * sg, k: ru + TYPES[o.type].r + UNIT_GAP + 4, until: s.t + YIELD_T, by: u.id };
+    return { x: tx, y: ty };
+  }
+  if (og) return { x: tx, y: ty }; // (on our spot and can't move: going round it gets nowhere)
+  // (one standing in the way: off at DODGE_A to the side away from it, held DODGE_T s or so — then back for the spot;
+  // a turn of 45° a tick at a time ran it into the next one of a line, and tanks pushed at a row of jeeps for ever)
+  // (the same side as the last time, if that was just now: along a line to its end, not back and forth)
+  const last = u.dodge && s.t - u.dodge.until < DODGE_AGAIN ? u.dodge.sg : 0;
+  const h = Math.sin(u.id * 7.1 + s.t * 12.9898) * 43758.5453;
+  u.dodge = { sg: last || (oc > 0 ? 1 : -1), from: s.t, until: s.t + DODGE_T + DODGE_JIT * (h - Math.floor(h)) };
+  const r = rot(ux, uy, u.dodge.sg * DODGE_A);
   return { x: u.x + r.x * step, y: u.y + r.y * step };
 }
+const canYield = (s, o) => o.type !== 'dozer' && !(s.t - o.lastFire < 2) && !(o.yield && o.yield.until > s.t) && !(o.rest > s.t);
 // ground units go round their own side's buildings: with one close ahead in the straight way (and the goal not the building itself or
 // right by it), the step is along its edge, on the side toward the goal. (Else a unit behind a building — pushed
 // there by it, or on the map's edge side — drove into it forever.)

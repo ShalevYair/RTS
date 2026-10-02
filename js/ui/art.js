@@ -437,12 +437,13 @@ function drawUnitPic(c, type, x, y, k, col, hd, aim, recoil = 0) {
   c.restore();
 }
 
-// ---- where an order went: four arrows closing on the spot (green; red at an enemy), and the picked building ----
+// ---- where an order went: four arrows closing on the spot (green; red at an enemy; yellow into a post to take it),
+// and the picked building ----
 const PING_MS = 650;
 function drawPings(c) {
   const now = performance.now(), px = 1 / view.css; pings = pings.filter(p => now - p.t < PING_MS);
   for (const p of pings) {
-    const f = (now - p.t) / PING_MS, d = (8 + 22 * (1 - f) * (1 - f)) * px, a = f < 0.7 ? 1 : (1 - f) / 0.3, col = p.foe ? '#e8392e' : '#34b35a';
+    const f = (now - p.t) / PING_MS, d = (8 + 22 * (1 - f) * (1 - f)) * px, a = f < 0.7 ? 1 : (1 - f) / 0.3, col = p.foe ? '#e8392e' : p.cap ? '#f2c230' : '#34b35a';
     c.save(); c.translate(p.x, p.y); c.globalAlpha = a; c.lineJoin = 'round';
     for (let i = 0; i < 4; i++) {
       c.save(); c.rotate(Math.PI / 4 + i * Math.PI / 2); c.translate(d, 0);
@@ -483,21 +484,24 @@ function drawScenery(c) {
   if (!P.rock.length) return false;
   const slab = sprite.img.d_rock3, low = P.rock.filter(im => im !== slab); // (rock3, a flat slab: only up the hills)
   if (!low.length) low.push(...P.rock);
-  const x0 = bg.x0 - 90, y0 = bg.y0 - 90, x1 = bg.x0 + bg.w + 90, y1 = bg.y0 + bg.h + 90; // (big trees reach in from past the edge)
+  // (only what reaches into the tile being painted: a picture and its shadow, long at dawn and dusk; a fixed margin
+  // drew 3× the tile's trees, their shadows the slowest part of the ground)
+  const sl = 0.6 + TREE_SHADOW * Math.hypot(SUN.x, SUN.y) + 0.1, x0 = bg.x0, y0 = bg.y0, x1 = bg.x0 + bg.w, y1 = bg.y0 + bg.h;
+  const out = it => { const m = it.s * sl; return it.x < x0 - m || it.x > x1 + m || it.y < y0 - m || it.y > y1 + m; };
   const keyOf = new Map(Object.keys(sprite.img).filter(k => k.startsWith('d_')).map(k => [sprite.img[k], k]));
   const pick = it => { const L = it.t === 'rock' ? (it.hi && it.s >= 10 / WORLD_K ? P.rock : low) : P[it.t]; return L[it.v % L.length]; }; // (the slab only big: small, it's a grey square)
   // first the shadows (trees and bushes: to the south-east, like everything else; a tree, taller, casts farther),
   // so no shadow falls over a neighbour's crown
   c.save(); c.globalAlpha = TREE_SHADOW_A * SUN.a;
   for (const it of decor.rocks.items) {
-    if (it.t === 'rock' || it.gone || it.x < x0 || it.x > x1 || it.y < y0 || it.y > y1) continue;
+    if (it.t === 'rock' || it.gone || out(it)) continue;
     const im = pick(it), p = shadowPic(keyOf.get(im)); if (!p) continue;
     const w = it.s, sc = w / im.width, off = w * (it.t === 'tree' ? TREE_SHADOW : TREE_SHADOW * 0.5);
     if (SUN.a > 0.02) c.drawImage(p, it.x - p.width / 2 * sc + off * SUN.x, it.y - p.height / 2 * sc + off * SUN.y, p.width * sc, p.height * sc);
   }
   c.restore();
   for (const it of decor.rocks.items) {
-    if (it.x < x0 || it.x > x1 || it.y < y0 || it.y > y1) continue;
+    if (out(it)) continue;
     const im = pick(it), w = it.s, h = w * im.height / im.width;
     it.im = im; if (it.gone) continue; // (cleared or run over: see sceneryTick)
     c.drawImage(im, it.x - w / 2, it.y - h / 2, w, h);
@@ -534,18 +538,18 @@ function drawStony(c, pat) {
   const g = L.getContext('2d'); g.setTransform(T);
   g.fillStyle = pat; g.fillRect(-1e5, -1e5, 2e5, 2e5);
   g.globalCompositeOperation = 'destination-in'; g.imageSmoothingEnabled = true;
-  g.drawImage(stony.mask, -ELEV / 2, -ELEV / 2, E.w * ELEV, E.h * ELEV);
+  drawGridPic(g, stony.mask);
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(L, 0, 0); c.restore();
 }
 
 // ---- scenery that's cleared (a building going up there) or run over (a tank): taken out of the ground picture,
 // and drawn on top for a moment, sinking and fading ----
-const scen = { grid: null, of: null, gone: [], seen: new Set(), next: 0, dirty: false }, SCEN_CELL = 64, SCEN_FADE = 1800;
+const scen = { grid: null, of: null, gone: [], seen: new Set(), next: 0, redo: [] }, SCEN_CELL = 64, SCEN_FADE = 1800;
 function scenGrid() {
   if (scen.of === decor) return scen.grid;
   const G = new Map();
   for (const it of decor.rocks.items) { const k = Math.floor(it.x / SCEN_CELL) + ',' + Math.floor(it.y / SCEN_CELL); let l = G.get(k); if (!l) G.set(k, l = []); l.push(it); }
-  scen.grid = G; scen.of = decor; scen.gone = []; scen.seen = new Set(); return G;
+  scen.grid = G; scen.of = decor; scen.gone = []; scen.redo = []; scen.seen = new Set(); return G;
 }
 function scenNear(x, y, r, f) {
   const G = scenGrid();
@@ -553,15 +557,15 @@ function scenNear(x, y, r, f) {
     const l = G.get(i + ',' + j); if (l) for (const it of l) if (!it.gone && Math.hypot(it.x - x, it.y - y) < r) f(it);
   }
 }
-function scenKill(it) { it.gone = performance.now(); if (it.im) scen.gone.push(it); scen.dirty = true; }
+function scenKill(it) { it.gone = performance.now(); if (it.im) scen.gone.push(it); scen.redo.push(it); }
 // every few frames: new buildings clear their ground; tanks crush what they drive over (only with the pictures in)
 function sceneryTick() {
   if (!decor || !sprite.img.d_tree1) return;
   const now = performance.now(); if (now < scen.next) return; scen.next = now + 120;
   for (const n of s.nodes) if (!scen.seen.has(n.id) && n.kind !== 'drone' && nodeShown(n)) { scen.seen.add(n.id); scenNear(n.x, n.y, Sim.STRUCTS[n.kind].r * 1.5 + 18, scenKill); }
   for (const u of s.units) if (u.type === 'tank' && (u.side === 'blue' || !s.fog || s.vis.blue.has(u.id))) scenNear(u.x, u.y, SIZE.tank * 0.75, scenKill);
-  // (the ground picture is painted again, at most twice a second)
-  if (scen.dirty && now - (scen.painted || 0) > 500) { scen.dirty = false; scen.painted = now; bg.key = ''; }
+  // (the ground there is painted again, at most twice a second: only the tiles it was in)
+  if (scen.redo.length && now - (scen.painted || 0) > 500) { scen.painted = now; for (const it of scen.redo) bgDirty(it.x, it.y, it.s + 30); scen.redo = []; }
 }
 function drawGoneScenery(c) {
   const now = performance.now();

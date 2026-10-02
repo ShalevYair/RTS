@@ -440,9 +440,9 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
 /* (the build menu opens beside the kind picked) */
 #buildm.side{left:92px;transform:none;top:var(--bmTop,8px);bottom:auto!important;max-width:calc(100% - 110px);align-items:flex-start}
 .bar{left:8px;right:auto;bottom:10px;transform:none;flex-direction:column;align-items:center;gap:10px;flex-wrap:nowrap;padding:0}
-#hqb{order:1}#front{order:2}#fhq{order:3}#eye{order:4}
-#front[hidden]{display:none}#front[aria-pressed="true"]{background:rgb(255 255 255 / .22)}#front.set{box-shadow:0 0 0 2px rgb(255 255 255 / .55)}
-#hqb,#front,#fhq,#eye{width:60px;height:60px;min-width:60px;border-radius:50%;padding:0;display:grid;place-items:center;font-size:28px}
+#mic{order:0}#hqb{order:1}#front{order:2}#fhq{order:3}#eye{order:4}
+#front[hidden],#mic[hidden]{display:none}#mic[aria-pressed="true"]{background:rgb(220 60 60 / .55);animation:micPulse 1s ease-in-out infinite}@keyframes micPulse{50%{box-shadow:0 0 0 6px rgb(220 60 60 / .25)}}#front[aria-pressed="true"]{background:rgb(255 255 255 / .22)}#front.set{box-shadow:0 0 0 2px rgb(255 255 255 / .55)}
+#mic,#hqb,#front,#fhq,#eye{width:60px;height:60px;min-width:60px;border-radius:50%;padding:0;display:grid;place-items:center;font-size:28px}
 #eye .ico{width:30px;height:30px}
 .bar .ico.pic{width:38px;height:38px;filter:drop-shadow(0 1px 2px rgb(0 0 0 / .8));pointer-events:none}
 #eye i,#fhq i{left:0;right:0;top:0;bottom:0;height:auto;border-radius:50%;background:conic-gradient(#fff calc(var(--p,0)*1turn),rgb(255 255 255 / .2) 0);
@@ -455,7 +455,7 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
   .bcats{gap:2px}.bcats button{width:46px;padding:1px 0}.bcats button span{display:none!important}.bcats button canvas{width:38px;height:38px}
   #buildm.side{left:58px}
   .bar{gap:6px;bottom:6px}
-  #hqb,#front,#fhq,#eye{width:46px;height:46px;min-width:46px;font-size:22px}#eye .ico{width:24px;height:24px}.bar .ico.pic{width:30px;height:30px}
+  #mic,#hqb,#front,#fhq,#eye{width:46px;height:46px;min-width:46px;font-size:22px}#eye .ico{width:24px;height:24px}.bar .ico.pic{width:30px;height:30px}
 }
 
 /* what can be used now (a building kind with room, a forward HQ to place, a drone to send): a green halo, pulsing */
