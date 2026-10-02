@@ -28,25 +28,30 @@ function newGame(skipIntro) {
   if (s.posts) for (const it of decor.rocks.items) if (s.posts.some(p => Math.hypot(p.x - it.x, p.y - it.y) < Sim.POSTS[p.kind].r * 1.5 + 18)) it.gone = 1;
   if (s.extras) Sim.setRoads(s, decor.roads);
   views = {}; wxWas = { rain: false, fog: false };
-  Sim.setCover(s, decor.rocks.items.filter(it => it.t === 'tree').map(it => (it.r = it.s * 0.4, it))); sel = 'all'; selNode = null; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();
+  Sim.setCover(s, decor.rocks.items.filter(it => it.t === 'tree').map(it => (it.r = it.s * 0.4, it))); sel = 'all'; selNode = null; selPost = null; nag.at = nag.built = nag.fhq = 0; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();
   $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
   $('end').hidden = true; $('share').textContent = tr('share'); outro = null; $('outro').hidden = true; try { $('outroVid').pause(); } catch (e) { /* no video */ }
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
 }
 
 const DT = 1 / 30; let last = performance.now(), acc = 0, shake = 0;
+const NAG_T = 60, nag = { at: 0, built: 0, fhq: 0 }; // (the reminders to build: see frameBody)
 const FIGHT_T = 6, FIGHT_SHOTS = 8, CALM_T = 40; let fight = [], fightAt = 0;
 const SHAKE_MAX = 8, reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // an error in a frame never stops the game: it's written to the log (errLog) and the next frame goes on
 function frame(now) {
   const t0 = performance.now();
   try { frameBody(now); } catch (e) { errLog('frame', e); }
-  const took = performance.now() - t0; if (took > SLOW_FRAME) errLog('slow', null, Math.round(took) + ' ms');
+  const took = performance.now() - t0; if (took > SLOW_FRAME) errLog('slow', null, Math.round(took) + ' ms' + (typeof Prof !== 'undefined' ? ' | ' + Prof.top() : ''));
+  if (typeof Prof !== 'undefined') Prof.frame(now, took); // (the speed recorder: prof.js, loaded after this)
   requestAnimationFrame(frame);
 }
 function frameBody(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
-  if (playing) { acc += dt * rate; while (acc >= DT) { Sim.step(s, DT); acc -= DT; } } else acc = 0;
+  // (at most STEP_CAP steps a frame for each 1× of speed: slow frames made more steps, the frames slower still, down
+  // to 2 a second — the game goes a little slower instead)
+  if (playing) { acc = Math.min(acc + dt * rate, DT * STEP_CAP * Math.max(1, rate)); s.lite = lite > 0; while (acc >= DT) { Sim.step(s, DT); acc -= DT; } } else acc = 0;
+  liteTick(now, dt);
   // one sound per new explosion (the audio side rate-limits bursts)
   const vr = viewRect(), onScreen = p => vr && p.x > vr.x - 60 && p.x < vr.x + vr.w + 60 && p.y > vr.y - 60 && p.y < vr.y + vr.h + 60;
   for (const f of s.fx) if (!f.heard && !(f.wait > 0)) {
@@ -89,6 +94,14 @@ function frameBody(now) {
     if (fc && !can.fhq && s.t > 3) { Radio.hear({ kind: 'fhqCan' }); noteBy('fhq', tr('fhqCan')); }
     if (dc && !can.drone && s.t > 3) { Radio.hear({ kind: 'droneCan' }); noteBy('eye', tr('droneCan')); }
     can.fhq = fc; can.drone = dc;
+    // (a minute of game time — NAG_T — with room to build and nothing laid: said again; else a forward HQ that could go)
+    if (s.t - nag.at >= NAG_T) {
+      nag.at = s.t;
+      const hqUp = !(s.hqPending && s.hqPending.blue) && s.nodes.some(n => n.side === 'blue' && n.kind === 'hq' && n.hp > 0 && s.t >= n.ready);
+      const room = uiHas('build') && hqUp && Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue') > 0;
+      if (room && s.t - nag.built >= NAG_T) { Radio.hear({ kind: 'canBuild' }); feedAdd({ kind: 'canBuild', t: s.t }); }
+      else if (fc && s.t - nag.fhq >= NAG_T) { Radio.hear({ kind: 'fhqCan' }); noteBy('fhq', tr('fhqCan')); }
+    }
   }
   Radio.tick();
   if (replayAuto && !$('end').hidden && !$('replayBox').hidden && now - replayAt > 180) {
@@ -97,6 +110,21 @@ function frameBody(now) {
   if (outro) outroTick(now, dt); else { edgeScroll(dt); tickCursor(); syncUpgrade(); }
   draw(); if (outro) drawOutro(now); drawBox(); drawMini();
   if (now - hudAt > 200) { hudAt = now; updateHud(); }
+}
+// ---- the light mode (lite, core.js): on by itself while the frames are slow — under LITE_ON fps over two LITE_WIN s
+// running a step down, back up a step after LITE_BACK s over LITE_OFF fps ----
+const STEP_CAP = 2, LITE_WIN = 2, LITE_ON = 20, LITE_OFF = 45, LITE_BACK = 20;
+const liteW = { at: 0, n: 0, sum: 0, good: 0, told: false };
+function liteTick(now, dt) {
+  if (!playing || !$('intro').hidden) { liteW.at = now; liteW.n = liteW.sum = 0; return; }
+  liteW.n++; liteW.sum += dt;
+  if (now - liteW.at < LITE_WIN * 1000) return;
+  const fps = liteW.n / Math.max(0.001, liteW.sum); liteW.at = now; liteW.n = liteW.sum = 0;
+  // (two slow windows running: not the moment a game is being made)
+  liteW.bad = fps < LITE_ON ? (liteW.bad || 0) + 1 : 0;
+  if (liteW.bad >= 2 && lite < 2) { lite++; liteW.bad = 0; liteW.good = 0; resize(); if (!liteW.told) { liteW.told = true; toast(tr('liteOn'), innerWidth / 2, 80, 4000); } }
+  else if (fps > LITE_OFF && lite > 0) { liteW.good += LITE_WIN; if (liteW.good >= LITE_BACK) { lite--; liteW.good = 0; resize(); } }
+  else liteW.good = 0;
 }
 // ---- the log: errors (and very slow frames) with where the game stood, kept in the browser (irts-log, the last
 // LOG_MAX); a note on screen at the first one; Ctrl+Shift+L saves it as a file ----
@@ -113,8 +141,10 @@ function errLog(where, e, note) {
 window.addEventListener('error', e => errLog('error', e.error || e.message));
 window.addEventListener('unhandledrejection', e => { if (e.reason && /play\(\)|NotAllowed|AbortError|media/i.test(String(e.reason))) return; errLog('promise', e.reason); });
 function saveLog() {
-  let l = '[]'; try { l = localStorage.getItem('irts-log') || '[]'; } catch (x) { /* storage unavailable */ }
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([l], { type: 'application/json' })); a.download = 'commander-log.json'; a.click();
+  let l = []; try { l = JSON.parse(localStorage.getItem('irts-log') || '[]'); } catch (x) { /* storage unavailable */ }
+  const out = JSON.stringify({ errors: l, speed: Prof.report() });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([out], { type: 'application/json' })); a.download = 'commander-log.json'; a.click();
+  toast(tr('logSaved'), innerWidth / 2, 80, 4000);
 }
 // ---- the end of a game: the camera goes to where it was decided (the HQ that fell, else the beaten side), blasts
 // there if it's the enemy's, the word over the map; then, in the full game, the victory / defeat video if there is

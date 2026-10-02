@@ -14,9 +14,13 @@ function drawPosts(c) {
   for (const p of s.posts) {
     const R = Sim.POSTS[p.kind].r, col = postCol(p);
     if (vr && (p.x + 3 * R < vr.x || p.x - 3 * R > vr.x + vr.w || p.y + 3 * R < vr.y || p.y - 3 * R > vr.y + vr.h)) continue;
-    // (a ring on the ground in the holder's colour; no one's: light and dashed)
-    c.save(); c.lineWidth = 2.5; c.globalAlpha = p.side ? 0.8 : 0.6; c.strokeStyle = col; if (!p.side) c.setLineDash([5, 5]);
-    ring(p.x, p.y, R + 7); c.stroke(); c.restore();
+    // (clicked: a ring where it works — the depot, hospital and garage round them, the tower and the rest how far they see,
+    // the bunker how near its soldiers stand, the antenna its control; no ring otherwise, the flag says who holds it)
+    if (selPost === p) {
+      const W = postReach(p), pz = 1 / view.css;
+      c.save(); c.globalAlpha = 0.12; c.fillStyle = p.side ? col : '#ffffff'; ring(p.x, p.y, W); c.fill();
+      c.globalAlpha = 0.85; c.lineWidth = 2 * pz; c.setLineDash([8 * pz, 6 * pz]); c.strokeStyle = p.side ? col : '#ffffff'; ring(p.x, p.y, W); c.stroke(); c.restore();
+    }
     drawBuilding(c, p.kind, col, p.x, p.y, Math.round(R * 2.4));
     // (and a little flag in its colour)
     if (p.side) {
@@ -25,6 +29,15 @@ function drawPosts(c) {
       drawFlag(c, fx, fy + 5, 1.1, col);
     }
   }
+}
+let selPost = null;
+// how far a post works from its middle (the ring when it's clicked)
+function postReach(p) {
+  const R = Sim.POSTS[p.kind].r;
+  if (p.kind === 'supply' || p.kind === 'hospital' || p.kind === 'motorpool') return R + Sim.POST_R;
+  if (p.kind === 'bunker') return R + Sim.BUNKER_R;
+  if (p.kind === 'antenna') return Sim.NODES.antenna.r1;
+  return p.kind === 'tower' ? Sim.TOWER_SIGHT : Sim.POST_SIGHT;
 }
 // its line: name, who holds it, what it gives, how it's taken
 function postInfo(p) {
@@ -93,7 +106,7 @@ function drawViews(c, k) {
 // picked; where: "point 4" / "נקודה 4" (a saved view), the radar, the power or fuel station, the HQ, the front, the
 // nearest post of a kind ("the bunker"), "there" / "לשם" (where the mouse is); and maybe how: hold / retreat (else
 // attack). Through the same orders as a click: late and rough far from HQ.
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition, TALK_TAP = 300;
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let talk = null;
 const talkEl = (() => { const e = document.createElement('div'); e.id = 'talk'; e.hidden = true; e.setAttribute('aria-live', 'polite'); document.body.appendChild(e); return e; })();
 function talkShow(txt) { talkEl.textContent = txt; talkEl.hidden = !txt; }
@@ -115,72 +128,77 @@ async function micAsk(quiet) {
     syncMic(); return true;
   } catch (e) { if (!quiet) talkSay(tr('vNoMic'), false); return false; }
 }
-// 🎙 over the bottom-left buttons (the full game on the big maps): a click listens to the end of what's said, another
-// click stops; red while listening
-let talkEnd = null; // (an order being finished after the key / the click: its words still coming)
+// a game starts (the full one, on the big maps): the microphone, if not allowed yet, asked for in a window of ours —
+// "to give spoken orders, allow the microphone" — the game waiting; yes = the browser's own question, once, on that
+// click; not now = not asked again (the main menu's 🎙 still can). Already allowed: taken quietly.
+async function micGate() {
+  if (!SR || !s || !s.extras || micAsk.ok) return;
+  let st = ''; try { st = (await navigator.permissions.query({ name: 'microphone' })).state; } catch (e) { /* not in this browser */ }
+  if (st === 'granted') { micAsk(true); return; }
+  let no = false; try { no = localStorage.getItem('irts-mic') === 'no'; } catch (e) { /* storage unavailable */ }
+  if (no || st === 'denied') return;
+  const box = $('micSure'); box.hidden = false; setPlaying(false);
+  const close = () => { box.hidden = true; $('micYes').onclick = $('micNo').onclick = null; if ($('intro').hidden && menu.hidden) setPlaying(true); };
+  $('micYes').onclick = async () => { close(); await micAsk(false); };
+  $('micNo').onclick = () => { try { localStorage.setItem('irts-mic', 'no'); } catch (e) { /* ignore */ } close(); };
+}
+// 🎙 over the bottom-left buttons (the full game on the big maps): a click opens the microphone and it stays open —
+// every sentence said is an order — until another click (red while open). One recognition the whole time, started
+// again by itself when the browser ends it: every start was the browser's question again (opened from a file it
+// doesn't remember the answer at all — play.bat). Space is only the pause again.
+const MIC_ENDS = 6; // (ended this many times within 20 s: something's wrong — closed)
 function syncMic() {
   const b = $('mic'); if (!b) return;
   b.hidden = !SR || !s || !s.extras;
-  b.setAttribute('aria-pressed', String(!!(talk && talk.click)));
+  b.setAttribute('aria-pressed', String(!!talk));
 }
 async function micClick() {
-  if (talk && talk.click) { talkUp(); return; }
-  if (talk) return;
-  if (!micAsk.ok && !(await micAsk(true))) { talkSay(tr('vNoMic')); return; }
-  talkDown(true); syncMic();
+  if (talk) { micOff(); return; }
+  if (!SR) { talkSay(tr('vNoSR'), false); return; }
+  if (!micAsk.ok && !(await micAsk(true))) { talkSay(tr('vNoMic'), false); return; }
+  if (location.protocol === 'file:' && !micClick.told) { micClick.told = true; toast(tr('micFile'), innerWidth / 2, innerHeight - 160, 8000); }
+  talk = { ends: [] }; syncMic(); talkShow('🎙 ' + tr('vListen')); micStart(talk);
 }
-// Space down (or 🎙 clicked: click): start listening at once (so the first word isn't lost); a short tap of the key
-// turns out to be a pause
-function talkDown(click) {
-  if (talk) return;
-  talk = { at: performance.now(), said: [], up: false, err: null, rec: null, click: !!click };
-  const t = talk;
-  if (click) talkShow('🎙 ' + tr('vListen')); else setTimeout(() => { if (talk === t && !t.up) talkShow('🎙 ' + tr('vListen')); }, TALK_TAP);
-  if (!SR) return;
-  try {
-    // (a click: the browser ends it when the speaking stops; the key: until it's let go)
-    const r = new SR(); t.rec = r; r.lang = lang === 'en' ? 'en-US' : 'he-IL'; r.interimResults = true; r.continuous = !click; r.maxAlternatives = 4;
-    r.onresult = e => {
-      const fin = [], now = [];
-      for (let i = 0; i < e.results.length; i++) { const R = e.results[i]; now.push(R[0].transcript); if (R.isFinal) fin.push([...R].map(a => a.transcript)); }
-      t.said = fin; t.live = now.join(' ');
-      if (t.click || performance.now() - t.at > TALK_TAP) talkShow('🎙 ' + t.live);
-      if (t.auto && fin.length) { try { r.stop(); } catch (x) { /* ignore */ } } // (the key was lost: the first whole sentence)
-    };
-    r.onerror = e => { t.err = e.error; };
-    r.onend = () => { t.ended = true; if (t.click && talk === t) { talk = null; t.up = true; } if (t.up) talkDone(t); };
-    r.start();
-  } catch (e) { t.rec = null; if (click) { talk = null; talkSay(tr('vNoMic')); syncMic(); } }
+function micOff() {
+  const t = talk; talk = null;
+  if (t) { t.off = true; try { t.rec && t.rec.abort(); } catch (e) { /* ignore */ } }
+  talkShow(''); syncMic();
 }
-// Space up (or 🎙 clicked again): a tap = pause / go on; held = the order, once the words are in
-function talkUp() {
-  const t = talk; if (!t) return; talk = null; t.up = true; talkEnd = t; syncMic();
-  if (!t.click && performance.now() - t.at < TALK_TAP) { try { t.rec && t.rec.abort(); } catch (e) { /* ignore */ } talkShow(''); setPlaying(!playing); return; }
-  if (!SR) { talkShow(''); talkSay(tr('vNoSR')); return; }
-  if (!t.rec || t.ended) { talkDone(t); return; }
-  try { t.rec.stop(); } catch (e) { talkDone(t); }
-  setTimeout(() => { if (!t.done) talkDone(t); }, 2500); // (no answer from the service: give up)
-}
-// the window lost the focus while the key was held (the browser asking about the microphone, another window): the
-// key's release won't come — it listens on to the end of the first sentence (at most TALK_LOST ms), not dropped
-const TALK_LOST = 8000;
-function talkBlur() {
-  const t = talk; if (!t || t.click) return;
-  talk = null; t.up = true; t.auto = true; talkEnd = t;
-  if (!t.rec || t.ended) { talkDone(t); return; }
-  setTimeout(() => { if (!t.done) { try { t.rec.stop(); } catch (e) { talkDone(t); } setTimeout(() => { if (!t.done) talkDone(t); }, 2500); } }, TALK_LOST);
+function micStart(t) {
+  let r; try { r = new SR(); } catch (e) { micOff(); talkSay(tr('vNoMic'), false); return; }
+  t.rec = r; r.lang = lang === 'en' ? 'en-US' : 'he-IL'; r.interimResults = true; r.continuous = true; r.maxAlternatives = 4;
+  let from = 0; // (the results already acted on)
+  r.onresult = e => {
+    if (t.off) return;
+    let live = '';
+    for (let i = from; i < e.results.length; i++) {
+      const R = e.results[i];
+      if (R.isFinal) { from = i + 1; talkDone([...R].map(x => x.transcript)); } else live += R[0].transcript;
+    }
+    if (live) { clearTimeout(talkSay.t); talkShow('🎙 ' + live); }
+  };
+  r.onerror = e => {
+    if (t.off) return;
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') { micOff(); talkSay(tr('vNoMic'), false); }
+    else if (e.error === 'network') { micOff(); talkSay(tr('vNet'), false); }
+  };
+  r.onend = () => {
+    if (t.off || talk !== t) return;
+    const now = performance.now(); t.ends = t.ends.filter(x => now - x < 20000); t.ends.push(now);
+    if (t.ends.length > MIC_ENDS) { micOff(); return; }
+    micStart(t); // (the browser ended it — silence, a time limit: on listening)
+  };
+  try { r.start(); } catch (e) { micOff(); talkSay(tr('vNoMic'), false); }
 }
 function talkSay(txt, voice = true) { talkShow(txt); clearTimeout(talkSay.t); talkSay.t = setTimeout(() => talkShow(''), 2600); if (voice) Radio.say(txt); }
-function talkDone(t) {
-  if (t.done) return; t.done = true; syncMic();
-  if (t.err === 'not-allowed' || t.err === 'service-not-allowed') { talkSay(tr('vNoMic')); return; }
-  if (t.err === 'network') { talkSay(tr('vNet')); return; }
-  // every way it may have been heard: the finals' alternatives (else what was heard so far)
-  const alts = t.said.length ? t.said.reduce((acc, a) => acc.flatMap(x => a.slice(0, 2).map(y => (x + ' ' + y).trim())), ['']) : t.live ? [t.live] : [];
-  if (!alts.length) { talkSay(tr('vAgain')); return; }
+// a sentence heard (its alternatives): the order, else what was wrong — written only, not said (said, the
+// microphone would hear it and answer it)
+function talkDone(alts) {
+  alts = alts.map(x => x.trim()).filter(Boolean);
+  if (!alts.length) return;
   let last = null;
   for (const txt of alts) { const r = parseOrder(txt); if (r.ok) { runOrder(r, txt); return; } last = last || r; }
-  talkSay(last.why || tr('vAgain'));
+  talkSay('🎙 ' + alts[0] + ' — ' + (last.why || tr('vAgain')), false);
 }
 // words → digits
 const NUMW = { 'אפס': 0, 'אחת': 1, 'אחד': 1, 'שתיים': 2, 'שתים': 2, 'שניים': 2, 'שני': 2, 'שתי': 2, 'שלוש': 3, 'שלש': 3, 'שלושה': 3, 'ארבע': 4, 'ארבעה': 4, 'חמש': 5, 'חמישה': 5, 'שש': 6, 'שישה': 6, 'שבע': 7, 'שבעה': 7, 'שמונה': 8, 'תשע': 9, 'תשעה': 9,
@@ -221,7 +239,7 @@ function parseOrder(raw) {
   // how
   const type = /לסגת|סגו|תסגו|נסיגה|retreat|fall back|pull back/.test(t) ? 'retreat' : /להחזיק|החזיקו|החזק|תחזיקו|להגן|הגנו|hold|defend|guard/.test(t) ? 'hold' : 'attack';
   // where
-  const list = ids === 'all' ? s.squads.filter(q => q.side === 'blue' && !q.dead && q.type !== 'dozer') : ids.map(id => s.squads.find(q => q.id === id)).filter(Boolean);
+  const list = ids === 'all' ? s.squads.filter(q => q.side === 'blue' && !q.dead && inAll(q)) : ids.map(id => s.squads.find(q => q.id === id)).filter(Boolean);
   const mid = list.length ? { x: list.reduce((a, q) => a + q.cx, 0) / list.length, y: list.reduce((a, q) => a + q.cy, 0) / list.length } : { x: cam.x, y: cam.y };
   let at = null, whereTxt = '';
   const pt = t.match(/(?:נקודה|point)\s*(\S+)/), pnum = pt && numOf(pt[1]);
@@ -239,7 +257,7 @@ function parseOrder(raw) {
 const dist2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 // soldiers picked and a post that isn't ours: as many as it takes (one; two if the enemy holds it), the nearest, go into
 // it, the rest to it as ordered — the arrows closing on it yellow. false: not that (no post, ours, no soldiers)
-const capIds = () => (sel === 'all' ? s.squads.filter(q => q.side === 'blue' && !q.dead && q.type !== 'dozer').map(q => q.id) : selIds());
+const capIds = () => (sel === 'all' ? s.squads.filter(q => q.side === 'blue' && !q.dead && inAll(q)).map(q => q.id) : selIds());
 const canTake = pt => !!pt && pt.side !== 'blue' && capIds().some(id => { const q = s.squads.find(k => k.id === id); return q && !q.dead && Sim.CAPTURERS.includes(q.type); });
 function sendCapture(pt, type = 'attack') {
   if (!canTake(pt)) return false;

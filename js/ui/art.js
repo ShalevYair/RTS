@@ -9,13 +9,14 @@ const STONE = '#d8d0bf', STONE_DK = '#a39a88', WOOD = '#8d6b43', WOOD_DK = '#5e4
 function buildingPic(kind, col, px, bare) {
   const key = kind + col + px + (bare ? '|bare' : ''); let pic = artCache.get(key); if (pic) return pic;
   const P = px * ART_RES / 40, w = Math.ceil(px * 1.7 * ART_RES);
-  pic = document.createElement('canvas'); pic.width = pic.height = w;
-  const c = pic.getContext('2d');
-  // a building with its own picture (art/): recoloured, about as wide as the drawn one
+  // a building with its own picture (art/): recoloured, about as wide as the drawn one; a tall one (the observation
+  // tower) on a canvas tall enough for all of it — on a square one its top and bottom were cut off
   const own = BUILDING_PIC[kind], im = own && spritePic(own, col);
+  pic = document.createElement('canvas'); pic.width = w; pic.height = im ? Math.max(w, Math.ceil(px * 1.35 * ART_RES * im.height / im.width * 1.15)) : w;
+  const c = pic.getContext('2d');
   const S = Sim.STRUCTS[kind] || Sim.POSTS[kind]; // (a post is drawn like a building)
   if (im) {
-    const dw = px * 1.35 * ART_RES, dh = dw * im.height / im.width, x0 = (w - dw) / 2, y0 = (w - dh) / 2 - dh * 0.06, sh = shadowPic(own);
+    const dw = px * 1.35 * ART_RES, dh = dw * im.height / im.width, x0 = (w - dw) / 2, y0 = (pic.height - dh) / 2 - dh * 0.06, sh = shadowPic(own);
     // (its shadow first: to the south-east, as every shadow)
     if (sh && !bare) { const f = dw / im.width, o = dw * 0.05; c.globalAlpha = SHADOW_A; c.drawImage(sh, x0 - SHADOW_PAD * f + o, y0 - SHADOW_PAD * f + o * 1.25, sh.width * f, sh.height * f); c.globalAlpha = 1; }
     c.drawImage(im, x0, y0, dw, dh); artCache.set(key, pic); return pic;
@@ -129,7 +130,7 @@ function buildingPic(kind, col, px, bare) {
 function drawBuilding(c, kind, col, x, y, px) {
   const own = BUILDING_PIC[kind], im = own && sprite.img[own];
   if (im) { const dw = px * 1.35, dh = dw * im.height / im.width; drawShadowPic(c, own, x, y - dh * 0.06, dw, dh, 0, dw * 0.05); }
-  const pic = buildingPic(kind, col, px, !!im), w = pic.width / ART_RES; c.drawImage(pic, x - w / 2, y - w / 2, w, w);
+  const pic = buildingPic(kind, col, px, !!im), w = pic.width / ART_RES, h = pic.height / ART_RES; c.drawImage(pic, x - w / 2, y - h / 2, w, h);
 }
 // the HQ's flag, waving (on the keep's pole)
 function drawFlag(c, x, y, k, col) {
@@ -169,11 +170,11 @@ function drawSmoke(c) {
       if (n.hp < S.hp * 0.5 && Math.random() < dt * 4) puff(n.x + (Math.random() - 0.5) * 16, n.y - 6, true, 1.5);
       if (n.kind === 'tankshop' && n.prog > 0 && s.t >= n.ready && Math.random() < dt * 2) puff(n.x + 12, n.y - 12, false);
       // (every building standing: a faint wisp from its roof now and then)
-      else if (s.t >= n.ready && n.hp >= S.hp * 0.5 && onView(n, v0) && Math.random() < dt * IDLE_ROOF) puff(n.x + S.r * 0.25, n.y - S.r * 0.55, false, 0.8);
-      if (s.t >= n.ready && onView(n, v0) && Math.random() < dt * IDLE_DUST) { const a = Math.random() * 6.28; dust.push({ x: n.x + Math.cos(a) * S.r, y: n.y + Math.sin(a) * S.r * 0.6 + S.r * 0.3, t: s.t, r: 3.5, a: 0.4 }); }
+      else if (!lite && s.t >= n.ready && n.hp >= S.hp * 0.5 && onView(n, v0) && Math.random() < dt * IDLE_ROOF) puff(n.x + S.r * 0.25, n.y - S.r * 0.55, false, 0.8);
+      if (!lite && s.t >= n.ready && onView(n, v0) && Math.random() < dt * IDLE_DUST) { const a = Math.random() * 6.28; dust.push({ x: n.x + Math.cos(a) * S.r, y: n.y + Math.sin(a) * S.r * 0.6 + S.r * 0.3, t: s.t, r: 3.5, a: 0.4 }); }
     }
     // (every vehicle on screen, even standing still: now and then a faint puff of exhaust at its back)
-    for (const u of s.units) {
+    if (!lite) for (const u of s.units) {
       if (CAR.has(u.type) && onView(u, v0) && vis(u) && Math.random() < dt * IDLE_DUST) { const k = SIZE[u.type] * 0.6, a = Math.random() * 6.28; dust.push({ x: u.x + Math.cos(a) * k, y: u.y + Math.sin(a) * k * 0.6 + k * 0.3, t: s.t, r: u.type === 'tank' ? 3 : 2.2, a: 0.38 }); }
       if (!CAR.has(u.type) || !onView(u, v0) || !vis(u) || Math.random() >= dt * IDLE_EXHAUST) continue;
       const k = SIZE[u.type] * 0.8; puff(u.x - Math.cos(u.hd) * k, u.y - Math.sin(u.hd) * k, false, 0.45);
@@ -400,7 +401,7 @@ const SHADOW_OFF = 0.1, SHADOW_AIR = 0.9, SHADOW_A = 0.42;
 function drawShadowPic(c, k, x, y, w, h, rot, off) {
   const p = shadowPic(k); if (!p) return;
   const sx = w / (p.width - 2 * SHADOW_PAD), sy = h / (p.height - 2 * SHADOW_PAD);
-  if (SUN.a <= 0.02) return; // (night: none)
+  if (SUN.a <= 0.02 || lite) return; // (night: none; the light mode: none)
   c.save(); c.globalAlpha *= SHADOW_A * SUN.a; c.shadowBlur = 0; c.shadowColor = 'transparent'; c.translate(x + off * SUN.x, y + off * SUN.y); c.rotate(rot);
   c.drawImage(p, -p.width / 2 * sx, -p.height / 2 * sy, p.width * sx, p.height * sy); c.restore();
 }
@@ -475,6 +476,14 @@ function drawPicked(c) {
 // covers; each item picks its picture by a hash of where it stands (rock slabs only up the hills) ----
 const SCENERY_WEIGHT = { d_rock3: 0 };
 const TREE_SHADOW = 0.22, TREE_SHADOW_A = 0.4; // (a tree's shadow: that much of its width to the south-east, how dark) // (0 = left out: the new rock3 is a square slab, a floor tile on the map)
+// the scenery in squares of SCEN_BIG, for painting the ground a tile at a time (each item numbered: its order)
+const SCEN_BIG = 256, scenBig = { of: null, cells: null, maxS: 0 };
+function scenCells() {
+  if (scenBig.of === decor) return scenBig;
+  const G = new Map(); let maxS = 0;
+  decor.rocks.items.forEach((it, k) => { it.k = k; maxS = Math.max(maxS, it.s); const key = Math.floor(it.x / SCEN_BIG) + ',' + Math.floor(it.y / SCEN_BIG); let l = G.get(key); if (!l) G.set(key, l = []); l.push(it); });
+  scenBig.of = decor; scenBig.cells = G; scenBig.maxS = maxS; return scenBig;
+}
 function drawScenery(c) {
   // (a picture's weight, 4 unless SCENERY_WEIGHT says)
   const pics = t => Object.keys(sprite.img).filter(k => k.startsWith('d_' + t)).sort().flatMap(k => Array(SCENERY_WEIGHT[k] ?? 4).fill(sprite.img[k]));
@@ -488,20 +497,26 @@ function drawScenery(c) {
   // drew 3× the tile's trees, their shadows the slowest part of the ground)
   const sl = 0.6 + TREE_SHADOW * Math.hypot(SUN.x, SUN.y) + 0.1, x0 = bg.x0, y0 = bg.y0, x1 = bg.x0 + bg.w, y1 = bg.y0 + bg.h;
   const out = it => { const m = it.s * sl; return it.x < x0 - m || it.x > x1 + m || it.y < y0 - m || it.y > y1 + m; };
+  // (and only the ones in the squares near it: going over all of them, tens of thousands on the huge map, was a third
+  // of a tile; in their order, so where two overlap it's the same one on top in both tiles)
+  const S = scenCells(), M = S.maxS * sl, near = [];
+  for (let i = Math.floor((x0 - M) / SCEN_BIG); i <= Math.floor((x1 + M) / SCEN_BIG); i++) for (let j = Math.floor((y0 - M) / SCEN_BIG); j <= Math.floor((y1 + M) / SCEN_BIG); j++) {
+    const l = S.cells.get(i + ',' + j); if (l) for (const it of l) if (!out(it)) near.push(it);
+  }
+  near.sort((a, b) => a.k - b.k);
   const keyOf = new Map(Object.keys(sprite.img).filter(k => k.startsWith('d_')).map(k => [sprite.img[k], k]));
   const pick = it => { const L = it.t === 'rock' ? (it.hi && it.s >= 10 / WORLD_K ? P.rock : low) : P[it.t]; return L[it.v % L.length]; }; // (the slab only big: small, it's a grey square)
   // first the shadows (trees and bushes: to the south-east, like everything else; a tree, taller, casts farther),
   // so no shadow falls over a neighbour's crown
   c.save(); c.globalAlpha = TREE_SHADOW_A * SUN.a;
-  for (const it of decor.rocks.items) {
-    if (it.t === 'rock' || it.gone || out(it)) continue;
+  for (const it of near) {
+    if (it.t === 'rock' || it.gone) continue;
     const im = pick(it), p = shadowPic(keyOf.get(im)); if (!p) continue;
     const w = it.s, sc = w / im.width, off = w * (it.t === 'tree' ? TREE_SHADOW : TREE_SHADOW * 0.5);
     if (SUN.a > 0.02) c.drawImage(p, it.x - p.width / 2 * sc + off * SUN.x, it.y - p.height / 2 * sc + off * SUN.y, p.width * sc, p.height * sc);
   }
   c.restore();
-  for (const it of decor.rocks.items) {
-    if (out(it)) continue;
+  for (const it of near) {
     const im = pick(it), w = it.s, h = w * im.height / im.width;
     it.im = im; if (it.gone) continue; // (cleared or run over: see sceneryTick)
     c.drawImage(im, it.x - w / 2, it.y - h / 2, w, h);
@@ -534,8 +549,14 @@ function drawStony(c, pat) {
     for (let i = 0; i < E.g.length; i++) img.data[i * 4 + 3] = 255 * Math.max(0, Math.min(1, (E.g[i] - 2) / 5)) * 0.6;
     mc.putImageData(img, 0, 0);
   }
-  const L = stony.cv, T = c.getTransform(); L.width = c.canvas.width; L.height = c.canvas.height;
-  const g = L.getContext('2d'); g.setTransform(T);
+  // (a tile with nothing high enough: none)
+  const i0 = Math.max(0, Math.floor(bg.x0 / ELEV) - 1), i1 = Math.min(E.w - 1, Math.ceil((bg.x0 + bg.w) / ELEV) + 1), j0 = Math.max(0, Math.floor(bg.y0 / ELEV) - 1), j1 = Math.min(E.h - 1, Math.ceil((bg.y0 + bg.h) / ELEV) + 1);
+  let hi = false; for (let j = j0; j <= j1 && !hi; j++) for (let i = i0; i <= i1; i++) if (E.g[j * E.w + i] > 2) { hi = true; break; }
+  if (!hi) return;
+  // (the layer kept, cleared: made again each tile, it was a new canvas each time)
+  const L = stony.cv, T = c.getTransform();
+  if (L.width !== c.canvas.width || L.height !== c.canvas.height) { L.width = c.canvas.width; L.height = c.canvas.height; }
+  const g = L.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, L.width, L.height); g.setTransform(T);
   g.fillStyle = pat; g.fillRect(-1e5, -1e5, 2e5, 2e5);
   g.globalCompositeOperation = 'destination-in'; g.imageSmoothingEnabled = true;
   drawGridPic(g, stony.mask);

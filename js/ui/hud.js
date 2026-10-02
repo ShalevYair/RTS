@@ -13,15 +13,15 @@ const orderSay = {};
 const replyOf = (type, foe) => foe ? 'attacking' : type === 'retreat' ? 'retreating' : type === 'hold' ? 'holding' : 'go';
 // fa: the way the front should face (a drag), else toward the enemy; foe: the order is at an enemy (a red mark); cap:
 // into a post, to take it (a yellow one)
-function issue(type, x, y, fa, foe, cap) {
+function issue(type, x, y, fa, foe, cap, deep) {
   const all = sel === 'all';
   // (everyone: not the bulldozers — they'd leave their sites for the front)
-  const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead && q.type !== 'dozer').map(q => q.id) : selIds();
+  const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead && inAll(q)).map(q => q.id) : selIds();
   if (!ids.length) return; // nothing picked: nothing to order
   // several together (all, a group, a type, a rectangle): rows facing the enemy (tanks in front … medics and mechanics
   // at the back); one alone: its own line
   let ok = false;
-  if (ids.length > 1) ok = Sim.formation(s, ids, type, x, y, true, fa);
+  if (ids.length > 1) ok = Sim.formation(s, ids, type, x, y, true, fa, deep);
   else for (const id of ids) ok = Sim.order(s, id, type, x, y, false, Number.isFinite(fa) ? { fa } : undefined) || ok;
   if (ok && all) Sim.note(s, 'כל הכוחות: ' + (type === 'hold' ? 'מחזיקים עמדה' : type === 'attack' ? 'תוקפים את האזור' : 'נסוגים הביתה'));
   if (ok) {
@@ -91,6 +91,8 @@ function drawReplay(i) {
 }
 $('scrub').addEventListener('input', () => { replayAuto = false; drawReplay(+$('scrub').value); });
 function showEnd() {
+  // (the full game won: back to the main menu — no end card, no replay)
+  if (!lvl && s.over === 'blue') { newGame(); return; }
   $('endT').textContent = s.over === 'blue' ? '🏆' : '✖';
   if (lvl && s.over === 'blue' && lvl > done) { done = lvl; try { localStorage.setItem('irts-done', String(done)); } catch (e) { /* ignore */ } }
   $('again').textContent = lvl && s.over === 'blue' ? '▶' : '↻';
@@ -114,7 +116,16 @@ function showEnd() {
     drawReplay(0);
   }
 }
+// the key posts by the power bar: who holds the radar, the power station, the fuel station (no one's: not shown)
+const KEY_POSTS = ['radar', 'power', 'fuel']; let heldKey = '';
+function syncHeld() {
+  const of = side => (s.posts || []).filter(p => p.side === side && KEY_POSTS.includes(p.kind)).map(p => p.kind).sort((a, b) => KEY_POSTS.indexOf(a) - KEY_POSTS.indexOf(b));
+  const b = of('blue'), r = of('red'), key = b.join() + '|' + r.join(); if (key === heldKey) return; heldKey = key;
+  const put = (el, l) => { el.replaceChildren(...l.map(k => { const i = document.createElement('i'); i.textContent = Sim.POSTS[k].icon; i.dataset.tipText = pn(k); i.title = pn(k); return i; })); };
+  put($('heldB'), b); put($('heldR'), r);
+}
 function updateHud() {
+  syncHeld();
   // power share: the truth without fog; under fog the enemy side is only what we know of it
   const b = Math.round(100 * (s.fog ? believedShare() : Sim.share(s, 'blue')));
   $('pwB').style.width = b + '%'; $('power').classList.toggle('est', !!s.fog); $('power').style.setProperty('--lose', pctLose() + '%');
@@ -215,7 +226,7 @@ function toggleGroup() {
 // what's picked becomes group `key` (Ctrl + the number): any group on that number is replaced, and its squads leave
 // the groups they were in
 function setGroup(ids, key, hard = true) {
-  const alive = aliveBlue(); ids = ids.filter(id => alive.has(id) && (sel !== 'all' || s.squads.find(q => q.id === id).type !== 'dozer')); // (everyone: not the bulldozers)
+  const alive = aliveBlue(); ids = ids.filter(id => alive.has(id) && (sel !== 'all' || inAll(s.squads.find(q => q.id === id)))); // (everyone: not the bulldozers)
   if (!ids.length) return false;
   groups = groups.filter(x => x.key !== key || !key);
   for (const x of groups) x.ids = x.ids.filter(id => !ids.includes(id));
@@ -449,6 +460,7 @@ $('bld').addEventListener('click', toggleBuild);
 const onScreen = (x, y) => ({ x: view.cox + x * view.css, y: view.coy + y * view.css });
 // (with Shift: another of the same right after, while there's room for one)
 function placeBuilding(x, y, again) {
+  nag.built = s.t; // (laid one: no reminder for a minute)
   const why = Sim.buildCheck(s, 'blue', x, y, buildArmed);
   if (why) { const p = onScreen(x, y); toast(tr('why')[why], p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y, pickedDozer());
   const room = buildArmed === 'decoy' ? s.nodes.filter(n => n.side === 'blue' && n.kind === 'decoy' && n.hp > 0).length < Sim.DECOY_MAX : Sim.buildCount(s, 'blue') < Sim.buildLimit(s, 'blue');
@@ -481,12 +493,12 @@ $('moreBtn').addEventListener('click', () => { const b = $('moreBox'); b.hidden 
 // a game starts: the full one (no tutorial: as if it were skipped), or a tutorial level with its tour
 function startGame(level) {
   if (fsWant && fsCan()) fullScreen(true);
-  if (micWanted() && !micAsk.ok) micAsk(true); // (allowed before: asked again now, on this click, not at the first Space)
   lvl = level; newGame(true); showIntro(false);
   // a tutorial level, once per visit: the goal in a few words and what's new, one by one, then the fight
   // (irts-tour = 99: never — the UI tests)
   if (lvl && toured !== 99 && !tourSeen.has(lvl)) { tourSeen.add(lvl); toured = Math.max(toured, lvl); try { localStorage.setItem('irts-tour', String(toured)); } catch (e) { /* ignore */ } runTour(levelTour(lvl), () => setPlaying(true)); }
   else setPlaying(true);
+  if (!lvl) micGate(); // (spoken orders: the microphone, asked for in a window of ours — field.js)
 }
 function renderLevels() {
   const box = $('levels'); box.textContent = ''; box.setAttribute('aria-label', tr('level', ''));
@@ -629,6 +641,7 @@ function buildHere() {
   fhqArmed = true; eyeArmed = false; buildArmed = null; frontArmed = false; $('buildm').hidden = true; syncButtons();
 }
 function placeFhq(x, y) {
+  nag.fhq = s.t;
   const list = fhqCrews(), picked = list.find(q => isSel(q.id) && sel !== 'all');
   const q = picked || list.sort((a, b) => Math.hypot(pos(a).x - x, pos(a).y - y) - Math.hypot(pos(b).x - x, pos(b).y - y))[0];
   const why = Sim.fhqCheck(s, x, y);
@@ -652,6 +665,9 @@ function fullScreen(on = !fsOn()) {
 // full screen is on by default; the switch in the settings remembers the choice
 let fsWant = true;
 try { fsWant = localStorage.getItem('irts-fs') !== '0'; } catch (e) { /* storage unavailable */ }
+// (full screen from the start: the browser allows it only on a click or a key — the first one, anywhere, in the main menu too)
+const fsFirst = e => { document.removeEventListener('pointerdown', fsFirst, true); document.removeEventListener('keydown', fsFirst, true); if (fsWant && fsCan() && !fsOn() && !(e.target && e.target.id === 'fs')) fullScreen(true); };
+document.addEventListener('pointerdown', fsFirst, true); document.addEventListener('keydown', fsFirst, true);
 $('fs').addEventListener('click', () => { const on = !fsOn(); fsWant = on; try { localStorage.setItem('irts-fs', on ? '1' : '0'); } catch (e) { /* ignore */ } fullScreen(on); });
 document.addEventListener('fullscreenchange', () => syncButtons());
 $('paused').addEventListener('click', () => setPlaying(true));
@@ -692,7 +708,7 @@ document.querySelectorAll('[data-diff]').forEach(b => { b.textContent = diffName
 // ---- the message list, under the map: what matters (under attack, heavy losses, a squad or building lost, a missile,
 // friendly fire…), the newest on top pushing the older down; each for FEED_T s, fading away over its last FEED_FADE s.
 // A click takes the camera to where it happened. The same thing in the same area again soon: once (FEED_SAME_*) ----
-const FEED_KINDS = new Set(['hqHit', 'fhqHit', 'baseHit', 'contact', 'hit', 'lost', 'nodeLost', 'missile', 'ff', 'call', 'hqReady', 'intercept', 'flag', 'flagLost']);
+const FEED_KINDS = new Set(['hqHit', 'fhqHit', 'baseHit', 'contact', 'hit', 'lost', 'nodeLost', 'missile', 'ff', 'call', 'hqReady', 'intercept', 'flag', 'flagLost', 'canBuild']);
 const FEED_T = 20, FEED_FADE = 8, FEED_MAX = 5, FEED_SAME_R = 300, FEED_SAME_T = 10;
 let feedSeen = [];
 function feedAdd(k) {

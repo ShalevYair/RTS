@@ -11,7 +11,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // the units in a grid of GRID_CELL, made once a tick (unitGrid, in step): `around` = the units that may be within R of
 // (x, y) — those in the cells R reaches, a square, not yet a circle. Without this tick's grid (outside step): all of them.
 // (Each unit looking through every other one, several times a tick, was most of the game's time with big armies)
-const GRID_CELL = 96, MAX_R = Math.max(...Object.values(TYPES).map(T => T.r)); // (MAX_R: the biggest unit's body)
+const GRID_CELL = 96, MAX_R = Math.max(...Object.values(TYPES).map(T => T.r)) * VEH_ROOM; // (MAX_R: the biggest unit's body)
 function unitGrid(s) {
   const g = new Map();
   for (const u of s.units) { const k = Math.floor(u.x / GRID_CELL) * 4096 + Math.floor(u.y / GRID_CELL); let l = g.get(k); if (!l) g.set(k, l = []); l.push(u); }
@@ -53,7 +53,7 @@ function dryOf(s, p, pad = 0) {
   }
   return q;
 }
-// how far a unit sees: ELEV_BONUS more per contour line it stands on (u.lvl is set once a tick in step(); 0 for aircraft)
+// how far a unit sees: ELEV_SIGHT more per contour line it stands on (u.lvl is set once a tick in step(); 0 for aircraft)
 // how dark it is: 0 by day, 1 in the full night, in quarter steps eased into each other; only where s.night is on
 function nightAt(s) {
   if (!s.night) return 0;
@@ -63,7 +63,7 @@ function nightAt(s) {
   return was + (now - was) * f * f * (3 - 2 * f);
 }
 // (and what the dark, the weather and a held radar make of it: envSight)
-const sightOf = (s, u) => TYPES[u.type].sight * (1 + ELEV_BONUS * (u.lvl || 0)) * envSight(s, u);
+const sightOf = (s, u) => TYPES[u.type].sight * (1 + ELEV_SIGHT * (u.lvl || 0)) * envSight(s, u);
 // a commander's rank (0, 1, 2) from his experience
 const rankOf = sq => sq.xp >= RANK_XP[2] ? 2 : sq.xp >= RANK_XP[1] ? 1 : 0;
 

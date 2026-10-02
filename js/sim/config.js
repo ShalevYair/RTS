@@ -5,10 +5,16 @@ const H = 640;
 // (the huge map: 2× the big one each way, so up to 6000×2800)
 const MAP_H_MAX = 2800, MAP_W_MAX = 6000, HILL_CLEAR = 240;
 // height, in contour lines (0 = the plain, hills up to HILL_LEVELS), on a grid every ELEV_CELL. A ground unit gets
-// ELEV_BONUS more range and sight per line it stands on; climbing slows it and going down speeds it up, by
+// ELEV_SIGHT more sight and ELEV_RANGE more range per line it stands on; climbing slows it and going down speeds it up, by
 // SLOPE_K per line climbed per unit walked, at most SLOPE_MAX. Aircraft don't care.
 // HILL_SPREAD: each hill, once placed, is spread over that much more length and width (broad hills, not bumps)
-const HILL_SPREAD = 2, HILL_LEVELS = 10, ELEV_CELL = 8, ELEV_BONUS = 0.1, SLOPE_K = 9, SLOPE_MAX = 0.5;
+// a unit chooses its target anew every SCAN_EVERY ticks (its turn by its id; at once if the target is gone)
+const SCAN_EVERY = 4, SCAN_AI = 1;
+// the AI weighs enemies in one square of AI_CLUSTER as one target
+const AI_CLUSTER = 60;
+// (ELEV_SIGHT more sight and ELEV_RANGE more range a line: from line 8, 9% further than from line 5; a building's sight too)
+const ELEV_SIGHT = 0.05, ELEV_RANGE = 0.03;
+const HILL_SPREAD = 2, HILL_LEVELS = 10, ELEV_CELL = 8, SLOPE_K = 9, SLOPE_MAX = 0.5;
 // random maps: the enemy's half is our half's twin, each feature moved up to MAP_JITTER and resized up to MAP_RESIZE;
 // lakes keep LAKE_GAP between them
 const MAP_JITTER = 30, MAP_RESIZE = 0.12, LAKE_GAP = 60, SHAPE_AMP = 0.14;
@@ -174,6 +180,9 @@ const GIVEUP_T = 3, GIVEUP_R = 120, GIVEUP_REST = 3, GIVEUP_JIT = 2;
 // HURT_K = [over 95% … , under 30%]
 const HURT_AT = [0.95, 0.6, 0.3], HURT_K = [1, 0.9, 0.75, 0.55];
 const UNIT_GAP = 10, CRUSH_DPS = 90, FOOT = ['inf', 'aa', 'at', 'med', 'commando'];
+// (the player's vehicles take VEH_ROOM more room than their body — they got stuck in each other; the AI's as before:
+// changed, bot games stalled — see bodyR)
+const VEH_ROOM = 1.2, CRUSH_GO = 80; // (CRUSH_GO: a tank drives at soldiers this close, to run them over)
 // how hard a unit is to push aside when two bump (soldiers 1)
 // (SLIDE: how much of a push goes sideways)
 const MASS = { tank: 6, jeep: 2, ajeep: 2, tjeep: 2, mech: 2, truck: 2, dozer: 3, radio: 2 }, SLIDE = 0.35;
@@ -234,13 +243,15 @@ const NODE_MULT = { commando: 0.3, ssm: 0, arrow: 0, dome: 0, lift: 0, heli: 1.2
 const PACK_AT = 10, VEH_GAP = 18;
 const FACE_R = 320, FACE_TURN = 0.8, LINE_GAP = 20, ROW_GAP = 70, SIDE_GAP = 40;
 // (attacking: the units that don't fight stand SUPPORT_BACK further back still)
-const SUPPORT_BACK = 220;
+const SUPPORT_BACK = 50;
+// (together, far off: marching there in the formation — see formation; deep: the player's arrow, rows DEEP_MIN–DEEP_MAX apart)
+const MARCH_MIN = 220, MARCH_PACE = 0.9, MARCH_WAIT = 2.5, DEEP_MIN = 20, DEEP_MAX = 260;
 // (the front: what never goes there — missile trucks fire from far behind)
-const FRONT_NOT = ['ssm'];
+const FRONT_NOT = ['ssm', 'dozer'];
 // under fire: a fighting unit of the player's goes at the shooter, one that doesn't falls back FLEE_D toward the HQ
 // (each squad once per REACT_EVERY s)
 const FLEE_D = 190, REACT_EVERY = 4;
-const FORM_ROW = { commando: 2, ssm: 5, arrow: 5, dome: 5, lift: 4, heli: 1.5, gunship: 1.5, tank: 0, jeep: 1, tjeep: 1, ajeep: 1, air: 1.5, inf: 2, at: 2.5, aa: 3, med: 4, mech: 4, truck: 4, radio: 5, dozer: 5 };
+const FORM_ROW = { commando: 2, ssm: 4, arrow: 4, dome: 4, lift: 4, heli: 1.5, gunship: 1.5, tank: 0, jeep: 1, tjeep: 1, ajeep: 1, air: 1.5, inf: 2, at: 2.5, aa: 3, med: 3.3, mech: 3.3, truck: 3.4, radio: 3.6, dozer: 4 };
 const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
 // difficulty: how often the AI re-plans and how well it decides (never extra units or vision).

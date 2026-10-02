@@ -72,6 +72,12 @@ LINES = {
     'drone_ready': ["Drone ready.", "Drone ready for launch.", "Eyes in the sky available."],
     'hq_attack': ["[shouting] Headquarters under attack!", "[shouting] They're at the HQ!", "[shouting] Protect the HQ!",
                   "[shouting] HQ taking fire!", "[shouting] All units, defend headquarters!", "[shouting] The command post is hit!"],
+    'took_radar': ["We took the radar.", "The radar is ours.", "Radar captured, sir."],
+    'took_power': ["We took the power station.", "The power plant is ours.", "Power station captured."],
+    'took_fuel': ["We took the fuel depot.", "The fuel station is ours.", "Fuel station captured."],
+    'took_post': ["Building captured.", "We took the building.", "Objective taken."],
+    'lost_post': ["[grim] We lost a building.", "[grim] They took it back.", "[grim] The enemy captured our position."],
+    'can_build': ["We can build, sir.", "Room to build. Waiting on you.", "Commander, we can start building."],
   },
   'Hebrew': {
     'selected': ["כן, המפקדה.", "ממתינים לפקודות.", "כאן, מקשיבים.", "המפקדה, עבור.", "מוכנים.", "מה הפקודה?", "[tired] מה עכשיו?",
@@ -116,6 +122,12 @@ LINES = {
     'drone_ready': ["ניתן למקם רחפן.", "רחפן מוכן להמראה.", "יש רחפן זמין."],
     'hq_attack': ["[shouting] המפקדה תחת התקפה!", "[shouting] הם במפקדה!", "[shouting] להגן על המפקדה!",
                   "[shouting] המפקדה חוטפת אש!", "[shouting] כל הכוחות, להגן על המפקדה!", "[shouting] פגעו במפקדה!"],
+    'took_radar': ["כבשנו את הרדאר.", "הרדאר בידינו.", "הרדאר נכבש."],
+    'took_power': ["כבשנו את תחנת הכוח.", "תחנת הכוח בידינו.", "תחנת הכוח נכבשה."],
+    'took_fuel': ["כבשנו את תחנת הדלק.", "תחנת הדלק בידינו.", "תחנת הדלק נכבשה."],
+    'took_post': ["כבשנו את המבנה.", "המבנה בידינו.", "היעד נכבש."],
+    'lost_post': ["[grim] איבדנו מבנה.", "[grim] האויב כבש את המבנה.", "[grim] המבנה נפל לידי האויב."],
+    'can_build': ["אפשר להתחיל לבנות.", "יש מקום לבנות, מחכים לך.", "המפקד, אפשר לבנות."],
   },
 }
 HEATED = {'attacking', 'under_attack', 'heavy_losses', 'friendly_fire', 'retreating', 'building_lost', 'base_attack', 'fhq_attack', 'hq_attack'}

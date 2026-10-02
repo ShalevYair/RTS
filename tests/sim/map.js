@@ -66,7 +66,7 @@ ok(s.squads.find(q => q.id === 'blue1').order.y === 1100, 'an order to y 1100 is
 for (let i = 0; i < 30 * 20; i++) Sim.step(s, 1 / 30);
 ok(s.squads.find(q => q.id === 'blue1').cy > 900, `the squad went there (y ${s.squads.find(q => q.id === 'blue1').cy.toFixed(0)})`);
 ok(Sim.buildCheck(s, 'blue', 150, 900) === '', 'building near the HQ, below the old edge');
-// height: +10% sight (and range) per contour line; uphill slower, downhill faster
+// height: +5% sight (and +3% range) per contour line; uphill slower, downhill faster
 {
   const g = Sim.create(7, 2400, 'normal', 1280); g.bots = []; g.noReinforce = true; g.fog = true;
   // the highest point on our half
@@ -74,10 +74,10 @@ ok(Sim.buildCheck(s, 'blue', 150, 900) === '', 'building near the HQ, below the 
   for (let y = 40; y < g.H - 40; y += 8) for (let x = 300; x < g.W / 2; x += 8) { const e = Sim.elevAt(g, { x, y }); if (e > top.e) top = { x, y, e }; }
   const L = Math.floor(top.e), me = g.units.find(u => u.squad === 'blue0'), foe = g.units.find(u => u.side === 'red'), T = Sim.TYPES[me.type];
   for (const u of g.units) if (u !== me && u !== foe) u.x = u.side === 'blue' ? 5 : g.W - 5; // out of the way
-  const far = T.sight * (1 + 0.1 * L) - 4;
+  const far = T.sight * (1 + 0.05 * L) - 4;
   const look = (x, y) => { me.x = x; me.y = y; foe.x = x + far; foe.y = y; foe.lastFire = -99; me.cd = 99; foe.cd = 99; Sim.step(g, 1 / 30); return g.vis.blue.has(foe.id); };
   const plain = { x: 150, y: 80 }; // near the base: flat
-  ok(L >= 4 && look(top.x, top.y) && !look(plain.x, plain.y), `from ${L} lines up infantry sees ${Math.round(far)} away (+${L * 10}%); on the plain, not`);
+  ok(L >= 4 && look(top.x, top.y) && !look(plain.x, plain.y), `from ${L} lines up infantry sees ${Math.round(far)} away (+${L * 5}%); on the plain, not`);
   // walk: a jeep squad from the top down the slope, then back up the same way
   const q = g.squads.find(k => k.id === 'blue1'), J = g.units.filter(u => u.squad === q.id).slice(0, 1); // one jeep (no crowding)
   g.units = g.units.filter(u => u.squad !== q.id || u === J[0]);

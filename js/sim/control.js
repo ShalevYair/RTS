@@ -120,4 +120,6 @@ const nodeTargetable = (u, n) => n.side !== u.side && n.hp > 0 && (n.kind === 'd
 // what a structure can see: drones everything under them, the HQ / forward HQs / buildings around themselves
 const nodeSight = n => n.kind === 'decoy' ? 0 : n.kind === 'drone' ? DRONE_SIGHT : n.kind === 'fhq' ? NODES.fhq.sight : n.kind === 'hq' ? STRUCTS.hq.sight : STRUCT_SIGHT;
 // (the dark and the rain: nearer; a held radar: further)
-const nodeSees = (s, side, e) => { const k = skySight(s, side); return s.nodes.some(n => n.side === side && n.hp > 0 && s.t >= n.ready && dist(n, e) <= nodeSight(n) * k); };
+// (a building up a hill sees ELEV_SIGHT further a line: on line 10, half as far again)
+const nodeLvl = (s, n) => n.kind === 'drone' ? 0 : (n.lvl ??= levelAt(s, n));
+const nodeSees = (s, side, e) => { const k = skySight(s, side); return s.nodes.some(n => n.side === side && n.hp > 0 && s.t >= n.ready && dist(n, e) <= nodeSight(n) * (1 + ELEV_SIGHT * nodeLvl(s, n)) * k); };

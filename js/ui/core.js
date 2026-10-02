@@ -44,7 +44,14 @@ try { const m = localStorage.getItem('irts-map'); bigMap = m !== 'small'; hugeMa
 // the map is drawn at most MAX_DPR canvas pixels per screen pixel: on a dense screen (a laptop's 1.5–2×) every
 // full-screen layer — the ground, the fog, the night — cost 2–4× the pixels, and the game crawled (9 fps at 2×);
 // the browser scales it up, a little softer
-const MAX_DPR = 1, DPR = () => Math.min(window.devicePixelRatio || 1, MAX_DPR);
+// lite: the light mode, on by itself when the frames are slow (main.js, liteTick) — 1: no shadows under the units,
+// no idle puffs, dust, tracks or clouds, the units look round for targets half as often; 2: the map drawn at
+// LITE_RES of the pixels too. Better plainer and a little dumber than a game that hardly moves.
+// (everyone — the right click's pick, the ★, "everyone" said: not the bulldozers, which would leave their sites, nor
+// the missile trucks, which fire from far behind)
+const NOT_ALL = ['dozer', 'ssm'], inAll = q => !NOT_ALL.includes(q.type);
+let lite = 0; const LITE_RES = 0.7;
+const MAX_DPR = 1, DPR = () => Math.min(window.devicePixelRatio || 1, MAX_DPR) * (lite >= 2 ? LITE_RES : 1);
 const START_PX = 1 * WORLD_K, ZOOM_PX = 2.5 * WORLD_K;
 // (the tutorial opens closer still, on our forces, TUT_AHEAD toward the enemy)
 const TUT_PX = 1.7 * WORLD_K, TUT_AHEAD = 120;

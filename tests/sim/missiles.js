@@ -40,9 +40,11 @@ ok(S.ssmshop.build === 180 && S.ssmshop.every === 120 && S.ssmshop.size === 1 &&
   // Iron Dome: anti-tank missiles at its side stopped, one a minute per truck; Trophy: three on the tank itself
   const s = fresh(), at = mk(s, 'blue', 'at', 1, 500, 320), tk = mk(s, 'red', 'tank', 1, 560, 320), d = mk(s, 'red', 'dome', 1, 700, 320);
   const T = s.units.find(u => u.squad === tk.id), D = s.units.find(u => u.squad === d.id), A = s.units.find(u => u.squad === at.id); A.cd = 0;
-  for (let i = 0; i < 30 * 1.5 && T.hp === Sim.TYPES.tank.hp; i++) Sim.step(s, 1 / 30);
+  // (the tank held where it is: it would drive over the soldier, and this is about the missiles)
+  const pin = () => { T.x = 560; T.y = 320; Sim.step(s, 1 / 30); };
+  for (let i = 0; i < 30 * 1.5 && T.hp === Sim.TYPES.tank.hp; i++) pin();
   ok(D.reload > 50 && T.hp === Sim.TYPES.tank.hp, 'Iron Dome stopped the first anti-tank missile');
-  step(s, 4); ok(T.hp < Sim.TYPES.tank.hp, 'the next ones got through (one a minute)');
+  for (let i = 0; i < 30 * 4; i++) pin(); ok(T.hp < Sim.TYPES.tank.hp, 'the next ones got through (one a minute)');
   const s2 = fresh(), at2 = mk(s2, 'blue', 'at', 1, 500, 320), tk2 = mk(s2, 'red', 'tank', 1, 580, 320), T2 = s2.units.find(u => u.squad === tk2.id); T2.trophy = Sim.TROPHY_MAX;
   let low = Sim.TROPHY_MAX, hpAt0 = null; for (let i = 0; i < 30 * 9; i++) { T2.cd = 99; Sim.step(s2, 1 / 30); low = Math.min(low, T2.trophy); if (low === 0 && hpAt0 === null) hpAt0 = T2.hp; }
   ok(hpAt0 === Sim.TYPES.tank.hp && T2.hp < Sim.TYPES.tank.hp, `Trophy stopped ${Sim.TROPHY_MAX - low} missiles untouched, then they got through (${Math.round(T2.hp)} hp)`);

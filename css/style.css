@@ -421,6 +421,12 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
    fills up to the next one. In the full game no squad buttons, no order / radio buttons (the keys still work) ---- */
 .hudc{position:absolute;top:10px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:2}
 .hudc .score{position:static}
+/* the key posts each side holds (radar, power, fuel): ours left of the power bar, theirs right of it */
+.hudc{display:flex;align-items:center;gap:8px;direction:ltr}
+.heldp{display:flex;gap:4px;min-width:0}.heldp:empty{display:none}
+.heldp i{font-style:normal;font-size:17px;line-height:1;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;filter:drop-shadow(0 1px 2px rgb(0 0 0 / .6))}
+#heldB i{background:rgb(59 125 216 / .55);box-shadow:0 0 0 2px rgb(59 125 216 / .9)}
+#heldR i{background:rgb(214 69 65 / .55);box-shadow:0 0 0 2px rgb(214 69 65 / .9)}
 #moon{display:none!important}
 #paused{top:30px}
 .hudl{flex-direction:column;align-items:flex-start}
@@ -496,3 +502,8 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 @media (prefers-reduced-motion:reduce){.feedItem{animation-timing-function:steps(1,end)}}
 @media (max-width:560px){.feed{width:calc(100% - 140px)}.feed.underMini{top:calc(80px + 110px / var(--ar,2) + 8px)}.feedItem{font-size:12px}}
 @media (max-width:560px) and (hover:hover){.feed.underMini{top:calc(80px + 360px / var(--ar,2) + 8px)}}
+
+/* the tooltip: a line each where the text has them (a squad: what, health, ammunition, what for) */
+#tipT{white-space:pre-line}
+.micSure{top:42%;max-width:min(560px,92vw);flex-wrap:wrap;justify-content:center;text-align:center}.micSure>span:first-child{font-size:26px}
+.micSure #micYes{background:rgb(70 180 110 / .85)}

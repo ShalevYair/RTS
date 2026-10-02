@@ -1,7 +1,7 @@
 // Sim: one simulation tick, and the public API object
 function step(s, dt) {
   if (s.over || !(dt > 0)) return;
-  s.t += dt;
+  s.t += dt; s.tk = (s.tk || 0) + 1; // (ticks: the units' turns to look round, see SCAN_EVERY)
   if (s.fogAt && !s.fog && s.t >= s.fogAt) s.fog = true; // the tutorial's fog comes down during the level
   // (a fallen single — a squad of one unit — is dropped after a while: there are many of them over a game)
   s.squads = s.squads.filter(q => !(q.single && q.dead && s.t - (q.deadAt ?? s.t) > 30));
@@ -21,14 +21,15 @@ function step(s, dt) {
   for (const u of s.units) if (!TYPES[u.type].air && healSpot(s, u)) u.hp = Math.min(TYPES[u.type].hp, u.hp + BASE_HEAL * dt);
   // refilling ammunition: by a supply truck or one of the side's buildings
   if (s.supply) {
-    const trucks = s.units.filter(u => u.type === 'truck' && !u.care);
-    for (const u of s.units) if (SUPPLY[u.type] && u.sup < 1 && (trucks.some(m => m.side === u.side && dist(m, u) <= SUPPLY_R) || healSpot(s, u) || postNear(s, u, 'supply'))) u.sup = Math.min(1, u.sup + SUPPLY_FILL * dt);
+    // (the trucks near it only, from the tick's grid: all of them for every unit was slow in a big battle)
+    const truck = u => around(s, u.x, u.y, SUPPLY_R).some(m => m.type === 'truck' && !m.care && m.hp > 0 && m.side === u.side && dist(m, u) <= SUPPLY_R);
+    for (const u of s.units) if (SUPPLY[u.type] && u.sup < 1 && (truck(u) || healSpot(s, u) || postNear(s, u, 'supply'))) u.sup = Math.min(1, u.sup + SUPPLY_FILL * dt);
   }
   // medics and mechanics treat their kinds close to them
-  const carers = s.units.filter(u => TYPES[u.type].care && !u.care);
-  if (carers.length) for (const u of s.units) {
+  // (those near it only, from the tick's grid)
+  if (s.units.some(u => TYPES[u.type].care && !u.care)) for (const u of s.units) {
     const kind = CARER[u.type], max = TYPES[u.type].hp;
-    if (kind && u.hp < max && carers.some(m => m !== u && m.type === kind && m.side === u.side && dist(m, u) <= CARE_R)) u.hp = Math.min(max, u.hp + CARE_HEAL * dt);
+    if (kind && u.hp < max && around(s, u.x, u.y, CARE_R).some(m => m !== u && m.type === kind && !m.care && m.hp > 0 && m.side === u.side && dist(m, u) <= CARE_R)) u.hp = Math.min(max, u.hp + CARE_HEAL * dt);
   }
   // held posts: a hospital heals soldiers, a garage vehicles, round them
   if (s.posts) for (const u of s.units) {
@@ -61,4 +62,4 @@ function step(s, dt) {
   if (!s.over && s.hqDown) s.over = s.hqDown === 'blue' ? 'red' : 'blue';
 }
 
-const Sim = { extras, setRoads, onRoad, weatherAt, fogAt, envSight, envRange, envHit, skySight, ambushed, POSTS, POST_R, TOWER_SIGHT, POST_SIGHT, RADAR_K, POWER_K, FUEL_K, BUNKER_K, CAPTURERS, ROAD_FAST, NIGHT_SIGHT, NIGHT_RANGE, NIGHT_MISS, WX_K, setFront, setCover, inCover, sendCare, BUILD_UNITS, PLANT_T, STEALTH_EYE, launch, upgrade, knownFoeNode, SSM_SETUP, SSM_FLIGHT, SSM_RELOAD, TROPHY_MAX, TROPHY_BUILD, ARROW_R_K, DOME_R_K, board, unload, RIDERS, demolish, NIGHT_LEVELS, NIGHT_STEP, NIGHT_FADE, rally, pack, PACK_AT, clearAt, fhqCheck, FHQ_AFTER_HQ, fhqBuilders, assignSite, jobOf, isSite, dozers, SUPPORT_EVERY, SUPPORT_CAP, DOZER_R, fhqMax, openField, planHq, hqCheck, hqBand, cmdSquad, HQ_BAND, HQ_WARM, _garbled: garbled, _supplyUse: supplyUse, BUILDABLE, DECOY_MAX, silence, nightAt, rankOf, RANK_XP, SILENT_SPEED, SUPPLY, AI_STYLES, planFhq, _makeSquad: makeSquad, _fillSquad: fillSquad, formation, fhqCount, friction, dronesUp, DRONE_SIGHT, CARER, nodeSpec, create, lakeAt, wobble, inHill, elevAt, levelAt, hillHeight, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
+const Sim = { BUNKER_R, extras, setRoads, onRoad, weatherAt, fogAt, envSight, envRange, envHit, skySight, ambushed, POSTS, POST_R, TOWER_SIGHT, POST_SIGHT, RADAR_K, POWER_K, FUEL_K, BUNKER_K, CAPTURERS, ROAD_FAST, NIGHT_SIGHT, NIGHT_RANGE, NIGHT_MISS, WX_K, setFront, setCover, inCover, sendCare, BUILD_UNITS, PLANT_T, STEALTH_EYE, launch, upgrade, knownFoeNode, SSM_SETUP, SSM_FLIGHT, SSM_RELOAD, TROPHY_MAX, TROPHY_BUILD, ARROW_R_K, DOME_R_K, board, unload, RIDERS, demolish, NIGHT_LEVELS, NIGHT_STEP, NIGHT_FADE, rally, pack, PACK_AT, clearAt, fhqCheck, FHQ_AFTER_HQ, fhqBuilders, assignSite, jobOf, isSite, dozers, SUPPORT_EVERY, SUPPORT_CAP, DOZER_R, fhqMax, openField, planHq, hqCheck, hqBand, cmdSquad, HQ_BAND, HQ_WARM, _garbled: garbled, _supplyUse: supplyUse, BUILDABLE, DECOY_MAX, silence, nightAt, rankOf, RANK_XP, SILENT_SPEED, SUPPLY, AI_STYLES, planFhq, _makeSquad: makeSquad, _fillSquad: fillSquad, formation, fhqCount, friction, dronesUp, DRONE_SIGHT, CARER, nodeSpec, create, lakeAt, wobble, inHill, elevAt, levelAt, hillHeight, level, LEVELS: LEVELS.length, LEVEL_UI, levelUi: n => (LEVELS[n - 1] || { ui: LEVEL_UI }).ui, step, order, answer, orderDelay, quality, idLevel, understood, friendlyFire, drone, buildFhq, canBuildFhq, build, buildCheck, buildLimit, buildCount, share, boost, think, homeOf, UNIT_VALUE, NODES, STRUCTS, PRODUCERS, TEMPERS, setTrait, seen, note, MARK_LIFE, effOrder, TYPES, TRAITS, MULT, ORDER_NAME, H, DIFFS };
