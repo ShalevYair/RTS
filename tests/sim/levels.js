@@ -48,9 +48,9 @@ for (let n = 1; n <= N; n++) {
   let won = 0, T = 0; const G = n <= 3 ? 3 : 2;
   for (let i = 0; i < G; i++) {
     const s = Sim.level(n, 50 + i, [900, 1200, 1400][i]); s.bots = [...s.bots, 'blue']; s.botDiff = 'normal';
-    while (!s.over && s.t < 900) Sim.step(s, 1 / 30);
+    while (!s.over && s.t < 1800) Sim.step(s, 1 / 30);
     if (s.over === 'blue') won++; T += s.t;
   }
   // the tutorial is meant to be won: blue wins every level, and each is over in a few minutes
-  ok(won === G && T / G < (n < N - 1 ? 300 : 480), `level ${n}: a normal bot as blue won ${won}/${G} (average ${Math.round(T / G)} s)`);
+  ok(won === G && T / G < (n < N - 1 ? 600 : 960), `level ${n}: a normal bot as blue won ${won}/${G} (average ${Math.round(T / G)} s)`);
 }

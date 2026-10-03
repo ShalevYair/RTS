@@ -73,6 +73,33 @@ const VOICES = {
   ],
   "place_hq": [
    "Speak/English/place_hq/A_1.mp3"
+  ],
+  "hq_ready": [
+   "Speak/English/hq_ready/A_1.mp3"
+  ],
+  "took_radar": [
+   "Speak/English/took_radar/A_1.mp3"
+  ],
+  "took_power": [
+   "Speak/English/took_power/A_1.mp3"
+  ],
+  "took_fuel": [
+   "Speak/English/took_fuel/A_1.mp3"
+  ],
+  "took_post": [
+   "Speak/English/took_post/A_1.mp3"
+  ],
+  "lost_post": [
+   "Speak/English/lost_post/A_1.mp3"
+  ],
+  "can_build": [
+   "Speak/English/can_build/A_1.mp3"
+  ],
+  "missile_incoming": [
+   "Speak/English/missile_incoming/A_1.mp3"
+  ],
+  "intercepted": [
+   "Speak/English/intercepted/A_1.mp3"
   ]
  },
  "Hebrew": {
@@ -147,6 +174,33 @@ const VOICES = {
   ],
   "place_hq": [
    "Speak/Hebrew/place_hq/A_1.mp3"
+  ],
+  "hq_ready": [
+   "Speak/Hebrew/hq_ready/A_1.mp3"
+  ],
+  "took_radar": [
+   "Speak/Hebrew/took_radar/A_1.mp3"
+  ],
+  "took_power": [
+   "Speak/Hebrew/took_power/A_1.mp3"
+  ],
+  "took_fuel": [
+   "Speak/Hebrew/took_fuel/A_1.mp3"
+  ],
+  "took_post": [
+   "Speak/Hebrew/took_post/A_1.mp3"
+  ],
+  "lost_post": [
+   "Speak/Hebrew/lost_post/A_1.mp3"
+  ],
+  "can_build": [
+   "Speak/Hebrew/can_build/A_1.mp3"
+  ],
+  "missile_incoming": [
+   "Speak/Hebrew/missile_incoming/A_1.mp3"
+  ],
+  "intercepted": [
+   "Speak/Hebrew/intercepted/A_1.mp3"
   ]
  }
 };

@@ -27,7 +27,7 @@ ok(Sim.STRUCTS.commandopost.build === 180 && Sim.STRUCTS.commandopost.every === 
   const s = fresh(), tent = s.nodes.find(n => n.side === 'red' && n.kind === 'tent'), hq = s.nodes.find(n => n.side === 'red' && n.kind === 'hq');
   const c = mk(s, 'blue', 'commando', 1, tent.x - Sim.STRUCTS.tent.r - 8, tent.y); Sim.order(s, c.id, 'hold', tent.x - Sim.STRUCTS.tent.r - 8, tent.y, true); s.outbox = [];
   step(s, Sim.PLANT_T - 2); ok(s.nodes.includes(tent), 'not yet');
-  step(s, 3); ok(!s.nodes.includes(tent), `the tent blown up after ${Sim.PLANT_T} s by it`);
+  step(s, 4); ok(!s.nodes.includes(tent), `the tent blown up after ${Sim.PLANT_T} s by it`);
   const R = Sim.STRUCTS.hq.r + 8, four = [0, 1, 2, 3].map(i => { const a = Math.PI + (i - 1.5) * 0.35; return mk(s, 'blue', 'commando', 1, hq.x + Math.cos(a) * R, hq.y + Math.sin(a) * R); });
   for (const q of four) { const u = s.units.find(m => m.squad === q.id); Sim.order(s, q.id, 'hold', u.x, u.y, true); } s.outbox = [];
   step(s, Sim.PLANT_T + 3); ok(!s.nodes.includes(hq) || hq.hp <= 0 || s.hqDown === 'red', 'four together bring the HQ down');

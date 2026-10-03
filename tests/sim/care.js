@@ -16,14 +16,14 @@ function quiet(seed) {
   s.noReinforce = false; step(s, 30); s.noReinforce = true;
   const medSq = s.squads.find(q => q.type === 'med' && q.side === 'blue');
   ok(!!medSq && s.units.some(u => u.squad === medSq.id), `a clinic raises a medic squad (${s.units.filter(u => medSq && u.squad === medSq.id).length})`);
-  Sim.order(s, medSq.id, 'hold', 600, 450); step(s, 15);
+  Sim.order(s, medSq.id, 'hold', 600, 450); step(s, 30);
   const med = s.units.find(u => u.squad === medSq.id);
   // an infantryman near the medics' spot, badly hurt, an enemy in range
   const inf = s.units.find(u => u.side === 'blue' && u.type === 'inf'), foe = s.units.find(u => u.side === 'red' && u.type === 'inf');
   inf.x = 700; inf.y = 450; inf.hp = 15; foe.x = 740; foe.y = 450; foe.cd = 1e9;
   const sq = s.squads.find(q => q.id === inf.squad); sq.order = { type: 'hold', x: 700, y: 450, r: 60 };
   let fired = false, near = false, cared = false;
-  for (let i = 0; i < 30 * 8; i++) { const t0 = inf.lastFire; Sim.step(s, 1 / 30); if (inf.lastFire !== t0) fired = true; if (Math.hypot(inf.x - med.x, inf.y - med.y) < 32) near = true; if (i === 15) cared = inf.care; }
+  for (let i = 0; i < 30 * 16; i++) { const t0 = inf.lastFire; Sim.step(s, 1 / 30); if (inf.lastFire !== t0) fired = true; if (Math.hypot(inf.x - med.x, inf.y - med.y) < 32) near = true; if (i === 15) cared = inf.care; }
   ok(cared && !fired, 'badly hurt: it stops shooting and goes for treatment');
   ok(near, 'it goes to the nearest medic, not home (' + Math.round(Math.hypot(inf.x - hq.x, inf.y - hq.y)) + ' from the HQ)');
   step(s, 12);

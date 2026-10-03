@@ -59,11 +59,15 @@ const TYPES = {
   commando: { name: 'קומנדו', hp: 70, speed: 30, range: 70, dmg: 70, cd: 3, sight: 200, r: 3, rein: 8, cost: 2, stealth: true },
   radio: { name: 'משאיות קשר', hp: 90, speed: 42, range: 0, dmg: 0, cd: 1, sight: 510, r: 8, rein: 8, cost: 1, care: true, support: true },
 };
+// everything moves at SPEED_K of the speeds above (half: the player's call — slower, more a commander's game, fewer
+// bumps a second)
+const SPEED_K = 0.5;
+for (const T of Object.values(TYPES)) T.speed *= SPEED_K;
 // logistics: ground fighters carry SUPPLY shots, one used per shot. Low (below SUPPLY_LOW of a load) a unit goes on
 // its own to the nearest supply truck, or home, holding its fire until refilled to SUPPLY_DONE. Within SUPPLY_R of a
 // truck, or by one of its side's buildings (a forward HQ too), it refills SUPPLY_FILL of a load per second.
 // Only where s.supply is on (the full game, and the tutorial from its care level).
-const SUPPLY = { commando: 40, inf: 150, jeep: 150, tank: 60, aa: 60, at: 40, ajeep: 60, tjeep: 40 }, SUPPLY_LOW = 0.1, SUPPLY_DONE = 0.9, SUPPLY_FILL = 0.12, SUPPLY_R = 40;
+const SUPPLY = { commando: 40, inf: 150, jeep: 150, tank: 60, aa: 60, at: 8, ajeep: 60, tjeep: 16 }, SUPPLY_LOW = 0.1, SUPPLY_DONE = 0.9, SUPPLY_FILL = 0.12, SUPPLY_R = 40;
 // care: a unit below CARE_AT of its health leaves the fight on its own and goes to the nearest unit that treats its
 // kind (CARER), or home if there is none; it doesn't shoot until back at CARE_DONE. Within CARE_R of a medic /
 // mechanic it heals CARE_HEAL per second.
@@ -166,12 +170,14 @@ const SKIRT_AHEAD = 30, SKIRT_STEP = 30;
 // (STEER_*: a ground unit about to run into another turns aside — both moving: each 90° to its right, so two meeting
 // head-on pass each other; the other standing: 45°, to the side away from it. One that hasn't got anywhere for
 // STUCK_T s, though it means to move, takes a detour to its right for DETOUR_T s.)
-const STEER_LOOK = 14, STUCK_T = 1.5, DETOUR_T = 1.2;
+// (the times of these side-steps are by distance at the speed they were tuned at: / SPEED_K, so a half-speed unit
+// steps as far aside as before — at half the distance, one jeep stayed wedged between two tanks for good)
+const STEER_LOOK = 14, STUCK_T = 1.5, DETOUR_T = 1.2 / SPEED_K;
 // (one standing in the way: off at DODGE_A (75°) to the side away from it for DODGE_T–DODGE_T + DODGE_JIT s — sooner
 // back for its spot if the way is clear, but not before DODGE_MIN s; again within DODGE_AGAIN s: the same side)
 // (YIELD_T: how long one standing in the way steps aside for one coming through)
-const YIELD_T = 1.5;
-const DODGE_A = 75 * Math.PI / 180, DODGE_T = 3, DODGE_JIT = 2, DODGE_MIN = 0.8, DODGE_AGAIN = 2;
+const YIELD_T = 1.5 / SPEED_K;
+const DODGE_A = 75 * Math.PI / 180, DODGE_T = 3 / SPEED_K, DODGE_JIT = 2 / SPEED_K, DODGE_MIN = 0.8 / SPEED_K, DODGE_AGAIN = 2 / SPEED_K;
 // (and one that can't get to its spot — others stand there — gives up: no nearer to it for GIVEUP_T s within
 // GIVEUP_R of it, it stands where it is GIVEUP_REST s (and up to GIVEUP_JIT more), then tries again; before, they shoved
 // one another without end)
@@ -234,14 +240,15 @@ const FF_CHANCE = 0.08, FF_R = 60, FF_NOTE = 8, FF_MASS_Q = 0.5;
 // damage to structures by attacker type (AA is the only thing that can hit a drone)
 const NODE_MULT = { commando: 0.3, ssm: 0, arrow: 0, dome: 0, lift: 0, heli: 1.2, gunship: 0.6, inf: 0.6, tank: 1.5, air: 1.2, aa: 1.5, jeep: 0.8, at: 1.5, ajeep: 0.8, tjeep: 1.3 };
 // formations: a squad stands in a line across the way to the enemy (the nearest one seen within FACE_R, else the enemy
-// HQ), its units LINE_GAP + 2r apart; it turns toward a new threat at FACE_TURN rad/s. Ordering all squads at once
+// HQ), its units LINE_GAP + 2r apart; it turns toward a new threat at FACE_TURN rad/s. The player's don't turn: they
+// face the arrow's way, or the way they went (past FACE_GO; a short move — toward the enemy HQ). Ordering all squads at once
 // lines them up in rows, front to back (FORM_ROW): tanks, jeeps, infantry, AA, medics and mechanics; aircraft over the
 // middle. Rows are ROW_GAP apart, squads in a row SIDE_GAP apart.
 // (the signals truck and the bulldozer at the very back; bulldozers aren't ordered with everyone, though)
 // A squad of more than PACK_AT units of a kind (or such squads ordered together) stands in a block instead of a line
 // (sq.pack: 'line' / 'block' set by the player, else by that count). Vehicles VEH_GAP apart, soldiers LINE_GAP.
 const PACK_AT = 10, VEH_GAP = 18;
-const FACE_R = 320, FACE_TURN = 0.8, LINE_GAP = 20, ROW_GAP = 70, SIDE_GAP = 40;
+const FACE_R = 320, FACE_TURN = 0.8, FACE_GO = 60, LINE_GAP = 20, ROW_GAP = 70, SIDE_GAP = 40;
 // (attacking: the units that don't fight stand SUPPORT_BACK further back still)
 const SUPPORT_BACK = 50;
 // (together, far off: marching there in the formation — see formation; deep: the player's arrow, rows DEEP_MIN–DEEP_MAX apart)
@@ -296,8 +303,9 @@ const NIGHT_LEVELS = [0, 0.25, 0.5, 0.75, 1, 0.75, 0.5, 0.25], NIGHT_STEP = 60, 
 // is), eased in and out over WX_FADE s; it all adds up with the night. Per day (8 minutes): rain with chance WX_RAIN_P,
 // WX_RAIN_T s long; morning fog with chance WX_FOG_P, from the first light for WX_FOG_T s
 const WX_K = 0.2, WX_FADE = 20, WX_RAIN_P = 0.45, WX_RAIN_T = [90, 180], WX_FOG_P = 0.6, WX_FOG_T = 150;
-// fast roads (s.extras): a vehicle on a road goes ROAD_FAST faster (the roads come from the UI's map, Sim.setRoads)
-const ROAD_FAST = 1.3, ROAD_CELL = 64;
+// roads (s.extras): a vehicle on a road goes ROAD_FAST faster (the roads come from the UI's map, Sim.setRoads) — 1 now:
+// the dirt roads drawn on the map are no faster (the player's call)
+const ROAD_FAST = 1, ROAD_CELL = 64;
 // ambush (s.extras): a unit standing still in the trees (AMBUSH_STILL s without moving, AMBUSH_QUIET s without firing)
 // is seen only from AMBUSH_NEAR, or by a drone / signals truck
 const AMBUSH_STILL = 3, AMBUSH_QUIET = 5, AMBUSH_NEAR = 50;

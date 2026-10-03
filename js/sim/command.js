@@ -90,6 +90,11 @@ function formation(s, ids, type, x, y, quiet, fa, deep) {
   if (us.length) {
     const sx = us.reduce((a, u) => a + u.x, 0) / us.length, sy = us.reduce((a, u) => a + u.y, 0) / us.length;
     if (Math.hypot(x - sx, y - sy) > MARCH_MIN) march = { sx, sy, v: Math.min(...us.map(u => TYPES[u.type].speed)) * MARCH_PACE, t0: s.t + MARCH_WAIT };
+    // (the player's: no arrow — the front faces the way they go, and stays so; far from where they are, else the enemy HQ)
+    if (!Number.isFinite(fa) && qs.length && singles(s, qs[0].side)) {
+      const e = hqOf(s, qs[0].side === 'blue' ? 'red' : 'blue') || s.bases[qs[0].side === 'blue' ? 'red' : 'blue'];
+      fa = Math.hypot(x - sx, y - sy) > FACE_GO ? Math.atan2(y - sy, x - sx) : Math.atan2(e.y - y, e.x - x);
+    }
   }
   let ok = false;
   for (const [k, list] of rows) {
@@ -136,7 +141,10 @@ function faceFoe(s, side, p) {
   for (const e of around(s, c.x, c.y, FACE_R)) if (e.side !== side && Math.abs(e.x - c.x) < FACE_R && Math.abs(e.y - c.y) < FACE_R && seen(s, side, e)) { const d = dist(e, c); if (d < bd) { bd = d; best = e; } }
   C.m.set(key, best); return best;
 }
+// (the player's units with a way set — an arrow, or the way they went: they hold it, they don't turn to each enemy;
+// turning, the whole line drove about all the time)
 function faceAt(s, side, p, fa) {
+  if (Number.isFinite(fa) && singles(s, side)) return fa;
   const best = faceFoe(s, side, p);
   if (!best && Number.isFinite(fa)) return fa;
   const t = best || hqOf(s, side === 'blue' ? 'red' : 'blue') || s.bases[side === 'blue' ? 'red' : 'blue'];

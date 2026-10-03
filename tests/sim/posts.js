@@ -92,12 +92,12 @@ const soldier = (s, side, type, x, y) => { const q = Sim._makeSquad(s, side, typ
   ok(rain > 10 && fog > 10, `the weather comes and goes (${rain} rains, ${fog} morning fogs in the plan)`);
 }
 {
-  // fast roads: a jeep on a road outruns one off it
+  // the dirt roads aren't faster any more (ROAD_FAST 1: the dozer's roads will be)
   const s = quiet(10), j = s.units.find(u => u.side === 'blue' && u.type === 'jeep'), q = s.squads.find(k => k.id === j.squad);
   s.squads = s.squads.filter(k => k === q); s.units = [j]; s.lakes = []; s.hills = []; s.elev = null; s.posts = [];
   const run = road => { j.x = 300; j.y = 300; Sim.setRoads(s, road ? [[{ x: 0, y: 300, w: 5 }, { x: 2000, y: 300, w: 5 }]] : []); Sim.order(s, q.id, 'hold', 1500, 300, true); step(s, 4); return j.x - 300; };
   const off = run(false), on = run(true);
-  ok(on / off > 1.25, `a jeep on the road goes ${(on / off).toFixed(2)}× as far`);
+  ok(Math.abs(on / off - 1) < 0.02, `a jeep on a dirt road goes ${(on / off).toFixed(2)}× as far (no faster)`);
 }
 {
   // ambush: a soldier standing still under a tree, not firing, is seen only up close

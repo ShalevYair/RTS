@@ -12,7 +12,7 @@ const many = mk('inf', 4, 360, 240);
 ok(Sim.TYPES.lift.air && Sim.TYPES.lift.hover && !Sim.TYPES.lift.dmg && Sim.TYPES.lift.cap === 10, 'a transport helicopter: flies, hovers, has no gun, carries 10');
 ok(!Sim.board(s, [tk.id], L.id), 'a tank can\'t get on');
 ok(Sim.board(s, [inf.id, at.id], L.id), 'soldiers and anti-tank soldiers sent to it');
-step(s, 6);
+step(s, 12);
 const lu = s.units.find(u => u.squad === L.id);
 ok(lu.cargo.length === 9 && !s.units.some(u => u.squad === inf.id || u.squad === at.id), `all nine on board`);
 Sim.board(s, [many.id], L.id); step(s, 6);

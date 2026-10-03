@@ -33,7 +33,7 @@ const step = (s, sec) => { for (let i = 0; i < 30 * sec; i++) Sim.step(s, 1 / 30
   const s = Sim.create(6, 1400, 'normal', Sim.H, { singles: true }); s.bots = []; s.fog = false;
   const mk = (t, n, x, y) => Array.from({ length: n }, (_, i) => { const q = Sim._makeSquad(s, 'blue', t, null, x, y + i * 12); q.size = 1; q.single = true; Sim._fillSquad(s, q, x, y + i * 12); return q.id; });
   const inf = mk('inf', 20, 300, 100), tk = mk('tank', 5, 300, 400);
-  Sim.formation(s, [...inf, ...tk], 'hold', 700, 320, true);
+  Sim.formation(s, [...inf, ...tk], 'hold', 700, 320, true, 0); // (facing east: the player's front faces the way it's given)
   const at = ids => ids.map(id => { const o = s.squads.find(q => q.id === id).order; return { x: o.x, y: o.y }; });
   const ext = l => ({ w: Math.max(...l.map(p => p.y)) - Math.min(...l.map(p => p.y)), d: Math.max(...l.map(p => p.x)) - Math.min(...l.map(p => p.x)) });
   const a = ext(at(inf)), b = ext(at(tk)), sp = Sim.TYPES.tank.r * 2 + 18;
@@ -42,5 +42,21 @@ const step = (s, sec) => { for (let i = 0; i < 30 * sec; i++) Sim.step(s, 1 / 30
   ok(Math.abs(span - 4 * sp) < 2, `5 tanks: a line ${Math.round(span)} long (4 gaps of ${sp})`);
   const to = Sim.pack(s, inf); const c = ext(at(inf));
   ok(to === 'line' && c.d < 1, 'P: the soldiers in a line instead');
+}
+{
+  // the player's line faces the way it went and holds it: an enemy showing up beside it doesn't swing it round
+  const s = Sim.create(7, 1400, 'normal', Sim.H, { singles: true }); s.bots = []; s.fog = false; s.night = false;
+  s.units = []; s.squads = [];
+  const tk = Array.from({ length: 5 }, (_, i) => { const q = Sim._makeSquad(s, 'blue', 'tank', null, 300, 200 + i * 40); q.size = 1; q.single = true; Sim._fillSquad(s, q, 300, 200 + i * 40); return q; });
+  Sim.formation(s, tk.map(q => q.id), 'hold', 700, 280, true);
+  for (let i = 0; i < 30 * 60; i++) Sim.step(s, 1 / 30); // (there: the march over)
+  const spots = () => tk.map(q => ({ x: q.order.x, y: q.order.y }));
+  const ys = spots().map(p => p.y), xs = spots().map(p => p.x);
+  ok(Math.max(...xs) - Math.min(...xs) < 8 && Math.max(...ys) - Math.min(...ys) > 100, 'sent east: the line stands across the way, north to south');
+  const e = Sim._makeSquad(s, 'red', 'inf', null, 700, 120); e.size = 3; Sim._fillSquad(s, e, 700, 120);
+  for (const u of s.units) if (u.side === 'red') u.cd = 1e9;
+  const a0 = spots(); for (let i = 0; i < 30 * 10; i++) Sim.step(s, 1 / 30);
+  const moved = Math.max(...spots().map((p, i) => Math.hypot(p.x - a0[i].x, p.y - a0[i].y)));
+  ok(moved < 1, `an enemy close by to the north: the line doesn't turn to it (spots moved ${moved.toFixed(1)})`);
 }
 if (bad) process.exitCode = 1;
