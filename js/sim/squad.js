@@ -262,8 +262,15 @@ function moveTo(s, u, tx, ty, fast, dt, keep) {
   if (!T.air) { const L = 6, e0 = elevAt(s, u), e1 = elevAt(s, { x: u.x + vx / d * L, y: u.y + vy / d * L }); slope = 1 - clamp((e1 - e0) / L * SLOPE_K, -SLOPE_MAX, SLOPE_MAX); }
   // (hurt: slower; a vehicle on a road, or of the side holding the fuel station: faster)
   const veh = s.extras && isVehicle(u.type), sp = T.speed * hurtK(u) * (veh ? postK(s, u.side, 'fuel', FUEL_K) * (onRoad(s, u) ? ROAD_FAST : 1) : 1);
-  const k = keep ? sp * fast * dt / Math.max(d, 1e-6) : Math.min(1, sp * slope * fast * dt / d); // (keep: at full speed, even past the point)
-  u.x += vx * k; u.y += vy * k; u.hd = Math.atan2(vy, vx); u.movedAt = s.t; // (moving: not lying in ambush)
+  // (the ground: woods, mud, cliffs — terrain.js; slower, or not at all: then along it, a step on one axis, if that's open)
+  const cls = !T.air && s.ground ? moveClass(u.type) : null, gk = cls ? groundSpeed(s, u, cls, vx, vy, d) : 1;
+  u.gk = gk;
+  const k = keep ? sp * fast * dt / Math.max(d, 1e-6) : Math.min(1, sp * slope * fast * gk * dt / d); // (keep: at full speed, even past the point)
+  let nx = u.x + vx * k, ny = u.y + vy * k;
+  if (cls && !groundOk(s, cls, nx, ny) && groundOk(s, cls, u.x, u.y)) {
+    if (groundOk(s, cls, nx, u.y)) ny = u.y; else if (groundOk(s, cls, u.x, ny)) nx = u.x; else { nx = u.x; ny = u.y; }
+  }
+  u.x = nx; u.y = ny; u.hd = Math.atan2(vy, vx); u.movedAt = s.t; // (moving: not lying in ambush)
   if (!T.air && !u.hush && d * k >= DUST_FAST * T.speed * dt) u.dustAt = s.t; // (driving fast: dust the enemy can see from afar)
 }
 // the trees (each { x, y, r }; one run over or cleared by a building has .gone), in a grid of COVER_CELL
@@ -274,7 +281,9 @@ function setCover(s, trees) {
 }
 // a soldier or jeep under a tree's crown
 function inCover(s, u) {
-  if (!s.cover || !COVER.includes(u.type)) return false;
+  if (!COVER.includes(u.type)) return false;
+  if (groundAt(s, u.x, u.y) === GR_WOOD) return true; // (in a dense wood: cover too)
+  if (!s.cover) return false;
   const i0 = Math.floor(u.x / COVER_CELL), j0 = Math.floor(u.y / COVER_CELL);
   for (let i = i0 - 1; i <= i0 + 1; i++) for (let j = j0 - 1; j <= j0 + 1; j++) {
     const l = s.cover.get(i + ',' + j); if (l) for (const t of l) if (!t.gone && (t.x - u.x) ** 2 + (t.y - u.y) ** 2 < t.r * t.r) return true;
@@ -307,7 +316,7 @@ function steer(s, u, tx, ty, dt) {
   if (d < 8) { u.stuck = 0; return { x: tx, y: ty }; }
   u.moving = s.t; // (it means to move this tick)
   if (u.yield && u.yield.until > s.t) return { x: tx, y: ty }; // (stepping aside for one: straight there)
-  u.stuck = at < TYPES[u.type].speed * dt * 0.15 ? (u.stuck || 0) + dt : 0;
+  u.stuck = at < TYPES[u.type].speed * (u.gk ?? 1) * dt * 0.15 ? (u.stuck || 0) + dt : 0; // (gk: slow ground — mud, a wood — isn't stuck)
   if (u.stuck > STUCK_T) { u.detour = s.t + DETOUR_T; u.stuck = 0; }
   const ux = vx / d, uy = vy / d, step = Math.min(d, 30);
   if (u.detour > s.t) { const r = rot(ux, uy, Math.PI / 2); return { x: u.x + r.x * step, y: u.y + r.y * step }; }

@@ -4,6 +4,9 @@
 // point by point; the straight way clear, it goes straight, as before. Units bumping into units are still steer's.
 // The grid is made again when the buildings change (lakes once a map); a path made on an older grid is dropped.
 // At most PATH_BUDGET grid squares are searched a tick, all units together: the rest go straight and try next tick.
+// With ground (terrain.js), each way of moving (moveClass) has its own view of the grid (classGrid): where it can't go
+// at all is blocked like a building, and slow ground costs more (cost, in quarters: 4 = open) — a tank goes round a
+// wood when that's quicker than through it.
 
 // the grid: lakes once (s.lakes is the same list), the buildings and posts stamped on a copy when they change
 function pathGrid(s) {
@@ -44,6 +47,20 @@ function coreLakes(s, w, h, C) {
   }
   return k;
 }
+// one way of moving's view of the grid: b (blocked: the padded lakes and buildings, and ground it can't go on), core
+// (never crossed: the lakes and buildings themselves, and that ground), cost (4 = open, more = slower ground; null =
+// all open). Made once per grid; a wood cut down is put in at once (cutWood)
+function classGrid(s, G, cls) {
+  if (!s.ground) return G;
+  if (!G.cls) G.cls = {};
+  if (G.cls[cls]) return G.cls[cls];
+  const N = G.w * G.h, b = G.b.slice(), core = G.core.slice(), cost = new Uint8Array(N).fill(4), K = s.ground.k;
+  for (let c = 0; c < N; c++) if (K[c]) {
+    const k = groundK(cls, K[c]);
+    if (k <= 0) { b[c] = 1; core[c] = 1; } else cost[c] = Math.min(255, Math.round(4 / k));
+  }
+  return (G.cls[cls] = { w: G.w, h: G.h, C: G.C, b, core, cost });
+}
 const pathBlocks = n => n.kind !== 'drone' && n.hp > 0 && !!STRUCTS[n.kind];
 // what the grid was made from: the buildings (where, how big) and the posts
 function pathSig(s) {
@@ -56,11 +73,14 @@ const pathCell = (G, x, y) => clamp(Math.floor(y / G.C), 0, G.h - 1) * G.w + cla
 // (up to PATH_LEAD of it) and at its end (a goal by or in one — a building attacked, up to PATH_END of it) doesn't count; a blocked stretch
 // with clear ground beyond it does, a long one up to the goal (a lake between, the goal on its far shore), and the
 // building or lake itself (core) anywhere but in that last stretch.
+// (slow ground: the way is only clear over ground no slower than at its two ends)
 function pathClear(G, ax, ay, bx, by) {
   const C = G.C, d = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.ceil(d / (C * 0.5)));
   let free = false, wall = 0, hard = false;
+  const cost = G.cost, ce = cost ? Math.max(cost[pathCell(G, ax, ay)], cost[pathCell(G, bx, by)]) : 0;
   for (let k = 0; k <= n; k++) {
     const c = pathCell(G, ax + (bx - ax) * k / n, ay + (by - ay) * k / n);
+    if (cost && !G.b[c] && cost[c] > ce) return false;
     if (G.b[c]) { wall++; if (G.core[c]) hard = true; if (!free && wall * d / n > PATH_LEAD) return false; } // (the ring it stands in: only so deep — not on through a row of buildings)
     else { if (wall && (free || hard)) return false; free = true; wall = 0; hard = false; }
   }
@@ -120,7 +140,7 @@ function pathFind(s, G, ax, ay, bx, by) {
       const nk = nj * w + ni;
       if (G.b[nk] || shut[nk] === id) continue;
       if (di && dj && (G.b[j * w + ni] || G.b[nj * w + i])) continue; // (no cutting a corner)
-      const ng = g[k] + (di && dj ? 1.4142 : 1);
+      const ng = g[k] + (di && dj ? 1.4142 : 1) * (G.cost ? G.cost[nk] / 4 : 1);
       if (seen[nk] === id && ng >= g[nk]) continue;
       seen[nk] = id; g[nk] = ng; from[nk] = k; push(ng + hOf(nk), nk);
     }
@@ -143,22 +163,22 @@ function pathFind(s, G, ax, ay, bx, by) {
 function pathStep(s, u, tx, ty) {
   if (s.noPath || !s.W) return { x: tx, y: ty };
   if (s.pathTk !== s.t) { s.pathTk = s.t; s.pathUsed = 0; }
-  const G = pathGrid(s);
+  const G = classGrid(s, pathGrid(s), moveClass(u.type)), V = s.pathG.v;
   let P = u.path;
   // (a path for somewhere else, or made on an older grid: dropped)
-  if (P && (P.v !== G.v || Math.hypot(P.tx - tx, P.ty - ty) > PATH_RETARGET)) P = u.path = null;
+  if (P && (P.v !== V || Math.hypot(P.tx - tx, P.ty - ty) > PATH_RETARGET)) P = u.path = null;
   if (!P) {
     // (the straight way: looked at again every PATH_LOOK s, or when the goal moves)
     const L = u.pathLook;
-    if (L && L.t > s.t && L.v === G.v && Math.hypot(L.tx - tx, L.ty - ty) < PATH_RETARGET * 0.5) return { x: tx, y: ty };
-    if (pathClear(G, u.x, u.y, tx, ty)) { u.pathLook = { t: s.t + PATH_LOOK, v: G.v, tx, ty }; return { x: tx, y: ty }; }
+    if (L && L.t > s.t && L.v === V && Math.hypot(L.tx - tx, L.ty - ty) < PATH_RETARGET * 0.5) return { x: tx, y: ty };
+    if (pathClear(G, u.x, u.y, tx, ty)) { u.pathLook = { t: s.t + PATH_LOOK, v: V, tx, ty }; return { x: tx, y: ty }; }
     if (s.pathUsed > PATH_BUDGET) return { x: tx, y: ty }; // (enough searched this tick: next tick)
     const pts = pathFind(s, G, u.x, u.y, tx, ty);
-    if (!pts) { u.pathLook = { t: s.t + PATH_FAIL, v: G.v, tx, ty }; return { x: tx, y: ty }; } // (no way there: straight, and not looked for again soon)
-    P = u.path = { tx, ty, v: G.v, pts, i: 0 };
+    if (!pts) { u.pathLook = { t: s.t + PATH_FAIL, v: V, tx, ty }; return { x: tx, y: ty }; } // (no way there: straight, and not looked for again soon)
+    P = u.path = { tx, ty, v: V, pts, i: 0 };
   }
   // (on to the next point once by it, or once the one after it is in plain sight)
   while (P.i < P.pts.length - 1 && (Math.hypot(P.pts[P.i].x - u.x, P.pts[P.i].y - u.y) < PATH_NEAR || pathClear(G, u.x, u.y, P.pts[P.i + 1].x, P.pts[P.i + 1].y))) P.i++;
-  if (P.i >= P.pts.length - 1) { u.path = null; u.pathLook = { t: s.t + PATH_LOOK, v: G.v, tx, ty }; return { x: tx, y: ty }; }
+  if (P.i >= P.pts.length - 1) { u.path = null; u.pathLook = { t: s.t + PATH_LOOK, v: V, tx, ty }; return { x: tx, y: ty }; }
   return P.pts[P.i];
 }

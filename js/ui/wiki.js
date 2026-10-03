@@ -79,7 +79,8 @@ const WIKI = {
       <li>📦 מחסן: ממלא תחמושת · 🏥 בית חולים: חיילים מתרפאים מהר · 🛠️ מוסך: רכבים מתוקנים מהר</li>
       <li>🗼 מגדל תצפית: רואה רחוק מאוד · 📶 אנטנה: שליטה מלאה סביבה · 🧱 בונקר: עד 4 חיילים לידו חוטפים חצי נזק</li></ul>
       <h3>מזג אוויר</h3><p>🌧 גשם בכל המפה, ו-🌫 ערפל בוקר רק בשפלה (על ההר מעליו): כל אחד מוריד 20% מהראייה, מהטווח ומהפגיעה. מצטבר עם הלילה.</p>
-      <h3>דרכים ומארבים</h3><p>רכב על דרך נוסע מהר ב-30%. חיילים וג'יפים שעומדים בשקט בין העצים ולא יורים — נראים רק מקרוב, או מרחפן ומשאית קשר.</p>
+      <h3>יער, בוץ וצוקים</h3><p><b>יער צפוף:</b> רק חיילים נכנסים, וקצת לאט; יש בו מחסה. טנק או טרקטור פורצים דרכו בעשירית מהמהירות, ומשאירים מעבר שגם ג'יפים יכולים לנסוע בו. <b>בוץ:</b> חיילים בחצי מהירות, טנקים ובולדוזרים בעשירית, ג'יפים ומשאיות לא נכנסים. <b>צוק:</b> אף אחד לא עובר — חוץ מקומנדו. הכוחות מוצאים דרך מסביב לבד. אין בנייה על בוץ או צוק; מבנה על יער מנקה אותו.</p>
+      <h3>מארבים</h3><p>חיילים וג'יפים שעומדים בשקט בין העצים ולא יורים — נראים רק מקרוב, או מרחפן ומשאית קשר.</p>
       <h3>פקודות בקול 🎙</h3><p>לחץ על 🎙 מעל הכפתורים למטה משמאל — המיקרופון נשאר פתוח עד לחיצה נוספת, וכל משפט הוא פקודה: "טנקים לרדאר", "כוח 2 לנקודה 4", "חיילים להחזיק בבונקר", "כולם לסגת". <kbd>Alt</kbd>+מספר שומר את המסך כנקודה, <kbd>Shift</kbd>+מספר קופץ אליה. "לשם" = איפה שהעכבר. Chrome או Edge, עם אינטרנט. את המיקרופון מאשרים פעם אחת ב-"מיקרופון לפקודות" בתפריט הראשי; כשהמשחק נפתח דרך play.bat הדפדפן זוכר את האישור.</p>`],
     ['🪖', 'יחידות', () => wikiCards('unit')],
     ['🏗', 'מבנים', () => `<p>בונים מתפריט הבנייה 🏗 (<kbd>G</kbd>), רק איפה שהשטח ירוק. כל מבנה ייצור מקים כוח משלו וממלא אותו. הכוח הראשון יוצא מלא.</p>` + wikiCards('struct')],
@@ -118,7 +119,8 @@ const WIKI = {
       <li>📦 Depot: refills ammunition · 🏥 Hospital: soldiers heal fast · 🛠️ Motor pool: vehicles repaired fast</li>
       <li>🗼 Observation tower: sees very far · 📶 Antenna: full control round it · 🧱 Bunker: up to 4 soldiers by it take half the damage</li></ul>
       <h3>Weather</h3><p>🌧 Rain over the whole map, and 🌫 morning fog only on the plain (on a hill you're above it): each takes 20% off sight, range and hits. It adds up with the night.</p>
-      <h3>Roads and ambushes</h3><p>A vehicle on a road goes 30% faster. Soldiers and jeeps standing still among trees, not firing, are seen only up close, or by a drone or signals truck.</p>
+      <h3>Woods, mud and cliffs</h3><p><b>Dense woods:</b> only soldiers go in, a little slower; there's cover inside. A tank or bulldozer breaks through at a tenth of its speed and leaves a lane jeeps can use too. <b>Mud:</b> soldiers at half speed, tanks and bulldozers at a tenth, jeeps and trucks not at all. <b>Cliffs:</b> no one crosses — except the commando. Forces find their own way round. Nothing is built on mud or a cliff; a building on woods clears them.</p>
+      <h3>Ambushes</h3><p>Soldiers and jeeps standing still among trees, not firing, are seen only up close, or by a drone or signals truck.</p>
       <h3>Spoken orders 🎙</h3><p>Click 🎙 above the bottom-left buttons — the microphone stays open until another click, and each sentence is an order: "tanks to the radar", "group 2 to point 4", "soldiers hold the bunker", "everyone retreat". <kbd>Alt</kbd>+number saves the view as a point, <kbd>Shift</kbd>+number jumps there. "There" = where the mouse is. Chrome or Edge, online.</p>`],
     ['🪖', 'Units', () => wikiCards('unit')],
     ['🏗', 'Buildings', () => `<p>Build from the build menu 🏗 (<kbd>G</kbd>), only where the ground is green. Each production building raises a squad of its own and keeps it full. The first squad comes out whole.</p>` + wikiCards('struct')],

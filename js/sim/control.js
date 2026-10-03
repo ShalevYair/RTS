@@ -72,7 +72,7 @@ const fhqBuilders = s => s.dozers ? ['dozer'] : FHQ_BUILDERS;
 const canBuildFhq = (s, sq) => !!sq && !sq.dead && fhqBuilders(s).includes(sq.type) && !(s.hqPending && s.hqPending[sq.side]) && s.cd[sq.side].fhq <= 0 && fhqCount(s, sq.side) < fhqMax(s);
 // why a forward HQ can't go at (x, y): '' when it can; 'gap' on or by another building, 'bad' in a lake or off the map
 function fhqCheck(s, x, y) {
-  if (!Number.isFinite(x) || !Number.isFinite(y) || x < 10 || y < 10 || x > s.W - 10 || y > s.H - 10 || lakeAt(s, { x, y }, LAKE_PAD)) return 'bad';
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x < 10 || y < 10 || x > s.W - 10 || y > s.H - 10 || lakeAt(s, { x, y }, LAKE_PAD) || groundBad(s, x, y, STRUCTS.fhq.r)) return 'bad';
   return crowded(s, 'fhq', x, y) ? 'gap' : '';
 }
 function buildFhq(s, squadId) {

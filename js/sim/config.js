@@ -18,6 +18,18 @@ const HILL_SPREAD = 2, HILL_LEVELS = 10, ELEV_CELL = 8, SLOPE_K = 9, SLOPE_MAX =
 // random maps: the enemy's half is our half's twin, each feature moved up to MAP_JITTER and resized up to MAP_RESIZE;
 // lakes keep LAKE_GAP between them
 const MAP_JITTER = 30, MAP_RESIZE = 0.12, LAKE_GAP = 60, SHAPE_AMP = 0.14;
+// ground (terrain.js, the full game on the big maps): per side GROUND_N = [woods, mud patches, cliffs] (big / huge
+// map), between GROUND_X0 and GROUND_X1 of the width (off the HQ strip, off the centre line); woods GROUND_WOOD and
+// mud GROUND_MUD across (radius range); a cliff along GROUND_CLIFF_SPAN rad of a hill's flank at GROUND_CLIFF_AT of
+// its radius (about halfway up), GROUND_CLIFF_W either side of the line.
+// GROUND_K[class][kind]: how fast (0 = can't go in) — soldiers: woods 0.8, mud 0.5; the commando also climbs cliffs;
+// tanks and bulldozers: a tenth in both (and a wood square is cut as they go through); wheels: none of it
+const GROUND_N = { big: [3, 2, 2], huge: [10, 6, 6] }, GROUND_X0 = 0.22, GROUND_X1 = 0.47;
+const GROUND_WOOD = [70, 130], GROUND_MUD = [50, 90], GROUND_CLIFF_SPAN = [1.4, 2.2], GROUND_CLIFF_AT = 0.6, GROUND_CLIFF_W = 10;
+const GROUND_K = {
+  foot: { 1: 0.8, 2: 0.5, 3: 0 }, commando: { 1: 0.8, 2: 0.5, 3: 0.5 },
+  track: { 1: 0.1, 2: 0.1, 3: 0 }, wheel: { 1: 0, 2: 0, 3: 0 },
+};
 // path finding (path.js): a grid of PATH_CELL squares, blocked within PATH_PAD of a lake or of a building's / post's
 // edge. A* (PATH_GREED: a little greedy, faster, near-shortest) searches at most PATH_MAX squares a path and
 // PATH_BUDGET a tick in all. A path is kept while the goal stays within PATH_RETARGET of where it was made for; its
