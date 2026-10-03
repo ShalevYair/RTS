@@ -78,6 +78,8 @@ LINES = {
     'took_post': ["Building captured.", "We took the building.", "Objective taken."],
     'lost_post': ["[grim] We lost a building.", "[grim] They took it back.", "[grim] The enemy captured our position."],
     'can_build': ["We can build, sir.", "Room to build. Waiting on you.", "Commander, we can start building."],
+    'missile_incoming': ["[shouting] Missile launch, incoming!", "[shouting] Incoming missile!", "Missile in the air, heading our way!"],
+    'intercepted': ["Intercepted.", "Missile intercepted.", "Got it, interception."],
   },
   'Hebrew': {
     'selected': ["כן, המפקדה.", "ממתינים לפקודות.", "כאן, מקשיבים.", "המפקדה, עבור.", "מוכנים.", "מה הפקודה?", "[tired] מה עכשיו?",
@@ -128,9 +130,11 @@ LINES = {
     'took_post': ["כבשנו את המבנה.", "המבנה בידינו.", "היעד נכבש."],
     'lost_post': ["[grim] איבדנו מבנה.", "[grim] האויב כבש את המבנה.", "[grim] המבנה נפל לידי האויב."],
     'can_build': ["אפשר להתחיל לבנות.", "יש מקום לבנות, מחכים לך.", "המפקד, אפשר לבנות."],
+    'missile_incoming': ["[shouting] שיגור טיל לעברנו!", "[shouting] טיל בדרך אלינו!", "שיגור! טיל באוויר לעברנו!"],
+    'intercepted': ["יירוט.", "הטיל יורט.", "יירוט מוצלח."],
   },
 }
-HEATED = {'attacking', 'under_attack', 'heavy_losses', 'friendly_fire', 'retreating', 'building_lost', 'base_attack', 'fhq_attack', 'hq_attack'}
+HEATED = {'missile_incoming', 'attacking', 'under_attack', 'heavy_losses', 'friendly_fire', 'retreating', 'building_lost', 'base_attack', 'fhq_attack', 'hq_attack'}
 KNOWN_MODELS = ['eleven_v4', 'eleven_v3', 'eleven_multilingual_v2', 'eleven_flash_v2_5']
 SETS = [('basic: 1 line per event', 1), ('4 lines per event', 4), ('full: up to 16 for the common events', 99)]
 

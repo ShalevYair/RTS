@@ -423,7 +423,7 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
 .hudc .score{position:static}
 /* the key posts each side holds (radar, power, fuel): ours left of the power bar, theirs right of it */
 .hudc{display:flex;align-items:center;gap:8px;direction:ltr}
-.heldp{display:flex;gap:4px;min-width:0}.heldp:empty{display:none}
+.heldp{display:flex;gap:4px;min-width:0;pointer-events:auto}.heldp:empty{display:none}
 .heldp i{font-style:normal;font-size:17px;line-height:1;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;filter:drop-shadow(0 1px 2px rgb(0 0 0 / .6))}
 #heldB i{background:rgb(59 125 216 / .55);box-shadow:0 0 0 2px rgb(59 125 216 / .9)}
 #heldR i{background:rgb(214 69 65 / .55);box-shadow:0 0 0 2px rgb(214 69 65 / .9)}

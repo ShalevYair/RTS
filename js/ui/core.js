@@ -51,6 +51,11 @@ try { const m = localStorage.getItem('irts-map'); bigMap = m !== 'small'; hugeMa
 // the missile trucks, which fire from far behind)
 const NOT_ALL = ['dozer', 'ssm'], inAll = q => !NOT_ALL.includes(q.type);
 let lite = 0; const LITE_RES = 0.7;
+// gfxLow: the low graphics, picked in the settings (irts-gfx) — no shadows at all, no day and night, no rain or
+// morning fog (they're not in the game at all then: s.night, s.wxPlan), the ground plain and at half the pixels (no
+// contour lines, no hill shading, no stony ground or fields), and the light mode's step 1 always; the units as ever
+let gfxLow = false;
+try { gfxLow = localStorage.getItem('irts-gfx') === 'low'; } catch (e) { /* storage unavailable */ }
 const MAX_DPR = 1, DPR = () => Math.min(window.devicePixelRatio || 1, MAX_DPR) * (lite >= 2 ? LITE_RES : 1);
 const START_PX = 1 * WORLD_K, ZOOM_PX = 2.5 * WORLD_K;
 // (the tutorial opens closer still, on our forces, TUT_AHEAD toward the enemy)

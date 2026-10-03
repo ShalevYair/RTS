@@ -437,20 +437,23 @@ function bgDirty(x, y, r) {
     const t = bg.tiles.get(i + ',' + j); if (t) t.stale = true;
   }
 }
+// tiles let go: their canvases emptied now (each held its pixels — on the graphics card too — until collected)
+function bgFree(l) { for (const t of l) if (t.cv) { t.cv.width = 0; t.cv = null; } }
 function drawGround(c) {
   sunTick(); sunShadeTick(); // (the sun turns a minute at a time: the ground, its hills' and trees' shadows, drawn again then)
   const sc = view.scale, vx0 = -view.ox / sc, vy0 = -view.oy / sc, vw = cv.width / sc, vh = cv.height / sc;
   // (the tiles are painted at the zoom rounded up to a step of √2 and drawn a little smaller: a wheel notch inside the
   // step paints nothing again)
-  const L = Math.pow(2, Math.ceil(Math.log2(sc) * 2 - 1e-6) / 2);
+  // (the low graphics: at half that — a quarter of the pixels to paint and keep)
+  const L = Math.pow(2, Math.ceil(Math.log2(sc) * 2 - 1e-6) / 2) * (gfxLow ? 0.5 : 1);
   // (a new map: nothing of the old one; another step: the tiles there are stay, stretched, under the new ones until
   // those are painted; the theme, the sun, a picture loaded: each tile painted again in its turn)
   if (bg.of !== decor) { bg.of = decor; bg.tiles.clear(); bg.old = []; bg.sc = 0; }
   if (L !== bg.sc) {
-    bg.old = bg.old.concat([...bg.tiles.values()].filter(t => t.cv)).slice(-BG_KEEP);
+    const all = bg.old.concat([...bg.tiles.values()].filter(t => t.cv)); bg.old = all.slice(-BG_KEEP); bgFree(all.slice(0, -BG_KEEP));
     bg.tiles = new Map(); bg.sc = L; bg.tw = BG_TILE / L;
   }
-  const key = [colors.ground, colors.hill, colors.tree, decor.hills.sunKey].join();
+  const key = [colors.ground, colors.hill, colors.tree, decor.hills.sunKey, gfxLow].join();
   if (key !== bg.key) { bg.key = key; for (const t of bg.tiles.values()) t.stale = true; }
   const tw = bg.tw, i0 = Math.floor(vx0 / tw), i1 = Math.floor((vx0 + vw) / tw), j0 = Math.floor(vy0 / tw), j1 = Math.floor((vy0 + vh) / tw);
   const get = (i, j) => { const k = i + ',' + j; let t = bg.tiles.get(k); if (!t) bg.tiles.set(k, t = { i, j, x0: i * tw, y0: j * tw, tw, cv: null, stale: true }); return t; };
@@ -477,7 +480,7 @@ function drawGround(c) {
     bgPaint(t, moving && !t.cv ? true : moving && t.rough); n++;
   }
   // (the old tiles under, until every tile on screen is the new one)
-  if (shown.every(t => t.cv)) bg.old = [];
+  if (shown.every(t => t.cv) && bg.old.length) { bgFree(bg.old); bg.old = []; }
   for (const o of bg.old) if (o.x0 < vx0 + vw && o.x0 + o.tw > vx0 && o.y0 < vy0 + vh && o.y0 + o.tw > vy0) c.drawImage(o.cv, o.x0, o.y0, o.tw, o.tw);
   // (edge to edge at whole canvas pixels: no seams between them)
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
@@ -487,7 +490,7 @@ function drawGround(c) {
   // (far-off tiles let go)
   if (bg.tiles.size > BG_KEEP) {
     const far = [...bg.tiles.values()].sort((a, b) => near(b, a));
-    for (const t of far.slice(0, bg.tiles.size - BG_KEEP)) bg.tiles.delete(t.i + ',' + t.j);
+    for (const t of far.slice(0, bg.tiles.size - BG_KEEP)) { bg.tiles.delete(t.i + ',' + t.j); bgFree([t]); }
   }
 }
 function drawTerrain(c, W, H, mid) {
@@ -505,7 +508,7 @@ function drawTerrain(c, W, H, mid) {
     decor.tufts.forEach((p, k) => { c.fillStyle = shade(colors.grass2, -0.2 + 0.32 * k / (n - 1)); c.fill(p); });
     drawGrain(c, W, H);
   }
-  if (!bg.quick) for (const f of decor.fields) {
+  if (!bg.quick && !gfxLow) for (const f of decor.fields) {
     c.save(); c.translate(f.x, f.y); c.rotate(f.a); c.fillStyle = shade(colors.field, f.t); c.fillRect(-f.w / 2, -f.h / 2, f.w, f.h);
     c.strokeStyle = shade(colors.field2, f.t); c.lineWidth = 3;
     for (let x = -f.w / 2 + 4; x < f.w / 2; x += f.gap) { c.beginPath(); c.moveTo(x, -f.h / 2); c.lineTo(x, f.h / 2); c.stroke(); }
@@ -535,18 +538,18 @@ function drawTerrain(c, W, H, mid) {
   if (rocky) c.globalAlpha = RELIEF_OVER_TILES;
   drawGridPic(c, R.relief);
   c.globalAlpha = 1;
-  if (rocky && !bg.quick) drawStony(c, rocky);
+  if (rocky && !bg.quick && !gfxLow) drawStony(c, rocky);
   // (the light and shade over it all, the textures too)
   c.imageSmoothingEnabled = true;
   // (in the dark: no light, and the shade only faintly)
-  [R.shade.dark, R.shade.lite].forEach((L, k) => { c.globalAlpha = k ? SUN.a : 0.35 + 0.65 * SUN.a; drawGridPic(c, L); });
+  if (!gfxLow) [R.shade.dark, R.shade.lite].forEach((L, k) => { c.globalAlpha = k ? SUN.a : 0.35 + 0.65 * SUN.a; drawGridPic(c, L); });
   c.globalAlpha = 1;
   if (bg.quick) return; // (quick: the rest when the camera stands)
   c.strokeStyle = shade(colors.tree, -0.35); c.lineCap = 'round';
   // (far out the thin ones are under a pixel: left out — the whole map's lines cost the most of a tile there)
   const thin = c.getTransform().a >= 0.7;
   const C = R.contours, ci0 = Math.floor((bg.x0 - ELEV) / CONT_CELL), ci1 = Math.floor((bg.x0 + bg.w + ELEV) / CONT_CELL), cj0 = Math.floor((bg.y0 - ELEV) / CONT_CELL), cj1 = Math.floor((bg.y0 + bg.h + ELEV) / CONT_CELL);
-  for (let k = 0; k < C.n; k++) {
+  if (!gfxLow) for (let k = 0; k < C.n; k++) {
     if (!thin && (k + 1) % 5) continue;
     c.globalAlpha = (k + 1) % 5 ? 0.13 : 0.26; c.lineWidth = (k + 1) % 5 ? 0.9 : 1.4;
     for (let i = ci0; i <= ci1; i++) for (let j = cj0; j <= cj1; j++) { const l = C.cells.get(i + ',' + j), p = l && l[k]; if (p) c.stroke(p); }
@@ -572,7 +575,7 @@ function drawTerrain(c, W, H, mid) {
   });
   c.globalAlpha = 1;
   // woods, bushes and stones: the pictures (art/Background) when they're in, else a few fills (each shade one path)
-  if (drawScenery(c)) { drawGrade(c, W, H); return; }
+  if (drawScenery(c)) { if (!gfxLow) drawGrade(c, W, H); return; }
   const T = decor.trees, Rk = decor.rocks, nb = T.treeBody.length;
   c.fillStyle = colors.shadow; c.fill(T.treeShadow); c.fill(Rk.rockShadow);
   for (let k = 0; k < nb; k++) { const u = -0.14 + 0.26 * k / (nb - 1); c.fillStyle = shade(mix(colors.tree, colors.grass2, 0.45), u); c.fill(T.bush[k]); }
