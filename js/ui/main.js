@@ -13,6 +13,8 @@ function newGame(skipIntro) {
     let fixed = false; try { fixed = localStorage.getItem('irts-fixedhq') === '1'; } catch (e) { /* storage unavailable */ }
     if (!fixed) Sim.openField(s);
   }
+  // the low graphics: no day and night, no rain or morning fog in this game at all (both sides alike)
+  if (gfxLow) { s.night = false; s.wxPlan = []; lite = Math.max(lite, 1); }
   // the big map opens zoomed in on our base; the small one shows it all
   cam = s.H > Sim.H ? { x: 0, y: s.H / 2, z: -1 } : { x: s.W / 2, y: s.H / 2, z: 1 };
   // the tutorial: close in on our forces (TUT_PX), a little toward the enemy — not the whole map, where the units were
@@ -123,7 +125,7 @@ function liteTick(now, dt) {
   // (two slow windows running: not the moment a game is being made)
   liteW.bad = fps < LITE_ON ? (liteW.bad || 0) + 1 : 0;
   if (liteW.bad >= 2 && lite < 2) { lite++; liteW.bad = 0; liteW.good = 0; resize(); if (!liteW.told) { liteW.told = true; toast(tr('liteOn'), innerWidth / 2, 80, 4000); } }
-  else if (fps > LITE_OFF && lite > 0) { liteW.good += LITE_WIN; if (liteW.good >= LITE_BACK) { lite--; liteW.good = 0; resize(); } }
+  else if (fps > LITE_OFF && lite > (gfxLow ? 1 : 0)) { liteW.good += LITE_WIN; if (liteW.good >= LITE_BACK) { lite--; liteW.good = 0; resize(); } }
   else liteW.good = 0;
 }
 // ---- the log: errors (and very slow frames) with where the game stood, kept in the browser (irts-log, the last

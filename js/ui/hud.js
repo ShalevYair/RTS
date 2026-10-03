@@ -57,6 +57,7 @@ function syncButtons() {
   // radio silence for the picked squads (where orders travel as messages): 📻 on the air, 🤫 silent
   const sb = $('silent'), hush = selSilent(); sb.hidden = !Sim.friction(s) || !selIds().length; sb.textContent = hush ? '🤫' : '📻'; sb.setAttribute('aria-pressed', String(hush)); sb.setAttribute('aria-label', tr(hush ? 'silentOn' : 'silentOff'));
   document.querySelectorAll('[data-rate]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.rate === rate)));
+  document.querySelectorAll('[data-gfx]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.gfx === 'low') === gfxLow)));
   $('paused').hidden = playing || !s || s.over || !menu.hidden || !!tour || !$('intro').hidden || !$('end').hidden;
   $('fs').setAttribute('aria-pressed', String(fsOn()));
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
@@ -121,7 +122,7 @@ const KEY_POSTS = ['radar', 'power', 'fuel']; let heldKey = '';
 function syncHeld() {
   const of = side => (s.posts || []).filter(p => p.side === side && KEY_POSTS.includes(p.kind)).map(p => p.kind).sort((a, b) => KEY_POSTS.indexOf(a) - KEY_POSTS.indexOf(b));
   const b = of('blue'), r = of('red'), key = b.join() + '|' + r.join(); if (key === heldKey) return; heldKey = key;
-  const put = (el, l) => { el.replaceChildren(...l.map(k => { const i = document.createElement('i'); i.textContent = Sim.POSTS[k].icon; i.dataset.tipText = pn(k); i.title = pn(k); return i; })); };
+  const put = (el, l) => { el.replaceChildren(...l.map(k => { const i = document.createElement('i'); i.textContent = Sim.POSTS[k].icon; i.dataset.tip = 'held_' + k; i.tipText = () => pn(k) + '\n' + tr('held_' + k); return i; })); };
   put($('heldB'), b); put($('heldR'), r);
 }
 function updateHud() {
@@ -188,6 +189,11 @@ function toggleSilent() { const on = !selSilent(); for (const id of selIds()) Si
 $('silent').addEventListener('click', toggleSilent);
 $('ordMode').dataset.tip = 'ord'; $('ordMode').tipText = () => tr(mode === 'attack' ? 'tipAttack' : 'tipHold') + ' · ' + tr('tipSwitch');
 document.querySelectorAll('[data-rate]').forEach(b => b.addEventListener('click', () => { rate = +b.dataset.rate; syncButtons(); }));
+// the graphics: the ground painted again now; the night and the weather from the next game (see newGame)
+document.querySelectorAll('[data-gfx]').forEach(b => b.addEventListener('click', () => {
+  gfxLow = b.dataset.gfx === 'low'; try { localStorage.setItem('irts-gfx', gfxLow ? 'low' : 'hi'); } catch (e) { /* ignore */ }
+  lite = gfxLow ? Math.max(lite, 1) : 0; resize(); syncButtons();
+}));
 $('all').addEventListener('click', () => select('all'));
 // The buttons at the top: first the groups the player made, then one per kind of unit for the squads in no group.
 // They're numbered 1–9 left to right (the keys; more than nine are picked by a tap). A tap picks all of them, a second
@@ -479,7 +485,7 @@ const menuVid = $('menuVid'), vidOk = typeof MENU_ART === 'object' && MENU_ART.v
 if (vidOk) { menuVid.src = MENU_ART.video; menuVid.addEventListener('playing', () => menuVid.classList.add('on')); }
 function menuVideo(on) { if (!vidOk) return; if (on) menuVid.play().catch(() => { /* not allowed yet: the still picture stays */ }); else menuVid.pause(); }
 // music, radio, explosions and full screen live in the in-game settings; on the main menu, under "more settings"
-const SHARED_ROWS = ['music', 'radio', 'sfx', 'fs'].map(id => $(id).closest('.mrow'));
+const SHARED_ROWS = ['music', 'radio', 'sfx', 'fs', 'gfxHi'].map(id => $(id).closest('.mrow'));
 function moveShared(toMenu) { const box = toMenu ? $('moreBox') : $('menu'), before = toMenu ? null : $('menu').querySelector('[data-lang]').closest('.mrow'); for (const r of SHARED_ROWS) box.insertBefore(r, before); }
 function showIntro(on) {
   $('intro').hidden = !on; Tracks.setMode(on ? 'menu' : 'game'); menuVideo(on); moveShared(on); if (!on) return;

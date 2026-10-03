@@ -45,8 +45,10 @@ function updateSquad(s, sq, dt, of) {
   sq.contactCd = Math.max(0, sq.contactCd - dt);
   const contact = m.some(u => u.engaged);
   if (contact) sq.lastContact = s.t;
-  if (contact && !sq.wasContact && sq.contactCd === 0) { report(s, sq, 'במגע עם האויב'); sq.contactCd = 10; sendReport(s, sq, 'contact'); }
-  sq.wasContact = contact;
+  // (in contact, said once: not for shooting at a drone — the AA at work, nothing coming at us)
+  const met = m.some(u => u.engaged && !u.atDrone);
+  if (met && !sq.wasContact && sq.contactCd === 0) { report(s, sq, 'במגע עם האויב'); sq.contactCd = 10; sendReport(s, sq, 'contact'); }
+  sq.wasContact = met;
   const rearming = m.some(u => u.rearm);
   if (rearming && !sq.wasRearm) report(s, sq, 'נגמרה התחמושת, חוזרים לשדה התעופה לחימוש');
   sq.wasRearm = rearming;
@@ -141,7 +143,7 @@ function underFire(s) {
 const scanEvery = (s, u) => singles(s, u.side) ? (s.lite ? 2 * SCAN_EVERY : SCAN_EVERY) : SCAN_AI;
 function updateUnit(s, u, sq, dt) {
   const T = TYPES[u.type];
-  u.cd = Math.max(0, u.cd - dt); u.engaged = false;
+  u.cd = Math.max(0, u.cd - dt); u.engaged = false; u.atDrone = false;
   if (T.ammo) {
     // aircraft fly sorties: out of ammo -> back to the airfield, rearm, then return
     if (u.ammo <= 0) u.rearm = true;
@@ -200,7 +202,7 @@ function updateUnit(s, u, sq, dt) {
     const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= (G(n) ? G(n).range * up * rk : range) + nodeR(n));
     if (n) {
       const g = G(n), as = g ? g.as : u.type;
-      u.engaged = true; if (!shield(s, as, n)) n.hp -= (g ? g.dmg * NODE_MULT[as] : T.dmg * NODE_MULT[u.type]) * hk; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
+      u.engaged = true; u.atDrone = n.kind === 'drone'; if (!shield(s, as, n)) n.hp -= (g ? g.dmg * NODE_MULT[as] : T.dmg * NODE_MULT[u.type]) * hk; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
       u.aim = Math.atan2(n.y - u.y, n.x - u.x); u.lastFire = s.t;
       shot(s, u, n, as);
       s.fx.push({ x: n.x, y: n.y, life: IMPACT[as].life, max: IMPACT[as].life, size: IMPACT[as].size, wait: SHOT_TIME[as] });

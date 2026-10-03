@@ -21,6 +21,8 @@ function drawPosts(c) {
       c.save(); c.globalAlpha = 0.12; c.fillStyle = p.side ? col : '#ffffff'; ring(p.x, p.y, W); c.fill();
       c.globalAlpha = 0.85; c.lineWidth = 2 * pz; c.setLineDash([8 * pz, 6 * pz]); c.strokeStyle = p.side ? col : '#ffffff'; ring(p.x, p.y, W); c.stroke(); c.restore();
     }
+    // (in the fog, where none of ours sees it: half see-through — it's drawn over the fog)
+    const dim = s.fog && !postSeen(p); if (dim) { c.save(); c.globalAlpha = POST_FOG_A; }
     drawBuilding(c, p.kind, col, p.x, p.y, Math.round(R * 2.4));
     // (and a little flag in its colour)
     if (p.side) {
@@ -28,9 +30,19 @@ function drawPosts(c) {
       c.strokeStyle = '#3b3530'; c.lineWidth = 1; c.beginPath(); c.moveTo(fx, fy); c.lineTo(fx, fy - 14); c.stroke();
       drawFlag(c, fx, fy + 5, 1.1, col);
     }
+    if (dim) c.restore();
   }
 }
 let selPost = null;
+// does any of ours see a post: ours, or a unit, building or drone of ours near enough (as the fog's holes, roughly)
+const POST_FOG_A = 0.5;
+function postSeen(p) {
+  if (p.side === 'blue') return true;
+  const sk = Sim.skySight(s, 'blue');
+  for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready && Math.hypot(n.x - p.x, n.y - p.y) < (n.kind === 'drone' ? Sim.DRONE_SIGHT : 170) * sk) return true;
+  for (const u of s.units) if (u.side === 'blue' && Math.hypot(u.x - p.x, u.y - p.y) < Sim.TYPES[u.type].sight * sk + Sim.POSTS[p.kind].r) return true;
+  return false;
+}
 // how far a post works from its middle (the ring when it's clicked)
 function postReach(p) {
   const R = Sim.POSTS[p.kind].r;

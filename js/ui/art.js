@@ -513,7 +513,7 @@ function drawScenery(c) {
     if (it.t === 'rock' || it.gone) continue;
     const im = pick(it), p = shadowPic(keyOf.get(im)); if (!p) continue;
     const w = it.s, sc = w / im.width, off = w * (it.t === 'tree' ? TREE_SHADOW : TREE_SHADOW * 0.5);
-    if (SUN.a > 0.02) c.drawImage(p, it.x - p.width / 2 * sc + off * SUN.x, it.y - p.height / 2 * sc + off * SUN.y, p.width * sc, p.height * sc);
+    if (SUN.a > 0.02 && !gfxLow) c.drawImage(p, it.x - p.width / 2 * sc + off * SUN.x, it.y - p.height / 2 * sc + off * SUN.y, p.width * sc, p.height * sc);
   }
   c.restore();
   for (const it of near) {
