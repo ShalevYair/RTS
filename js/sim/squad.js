@@ -144,12 +144,14 @@ const scanEvery = (s, u) => singles(s, u.side) ? (s.lite ? 2 * SCAN_EVERY : SCAN
 function updateUnit(s, u, sq, dt) {
   const T = TYPES[u.type];
   u.cd = Math.max(0, u.cd - dt); u.engaged = false; u.atDrone = false;
+  if (u.type === 'fueltruck' && s.fuel) { truckTick(s, u, sq, dt); return; } // (its own rounds: fuel.js)
+  const fueling = fuelUnit(s, u, sq, dt); // (low on fuel: off to fill up — planes: back to the airfield, below)
   if (T.ammo) {
     // aircraft fly sorties: out of ammo -> back to the airfield, rearm, then return
     if (u.ammo <= 0) u.rearm = true;
     if (u.rearm) {
       const f = rearmSpot(s, u), d = dist(u, f);
-      if (d < AIR_ORBIT * 1.5) { u.rearmT += dt; if (u.rearmT >= REARM_TIME) { u.ammo = T.ammo; u.rearm = false; u.rearmT = 0; } }
+      if (d < AIR_ORBIT * 1.5) { u.rearmT += dt; if (u.rearmT >= REARM_TIME) { u.ammo = T.ammo; u.rearm = false; u.rearmT = 0; if (u.fuel !== undefined) u.fuel = 1; } }
       if (T.hover) { if (d > 6) moveTo(s, u, f.x + u.sx * 14, f.y + u.sy * 14, 1, dt); } // (a helicopter sets down by its pad)
       else circle(s, u, f.x, f.y, AIR_ORBIT * 0.7, dt); // (over the field while they rearm it)
       return;
@@ -165,6 +167,7 @@ function updateUnit(s, u, sq, dt) {
     if (!u.resup && u.sup < SUPPLY_LOW) u.resup = true;
     else if (u.resup && u.sup >= SUPPLY_DONE) u.resup = false;
   } else u.resup = false;
+  if (fueling) return; // (fuel first, even hurt: going to be treated, they ran dry on the way)
   if (u.care || u.resup) { const f = careSpot(s, u, sq, u.care ? CARER[u.type] : 'truck'); if (dist(u, f) > CARE_R * 0.6) moveTo(s, u, f.x, f.y, 1.15, dt); return; }
   // (on its way to get on a helicopter: straight to it, not to a place in a line)
   if (sq.boarding) { const L = s.units.find(m => m.id === sq.boarding); if (L) { moveTo(s, u, L.x, L.y, 1.1, dt); return; } }
@@ -250,6 +253,7 @@ function supplyUse(s, u) {
 // few steps climb or drop)
 function moveTo(s, u, tx, ty, fast, dt, keep) {
   const T = TYPES[u.type];
+  if (s.fuel && u.fuel !== undefined && u.fuel <= 0 && !(T.air && !T.hover)) return; // (out of fuel: it stands — fuel.js)
   if (!T.air && !keep) ({ x: tx, y: ty } = pathStep(s, u, tx, ty)); // (round lakes and buildings: path.js)
   if (!T.air && u.yield && u.yield.until > s.t) { tx += u.yield.x * u.yield.k; ty += u.yield.y * u.yield.k; } // (making room: off to the side)
   if (!T.air && !keep && !s.noGiveUp && singles(s, u.side) && giveUp(s, u, tx, ty)) return; // (the player's units: the AI's squads waited on them, and bot games stalled)

@@ -182,6 +182,7 @@ function hqCheck(s, side, x, y) {
 }
 // turn a normal opening into an open field: no HQ and no tent; a pair of command tanks by each side's edge
 function openField(s) {
+  s.fuel = true; // (fuel: the full game — fuel.js)
   s.nodes = s.nodes.filter(n => n.kind !== 'hq' && n.kind !== 'tent');
   for (const q of s.squads) if (q.home && !s.nodes.some(n => n.id === q.home)) q.home = null;
   for (const side of ['blue', 'red']) {

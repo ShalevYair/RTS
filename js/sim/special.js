@@ -121,6 +121,7 @@ function missileTick(s, dt) {
     const n = s.nodes.find(k => k.id === m.node && k.hp > 0 && Math.hypot(k.x - m.x, k.y - m.y) <= nodeR(k) + 20);
     if (n) { n.hp = n.kind === 'hq' ? n.hp - (STRUCTS.hq.hp / SSM_HQ_HITS + 1) : 0; n.by = m.by; }
     for (const u of s.units) if (!TYPES[u.type].air && Math.hypot(u.x - m.x, u.y - m.y) <= SSM_SPLASH) { u.hp -= SSM_SPLASH_DMG; u.by = m.by; }
+    blastPiles(s, m.x, m.y, SSM_SPLASH); // (fuel barrels there: up they go — fuel.js)
     s.fx.push({ x: m.x, y: m.y, life: 1.2, max: 1.2, size: 60 });
   }
   s.missiles = s.missiles.filter(m => !m.gone);

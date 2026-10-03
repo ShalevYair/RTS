@@ -341,6 +341,8 @@ function drawGrade(c, W, H) {
 // ---- unit pictures (js/ui/sprites.js, made from art/ by tools/sprites.py): loaded once, recoloured per side (the
 // picture's blue parts get the side's hue, keeping their light and shade; a wreck is the picture dark and grey) ----
 const sprite = { img: {}, pic: new Map() };
+// (the fuel truck: the supply truck's picture, with a tank drawn on its back — drawUnits)
+if (typeof SPRITES === 'object' && SPRITES.truck && !SPRITES.fueltruck) SPRITES.fueltruck = SPRITES.truck;
 for (const k in (typeof SPRITES === 'object' ? SPRITES : {})) {
   const im = new Image(); im.onload = () => { sprite.img[k] = im; sqKey = ''; artCache.clear(); if (k.startsWith('d_')) bg.key = ''; try { nameBuildMenu(); } catch (e) { /* not up yet */ } }; im.src = SPRITES[k].src;
 }
@@ -407,12 +409,12 @@ function drawShadowPic(c, k, x, y, w, h, rot, off) {
 }
 // how long a unit's picture is on the map, in its size k (as long as the drawn glyph)
 // (soldiers: by how wide they are across the shoulders, SPRITE_ACROSS — a launcher makes one much longer than the next)
-const SPRITE_LEN = { commando: 1, ssm: 1.9, arrow: 1.9, dome: 1.9, lift: 2.1, heli: 1.9, gunship: 1.9, jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, air: 2, tank: 1.9, dozer: 1.9, radio: 1.9, inf: 1, at: 1, aa: 1, med: 1 }, TURRET_K = 0.95;
+const SPRITE_LEN = { commando: 1, ssm: 1.9, arrow: 1.9, dome: 1.9, lift: 2.1, heli: 1.9, gunship: 1.9, jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, fueltruck: 1.85, air: 2, tank: 1.9, dozer: 1.9, radio: 1.9, inf: 1, at: 1, aa: 1, med: 1 }, TURRET_K = 0.95;
 const SPRITE_ACROSS = { commando: 1.9, inf: 1.9, at: 1.9, aa: 1.9, med: 1.9 };
 // a building's picture: art/b_<kind> (the fake HQ looks just like the real one; the armed jeeps' workshops, the jeeps')
 // (and the gunship's helipad, the attack helicopters' one, unless it has its own)
 // (the posts: until their own pictures are in — b_supply, b_hospital, b_motorpool… — a building that looks the part)
-const PIC_LIKE = { supply: 'depot', hospital: 'clinic', motorpool: 'garage', jeepaa: 'jeepshop', jeepat: 'jeepshop', heligun: 'heliatk', helilift: 'heliatk', ssmshop: 'tankshop', arrowsite: 'aapost', domesite: 'aapost', commandopost: 'tent' };
+const PIC_LIKE = { fuelst: 'fuel', supply: 'depot', hospital: 'clinic', motorpool: 'garage', jeepaa: 'jeepshop', jeepat: 'jeepshop', heligun: 'heliatk', helilift: 'heliatk', ssmshop: 'tankshop', arrowsite: 'aapost', domesite: 'aapost', commandopost: 'tent' };
 const BUILDING_PIC = new Proxy({}, { get: (_, kind) => { const k = kind === 'decoy' ? 'hq' : kind; return sprite.img['b_' + k] || !PIC_LIKE[k] ? 'b_' + k : 'b_' + PIC_LIKE[k]; } });
 const hasSprite = type => type === 'tank' ? !!(sprite.img.tank_hull && sprite.img.tank_turret) : !!(SPRITE_LEN[type] && sprite.img[type]);
 const hasBuildingPic = kind => !!(BUILDING_PIC[kind] && sprite.img[BUILDING_PIC[kind]]);

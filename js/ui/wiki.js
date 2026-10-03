@@ -20,6 +20,7 @@ const WIKI_UNIT = {
     med: 'חובשים: לא יורים. חיילים פצועים באים אליהם להתרפא.',
     mech: 'מכונאים: מתקנים רכבים פגועים, ומתקנים מבנים מהר.',
     truck: 'משאיות אספקה: יחידה בלי תחמושת נוסעת אליהן להתמלא. רחוק מהן ומהמבנים — היריות יקרות יותר.',
+    fueltruck: 'משאיות דלק: לוקחות 6 חביות מתחנת הדלק ומורידות אותן ליד דגל החזית; רכב שנגמר לו הדלק בשטח — משאית נוסעת אליו. חבית ממלאת ג׳יפ, טנק צריך שתיים.',
     dozer: 'הטרקטור בונה הכל: המפקדה, פיקוד קדמי וכל מבנה. בונה רק כשהוא עומד ליד האתר; אם הוא זז — הבנייה נעצרת.',
     radio: 'משאית קשר: רואה רחוק מאוד (פי 3 מרחפן) ונותנת שליטה סביבה. יקרה — שמור עליה מאחורי הכוחות.',
   },
@@ -42,6 +43,7 @@ const WIKI_UNIT = {
     med: 'Medics: they don\'t fight. Hurt soldiers come to them to heal.',
     mech: 'Mechanics: repair damaged vehicles, and buildings fast.',
     truck: 'Supply trucks: a unit out of ammunition drives to one to refill. Far from them and from buildings, shots cost more.',
+    fueltruck: 'Fuel trucks: take 6 barrels from the fuel station and drop them by the front flag; a vehicle that ran dry out in the field — a truck drives to it. A barrel fills a jeep; a tank takes two.',
     dozer: 'The bulldozer builds everything: the HQ, forward HQs and every building. Only while it stands by the site; if it moves, the work stops.',
     radio: 'A signals truck: sees very far (3× a drone) and gives control around it. Precious — keep it behind the squads.',
   },
@@ -49,10 +51,10 @@ const WIKI_UNIT = {
 const WIKI_STRUCT = {
   he: { hq: 'המפקדה הראשית: לב השליטה. אם היא נופלת — הפסדת.', fhq: 'פיקוד קדמי: מרחיב את השליטה ואת השטח שאפשר לבנות בו, ומוסיף מקום למבנים.',
     tent: 'מגייס חי"ר.', atpost: 'מגייס לוחמי נ"ט.', aapost: 'מגייס לוחמי נ"מ.', jeepshop: 'מייצר ג׳יפים.', jeepaa: 'מייצר ג׳יפי נ"מ (לאט).', jeepat: 'מייצר ג׳יפי נ"ט (לאט).',
-    tankshop: 'מייצר טנקים.', airfield: 'מייצר מטוסים, ושם הם מתחמשים.', clinic: 'מוציא חובשים.', garage: 'מוציא מכונאים.', depot: 'מוציא משאיות אספקה.', decoy: 'מפקדה מזויפת: בערפל האויב חושב שזו המפקדה שלך ותוקף אותה.' },
+    tankshop: 'מייצר טנקים.', airfield: 'מייצר מטוסים, ושם הם מתחמשים.', clinic: 'מוציא חובשים.', garage: 'מוציא מכונאים.', fuelst: 'מייצר חביות דלק (אחת כל 10 ש׳) ומוציא עד 4 משאיות דלק.', depot: 'מוציא משאיות אספקה.', decoy: 'מפקדה מזויפת: בערפל האויב חושב שזו המפקדה שלך ותוקף אותה.' },
   en: { hq: 'The main HQ: the heart of command. If it falls, you lose.', fhq: 'A forward HQ: spreads control and the ground you may build on, and adds room for buildings.',
     tent: 'Raises infantry.', atpost: 'Raises anti-tank soldiers.', aapost: 'Raises anti-air soldiers.', jeepshop: 'Makes jeeps.', jeepaa: 'Makes AA jeeps (slowly).', jeepat: 'Makes AT jeeps (slowly).',
-    tankshop: 'Makes tanks.', airfield: 'Makes aircraft, and they rearm there.', clinic: 'Sends out medics.', garage: 'Sends out mechanics.', depot: 'Sends out supply trucks.', decoy: 'A fake HQ: under fog the enemy takes it for yours and attacks it.' },
+    tankshop: 'Makes tanks.', airfield: 'Makes aircraft, and they rearm there.', clinic: 'Sends out medics.', garage: 'Sends out mechanics.', fuelst: 'Makes fuel barrels (one every 10 s) and sends out up to 4 fuel trucks.', depot: 'Sends out supply trucks.', decoy: 'A fake HQ: under fog the enemy takes it for yours and attacks it.' },
 };
 // the pages: [icon, title, body]; a body is HTML, or a function making it (the cards)
 const WIKI = {
@@ -81,6 +83,7 @@ const WIKI = {
       <h3>מזג אוויר</h3><p>🌧 גשם בכל המפה, ו-🌫 ערפל בוקר רק בשפלה (על ההר מעליו): כל אחד מוריד 20% מהראייה, מהטווח ומהפגיעה. מצטבר עם הלילה.</p>
       <h3>יער, בוץ וצוקים</h3><p><b>יער צפוף:</b> רק חיילים נכנסים, וקצת לאט; יש בו מחסה. טנק או טרקטור פורצים דרכו בעשירית מהמהירות, ומשאירים מעבר שגם ג'יפים יכולים לנסוע בו. <b>בוץ:</b> חיילים בחצי מהירות, טנקים ובולדוזרים בעשירית, ג'יפים ומשאיות לא נכנסים. <b>צוק:</b> אף אחד לא עובר — חוץ מקומנדו. הכוחות מוצאים דרך מסביב לבד. אין בנייה על בוץ או צוק; מבנה על יער מנקה אותו.</p>
       <h3>כבישים</h3><p>🛣️ ואז שתי לחיצות על המפה — ההתחלה והסוף: טרקטור סולל את הכביש משבצת אחרי משבצת (בבוץ פי 3 יותר זמן). על כביש כולם נוסעים מהר ב-10%, לא משנה מה מתחתיו — גם ג'יפים על כביש שעובר בבוץ. Shift = עוד קטע מהסוף. לא דרך אגם או צוק.</p>
+      <h3>דלק ⛽</h3><p>לכל רכב, מסוק ומטוס יש דלק. רכב ומסוק שורפים אותו רק בתנועה — מיכל מלא = 2 דקות נסיעה; מטוס טס דקה וארבעים ושב לשדה התעופה למלא. בפחות מרבע — הרכב נוסע לבד לדלק הקרוב: ערימת חביות, משאית דלק, או (לאט) המפקדה והפיקוד הקדמי. ריק — הוא עומד, ומשאית דלק נוסעת אליו. תחנת דלק (שירותים) מייצרת חבית כל 10 ש' ושולחת עד 4 משאיות, שמביאות 6 חביות כל פעם לדגל החזית. חבית ממלאת ג׳יפ, טנק צריך שתיים. טיל קרקע-קרקע על ערימה — מפוצץ אותה. פס כתום מתחת לרכב = מעט דלק.</p>
       <h3>מארבים</h3><p>חיילים וג'יפים שעומדים בשקט בין העצים ולא יורים — נראים רק מקרוב, או מרחפן ומשאית קשר.</p>
       <h3>פקודות בקול 🎙</h3><p>לחץ על 🎙 מעל הכפתורים למטה משמאל — המיקרופון נשאר פתוח עד לחיצה נוספת, וכל משפט הוא פקודה: "טנקים לרדאר", "כוח 2 לנקודה 4", "חיילים להחזיק בבונקר", "כולם לסגת". <kbd>Alt</kbd>+מספר שומר את המסך כנקודה, <kbd>Shift</kbd>+מספר קופץ אליה. "לשם" = איפה שהעכבר. Chrome או Edge, עם אינטרנט. את המיקרופון מאשרים פעם אחת ב-"מיקרופון לפקודות" בתפריט הראשי; כשהמשחק נפתח דרך play.bat הדפדפן זוכר את האישור.</p>`],
     ['🪖', 'יחידות', () => wikiCards('unit')],
@@ -122,6 +125,7 @@ const WIKI = {
       <h3>Weather</h3><p>🌧 Rain over the whole map, and 🌫 morning fog only on the plain (on a hill you're above it): each takes 20% off sight, range and hits. It adds up with the night.</p>
       <h3>Woods, mud and cliffs</h3><p><b>Dense woods:</b> only soldiers go in, a little slower; there's cover inside. A tank or bulldozer breaks through at a tenth of its speed and leaves a lane jeeps can use too. <b>Mud:</b> soldiers at half speed, tanks and bulldozers at a tenth, jeeps and trucks not at all. <b>Cliffs:</b> no one crosses — except the commando. Forces find their own way round. Nothing is built on mud or a cliff; a building on woods clears them.</p>
       <h3>Roads</h3><p>🛣️, then two taps on the map — start and end: a bulldozer paves the road square by square (on mud 3× as long). On a road everyone goes 10% faster, whatever is under it — jeeps too, on a road across mud. Shift = another stretch from the end. Not across a lake or a cliff.</p>
+      <h3>Fuel ⛽</h3><p>Every vehicle, helicopter and plane has fuel. Vehicles and helicopters burn it only moving — a full tank = 2 minutes of driving; a plane flies 1:40 and goes back to the airfield to fill up. Under a quarter, a vehicle drives by itself to the nearest fuel: a pile of barrels, a fuel truck, or (slowly) the HQ and forward HQs. Empty, it stands, and a fuel truck drives to it. A fuel station (services) makes a barrel every 10 s and sends out up to 4 trucks, which take 6 barrels at a time to the front flag. A barrel fills a jeep; a tank takes two. A surface-to-surface missile on a pile blows it up. An orange bar under a vehicle = low on fuel.</p>
       <h3>Ambushes</h3><p>Soldiers and jeeps standing still among trees, not firing, are seen only up close, or by a drone or signals truck.</p>
       <h3>Spoken orders 🎙</h3><p>Click 🎙 above the bottom-left buttons — the microphone stays open until another click, and each sentence is an order: "tanks to the radar", "group 2 to point 4", "soldiers hold the bunker", "everyone retreat". <kbd>Alt</kbd>+number saves the view as a point, <kbd>Shift</kbd>+number jumps there. "There" = where the mouse is. Chrome or Edge, online.</p>`],
     ['🪖', 'Units', () => wikiCards('unit')],
