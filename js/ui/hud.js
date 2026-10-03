@@ -65,7 +65,9 @@ function syncButtons() {
   $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq'); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); syncMic(); $('front').classList.toggle('set', !!(s.front && s.front.blue));
   $('fsRow').hidden = !fsCan() && !fsOn();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
-  if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed) cv.style.cursor = eyeArmed ? DRONE_CUR : 'copy'; // (else the hover sets it)
+  if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed) roadArmed = false; // (another thing armed: the road's off — roadui.js)
+  $('road').hidden = !s.dozers || !!(s.hqPending && s.hqPending.blue); $('road').setAttribute('aria-pressed', String(roadArmed));
+  if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed || roadArmed) cv.style.cursor = eyeArmed ? DRONE_CUR : 'copy'; // (else the hover sets it)
   $('hqb').hidden = !hqToPlace(); $('hqb').setAttribute('aria-pressed', String(hqArmed));
   bar.classList.toggle('empty', ![...bar.children].some(c => !c.hidden)); // (the early levels have none of its buttons)
 }

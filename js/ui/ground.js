@@ -1,4 +1,5 @@
-// UI: the ground of the big maps (terrain.js) — mud, dense woods (and the lanes cut through them), cliffs — painted
+// UI: the ground of the big maps (terrain.js) — mud, dense woods (and the lanes cut through them), cliffs, and the
+// bulldozers' roads (roads.js) — painted
 // into the ground tiles (drawTerrain). The squares are binned by GRD_BIN so a tile only looks at its own; a square cut
 // (a tank through a wood, a building put on one) has its tiles painted again (groundTick).
 const GRD_BIN = 256, grd = { of: null, bins: null, seen: 0 };
@@ -9,11 +10,15 @@ function groundBins() {
   if (grd.of === G) return grd;
   grd.of = G; grd.bins = new Map(); grd.seen = G ? G.cut.length : 0;
   if (!G) return grd;
-  for (let c = 0; c < G.k.length; c++) if (G.k[c]) {
-    const x = (c % G.w + 0.5) * G.C, y = (Math.floor(c / G.w) + 0.5) * G.C, key = Math.floor(x / GRD_BIN) + ',' + Math.floor(y / GRD_BIN);
-    let l = grd.bins.get(key); if (!l) grd.bins.set(key, l = []); l.push(c);
-  }
+  grd.has = new Uint8Array(G.k.length);
+  for (let c = 0; c < G.k.length; c++) if (G.k[c]) groundBin(c);
   return grd;
+}
+// (a square into its bin, once: those with ground from the start, and those that change later — a road paved)
+function groundBin(c) {
+  const G = grd.of; if (grd.has[c]) return; grd.has[c] = 1;
+  const x = (c % G.w + 0.5) * G.C, y = (Math.floor(c / G.w) + 0.5) * G.C, key = Math.floor(x / GRD_BIN) + ',' + Math.floor(y / GRD_BIN);
+  let l = grd.bins.get(key); if (!l) grd.bins.set(key, l = []); l.push(c);
 }
 // the squares near the tile being painted (m: how far past its edge — a tree's crown)
 function groundNear(m) {
@@ -45,6 +50,25 @@ function drawGroundSoft(c) {
   }
   const cut = blob(k => k === Sim.GR_CUT, C * 0.8);
   if (cut) { c.globalAlpha = 0.75; c.fillStyle = dirt || '#6b5a3c'; c.fill(cut); }
+  // (roads: a gravel strip, a dark edge, from each square to its road neighbours — a diagonal only where the corner
+  // isn't road already)
+  const roads = near.filter(k => G.k[k] === Sim.GR_ROAD);
+  if (roads.length) {
+    const isR = (i, j) => i >= 0 && j >= 0 && i < G.w && j < G.h && G.k[j * G.w + i] === Sim.GR_ROAD, p = new Path2D();
+    for (const k of roads) {
+      const i = k % G.w, j = Math.floor(k / G.w), x = (i + 0.5) * C, y = (j + 0.5) * C;
+      p.moveTo(x, y); p.lineTo(x + 0.01, y);
+      for (const [di, dj] of [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+        if (!isR(i + di, j + dj) || (di && dj && (isR(i + di, j) || isR(i, j + dj)))) continue;
+        p.moveTo(x, y); p.lineTo(x + di * C, y + dj * C);
+      }
+    }
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    c.globalAlpha = 0.55; c.strokeStyle = '#2a2620'; c.lineWidth = C * 1.05; c.stroke(p);
+    c.globalAlpha = 1; c.strokeStyle = '#7d766a'; c.lineWidth = C * 0.85; c.stroke(p);
+    if (dirt) { c.globalAlpha = 0.35; c.strokeStyle = dirt; c.stroke(p); }
+    c.globalAlpha = 1;
+  }
   const floor = blob(k => k === Sim.GR_WOOD, C * 1.05);
   if (floor) { c.globalAlpha = 0.6; c.fillStyle = shade(colors.tree, -0.45); c.fill(floor); }
   c.globalAlpha = 1;
@@ -92,5 +116,5 @@ function drawGroundHard(c) {
 function groundTick() {
   const G = s && s.ground; if (!G) return;
   groundBins();
-  for (; grd.seen < G.cut.length; grd.seen++) { const k = G.cut[grd.seen]; bgDirty((k % G.w + 0.5) * G.C, (Math.floor(k / G.w) + 0.5) * G.C, GRD_TREE[1]); }
+  for (; grd.seen < G.cut.length; grd.seen++) { const k = G.cut[grd.seen]; groundBin(k); bgDirty((k % G.w + 0.5) * G.C, (Math.floor(k / G.w) + 0.5) * G.C, GRD_TREE[1]); }
 }

@@ -99,6 +99,7 @@ function tap(e) {
   if (fhqArmed) { placeFhq(x, y); return; }
   if (frontArmed) { placeFront(x, y); return; }
   if (hqArmed) { placeHq(x, y); return; }
+  if (roadArmed) { placeRoad(x, y, e.shiftKey); return; } // (roadui.js)
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
   selPost = hitPost(x, y); // (a post clicked: the ring of where it works, until the next click — field.js)
   const hit = hitSquad(x, y);
@@ -183,7 +184,7 @@ function cursorAt(x, y) {
   const picked = sel === 'all' || selIds().length > 0;
   if (eyeArmed) return DRONE_CUR;
   if (frontArmed) return FLAG_CUR;
-  if (buildArmed || fhqArmed || hqArmed) return 'copy';
+  if (buildArmed || fhqArmed || hqArmed || roadArmed) return 'copy';
   if (hitSquad(x, y) || hitNode(x, y, 'blue')) return rallyNode() && !hitNode(x, y, 'blue') ? AIM_GO : 'pointer';
   if (rallyNode()) return AIM_GO; // (a building of ours picked: a click says where its squads go)
   if (!picked) return ARROW_CUR;
@@ -237,8 +238,8 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
-  const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed && !frontArmed;
-  const free = !eyeArmed && !buildArmed && !fhqArmed && !hqArmed;
+  const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed && !frontArmed && !roadArmed;
+  const free = !eyeArmed && !buildArmed && !fhqArmed && !hqArmed && !roadArmed;
   drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0, face: false, right: e.pointerType === 'mouse' && e.button === 2 } : { moved: true };
   // touch, or the left button with something picked: held still for a moment, the drag that follows sets a facing
   const mouseHold = e.pointerType === 'mouse' && e.button === 0 && free && sel !== null;
@@ -301,7 +302,7 @@ cv.addEventListener('pointercancel', e => { lift(e); boxSel = null; faceDrag = n
 // (in level 1, with no picking yet, it only drops)
 function unpick() {
   if (!menu.hidden) { closeMenu(); return; }
-  if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed || !$('buildm').hidden) { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; frontArmed = false; $('buildm').hidden = true; syncButtons(); return; }
+  if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed || roadArmed || !$('buildm').hidden) { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; frontArmed = false; roadArmed = false; $('buildm').hidden = true; syncButtons(); return; }
   if (uiHas('squads')) select(sel === null ? 'all' : null);
 }
 // the upgrade button (Trophy) over our picked tank workshop: shown while it can be had; the time left while it's made
@@ -390,5 +391,5 @@ document.addEventListener('keydown', e => {
   else if (k === 'f') $('fs').click();
   else if (e.key.startsWith('Arrow')) { e.preventDefault(); const d = 120; panBy(e.key === 'ArrowLeft' ? d : e.key === 'ArrowRight' ? -d : 0, e.key === 'ArrowUp' ? d : e.key === 'ArrowDown' ? -d : 0); }
   else if (e.key === '+' || e.key === '=' || e.key === '-') zoomAt(fit.w / 2, fit.top + fit.h / 2, e.key === '-' ? 1 / 1.25 : 1.25);
-  else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; frontArmed = false; $('buildm').hidden = true; syncButtons(); closeMenu(); }
+  else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; frontArmed = false; roadArmed = false; $('buildm').hidden = true; syncButtons(); closeMenu(); }
 });

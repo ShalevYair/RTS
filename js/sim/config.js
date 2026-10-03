@@ -26,10 +26,15 @@ const MAP_JITTER = 30, MAP_RESIZE = 0.12, LAKE_GAP = 60, SHAPE_AMP = 0.14;
 // tanks and bulldozers: a tenth in both (and a wood square is cut as they go through); wheels: none of it
 const GROUND_N = { big: [3, 2, 2], huge: [10, 6, 6] }, GROUND_X0 = 0.22, GROUND_X1 = 0.47;
 const GROUND_WOOD = [70, 130], GROUND_MUD = [50, 90], GROUND_CLIFF_SPAN = [1.4, 2.2], GROUND_CLIFF_AT = 0.6, GROUND_CLIFF_W = 10;
+// (5: a road a bulldozer paved — ROAD_K for everyone, whatever was under it)
+const ROAD_K = 1.1;
 const GROUND_K = {
-  foot: { 1: 0.8, 2: 0.5, 3: 0 }, commando: { 1: 0.8, 2: 0.5, 3: 0.5 },
-  track: { 1: 0.1, 2: 0.1, 3: 0 }, wheel: { 1: 0, 2: 0, 3: 0 },
+  foot: { 1: 0.8, 2: 0.5, 3: 0, 5: ROAD_K }, commando: { 1: 0.8, 2: 0.5, 3: 0.5, 5: ROAD_K },
+  track: { 1: 0.1, 2: 0.1, 3: 0, 5: ROAD_K }, wheel: { 1: 0, 2: 0, 3: 0, 5: ROAD_K },
 };
+// roads (roads.js): a square (PATH_CELL) takes ROAD_T s of a bulldozer standing on it (within ROAD_NEAR), on mud
+// ROAD_MUD_K times that, through a wood ROAD_WOOD_K; at least ROAD_MIN long
+const ROAD_T = 2, ROAD_MUD_K = 3, ROAD_WOOD_K = 2, ROAD_NEAR = 12, ROAD_MIN = 40;
 // path finding (path.js): a grid of PATH_CELL squares, blocked within PATH_PAD of a lake or of a building's / post's
 // edge. A* (PATH_GREED: a little greedy, faster, near-shortest) searches at most PATH_MAX squares a path and
 // PATH_BUDGET a tick in all. A path is kept while the goal stays within PATH_RETARGET of where it was made for; its

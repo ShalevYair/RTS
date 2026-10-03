@@ -44,7 +44,8 @@ function build(s, side, kind, x, y, want) {
 const dozers = (s, side) => s.squads.filter(q => q.side === side && q.type === 'dozer' && !q.dead);
 const isSite = n => Number.isFinite(n.work); // (a building the bulldozers put up: n.work of n.need seconds done)
 // a bulldozer's job now: the first building on its list still going up
-const jobOf = (s, sq) => (sq.jobs || []).map(id => s.nodes.find(n => n.id === id)).find(n => n && n.hp > 0 && isSite(n) && s.t < n.ready) || null;
+// (a road on the list — roads.js, ids 'r…' — is a job too, until it's all paved)
+const jobOf = (s, sq) => (sq.jobs || []).map(id => typeof id === 'string' ? roadOf(s, id) : s.nodes.find(n => n.id === id)).find(n => n && (n.road ? !n.done : n.hp > 0 && isSite(n) && s.t < n.ready)) || null;
 // the bulldozer for a new site: the one asked for, else the nearest one with nothing to do, else the nearest
 function pickDozer(s, side, p, want) {
   const l = dozers(s, side); if (!l.length) return null;
@@ -70,8 +71,9 @@ function assignSite(s, sq, n, first) {
   return true;
 }
 // where the bulldozer works from: the site's back corner, clear of the building (it can't stand on it)
-const dozerR = n => STRUCTS[n.kind].r + DOZER_R;
+const dozerR = n => n.road ? ROAD_NEAR : STRUCTS[n.kind].r + DOZER_R;
 function dozerSpot(s, n) {
+  if (n.road) return { x: n.x, y: n.y }; // (a road: on the square it's paving)
   // (on the diagonal, just past the building and the bulldozer's own body: well inside dozerR whatever the size)
   const dir = n.side === 'blue' ? -1 : 1, d = (STRUCTS[n.kind].r + TYPES.dozer.r + 8) * Math.SQRT1_2;
   return { x: clamp(n.x + dir * d, 10, s.W - 10), y: clamp(n.y + d, 10, s.H - 10) };
@@ -94,6 +96,7 @@ function dozerWork(s, dt) {
     const l = dozers(s, side); if (!l.length) continue;
     const held = new Set(l.flatMap(q => q.jobs || []));
     for (const n of s.nodes) if (n.side === side && isSite(n) && n.hp > 0 && s.t < n.ready && !held.has(n.id)) assignSite(s, pickDozer(s, side, n), n);
+    for (const r of s.roadJobs || []) if (r.side === side && !r.done && !held.has(r.id)) { const d = pickDozer(s, side, r); d.jobs = d.jobs || []; d.jobs.push(r.id); }
   }
   hqFix(s, dt);
   for (const sq of s.squads) {
@@ -110,7 +113,7 @@ function dozerWork(s, dt) {
     // (there, but stopped short of the site — orders are carried out roughly in the fog: the crew sees the site). Once
     // per site: pushed back by the building or others it would "arrive" again and again, several times a second
     const d = Math.hypot(sq.cx - n.x, sq.cy - n.y);
-    if (sq.arrived && !m && sq.nudged !== n.id && d > dozerR(n) - 6 && d < 140 + STRUCTS[n.kind].r) { sq.order.x = p.x; sq.order.y = p.y; sq.arrived = false; sq.nudged = n.id; }
+    if (!n.road && sq.arrived && !m && sq.nudged !== n.id && d > dozerR(n) - 6 && d < 140 + STRUCTS[n.kind].r) { sq.order.x = p.x; sq.order.y = p.y; sq.arrived = false; sq.nudged = n.id; }
   }
 }
 // the HQ hit (under FIX_AT of its health), and nothing has hit it for FIX_QUIET s: the nearest bulldozer drives to it
