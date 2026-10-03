@@ -37,11 +37,12 @@ const small = Sim.create(3, 1000, 'normal'), big = Sim.create(3, 2400, 'normal',
   ok(wet(l, a) || Math.hypot(a.x - l.x, a.y - l.y) < 10, 'an aircraft over a lake is not pushed out');
   void sq;
 }
-// full bot games: no ground unit is ever in a lake
+// full bot games: no ground unit is ever in a lake (up to an hour: at half speed bot games drag on — one of these
+// stalls, blue holding ~70% but never pushing red under the line)
 let wetTicks = 0, fin = 0;
 for (let i = 0; i < 3; i++) {
   const s = Sim.create(60 + i, [900, 1200, 1400][i], 'normal'); s.bots = ['blue', 'red'];
-  while (!s.over && s.t < 900) { Sim.step(s, 1 / 30); for (const u of s.units) if (!Sim.TYPES[u.type].air && s.lakes.some(l => wet(l, u))) wetTicks++; }
+  while (!s.over && s.t < 3600) { Sim.step(s, 1 / 30); for (const u of s.units) if (!Sim.TYPES[u.type].air && s.lakes.some(l => wet(l, u))) wetTicks++; }
   if (s.over) fin++;
 }
 ok(wetTicks === 0 && fin >= 2, `3 bot games: ground units in the water ${wetTicks} times; ${fin}/3 finished`);

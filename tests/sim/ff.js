@@ -49,6 +49,6 @@ ok(far.s.marks.filter(k => k.kind === 'ff').length === 1 && far.s.log.filter(e =
 // full games: friendly fire happens, and games still finish
 let fin = 0, ff = 0;
 // (25 min: drones that see farther make both bots warier, and some games longer)
-for (let i = 0; i < 4; i++) { const { s } = play(140 + i, [800, 1100, 1400][i % 3], i % 2 ? 'hard' : 'normal', { limit: 1500 }); if (s.over) fin++; ff += s.ff.length; }
-ok(fin >= 3, `${fin}/4 fogged bot games finished within 25 min`);
+for (let i = 0; i < 4; i++) { const { s } = play(140 + i, [800, 1100, 1400][i % 3], i % 2 ? 'hard' : 'normal', { limit: 3000 }); if (s.over) fin++; ff += s.ff.length; }
+ok(fin >= 3, `${fin}/4 fogged bot games finished within 50 min (half speed: SPEED_K)`);
 ok(ff > 0, `friendly fire in bot games: ${ff} hits over 4 games`);

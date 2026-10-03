@@ -25,7 +25,7 @@ for (const seed of [3, 8, 21]) {
   for (let i = 0; i < 6; i++) qs.push(mk(s, 'tank', 150, 200 + i * 40));
   for (let i = 0; i < 8; i++) qs.push(mk(s, 'jeep', 220, 180 + i * 35));
   Sim.formation(s, qs.map(q => q.id), 'hold', 900, 320, true);
-  step(s, 40);
+  step(s, 80); // (half speed: SPEED_K)
   const r = report(s, qs), m = moved(s, qs, 10);
   ok(r.far === 0 && m < 300, `seed ${seed}, 6 tanks + 8 jeeps together: all at their spots (${r.far} not, worst ${r.worst}), still moving ${m} in 10 s`);
 }
@@ -37,7 +37,7 @@ for (const seed of [3, 8]) {
   Sim.setFront(s, 'blue', 700, 320);
   for (const [k, y] of [['tent', 200], ['jeepshop', 330], ['tankshop', 460]]) ok(Sim.build(s, 'blue', k, 260, y), 'a ' + k);
   for (const n of s.nodes) if (n.side === 'blue' && n.kind !== 'hq') { n.ready = 0; n.work = n.need; } // (up at once)
-  step(s, 200);
+  step(s, 230); // (half speed: the last ones out take longer to get there)
   const qs = s.squads.filter(q => q.side === 'blue' && !q.dead && s.units.some(u => u.squad === q.id && Math.hypot(u.x - 700, u.y - 320) < 200));
   const m = moved(s, qs, 10);
   ok(qs.length >= 8 && m < 40 * qs.length, `seed ${seed}, ${qs.length} at the front: still moving ${m} in 10 s`);

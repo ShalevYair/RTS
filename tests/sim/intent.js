@@ -19,7 +19,7 @@ const far = (s, sq, x, y) => { for (const u of s.units) if (u.squad === sq.id) {
   // slower
   const a = Sim.create(2, 1400, 'normal'), b = Sim.create(2, 1400, 'normal'); a.bots = b.bots = []; a.fog = b.fog = false;
   const qa = a.squads.find(k => k.side === 'blue' && k.type === 'jeep'), qb = b.squads.find(k => k.side === 'blue' && k.type === 'jeep');
-  Sim.silence(a, qa.id, true); Sim.order(a, qa.id, 'hold', 600, qa.cy, true); Sim.order(b, qb.id, 'hold', 600, qb.cy, true); step(a, 4); step(b, 4);
+  Sim.silence(a, qa.id, true); Sim.order(a, qa.id, 'hold', 600, qa.cy, true); Sim.order(b, qb.id, 'hold', 600, qb.cy, true); step(a, 8); step(b, 8);
   ok(qa.cx < qb.cx - 40, `a silent squad moves slower (${qa.cx.toFixed(0)} vs ${qb.cx.toFixed(0)})`);
 }
 {
