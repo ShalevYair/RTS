@@ -440,7 +440,7 @@ function bgDirty(x, y, r) {
 // tiles let go: their canvases emptied now (each held its pixels — on the graphics card too — until collected)
 function bgFree(l) { for (const t of l) if (t.cv) { t.cv.width = 0; t.cv = null; } }
 function drawGround(c) {
-  sunTick(); sunShadeTick(); // (the sun turns a minute at a time: the ground, its hills' and trees' shadows, drawn again then)
+  sunTick(); sunShadeTick(); groundTick(); // (groundTick: woods cut — their tiles painted again) // (the sun turns a minute at a time: the ground, its hills' and trees' shadows, drawn again then)
   const sc = view.scale, vx0 = -view.ox / sc, vy0 = -view.oy / sc, vw = cv.width / sc, vh = cv.height / sc;
   // (the tiles are painted at the zoom rounded up to a step of √2 and drawn a little smaller: a wheel notch inside the
   // step paints nothing again)
@@ -544,6 +544,7 @@ function drawTerrain(c, W, H, mid) {
   // (in the dark: no light, and the shade only faintly)
   if (!gfxLow) [R.shade.dark, R.shade.lite].forEach((L, k) => { c.globalAlpha = k ? SUN.a : 0.35 + 0.65 * SUN.a; drawGridPic(c, L); });
   c.globalAlpha = 1;
+  drawGroundSoft(c); // (mud, cut lanes, the woods' floor: ground.js)
   if (bg.quick) return; // (quick: the rest when the camera stands)
   c.strokeStyle = shade(colors.tree, -0.35); c.lineCap = 'round';
   // (far out the thin ones are under a pixel: left out — the whole map's lines cost the most of a tile there)
@@ -574,6 +575,7 @@ function drawTerrain(c, W, H, mid) {
     }
   });
   c.globalAlpha = 1;
+  drawGroundHard(c); // (the dense woods' trees, the cliffs: ground.js)
   // woods, bushes and stones: the pictures (art/Background) when they're in, else a few fills (each shade one path)
   if (drawScenery(c)) { if (!gfxLow) drawGrade(c, W, H); return; }
   const T = decor.trees, Rk = decor.rocks, nb = T.treeBody.length;

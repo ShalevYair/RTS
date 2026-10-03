@@ -5,6 +5,7 @@ function addStruct(s, side, kind, x, y, instant) {
   const S = STRUCTS[kind];
   const n = { id: s.nextNode++, kind, side, x, y, hp: S.hp, t0: s.t, ready: instant ? s.t : s.t + (S.build || 0), until: Infinity, squad: null, prog: 0 };
   s.nodes.push(n);
+  if (s.ground) clearGround(s.ground, x, y, (S.r || 0) + 6); // (on woods: they're cleared)
   return n;
 }
 const alive = (s, side, kinds) => s.nodes.filter(n => n.side === side && n.hp > 0 && (!kinds || kinds.includes(n.kind)));
@@ -23,7 +24,7 @@ function buildCheck(s, side, x, y, kind) {
   if (STRUCTS[kind] && STRUCTS[kind].max && alive(s, side, [kind]).length >= STRUCTS[kind].max) return 'max'; // (a missile factory: 3 a side)
   if (kind === 'decoy' ? alive(s, side, ['decoy']).length >= DECOY_MAX : buildCount(s, side) >= buildLimit(s, side)) return 'limit';
   if (quality(s, side, { x, y }, true) < BUILD_MIN_Q) return 'q'; // drones don't count
-  if (lakeAt(s, { x, y }, LAKE_PAD)) return 'bad';
+  if (lakeAt(s, { x, y }, LAKE_PAD) || groundBad(s, x, y, STRUCTS[kind] ? STRUCTS[kind].r : 20)) return 'bad';
   if (crowded(s, kind, x, y)) return 'gap';
   if (s.dozers && !dozers(s, side).length) return 'nodozer'; // (the full game: no bulldozer, no building)
   return '';
@@ -174,7 +175,7 @@ function hqCheck(s, side, x, y) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return 'bad';
   const [a, b] = hqBand(s, side);
   if (x < a || x > b || y < 30 || y > s.H - 30) return 'band';
-  return lakeAt(s, { x, y }, LAKE_PAD) ? 'bad' : '';
+  return lakeAt(s, { x, y }, LAKE_PAD) || groundBad(s, x, y, STRUCTS.hq.r) ? 'bad' : '';
 }
 // turn a normal opening into an open field: no HQ and no tent; a pair of command tanks by each side's edge
 function openField(s) {

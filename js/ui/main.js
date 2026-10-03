@@ -28,6 +28,8 @@ function newGame(skipIntro) {
   feedClear(); decor = makeDecor(s);
   // (no trees on the posts; the roads go to the sim, for the vehicles' speed)
   if (s.posts) for (const it of decor.rocks.items) if (s.posts.some(p => Math.hypot(p.x - it.x, p.y - it.y) < Sim.POSTS[p.kind].r * 1.5 + 18)) it.gone = 1;
+  // (nor on the ground's mud, cliffs and dense woods — the woods have their own trees, ground.js)
+  if (s.ground) for (const it of decor.rocks.items) if (Sim.groundAt(s, it.x, it.y)) it.gone = 1;
   if (s.extras) Sim.setRoads(s, decor.roads);
   views = {}; wxWas = { rain: false, fog: false };
   Sim.setCover(s, decor.rocks.items.filter(it => it.t === 'tree').map(it => (it.r = it.s * 0.4, it))); sel = 'all'; selNode = null; selPost = null; nag.at = nag.built = nag.fhq = 0; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();

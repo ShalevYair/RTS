@@ -3,9 +3,9 @@
 // becomes no one's (a second one takes it). A commando takes it whole and walks out again. Posts don't count in power
 // and can't be destroyed; nothing drives through them.
 
-// the full game's extras on this map: the posts, the weather (and the fast roads and ambushes: s.extras)
+// the full game's extras on this map: the posts, the ground (woods, mud, cliffs: terrain.js), the weather (and the fast roads and ambushes: s.extras)
 function extras(s) {
-  s.extras = true; makePosts(s); weatherPlan(s);
+  s.extras = true; makePosts(s); makeGround(s); weatherPlan(s);
   return s;
 }
 // where they go: the one-of-a-kind ones (radar, power, fuel) on the centre line — the radar near the middle; the rest
