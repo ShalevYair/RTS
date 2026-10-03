@@ -5,7 +5,7 @@
 // through is cut down for good (a lane others can use); wheels don't go in at all; cliffs stop everyone but the
 // commando. Like the hills, our half is made first and the enemy's is its exact twin. Kept clear of the bases (the HQ
 // strip) and of the posts; nothing is built on mud or a cliff, and a building on woods clears them.
-const GR_WOOD = 1, GR_MUD = 2, GR_CLIFF = 3, GR_CUT = 4;
+const GR_WOOD = 1, GR_MUD = 2, GR_CLIFF = 3, GR_CUT = 4, GR_ROAD = 5; // (GR_ROAD: a bulldozer's road — roads.js)
 // how a unit moves: 'foot' (soldiers), 'commando', 'track' (tanks, bulldozers), 'wheel' (all other ground vehicles)
 const FOOT_TYPES = ['inf', 'aa', 'at', 'med'];
 const moveClass = t => t === 'commando' ? 'commando' : FOOT_TYPES.includes(t) ? 'foot' : t === 'tank' || t === 'dozer' ? 'track' : 'wheel';
@@ -99,7 +99,7 @@ function clearGround(G, x, y, R) {
 function cutWood(s, c) {
   const G = s.ground; if (G.k[c] !== GR_WOOD) return;
   G.k[c] = GR_CUT; G.cut.push(c); s.groundV = (s.groundV || 0) + 1;
-  const P = s.pathG; if (P && P.cls) for (const cls in P.cls) { const g = P.cls[cls]; g.b[c] = P.b[c]; g.core[c] = P.core[c]; g.cost[c] = 4; }
+  const P = s.pathG; if (P && P.cls) for (const cls in P.cls) { const g = P.cls[cls]; g.b[c] = P.b[c]; g.core[c] = P.core[c]; g.cost[c] = 8; }
 }
 // may a unit of this class stand at (x, y)? (only the ground: lakes and buildings are separate's)
 const groundOk = (s, cls, x, y) => groundK(cls, groundAt(s, x, y)) > 0;

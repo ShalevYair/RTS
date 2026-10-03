@@ -26,7 +26,9 @@ function makeDecor(s) {
   for (let i = 0; i < Math.round(K / 40); i++) patches.push({ p: blob(r() * W, r() * s.H, 30 + r() * 100, 20 + r() * 60), u: r(), t: tone(0.06), dirt: r() < 0.15 });
   const tufts = Array.from({ length: TUFT_SHADES }, () => new Path2D());
   for (let i = 0; i < Math.round(K / 3); i++) { const x = r() * W, y = r() * s.H, k = Math.floor(r() * TUFT_SHADES); if (!inLake(x, y)) { tufts[k].moveTo(x + 1.6, y); tufts[k].arc(x, y, 0.8 + r() * 1.2, 0, Math.PI * 2); } }
-  const roads = makeRoads(s, r), fields = [];
+  // (no dirt roads any more — roads are the bulldozers' now, roads.js; made and dropped, so the rest of the map's dice
+  // fall as before)
+  const roads = (makeRoads(s, r), []), fields = [];
   // where roads run (a coarse mask): nothing grows on them
   const RC = 10, rw = Math.ceil(W / RC) + 1, onRoad = new Uint8Array(rw * (Math.ceil(s.H / RC) + 1));
   for (const pts of roads) for (let i = 1; i < pts.length; i++) {
@@ -846,6 +848,7 @@ function drawBuildArea(c) {
     ring(w.x, w.y, FHQ_BUILD_R); c.fill(); c.stroke(); c.setLineDash([]);
     c.globalAlpha = Sim.fhqCheck(s, w.x, w.y) ? 0.25 : 0.7; drawBuilding(c, 'fhq', colors.blue, w.x, w.y, pxOf('fhq')); c.globalAlpha = 1;
   }
+  drawRoadPlans(c); // (roadui.js)
   if (!buildArmed) return;
   drawBuildZone(c);
   // (the building at the pointer, in its size: faint where it can't go)

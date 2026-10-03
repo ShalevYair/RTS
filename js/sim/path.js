@@ -5,8 +5,8 @@
 // The grid is made again when the buildings change (lakes once a map); a path made on an older grid is dropped.
 // At most PATH_BUDGET grid squares are searched a tick, all units together: the rest go straight and try next tick.
 // With ground (terrain.js), each way of moving (moveClass) has its own view of the grid (classGrid): where it can't go
-// at all is blocked like a building, and slow ground costs more (cost, in quarters: 4 = open) — a tank goes round a
-// wood when that's quicker than through it.
+// at all is blocked like a building, and slow ground costs more (cost, in eighths: 8 = open, 7 a road) — a tank goes
+// round a wood when that's quicker than through it.
 
 // the grid: lakes once (s.lakes is the same list), the buildings and posts stamped on a copy when they change
 function pathGrid(s) {
@@ -48,16 +48,16 @@ function coreLakes(s, w, h, C) {
   return k;
 }
 // one way of moving's view of the grid: b (blocked: the padded lakes and buildings, and ground it can't go on), core
-// (never crossed: the lakes and buildings themselves, and that ground), cost (4 = open, more = slower ground; null =
+// (never crossed: the lakes and buildings themselves, and that ground), cost (8 = open, more = slower ground; null =
 // all open). Made once per grid; a wood cut down is put in at once (cutWood)
 function classGrid(s, G, cls) {
   if (!s.ground) return G;
   if (!G.cls) G.cls = {};
   if (G.cls[cls]) return G.cls[cls];
-  const N = G.w * G.h, b = G.b.slice(), core = G.core.slice(), cost = new Uint8Array(N).fill(4), K = s.ground.k;
+  const N = G.w * G.h, b = G.b.slice(), core = G.core.slice(), cost = new Uint8Array(N).fill(8), K = s.ground.k;
   for (let c = 0; c < N; c++) if (K[c]) {
     const k = groundK(cls, K[c]);
-    if (k <= 0) { b[c] = 1; core[c] = 1; } else cost[c] = Math.min(255, Math.round(4 / k));
+    if (k <= 0) { b[c] = 1; core[c] = 1; } else cost[c] = Math.min(255, Math.round(8 / k));
   }
   return (G.cls[cls] = { w: G.w, h: G.h, C: G.C, b, core, cost });
 }
@@ -140,7 +140,7 @@ function pathFind(s, G, ax, ay, bx, by) {
       const nk = nj * w + ni;
       if (G.b[nk] || shut[nk] === id) continue;
       if (di && dj && (G.b[j * w + ni] || G.b[nj * w + i])) continue; // (no cutting a corner)
-      const ng = g[k] + (di && dj ? 1.4142 : 1) * (G.cost ? G.cost[nk] / 4 : 1);
+      const ng = g[k] + (di && dj ? 1.4142 : 1) * (G.cost ? G.cost[nk] / 8 : 1);
       if (seen[nk] === id && ng >= g[nk]) continue;
       seen[nk] = id; g[nk] = ng; from[nk] = k; push(ng + hOf(nk), nk);
     }

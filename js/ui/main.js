@@ -160,7 +160,7 @@ function startOutro() {
   const us = s.units.filter(u => u.side === loser);
   const at = h ? { x: h.x, y: h.y } : us.length ? { x: us.reduce((a, u) => a + u.x, 0) / us.length, y: us.reduce((a, u) => a + u.y, 0) / us.length } : { x: s.W / 2, y: s.H / 2 };
   outro = { t0: performance.now(), at, win, from: { x: cam.x, y: cam.y, z: cam.z }, boom: 0 };
-  hideTip(); $('buildm').hidden = true; closeMenu(false); hqArmed = fhqArmed = eyeArmed = frontArmed = false; buildArmed = null; syncButtons();
+  hideTip(); $('buildm').hidden = true; closeMenu(false); hqArmed = fhqArmed = eyeArmed = frontArmed = roadArmed = false; buildArmed = null; syncButtons();
 }
 function outroTick(now, dt) {
   const o = outro, k = Math.min(1, (now - o.t0) / 1400), e = k * k * (3 - 2 * k);
