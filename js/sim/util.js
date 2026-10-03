@@ -43,9 +43,10 @@ function lakeK(l, p, pad = 0) {
 }
 const lakeAt = (s, p, pad = 0) => s.lakes.find(l => lakeK(l, p, pad) < 1);
 // the nearest dry spot: p pushed straight out from the lake's centre to its (padded) shore
+// (again, up to 3 times: out of one lake into another that touches it — it happened, the unit stayed in the water)
 function dryOf(s, p, pad = 0) {
   let q = { x: p.x, y: p.y };
-  for (const l of s.lakes) {
+  for (let pass = 0; pass < 3 && (pass === 0 || lakeAt(s, q, pad)); pass++) for (const l of s.lakes) {
     const k = lakeK(l, q, pad);
     if (k >= 1) continue;
     if (k < 1e-6) q = { x: l.x + Math.cos(l.a) * (l.rx + pad + 1), y: l.y + Math.sin(l.a) * (l.rx + pad + 1) };

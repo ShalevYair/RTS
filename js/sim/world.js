@@ -5,6 +5,9 @@ function spawn(s, sq, x, y) {
     x: clamp(x + Math.cos(a) * m * 20, 5, s.W - 5), y: clamp(y + Math.sin(a) * m * 20, 5, s.H - 5),
     trophy: sq.type === 'tank' && s.trophy && s.trophy[sq.side] ? TROPHY_MAX : undefined,
     hp: T.hp, sup: 1, hd: sq.side === 'blue' ? 0 : Math.PI, aim: sq.side === 'blue' ? 0 : Math.PI, lastFire: -99, ammo: T.ammo || 0, rearm: false, rearmT: 0, cd: s.rand() * T.cd, sx: Math.cos(a) * m, sy: Math.sin(a) * m, engaged: false });
+  // (a ground unit coming out by a lake: on its shore, not in it — a workshop by the water put a jeep in it)
+  const u = s.units[s.units.length - 1];
+  if (!T.air && s.lakes.length && lakeAt(s, u)) { const d = dryOf(s, u, 2); u.x = d.x; u.y = d.y; }
 }
 
 function makeBase(x, x0, x1, h) {

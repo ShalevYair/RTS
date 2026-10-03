@@ -18,6 +18,14 @@ const HILL_SPREAD = 2, HILL_LEVELS = 10, ELEV_CELL = 8, SLOPE_K = 9, SLOPE_MAX =
 // random maps: the enemy's half is our half's twin, each feature moved up to MAP_JITTER and resized up to MAP_RESIZE;
 // lakes keep LAKE_GAP between them
 const MAP_JITTER = 30, MAP_RESIZE = 0.12, LAKE_GAP = 60, SHAPE_AMP = 0.14;
+// path finding (path.js): a grid of PATH_CELL squares, blocked within PATH_PAD of a lake or of a building's / post's
+// edge. A* (PATH_GREED: a little greedy, faster, near-shortest) searches at most PATH_MAX squares a path and
+// PATH_BUDGET a tick in all. A path is kept while the goal stays within PATH_RETARGET of where it was made for; its
+// points are passed within PATH_NEAR; the straight way is looked at again every PATH_LOOK s (no way found: PATH_FAIL s); a goal in a blocked
+// patch is reached from the nearest clear square within PATH_FIND squares, and a blocked stretch up to PATH_END
+// before the goal (a building attacked) doesn't block the way. The building or lake itself (PATH_CORE inside its edge)
+// always does.
+const PATH_CELL = 16, PATH_PAD = 12, PATH_GREED = 1.2, PATH_MAX = 8000, PATH_BUDGET = 16000, PATH_RETARGET = 60, PATH_NEAR = 14, PATH_LOOK = 0.5, PATH_FIND = 8, PATH_END = 90, PATH_CORE = 4, PATH_LEAD = 30, PATH_FAIL = 4;
 // lakes: ground units go around them (only aircraft fly over); nothing is built within LAKE_PAD of one.
 // A ground unit looks LAKE_LOOK ahead and slides along the shore when the way is wet.
 const LAKE_PAD = 20, LAKE_LOOK = 28;

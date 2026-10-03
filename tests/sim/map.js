@@ -80,7 +80,7 @@ ok(Sim.buildCheck(s, 'blue', 150, 900) === '', 'building near the HQ, below the 
   ok(L >= 4 && look(top.x, top.y) && !look(plain.x, plain.y), `from ${L} lines up infantry sees ${Math.round(far)} away (+${L * 5}%); on the plain, not`);
   // walk: a jeep squad from the top down the slope, then back up the same way
   const q = g.squads.find(k => k.id === 'blue1'), J = g.units.filter(u => u.squad === q.id).slice(0, 1); // one jeep (no crowding)
-  g.units = g.units.filter(u => u.squad !== q.id || u === J[0]);
+  g.units = g.units.filter(u => u.squad !== q.id || u === J[0]); q.size = 1; // (one of one: else the squad 'lost' the rest and fell back home, and the walk measured that)
   let dir = null;
   for (let R = 60; R <= 200 && !dir; R += 20) for (let a = 0; a < 6.28 && !dir; a += 0.2) { const p = { x: top.x + Math.cos(a) * R, y: top.y + Math.sin(a) * R }; if (Sim.elevAt(g, p) < top.e - 2 && !Sim.lakeAt(g, p, 10)) dir = p; }
   const walk = (from, to) => {
