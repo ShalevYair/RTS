@@ -84,6 +84,9 @@ function squadInfo(q) {
   const am = T.ammo ? us.reduce((a, u) => a + u.ammo / T.ammo, 0) / n : s.supply && Sim.SUPPLY[q.type] ? us.reduce((a, u) => a + (u.sup ?? 1), 0) / n : null;
   const out = [(q.side === 'blue' ? '' : tr('foe') + ' · ') + tn(q.type) + (us.length > 1 ? ' ×' + us.length : ''), tr('ti_hp', Math.round(hp * 100))];
   if (am !== null && q.side === 'blue') out.push(tr('ti_ammo', Math.round(am * 100)));
+  // (fuel: the full game's vehicles and aircraft — fuel.js; a truck: the barrels it carries)
+  const fu = us.filter(u => u.fuel !== undefined); if (fu.length && q.side === 'blue') out.push(tr('ti_fuel', Math.round(fu.reduce((a, u) => a + u.fuel, 0) / fu.length * 100)));
+  if (q.type === 'fueltruck' && q.side === 'blue') out.push(tr('ti_load', us.reduce((a, u) => a + (u.load || 0), 0)));
   const role = (ROLE[lang] || ROLE.he)[q.type]; if (role) out.push(role);
   return out.join('\n');
 }

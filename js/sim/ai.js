@@ -38,7 +38,7 @@ function aiBuild(s, side, D) {
   // the next planned kind this game allows (tutorial levels allow only some)
   let kind = null;
   const plan = AI_STYLES[s.style[side]].plan;
-  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if (!s.builds || s.builds.includes(k)) { kind = k; s.plan[side] += i; } }
+  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if ((!s.builds || s.builds.includes(k)) && (k !== 'fuelst' || s.fuel)) { kind = k; s.plan[side] += i; } } // (a fuel station only where there's fuel)
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
   const anchors = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq').sort((a, b) => dist(a, goal) - dist(b, goal));

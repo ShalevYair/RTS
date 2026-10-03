@@ -226,7 +226,7 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     if (type === 'ssm') c.fillRect(-0.8 * k, -0.11 * k, 1.25 * k, 0.22 * k);
     else if (type === 'arrow') { c.fillRect(-0.75 * k, -0.3 * k, 1.1 * k, 0.16 * k); c.fillRect(-0.75 * k, 0.14 * k, 1.1 * k, 0.16 * k); }
     else for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { c.beginPath(); c.arc(-0.55 * k + i * 0.32 * k, -0.15 * k + j * 0.3 * k, 0.11 * k, 0, Math.PI * 2); c.fill(); }
-  } else if (type === 'truck') {
+  } else if (type === 'truck' || type === 'fueltruck') {
     // supply truck: a cargo box behind a darker cab, with a crate mark
     c.rotate(hd); c.beginPath(); c.rect(-0.8 * k, -0.45 * k, 1.6 * k, 0.9 * k); paint();
     c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0.4 * k, -0.4 * k, 0.4 * k, 0.8 * k);
@@ -1023,6 +1023,8 @@ function drawUnits(c, show) {
     // (a missile truck of ours: a ring filling while it reloads — whole = a missile ready)
     if (u.type === 'ssm' && u.side === 'blue') { const f = 1 - (u.reload || 0) / Sim.SSM_RELOAD; c.lineWidth = 2.2 / view.css; c.strokeStyle = 'rgba(0,0,0,.35)'; ring(u.x, u.y, k * 1.15); c.stroke(); c.strokeStyle = f >= 1 ? '#ffd54a' : 'rgba(255,255,255,.8)'; c.beginPath(); c.arc(u.x, u.y, k * 1.15, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); c.stroke(); }
     if (u.type === 'lift' && u.side === 'blue' && u.cargo && u.cargo.length) label('👥' + u.cargo.length, u.x, u.y - k - 6, colors.ink);
+    // (a fuel truck: a yellow tank on its back)
+    if (u.type === 'fueltruck') { c.save(); c.translate(u.x, u.y); c.rotate(u.hd); c.fillStyle = '#d9a91f'; c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 0.8 / view.css; c.beginPath(); c.ellipse(-k * 0.18, 0, k * 0.32, k * 0.2, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore(); }
     // (no ammunition or care marks, no health bar: a hurt unit of ours has its dot, see healthDot)
     if (u.side === 'blue' && isSel(u.squad) && !(sel === 'all' && NOT_ALL.includes(u.type))) { // (all picked: every one but the bulldozers)
       // picked: a faint light ring close round the unit
@@ -1030,6 +1032,7 @@ function drawUnits(c, show) {
     }
   }
   for (const u of hurt) healthDot(c, u);
+  for (const u of hurt) fuelGauge(c, u); // (fuelui.js)
   // a hurt unit picked (not just "all"): a red Star of David pulsing over it — click it again to send it to be treated
   if (sel !== 'all' && sel != null) for (const u of hurt) if (isSel(u.squad) && hurtUnit(u)) starOfDavid(c, u.x, u.y - SIZE[u.type] * (Sim.TYPES[u.type].air ? 1.2 : 1.05) - 9 / view.css);
 }
@@ -1130,7 +1133,7 @@ function draw() {
   drawSmoke(c); drawFlashes(c); if (!lite) drawClouds(c); drawWeather(c); // (rain, the morning fog: field.js)
   drawNightLit(c);
   if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); }
-  drawPosts(c); drawNodes(c); drawDozerJobs(c);
+  drawPosts(c); drawNodes(c); drawPiles(c); drawDozerJobs(c); // (drawPiles: fuel barrels — fuelui.js)
   drawBuildArea(c);
   // our squads. Where the units themselves are drawn: their strength and ammunition over them, no badge. Where they
   // aren't (out of the exact picture under command friction): faint units where they probably are by now, and a

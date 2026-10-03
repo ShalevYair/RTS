@@ -8,7 +8,7 @@ const step = (s, sec, f) => { for (let i = 0; i < sec * 30; i++) { Sim.step(s, 1
 function field(seed) {
   const s = Sim.openField(Sim.create(seed, 2400, 'normal', 1280, { singles: true })); s.bots = []; s.fog = false; s.night = false; s.collapseAfter = Infinity;
   s.lakes = []; s.hills = []; s.elev = null; s.posts = [];
-  Sim.planHq(s, 'blue', 250, 640); step(s, 120, () => s.nodes.some(n => n.side === 'blue' && n.kind === 'hq' && s.t >= n.ready));
+  Sim.planHq(s, 'blue', 250, 640); step(s, 120, () => !s.hqPending.blue && s.nodes.some(n => n.side === 'blue' && n.kind === 'hq' && s.t >= n.ready));
   return s;
 }
 const fill = (s, x0, y0, x1, y1, kind) => { const G = Sim.ensureGround(s); for (let j = Math.floor(y0 / G.C); j <= Math.floor(y1 / G.C); j++) for (let i = Math.floor(x0 / G.C); i <= Math.floor(x1 / G.C); i++) G.k[j * G.w + i] = kind; };

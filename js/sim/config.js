@@ -63,6 +63,8 @@ const TYPES = {
   med:  { name: 'חובשים', hp: 50,  speed: 30, range: 0,   dmg: 0,  cd: 1,   sight: 110, r: 3, rein: 8, cost: 1, care: true },
   mech: { name: 'מכונאים', hp: 80, speed: 45, range: 0,   dmg: 0,  cd: 1,   sight: 130, r: 7, rein: 8, cost: 1, care: true },
   truck: { name: 'משאיות אספקה', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1,  sight: 120, r: 7, rein: 8, cost: 1, care: true },
+  // fuel trucks (fuel.js): from a fuel station; they carry barrels to the front and to vehicles that ran dry
+  fueltruck: { name: 'משאיות דלק', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1, sight: 120, r: 7, rein: 8, cost: 1, care: true },
   // support (the full game): a bulldozer builds the HQ, forward HQs and every building (only while it stands by the
   // site); a signals truck sees far and gives control around it (NODES.radio). Neither fights; both come from the HQ.
   dozer: { name: 'טרקטורים', hp: 120, speed: 30, range: 0, dmg: 0, cd: 1, sight: 110, r: 9, rein: 8, cost: 1, care: true, support: true },
@@ -176,6 +178,8 @@ const STRUCTS = {
   airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2, r: 45, cat: 'air' },
   garage:   { name: 'מוסך',        icon: '🛠️', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2, r: 28, cat: 'service' },
   depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 28, cat: 'service' },
+  // the fuel station (fuel.js): barrels into its yard, and up to `keep` fuel trucks
+  fuelst:   { name: 'תחנת דלק', icon: '⛽', hp: 400, value: 3, unit: 'fueltruck', build: 40, every: 30, size: 1, keep: 4, r: 28, cat: 'service' },
   // a fake HQ: cheap, no slot, draws the enemy (under fog it passes for the HQ until made out closely)
   decoy:    { name: 'מפקדה מזויפת', icon: '🏰', hp: 250,  value: 0.5, build: 15, badge: '🎭', r: 48, cat: 'service' },
 };
@@ -279,7 +283,7 @@ const SUPPORT_BACK = 50;
 // (together, far off: marching there in the formation — see formation; deep: the player's arrow, rows DEEP_MIN–DEEP_MAX apart)
 const MARCH_MIN = 220, MARCH_PACE = 0.9, MARCH_WAIT = 2.5, DEEP_MIN = 20, DEEP_MAX = 260;
 // (the front: what never goes there — missile trucks fire from far behind)
-const FRONT_NOT = ['ssm', 'dozer'];
+const FRONT_NOT = ['ssm', 'dozer', 'fueltruck']; // (fuel trucks: their own rounds, fuel.js)
 // under fire: a fighting unit of the player's goes at the shooter, one that doesn't falls back FLEE_D toward the HQ
 // (each squad once per REACT_EVERY s)
 const FLEE_D = 190, REACT_EVERY = 4;
@@ -297,14 +301,14 @@ const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
 // forward HQs: a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
 const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
-const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'airfield', 'jeepat', 'garage', 'domesite', 'heliatk', 'tankshop', 'heligun', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost'], AI_READY = 0.6;
+const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'airfield', 'jeepat', 'garage', 'domesite', 'heliatk', 'tankshop', 'heligun', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost'], AI_READY = 0.6;
 // the AI's style, picked per game for red (blue bots play 'steady'): what it builds first, how worn a squad may be
 // and still attack (ready), and how it goes about it — rush attacks early and often; turtle holds near home until it
 // has `wait` squads (or the upper hand), striking only what comes close; flank goes round by the map's edge.
 const AI_STYLES = {
   steady: { name: 'שקול',  icon: '🦉', plan: AI_PLAN, ready: AI_READY },
-  rush:   { name: 'מסתער', icon: '⚡', plan: ['jeepshop', 'tent', 'tankshop', 'heligun', 'jeepat', 'depot', 'aapost', 'clinic', 'airfield', 'garage'], ready: 0.45 },
-  turtle: { name: 'מתבצר', icon: '🐢', plan: ['aapost', 'tankshop', 'atpost', 'depot', 'clinic', 'jeepaa', 'heliatk', 'airfield', 'tankshop', 'garage', 'tent'], ready: 0.7, wait: 5 },
+  rush:   { name: 'מסתער', icon: '⚡', plan: ['jeepshop', 'tent', 'tankshop', 'heligun', 'jeepat', 'depot', 'fuelst', 'aapost', 'clinic', 'airfield', 'garage'], ready: 0.45 },
+  turtle: { name: 'מתבצר', icon: '🐢', plan: ['aapost', 'tankshop', 'atpost', 'depot', 'fuelst', 'clinic', 'jeepaa', 'heliatk', 'airfield', 'tankshop', 'garage', 'tent'], ready: 0.7, wait: 5 },
   flank:  { name: 'מאגף',  icon: '↪', plan: AI_PLAN, ready: AI_READY, flank: true },
 };
 // AI_SILENT_R: the hard AI sends squads going farther than this in radio silence
@@ -403,3 +407,17 @@ const MISSILE_SHOTS = ['air', 'heli', 'at', 'tjeep'], TROPHY_MAX = 3, TROPHY_EVE
 // edge + PLANT_R), and brings it down (the HQ: a quarter — four together, at once)
 const STEALTH_EYE = 40, STEALTH_NEAR = 25, STEALTH_FIRE = 4, PLANT_T = 20, PLANT_R = 15;
 const SUPPORT_EVERY = 120, SUPPORT_CAP = 3, DOZER_R = 40, FHQ_AFTER_HQ = 60;
+// fuel (fuel.js, the full game): FUEL_T s of moving on a full tank (planes FUEL_AIR s of flying; they turn back under
+// PLANE_BACK); under FUEL_LOW a vehicle goes to fill up, until FUEL_DONE, within FUEL_R of the fuel. A barrel fills
+// a vehicle; FUEL_BARRELS: those that take more. An HQ / forward HQ fills FUEL_HQ_RATE a second (counted FUEL_HQ_FAR
+// farther than a pile, when choosing). A station makes a barrel every FUEL_MAKE s, FUEL_STOCK in its yard at most;
+// a truck carries FUEL_LOAD; a pile at the front holds PILE_MAX, PILE_BACK behind the front mark. A vehicle looks for
+// the nearest fuel every FUEL_LOOK s and turns back when what's left is FUEL_SPARE times the drive there (or FUEL_LOW)
+const FUEL_T = 120, FUEL_AIR = 100, PLANE_BACK = 0.2, FUEL_LOW = 0.25, FUEL_DONE = 0.95, FUEL_R = 40; // (FUEL_R: past two bodies and the gap separate keeps between them)
+const FUEL_BARRELS = { tank: 2, dozer: 2 }, FUEL_HQ_RATE = 0.05, FUEL_HQ_FAR = 150, FUEL_HQ_R = 120; // (FUEL_HQ_R: how far from an HQ's edge it fills)
+const FUEL_MAKE = 10, FUEL_STOCK = 24, FUEL_LOAD = 6, PILE_MAX = 24, PILE_BACK = 50, FUEL_LOOK = 2, FUEL_SPARE = 1.3;
+// the fuel truck: like the supply truck in every table by type
+for (const T of [CARER, UNIT_VALUE, MASS, FORM_ROW]) if (T.truck !== undefined) T.fueltruck = T.truck;
+for (const a in MULT) MULT[a].fueltruck = MULT[a].truck;
+MULT.fueltruck = { ...MULT.truck };
+DUSTY.push('fueltruck');
