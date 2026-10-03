@@ -250,6 +250,7 @@ function supplyUse(s, u) {
 // few steps climb or drop)
 function moveTo(s, u, tx, ty, fast, dt, keep) {
   const T = TYPES[u.type];
+  if (!T.air && !keep) ({ x: tx, y: ty } = pathStep(s, u, tx, ty)); // (round lakes and buildings: path.js)
   if (!T.air && u.yield && u.yield.until > s.t) { tx += u.yield.x * u.yield.k; ty += u.yield.y * u.yield.k; } // (making room: off to the side)
   if (!T.air && !keep && !s.noGiveUp && singles(s, u.side) && giveUp(s, u, tx, ty)) return; // (the player's units: the AI's squads waited on them, and bot games stalled)
   if (!T.air && s.lakes.length) ({ x: tx, y: ty } = wade(s, u, tx, ty));

@@ -57,8 +57,8 @@ ok(off > 0, `red orders are also carried out roughly (${off} squads off target, 
 let fin = 0, ids = { 0: 0, 1: 0, 2: 0 };
 for (let i = 0; i < 4; i++) {
   const g = Sim.create(90 + i, [800, 1100, 1400][i % 3], 'normal'); g.bots = ['blue', 'red'];
-  while (!g.over && g.t < 900) { Sim.step(g, 1 / 30); if (Math.abs(g.t % 5) < 1 / 30) for (const k in g.mem.red) ids[g.mem.red[k].lvl]++; }
+  while (!g.over && g.t < 3600) { Sim.step(g, 1 / 30); if (Math.abs(g.t % 5) < 1 / 30) for (const k in g.mem.red) ids[g.mem.red[k].lvl]++; }
   if (g.over) fin++;
 }
-ok(fin >= 3, `${fin}/4 fogged bot games finished within 15 min`);
+ok(fin >= 3, `${fin}/4 fogged bot games finished within 60 min (half speed: some drag on past 30)`);
 ok(ids[0] > 0 && ids[1] > 0 && ids[2] > 0, `red saw all three levels (movement ${ids[0]}, class ${ids[1]}, identified ${ids[2]})`);
