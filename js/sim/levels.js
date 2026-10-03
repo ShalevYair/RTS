@@ -95,7 +95,7 @@ function level(n, seed = 1, W = 1000, opts = {}) {
   s.collapseAt = L.wipe ? 1e-6 : LEVEL_COLLAPSE;
   if (!L.nodes.includes('tent')) { s.collapseAfter = 0; for (const q of s.squads) if (q.side === 'red') q.trait = 'aggressive'; }
   // (the open field: each side places its HQ; the enemy builds slower)
-  if (L.field) { s.noRadio = !L.ui.includes('radio'); openField(s); s.fuel = false; s.prodRate = { ...LEVEL_PROD }; s.collapseAfter = 120; return s; } // (s.fuel: none in the tutorial — it doesn't teach it)
+  if (L.field) { s.noRadio = !L.ui.includes('radio'); openField(s); s.fuel = false; s.crates = false; s.prodRate = { ...LEVEL_PROD }; s.collapseAfter = 120; return s; } // (s.fuel, s.crates: none in the tutorial — it doesn't teach them)
   updatePower(s); visibility(s);
   s.rep = {}; for (const q of s.squads) sendReport(s, q);
   return s;

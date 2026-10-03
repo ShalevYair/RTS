@@ -87,6 +87,7 @@ function squadInfo(q) {
   // (fuel: the full game's vehicles and aircraft — fuel.js; a truck: the barrels it carries)
   const fu = us.filter(u => u.fuel !== undefined); if (fu.length && q.side === 'blue') out.push(tr('ti_fuel', Math.round(fu.reduce((a, u) => a + u.fuel, 0) / fu.length * 100)));
   if (q.type === 'fueltruck' && q.side === 'blue') out.push(tr('ti_load', us.reduce((a, u) => a + (u.load || 0), 0)));
+  if (q.type === 'truck' && q.side === 'blue' && s.crates) out.push(tr('ti_crates', us.reduce((a, u) => a + (u.load || 0), 0)));
   const role = (ROLE[lang] || ROLE.he)[q.type]; if (role) out.push(role);
   return out.join('\n');
 }

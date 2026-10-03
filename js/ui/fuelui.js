@@ -1,4 +1,5 @@
-// UI: fuel (fuel.js) — the barrels (a station's yard behind a low fence, and the piles the trucks drop by the front)
+// UI: fuel (fuel.js) — the barrels and the ammunition crates (a station's / depot's yard behind a low fence, and the
+// piles the trucks drop by the front)
 // and, under a vehicle of ours that's running low, a small gauge (orange; red under FUEL_LOW; a pulsing ⛽ when empty)
 const FUEL_GAUGE = 0.5;
 function drawPiles(c) {
@@ -11,6 +12,13 @@ function drawPiles(c) {
     }
     for (let i = 0; i < n; i++) {
       const x = p.x + ((i % cols) - (cols - 1) / 2) * r * 2, y = p.y + (Math.floor(i / cols) - 1.5) * r * 2;
+      if (p.k === 'ammo') { // (a crate: a wooden box with a band)
+        c.fillStyle = 'rgba(0,0,0,.3)'; c.fillRect(x - r + 0.8, y - r + 1, r * 2 - 0.4, r * 2 - 0.4);
+        c.fillStyle = p.side === 'blue' ? '#7a6238' : '#7a4a38'; c.fillRect(x - r + 0.2, y - r + 0.2, r * 2 - 0.4, r * 2 - 0.4);
+        c.strokeStyle = 'rgba(30,20,10,.7)'; c.lineWidth = 0.6; c.strokeRect(x - r + 0.2, y - r + 0.2, r * 2 - 0.4, r * 2 - 0.4);
+        c.beginPath(); c.moveTo(x - r + 0.2, y); c.lineTo(x + r - 0.2, y); c.stroke();
+        continue;
+      }
       c.fillStyle = 'rgba(0,0,0,.3)'; c.beginPath(); c.arc(x + 0.8, y + 1, r, 0, Math.PI * 2); c.fill();
       c.fillStyle = p.side === 'blue' ? '#3d5a3a' : '#5a3d3a'; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
       c.strokeStyle = '#c9a227'; c.lineWidth = 0.7; c.beginPath(); c.arc(x, y, r * 0.6, 0, Math.PI * 2); c.stroke();

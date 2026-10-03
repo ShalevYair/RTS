@@ -1024,6 +1024,7 @@ function drawUnits(c, show) {
     if (u.type === 'ssm' && u.side === 'blue') { const f = 1 - (u.reload || 0) / Sim.SSM_RELOAD; c.lineWidth = 2.2 / view.css; c.strokeStyle = 'rgba(0,0,0,.35)'; ring(u.x, u.y, k * 1.15); c.stroke(); c.strokeStyle = f >= 1 ? '#ffd54a' : 'rgba(255,255,255,.8)'; c.beginPath(); c.arc(u.x, u.y, k * 1.15, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); c.stroke(); }
     if (u.type === 'lift' && u.side === 'blue' && u.cargo && u.cargo.length) label('👥' + u.cargo.length, u.x, u.y - k - 6, colors.ink);
     // (a fuel truck: a yellow tank on its back)
+    if (u.type === 'truck' && u.load > 0) { c.save(); c.translate(u.x, u.y); c.rotate(u.hd); c.fillStyle = '#7a5a32'; c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 0.8 / view.css; for (let i = 0; i < Math.min(3, Math.ceil(u.load / 2)); i++) { c.fillRect(-k * 0.42 + i * k * 0.16, -k * 0.12, k * 0.14, k * 0.24); c.strokeRect(-k * 0.42 + i * k * 0.16, -k * 0.12, k * 0.14, k * 0.24); } c.restore(); } // (crates on the back)
     if (u.type === 'fueltruck') { c.save(); c.translate(u.x, u.y); c.rotate(u.hd); c.fillStyle = '#d9a91f'; c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 0.8 / view.css; c.beginPath(); c.ellipse(-k * 0.18, 0, k * 0.32, k * 0.2, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore(); }
     // (no ammunition or care marks, no health bar: a hurt unit of ours has its dot, see healthDot)
     if (u.side === 'blue' && isSel(u.squad) && !(sel === 'all' && NOT_ALL.includes(u.type))) { // (all picked: every one but the bulldozers)

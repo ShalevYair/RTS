@@ -144,7 +144,7 @@ const scanEvery = (s, u) => singles(s, u.side) ? (s.lite ? 2 * SCAN_EVERY : SCAN
 function updateUnit(s, u, sq, dt) {
   const T = TYPES[u.type];
   u.cd = Math.max(0, u.cd - dt); u.engaged = false; u.atDrone = false;
-  if (u.type === 'fueltruck' && s.fuel) { truckTick(s, u, sq, dt); return; } // (its own rounds: fuel.js)
+  if (cargoOn(s, u.type)) { truckTick(s, u, sq, dt); return; } // (fuel / supply trucks with barrels / crates: their own rounds, fuel.js)
   const fueling = fuelUnit(s, u, sq, dt); // (low on fuel: off to fill up — planes: back to the airfield, below)
   if (T.ammo) {
     // aircraft fly sorties: out of ammo -> back to the airfield, rearm, then return
@@ -168,7 +168,7 @@ function updateUnit(s, u, sq, dt) {
     else if (u.resup && u.sup >= SUPPLY_DONE) u.resup = false;
   } else u.resup = false;
   if (fueling) return; // (fuel first, even hurt: going to be treated, they ran dry on the way)
-  if (u.care || u.resup) { const f = careSpot(s, u, sq, u.care ? CARER[u.type] : 'truck'); if (dist(u, f) > CARE_R * 0.6) moveTo(s, u, f.x, f.y, 1.15, dt); return; }
+  if (u.care || u.resup) { const f = (!u.care && s.crates && ammoSpot(s, u)) || careSpot(s, u, sq, u.care ? CARER[u.type] : 'truck'); if (dist(u, f) > CARE_R * 0.6) moveTo(s, u, f.x, f.y, 1.15, dt); return; } // (s.crates: to the crates — fuel.js)
   // (on its way to get on a helicopter: straight to it, not to a place in a line)
   if (sq.boarding) { const L = s.units.find(m => m.id === sq.boarding); if (L) { moveTo(s, u, L.x, L.y, 1.1, dt); return; } }
   u.hush = sq.silent; // (radio silence: quiet driving, no dust)

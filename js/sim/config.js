@@ -177,7 +177,7 @@ const STRUCTS = {
   heligun:  { name: 'מנחת מסוקי מקלע', icon: '🚁', hp: 550, value: 7, unit: 'gunship', build: 50, every: 90, size: 2, badge: '🔫', r: 36, cat: 'helis' },
   airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2, r: 45, cat: 'air' },
   garage:   { name: 'מוסך',        icon: '🛠️', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2, r: 28, cat: 'service' },
-  depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 28, cat: 'service' },
+  depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, keep: 4, r: 28, cat: 'service' }, // (keep: up to 4 trucks — the full game's crates, fuel.js)
   // the fuel station (fuel.js): barrels into its yard, and up to `keep` fuel trucks
   fuelst:   { name: 'תחנת דלק', icon: '⛽', hp: 400, value: 3, unit: 'fueltruck', build: 40, every: 30, size: 1, keep: 4, r: 28, cat: 'service' },
   // a fake HQ: cheap, no slot, draws the enemy (under fog it passes for the HQ until made out closely)
@@ -416,6 +416,12 @@ const SUPPORT_EVERY = 120, SUPPORT_CAP = 3, DOZER_R = 40, FHQ_AFTER_HQ = 60;
 const FUEL_T = 120, FUEL_AIR = 100, PLANE_BACK = 0.2, FUEL_LOW = 0.25, FUEL_DONE = 0.95, FUEL_R = 40; // (FUEL_R: past two bodies and the gap separate keeps between them)
 const FUEL_BARRELS = { tank: 2, dozer: 2 }, FUEL_HQ_RATE = 0.05, FUEL_HQ_FAR = 150, FUEL_HQ_R = 120; // (FUEL_HQ_R: how far from an HQ's edge it fills)
 const FUEL_MAKE = 10, FUEL_STOCK = 24, FUEL_LOAD = 6, PILE_MAX = 24, PILE_BACK = 50, FUEL_LOOK = 2, FUEL_SPARE = 1.3;
+// ammunition crates (the full game: s.crates, fuel.js — the same way as the barrels): a supply depot makes a crate
+// every CRATE_MAKE s (CRATE_STOCK in its yard at most), a supply truck carries CRATE_LOAD of them to the front (a pile
+// AMMO_SIDE to the side of the fuel's). A crate fills a unit's ammunition (AMMO_CRATES: those that take more); an HQ /
+// forward HQ fills AMMO_HQ_RATE a second, and a held supply post as before. Without a front, the AI's trucks drop
+// behind its leading squad (looked at every AI_DROP_T s)
+const CRATE_MAKE = 10, CRATE_STOCK = 24, CRATE_LOAD = 6, AMMO_CRATES = { tank: 2 }, AMMO_HQ_RATE = 0.04, AMMO_SIDE = 36, AI_DROP_T = 60;
 // the fuel truck: like the supply truck in every table by type
 for (const T of [CARER, UNIT_VALUE, MASS, FORM_ROW]) if (T.truck !== undefined) T.fueltruck = T.truck;
 for (const a in MULT) MULT[a].fueltruck = MULT[a].truck;
