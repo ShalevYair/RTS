@@ -65,6 +65,7 @@ const TYPES = {
   truck: { name: 'משאיות אספקה', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1,  sight: 120, r: 7, rein: 8, cost: 1, care: true },
   // fuel trucks (fuel.js): from a fuel station; they carry barrels to the front and to vehicles that ran dry
   fueltruck: { name: 'משאיות דלק', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1, sight: 120, r: 7, rein: 8, cost: 1, care: true },
+  watertruck: { name: 'משאיות מים', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1, sight: 120, r: 7, rein: 8, cost: 1, care: true },
   // support (the full game): a bulldozer builds the HQ, forward HQs and every building (only while it stands by the
   // site); a signals truck sees far and gives control around it (NODES.radio). Neither fights; both come from the HQ.
   dozer: { name: 'טרקטורים', hp: 120, speed: 30, range: 0, dmg: 0, cd: 1, sight: 110, r: 9, rein: 8, cost: 1, care: true, support: true },
@@ -180,6 +181,7 @@ const STRUCTS = {
   depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 28, cat: 'service' },
   // the fuel station (fuel.js): barrels into its yard, and up to `keep` fuel trucks
   fuelst:   { name: 'תחנת דלק', icon: '⛽', hp: 400, value: 3, unit: 'fueltruck', build: 40, every: 30, size: 1, keep: 4, r: 28, cat: 'service' },
+  waterst:  { name: 'מתקן מים', icon: '💧', hp: 400, value: 3, unit: 'watertruck', build: 40, every: 120, size: 2, keep: 2, max: 2, free: true, first: true, shore: true, r: 28, cat: 'service' }, // (shore: on a lake's bank)
   // a fake HQ: cheap, no slot, draws the enemy (under fog it passes for the HQ until made out closely)
   decoy:    { name: 'מפקדה מזויפת', icon: '🏰', hp: 250,  value: 0.5, build: 15, badge: '🎭', r: 48, cat: 'service' },
 };
@@ -283,7 +285,7 @@ const SUPPORT_BACK = 50;
 // (together, far off: marching there in the formation — see formation; deep: the player's arrow, rows DEEP_MIN–DEEP_MAX apart)
 const MARCH_MIN = 220, MARCH_PACE = 0.9, MARCH_WAIT = 2.5, DEEP_MIN = 20, DEEP_MAX = 260;
 // (the front: what never goes there — missile trucks fire from far behind)
-const FRONT_NOT = ['ssm', 'dozer', 'fueltruck']; // (fuel trucks: their own rounds, fuel.js)
+const FRONT_NOT = ['ssm', 'dozer'];
 // under fire: a fighting unit of the player's goes at the shooter, one that doesn't falls back FLEE_D toward the HQ
 // (each squad once per REACT_EVERY s)
 const FLEE_D = 190, REACT_EVERY = 4;
@@ -415,9 +417,33 @@ const SUPPORT_EVERY = 120, SUPPORT_CAP = 3, DOZER_R = 40, FHQ_AFTER_HQ = 60;
 // the nearest fuel every FUEL_LOOK s and turns back when what's left is FUEL_SPARE times the drive there (or FUEL_LOW)
 const FUEL_T = 120, FUEL_AIR = 100, PLANE_BACK = 0.2, FUEL_LOW = 0.25, FUEL_DONE = 0.95, FUEL_R = 40; // (FUEL_R: past two bodies and the gap separate keeps between them)
 const FUEL_BARRELS = { tank: 2, dozer: 2 }, FUEL_HQ_RATE = 0.05, FUEL_HQ_FAR = 150, FUEL_HQ_R = 120; // (FUEL_HQ_R: how far from an HQ's edge it fills)
+// supply trucks (the full game: s.logi, fuel.js) — no unit goes back for anything: a truck serves what's within TRUCK_R
+// of it (fuel FUEL_FILL, ammunition AMMO_FILL, water WATER_FILL of a full one a second), carrying TRUCK_CAP fulls (a
+// tank's fuel and ammunition: 2); empty, it drives to its building, fills up in TRUCK_REFILL s and goes back to its
+// place. Soldiers drink: WATER_T s on a full canteen; dry, THIRST of their health a second; by a water building
+// (WATER_NEAR of its edge) WATER_FILL. Under LIGHT_AT a light shows (fuel yellow, water blue). A medic / mechanic
+// goes to the hurt of its kind within MED_SEEK. A water building stands within SHORE_R of a lake.
+const TRUCK_CAP = { fueltruck: 8, truck: 8, watertruck: 30 }, TRUCK_R = 100, TRUCK_REFILL = 12, FUEL_FILL = 0.25, AMMO_FILL = 0.2, WATER_FILL = 0.1;
+const AMMO_CRATES = { tank: 2 }, AMMO_HQ_RATE = 0.04;
+const AI_SUPPLY2 = 300;
+// (the supply buildings in the full game, s.logi — ammunition, fuel, water: at most 2 of each, past the building
+// allowance (free); a truck at once (first), another 2 minutes on, one lost — another 2 minutes on: 4 trucks of each
+// kind at most. Outside it (the tutorial) as they were: specOf)
+const LOGI_SPEC = { every: 120, size: 2, keep: 2, max: 2, free: true, first: true, value: 0 }; // (value 0: not in the power — structures.js)
+const LOGI_STRUCTS = Object.fromEntries(['depot', 'fuelst', 'waterst'].map(k => [k, { ...STRUCTS[k], ...LOGI_SPEC }]));
+const specOf = (s, kind) => (s.logi && LOGI_STRUCTS[kind]) || STRUCTS[kind];
+// jams (the player's units): a moving unit pushes a standing one of ours aside (gets PUSH_THROUGH of the push, of 2);
+// one within ARRIVE_NEAR of its place, blocked (ARRIVE_STUCK s), touching one that has arrived there has arrived too, and stays so while its place
+// stays the same and it's within ARRIVE_LEAVE of it — pushed off, it walks back once none of ours has touched it for
+// ARRIVE_CALM s (within ARRIVE_SLACK: where it is will do); within ARRIVE_STALL_R and no nearer for ARRIVE_STALL s:
+// arrived where it is (squad.js arrivedAt)
+const PUSH_THROUGH = 0.3, ARRIVE_NEAR = 45, ARRIVE_LEAVE = 80, ARRIVE_STUCK = 0.4, ARRIVE_CALM = 6, ARRIVE_SLACK = 16, ARRIVE_STALL = 2, ARRIVE_STALL_R = 90;
+const WATER_T = 300, THIRST = 0.01, LIGHT_AT = 0.2, MED_SEEK = 180, WATER_NEAR = 60, SHORE_R = 34, LOGI_KINDS = ['depot', 'fuelst', 'waterst'];
 const FUEL_MAKE = 10, FUEL_STOCK = 24, FUEL_LOAD = 6, PILE_MAX = 24, PILE_BACK = 50, FUEL_LOOK = 2, FUEL_SPARE = 1.3;
 // the fuel truck: like the supply truck in every table by type
-for (const T of [CARER, UNIT_VALUE, MASS, FORM_ROW]) if (T.truck !== undefined) T.fueltruck = T.truck;
-for (const a in MULT) MULT[a].fueltruck = MULT[a].truck;
-MULT.fueltruck = { ...MULT.truck };
-DUSTY.push('fueltruck');
+for (const k of ['fueltruck', 'watertruck']) {
+  for (const T of [CARER, UNIT_VALUE, MASS, FORM_ROW]) if (T.truck !== undefined) T[k] = T.truck;
+  for (const a in MULT) MULT[a][k] = MULT[a].truck;
+  MULT[k] = { ...MULT.truck };
+  DUSTY.push(k);
+}

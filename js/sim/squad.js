@@ -30,7 +30,8 @@ function updateSquad(s, sq, dt, of) {
   if (fresh) sendReport(s, sq);
   // heavy losses: under the line after being above it (a squad still filling up hasn't lost anything)
   // (part of it on board a helicopter isn't a loss)
-  if (!sq.retreating && !sq.boarding && !sq.aboard && sq.order.type !== 'retreat' && sq.strength < retreatAt(s, sq) && sq.peak >= retreatAt(s, sq)) {
+  // (s.logi, the player's: never — the hurt stay where they are, and a medic comes; they fell back and drove out again)
+  if (!sq.retreating && !sq.boarding && !sq.aboard && !(s.logi && singles(s, sq.side)) && sq.order.type !== 'retreat' && sq.strength < retreatAt(s, sq) && sq.peak >= retreatAt(s, sq)) {
     sq.retreating = true;
     report(s, sq, `אבדות כבדות (${Math.round(sq.strength * 100)}%), נסוג להתארגנות`); sendReport(s, sq, 'hit');
   }
@@ -144,7 +145,7 @@ const scanEvery = (s, u) => singles(s, u.side) ? (s.lite ? 2 * SCAN_EVERY : SCAN
 function updateUnit(s, u, sq, dt) {
   const T = TYPES[u.type];
   u.cd = Math.max(0, u.cd - dt); u.engaged = false; u.atDrone = false;
-  if (u.type === 'fueltruck' && s.fuel) { truckTick(s, u, sq, dt); return; } // (its own rounds: fuel.js)
+  if (cargoOn(s, u.type) && truckTick(s, u, sq, dt)) return; // (a supply truck empty: to its building and back — fuel.js)
   const fueling = fuelUnit(s, u, sq, dt); // (low on fuel: off to fill up — planes: back to the airfield, below)
   if (T.ammo) {
     // aircraft fly sorties: out of ammo -> back to the airfield, rearm, then return
@@ -159,15 +160,17 @@ function updateUnit(s, u, sq, dt) {
   }
   // care: badly hurt, the unit leaves the fight on its own for the nearest medic / mechanic (or home), holding its fire
   if (CARER[u.type]) {
-    if (!u.care && u.hp < CARE_AT * T.hp) u.care = true;
+    if (!u.care && !s.logi && u.hp < CARE_AT * T.hp) u.care = true; // (s.logi: the hurt stay; a medic comes — fuel.js)
     else if (u.care && u.hp >= (u.careFull ? 0.995 : CARE_DONE) * T.hp) { u.care = false; u.careFull = false; const f = sq.single && !FRONT_NOT.includes(u.type) && s.front && s.front[u.side]; if (f) { const c = freeSpot(s, u.side, f, u.type, sq); selfOrder(sq, 'attack', c.x, c.y); } } // (sent by the player: until whole; treated: off to the front, if there is one)
   }
   // and low on ammunition: off to the nearest supply truck (or home), holding fire, until refilled
-  if (s.supply && SUPPLY[u.type]) {
+  if (s.supply && SUPPLY[u.type] && !s.logi) { // (s.logi: it waits for a truck, holding its fire — below)
     if (!u.resup && u.sup < SUPPLY_LOW) u.resup = true;
     else if (u.resup && u.sup >= SUPPLY_DONE) u.resup = false;
   } else u.resup = false;
   if (fueling) return; // (fuel first, even hurt: going to be treated, they ran dry on the way)
+  // (s.logi: a medic / mechanic goes to the hurt near it)
+  if (s.logi && T.care && (u.type === 'med' || u.type === 'mech')) { const m = medSeek(s, u); if (m) { if (dist(u, m) > CARE_R * 0.7) moveTo(s, u, m.x, m.y, 1.1, dt); return; } }
   if (u.care || u.resup) { const f = careSpot(s, u, sq, u.care ? CARER[u.type] : 'truck'); if (dist(u, f) > CARE_R * 0.6) moveTo(s, u, f.x, f.y, 1.15, dt); return; }
   // (on its way to get on a helicopter: straight to it, not to a place in a line)
   if (sq.boarding) { const L = s.units.find(m => m.id === sq.boarding); if (L) { moveTo(s, u, L.x, L.y, 1.1, dt); return; } }
@@ -180,6 +183,7 @@ function updateUnit(s, u, sq, dt) {
   // (AA soldiers at something on the ground: their rifle — gun — not their missiles)
   const gunAt = e => T.gun && !(e.kind ? false : TYPES[e.type].air) ? T.gun : null, reach = e => { const G = gunAt(e); return G ? G.range * up * rk : range; };
   const hk = hurtK(u); // (hurt: weaker and slower)
+  const noAmmo = s.logi && SUPPLY[u.type] && u.sup <= 0; // (out of ammunition: it holds its fire until a truck comes)
   let best = null, bd = Infinity, bw = Infinity, near = null, nd = Infinity;
   const lim = Math.max(sight, range, T.gun ? T.gun.range * up * rk : 0); // (nothing further than this counts: a quick square test first)
   // (the target is chosen anew every SCAN_EVERY ticks, each unit in its turn — or at once if it's gone; in between
@@ -198,9 +202,10 @@ function updateUnit(s, u, sq, dt) {
     best = u.pick.best; near = u.pick.near; bd = best ? dist(u, best) : Infinity;
     if (near && dist(u, near) > reach(near)) near = null; // (moved out of reach since)
   }
+  if (noAmmo) { best = null; near = null; }
   const bestR = best ? reach(best) : range, tgt = best && bd <= bestR ? best : near;
   // nothing else to shoot at: hit an enemy forward HQ or (AA only) a drone in range
-  if (!tgt && !retreat && u.cd === 0 && !T.care && !T.stealth) { // (a commando doesn't shoot at buildings: he blows them up)
+  if (!tgt && !retreat && u.cd === 0 && !T.care && !T.stealth && !noAmmo) { // (a commando doesn't shoot at buildings: he blows them up)
     const G = n => n.kind !== 'drone' && T.gun ? T.gun : null; // (a building: the rifle too; a drone: a missile)
     const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= (G(n) ? G(n).range * up * rk : range) + nodeR(n));
     if (n) {
@@ -237,7 +242,39 @@ function updateUnit(s, u, sq, dt) {
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
   else if (T.air && !T.hover) { const sr = o.r * 0.55; circle(s, u, anchor.x + u.sx * sr, anchor.y + u.sy * sr, AIR_ORBIT, dt); return; }
   else { const sp = spacing(u.type), g = (u.slot || 0) * sp, b = (u.row || 0) * sp, a = sq.face || 0; tx = anchor.x - Math.sin(a) * g - Math.cos(a) * b; ty = anchor.y + Math.cos(a) * g - Math.sin(a) * b; } // in the line (or block)
+  // (the player's units, to their place: arrived — at it, or touching one of ours that has arrived there — it stands,
+  // even pushed a little off it: units circling a crowded spot for ever, shoving one another, was the jam. The AI's as
+  // before: changes to them stalled bot games)
+  if (mine && !T.air && !best && !retreat && !s.noArrive && arrivedAt(s, u, tx, ty, sq.order)) return; // (s.noArrive: off, to compare)
   moveTo(s, u, tx, ty, (retreat ? 1.15 : 1) * (sq.silent ? SILENT_SPEED : 1), dt);
+}
+function arrivedAt(s, u, tx, ty, key) {
+  if (u.yield && u.yield.until > s.t) return false; // (making way for one: it moves)
+  // (arrived for this order only, and only once its place has stopped moving — a squad marching in step, a bulldozer
+  // paving square by square: their places move a little every tick)
+  const moved = u.lastT && Math.hypot(u.lastT.x - tx, u.lastT.y - ty) > 0.5; u.lastT = { x: tx, y: ty };
+  if (moved || u.arrKey !== key) { u.arr = null; u.arrBest = null; u.arrKey = key; if (moved) return false; }
+  if (u.arr) {
+    const off = dist(u, u.arr);
+    if (off >= ARRIVE_LEAVE) u.arr = null; // (pushed far off: it goes back)
+    else {
+      // (pushed a little off: it stays while ours touch it — going back at once shoved the next, and so on round —
+      // and walks back once none has for ARRIVE_CALM s)
+      if (off <= ARRIVE_SLACK) return true; // (a little off: good enough)
+      const ru = bodyR(s, u);
+      if (around(s, u.x, u.y, ru + MAX_R + UNIT_GAP + 4).some(b => b !== u && b.side === u.side && !TYPES[b.type].air && b.hp > 0 && dist(b, u) < ru + bodyR(s, b) + UNIT_GAP + 4)) u.calm = s.t + ARRIVE_CALM;
+      return s.t < (u.calm || 0);
+    }
+  }
+  const d = Math.hypot(tx - u.x, ty - u.y);
+  if (d <= 4) { u.arr = { x: tx, y: ty }; return true; }
+  // (near it and not getting any nearer for ARRIVE_STALL s — sliding round a crowd that stands on its place: here will do)
+  if (!u.arrBest || d < u.arrBest.d - 3) u.arrBest = { d, t: s.t };
+  else if (d < ARRIVE_STALL_R && s.t - u.arrBest.t > ARRIVE_STALL) { u.arr = { x: u.x, y: u.y }; u.arrBest = null; return true; }
+  if (d > ARRIVE_NEAR || !((u.stuck || 0) > ARRIVE_STUCK)) return false; // (and blocked: not getting anywhere)
+  const ru = bodyR(s, u);
+  if (around(s, u.x, u.y, ru + MAX_R + UNIT_GAP + 6).some(b => b !== u && b.side === u.side && b.arr && !TYPES[b.type].air && b.hp > 0 && dist(b, u) < ru + bodyR(s, b) + UNIT_GAP + 6 && Math.hypot(b.arr.x - tx, b.arr.y - ty) < ARRIVE_NEAR * 2 && (b.x - u.x) * (tx - u.x) + (b.y - u.y) * (ty - u.y) > 0)) { u.arr = { x: tx, y: ty }; return true; } // (the one touching it: in its way, toward its place)
+  return false;
 }
 // aircraft never stand still: they circle round a spot (heading for a point a little ahead on the ring)
 function circle(s, u, cx, cy, R, dt) {
@@ -253,7 +290,11 @@ function supplyUse(s, u) {
 // few steps climb or drop)
 function moveTo(s, u, tx, ty, fast, dt, keep) {
   const T = TYPES[u.type];
-  if (s.fuel && u.fuel !== undefined && u.fuel <= 0 && !(T.air && !T.hover)) return; // (out of fuel: it stands — fuel.js)
+  if (s.fuel && u.fuel !== undefined && !(T.air && !T.hover)) {
+    if (u.fuel <= 0) { u.fillWait = true; return; } // (out of fuel: it stands — fuel.js)
+    // (and while a fuel truck fills it, until full: off at the first drop, it ran dry again a few steps on)
+    if (u.fillWait) { if (u.fuel < FUEL_DONE && s.units.some(m => m.type === 'fueltruck' && m.side === u.side && m.load > 0 && !m.refill && dist(m, u) <= TRUCK_R)) return; u.fillWait = false; }
+  }
   if (!T.air && !keep) ({ x: tx, y: ty } = pathStep(s, u, tx, ty)); // (round lakes and buildings: path.js)
   if (!T.air && u.yield && u.yield.until > s.t) { tx += u.yield.x * u.yield.k; ty += u.yield.y * u.yield.k; } // (making room: off to the side)
   if (!T.air && !keep && !s.noGiveUp && singles(s, u.side) && giveUp(s, u, tx, ty)) return; // (the player's units: the AI's squads waited on them, and bot games stalled)

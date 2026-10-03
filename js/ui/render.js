@@ -226,7 +226,7 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     if (type === 'ssm') c.fillRect(-0.8 * k, -0.11 * k, 1.25 * k, 0.22 * k);
     else if (type === 'arrow') { c.fillRect(-0.75 * k, -0.3 * k, 1.1 * k, 0.16 * k); c.fillRect(-0.75 * k, 0.14 * k, 1.1 * k, 0.16 * k); }
     else for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { c.beginPath(); c.arc(-0.55 * k + i * 0.32 * k, -0.15 * k + j * 0.3 * k, 0.11 * k, 0, Math.PI * 2); c.fill(); }
-  } else if (type === 'truck' || type === 'fueltruck') {
+  } else if (type === 'truck' || type === 'fueltruck' || type === 'watertruck') {
     // supply truck: a cargo box behind a darker cab, with a crate mark
     c.rotate(hd); c.beginPath(); c.rect(-0.8 * k, -0.45 * k, 1.6 * k, 0.9 * k); paint();
     c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0.4 * k, -0.4 * k, 0.4 * k, 0.8 * k);
@@ -408,7 +408,7 @@ function mix(a, b, u, k = 0) {
 // whole again at every pan past the margin, every zoom step and twice a second while tanks crushed trees: 100–170ms
 // each, the game stuttered.
 const bg = { key: '', of: null, sc: 0, tw: 0, tiles: new Map(), old: [], x0: 0, y0: 0, w: 0, h: 0, cv: document.createElement('canvas') };
-const BG_TILE = 384, BG_MS = 5, BG_KEEP = 70, BG_STILL = 250;
+const BG_TILE = 384, BG_MS = 5, BG_MS_BLANK = 9, BG_KEEP = 70, BG_STILL = 250;
 bg.cv.width = bg.cv.height = BG_TILE;
 function bgPaint(t, quick) {
   bg.quick = !!quick; t.rough = !!quick; // (quick: while the camera moves — see drawGround)
@@ -475,12 +475,16 @@ function drawGround(c) {
   const moving = now - (bg.movedAt || 0) < BG_STILL;
   const redo = t => t.stale || (!moving && t.rough);
   const todo = [...shown.filter(t => !t.cv).sort(near), ...shown.filter(t => t.cv && redo(t)).sort(near), ...ring.filter(t => !moving && redo(t)).sort(near)];
+  // (all while the frame has time — BG_MS, a little more with blanks on screen —, one at least. A blank with nothing
+  // under it used to be painted at once, every one: after a zoom out that was up to 30 tiles in a frame, 50–110ms
+  // stalls at every wheel notch (the player's log). Now it's plain grass for the few frames until its turn)
+  const blanks = shown.filter(t => !t.cv && !covered(t)), budget = blanks.length ? BG_MS_BLANK : BG_MS;
   for (const t of todo) {
-    // (a blank on screen with nothing under it is painted now; the rest while the frame has time, one at least)
-    const must = !t.cv && shown.includes(t) && !covered(t);
-    if (!must && (n > 0 || !shown.includes(t)) && performance.now() - t0 > BG_MS) continue;
+    if ((n > 0 || !shown.includes(t)) && performance.now() - t0 > budget) continue;
     bgPaint(t, moving && !t.cv ? true : moving && t.rough); n++;
   }
+  const grass = null; // (a flat colour: a pattern over them every frame cost more than it saved)
+  for (const t of blanks) if (!t.cv) { c.fillStyle = grass || colors.ground; c.fillRect(t.x0, t.y0, tw, tw); }
   // (the old tiles under, until every tile on screen is the new one)
   if (shown.every(t => t.cv) && bg.old.length) { bgFree(bg.old); bg.old = []; }
   for (const o of bg.old) if (o.x0 < vx0 + vw && o.x0 + o.tw > vx0 && o.y0 < vy0 + vh && o.y0 + o.tw > vy0) c.drawImage(o.cv, o.x0, o.y0, o.tw, o.tw);
@@ -1024,7 +1028,7 @@ function drawUnits(c, show) {
     if (u.type === 'ssm' && u.side === 'blue') { const f = 1 - (u.reload || 0) / Sim.SSM_RELOAD; c.lineWidth = 2.2 / view.css; c.strokeStyle = 'rgba(0,0,0,.35)'; ring(u.x, u.y, k * 1.15); c.stroke(); c.strokeStyle = f >= 1 ? '#ffd54a' : 'rgba(255,255,255,.8)'; c.beginPath(); c.arc(u.x, u.y, k * 1.15, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); c.stroke(); }
     if (u.type === 'lift' && u.side === 'blue' && u.cargo && u.cargo.length) label('👥' + u.cargo.length, u.x, u.y - k - 6, colors.ink);
     // (a fuel truck: a yellow tank on its back)
-    if (u.type === 'fueltruck') { c.save(); c.translate(u.x, u.y); c.rotate(u.hd); c.fillStyle = '#d9a91f'; c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 0.8 / view.css; c.beginPath(); c.ellipse(-k * 0.18, 0, k * 0.32, k * 0.2, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore(); }
+    if (u.type === 'fueltruck' || u.type === 'watertruck') { c.save(); c.translate(u.x, u.y); c.rotate(u.hd); c.fillStyle = u.type === 'watertruck' ? '#3d8fd6' : '#d9a91f'; c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 0.8 / view.css; c.beginPath(); c.ellipse(-k * 0.18, 0, k * 0.32, k * 0.2, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore(); }
     // (no ammunition or care marks, no health bar: a hurt unit of ours has its dot, see healthDot)
     if (u.side === 'blue' && isSel(u.squad) && !(sel === 'all' && NOT_ALL.includes(u.type))) { // (all picked: every one but the bulldozers)
       // picked: a faint light ring close round the unit
@@ -1032,7 +1036,7 @@ function drawUnits(c, show) {
     }
   }
   for (const u of hurt) healthDot(c, u);
-  for (const u of hurt) fuelGauge(c, u); // (fuelui.js)
+  for (const u of hurt) fuelGauge(c, u); // (lights: fuel, water, ammunition — fuelui.js)
   // a hurt unit picked (not just "all"): a red Star of David pulsing over it — click it again to send it to be treated
   if (sel !== 'all' && sel != null) for (const u of hurt) if (isSel(u.squad) && hurtUnit(u)) starOfDavid(c, u.x, u.y - SIZE[u.type] * (Sim.TYPES[u.type].air ? 1.2 : 1.05) - 9 / view.css);
 }
