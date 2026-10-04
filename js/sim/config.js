@@ -338,7 +338,7 @@ const AI_STYLES = {
 };
 // hard, regular: every ability together — missiles, armour, the air force with its tankers, commando raids by
 // helicopter, a fake HQ or two; and (see think) it hunts supply trucks and keeps the posts
-const AI_PLAN_HARD = ['aapost', 'tankshop', 'atpost', 'tankshop', 'jeepat', 'howshop', 'airfield', 'ssmshop', 'commandopost', 'helilift', 'tankerbase', 'domesite', 'mlrsshop', 'tankshop', 'arrowsite', 'heliatk', 'ssmshop', 'commandopost', 'jeepaa', 'garage', 'clinic', 'heligun', 'tent'];
+const AI_PLAN_HARD = ['aapost', 'tankshop', 'atpost', 'tankshop', 'jeepat', 'airfield', 'ssmshop', 'commandopost', 'helilift', 'howshop', 'tankerbase', 'domesite', 'mlrsshop', 'tankshop', 'arrowsite', 'heliatk', 'ssmshop', 'commandopost', 'jeepaa', 'garage', 'clinic', 'heligun', 'tent'];
 // raids (hard, and the commando commander): a transport helicopter takes AI_RAID_MIN commandos at least (or what's
 // there after AI_RAID_WAIT s) and sets them down AI_RAID_BEHIND past an enemy building it knows of; hard also goes for
 // supply trucks first (AI_HUNT_W off a target's score)
@@ -506,7 +506,7 @@ const AI_THREATS = {
   foot:   { is: ['inf', 'at', 'aa', 'commando'], by: ['mlrs', 'gunship', 'tank', 'jeep'], build: ['mlrsshop', 'jeepshop', 'heligun'] },
   wheels: { is: ['jeep', 'ajeep', 'tjeep'], by: ['tank', 'inf', 'at'], build: ['tankshop', 'tent'] },
 };
-const AI_SEEN_T = 300, AI_COUNTER_MIN = 4, AI_COUNTER_K = 1, AI_COUNTER_EVERY = 60;
+const AI_SEEN_T = 300, AI_COUNTER_MIN = 4, AI_COUNTER_K = 1, AI_COUNTER_EVERY = 120;
 // artillery fires only at what its side sees now (any eye: units, drones, signals trucks, buildings), within ARTY_R —
 // twice the longest direct range — after standing ARTY_SETUP s. The 200 mm gun: a shell every HOW_CD s destroys one
 // unit, any (a tank too: the best one it sees first), or takes HOW_NODE off a building. The MLRS: a salvo every
