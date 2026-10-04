@@ -39,7 +39,7 @@ function aiBuild(s, side, D) {
   // the next planned kind this game allows (tutorial levels allow only some)
   let kind = null;
   const plan = AI_STYLES[s.style[side]].plan;
-  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if ((!s.builds || s.builds.includes(k)) && (k !== 'fuelst' || s.fuel) && !(s.logi && LOGI_KINDS.includes(k))) { kind = k; s.plan[side] += i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
+  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if ((!s.builds || s.builds.includes(k)) && (k !== 'fuelst' || s.fuel) && (!STRUCTS[k].fuel || s.fuel) && !(s.logi && LOGI_KINDS.includes(k))) { kind = k; s.plan[side] += i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
   const anchors = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq').sort((a, b) => dist(a, goal) - dist(b, goal));
@@ -88,6 +88,38 @@ function aiForward(s, side, mine, setOrder) {
   const h = best.hill; setOrder(s.squads.find(q => q.id === best.sq), 'hold', h.x, h.y);
 }
 
+// where a supply truck goes (s.logi): AI_TRUCK_BACK behind one of our squads — first one short of what it carries
+// (under AI_NEED, the neediest), else the k-th furthest forward (k: this truck among those of its kind)
+function truckStation(s, sq, mine, k) {
+  const C = CARGO[sq.type], home = homeOf(s, sq), foe = s.bases[foeOf(sq.side)];
+  const front = mine.filter(q => !TYPES[q.type].care && !TYPES[q.type].air && s.units.some(u => u.squad === q.id && C.who(u)));
+  if (!front.length) return careStation(s, sq, mine);
+  const want = q => { const m = s.units.filter(u => u.squad === q.id && C.who(u)); return m.reduce((a, u) => a + (u[C.key] ?? 1), 0) / (m.length || 1); };
+  const needy = front.map(q => ({ q, w: want(q) })).filter(o => o.w < AI_NEED).sort((a, b) => a.w - b.w);
+  front.sort((a, b) => Math.abs(a.cx - foe.x) - Math.abs(b.cx - foe.x));
+  const q = needy.length ? needy[k % needy.length].q : front[k % front.length], c = { x: q.cx, y: q.cy }, d = dist(c, home) || 1, back = Math.min(d, AI_TRUCK_BACK), G = 40;
+  return { x: Math.round((c.x + (home.x - c.x) / d * back) / G) * G, y: Math.round((c.y + (home.y - c.y) / d * back) / G) * G };
+}
+// a squad's supply leash (s.logi): what keeps it going — fuel for vehicles, water for soldiers — comes from a loaded
+// truck or an HQ / forward HQ; null = nothing needed
+function leashFrom(s, sq) {
+  const T = TYPES[sq.type], kind = needsWater(sq.type) ? 'watertruck' : needsFuel(sq.type) && !T.air ? 'fueltruck' : null;
+  if (!kind) return null;
+  const c = { x: sq.cx, y: sq.cy }, out = s.nodes.filter(n => n.side === sq.side && n.hp > 0 && s.t >= n.ready && (n.kind === 'hq' || n.kind === 'fhq' || (kind === 'watertruck' && n.kind === 'waterst')));
+  for (const u of s.units) if (u.type === kind && u.side === sq.side && u.hp > 0 && u.load > 0.5 && !u.refill) out.push(u);
+  return out.sort((a, b) => dist(a, c) - dist(b, c));
+}
+// how short of it the squad is (0–1, the mean of its units)
+function shortOf(s, sq) {
+  const key = needsWater(sq.type) ? 'water' : 'fuel', m = s.units.filter(u => u.squad === sq.id);
+  return m.reduce((a, u) => a + (u[key] ?? 1), 0) / (m.length || 1);
+}
+// where a tanker circles: its place over the middle (or nearer home, enemy AA known about there)
+function tankerStation(s, sq, foes) {
+  const p = tankerSpot(s, sq.side), h = hqOf(s, sq.side) || s.bases[sq.side];
+  if (!foes.some(({ k }) => (k.type === 'aa' || k.type === 'ajeep') && Math.hypot(k.x - p.x, k.y - p.y) < 220)) return p;
+  return { x: Math.round((p.x + h.x) / 2), y: p.y };
+}
 // where a medic / mechanic squad waits: a little behind the squads it treats (or all of ours), toward home;
 // on a coarse grid so the order isn't resent for every step they take
 function careStation(s, sq, mine) {
@@ -115,9 +147,11 @@ function radioStation(s, sq, mine, k) {
 function aiSpecial(s, side) {
   const foe = foeOf(side), known = s.nodes.filter(n => n.side === foe && n.hp > 0 && n.kind !== 'drone' && (!s.fog || s.visNodes[side].has(n.id) || s.memNodes[side][n.id]));
   for (const q of s.squads) {
-    if (q.side !== side || q.dead || q.type !== 'ssm' || q.fire || !known.length) continue;
+    if (q.side !== side || q.dead || q.type !== 'ssm' || !known.length) continue;
     const kindOf = n => s.fog && s.memNodes[side][n.id] && !s.visNodes[side].has(n.id) ? s.memNodes[side][n.id].kind : n.kind;
-    const hq = known.find(n => kindOf(n) === 'hq'), t = hq || known.slice().sort((a, b) => Math.hypot(a.x - q.cx, a.y - q.cy) - Math.hypot(b.x - q.cx, b.y - q.cy))[0];
+    const hq = known.find(n => kindOf(n) === 'hq');
+    if (q.fire && !(hq && q.fire.id !== hq.id && AI_STYLES[s.style[side]] && AI_STYLES[s.style[side]].missiles)) continue; // (missiles: the HQ found — at it, now)
+    const t = hq || known.slice().sort((a, b) => Math.hypot(a.x - q.cx, a.y - q.cy) - Math.hypot(b.x - q.cx, b.y - q.cy))[0];
     const p = s.fog && !s.visNodes[side].has(t.id) && s.memNodes[side][t.id] ? s.memNodes[side][t.id] : t;
     launch(s, [q.id], p.x, p.y);
   }
@@ -148,19 +182,23 @@ function think(s, side, level) {
   const structs = knownStructs(s, side);
   const foes = s.squads.filter(q => q.side === foe).map(q => ({ q, k: intel(s, side, q) })).filter(o => o.k);
   // style: the turtle stays home until it has enough squads (or the upper hand); the flanker goes round by an edge
+  // (missiles: shot down too often — Arrow over there — it plays steady from now on)
+  if (AI_STYLES[s.style[side]] && AI_STYLES[s.style[side]].missiles && s.downed && s.downed[side] >= AI_MISSILE_MISS) s.style[side] = 'steady';
   const St = AI_STYLES[s.style[side]] || AI_STYLES.steady, home = hqOf(s, side) || s.bases[side];
   const fighters = mine.filter(q => !TYPES[q.type].care);
-  const stayHome = St.wait && s.t < 300 && !(fighters.length >= St.wait && s.t > 150) && share(s, side) < 0.55; // (never past 5 minutes)
+  const stayHome = St.home || (St.wait && s.t < 300 && !(fighters.length >= St.wait && s.t > 150) && share(s, side) < 0.55); // (never past 5 minutes; missiles: always)
   if (can.build) aiSpecial(s, side);
   // posts: a squad of soldiers to each one we don't hold (they go on their own; the rest of think leaves them be)
   const toPost = aiPosts(s, side, mine, setOrder);
-  let nth = 0, radios = 0;
+  let nth = 0, radios = 0; const trucks = {};
   for (const sq of mine) {
     if (toPost.has(sq.id)) continue;
     if (sq.type === 'ssm' && sq.fire) continue; // (setting up to launch: it stays put)
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
     // support: bulldozers go where their sites are (on their own); signals trucks stay a little behind the squads
     if (TYPES[sq.type].support) { if (sq.type === 'radio') { const p = radioStation(s, sq, mine, radios++); setOrder(sq, 'hold', p.x, p.y); } continue; }
+    if (sq.type === 'tanker') { const p = tankerStation(s, sq, foes); setOrder(sq, 'hold', p.x, p.y); continue; }
+    if (s.logi && CARGO[sq.type] && !s.noAiSupply) { const k = trucks[sq.type] = (trucks[sq.type] || 0) + 1, p = truckStation(s, sq, mine, k - 1); setOrder(sq, 'hold', p.x, p.y); continue; }
     if (TYPES[sq.type].care) { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); continue; }
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
@@ -204,6 +242,15 @@ function think(s, side, level) {
       if (!sq.flanked && dist(c, wp) < 120) sq.flanked = true;
       if (!sq.flanked) { setOrder(sq, 'attack', wp.x, wp.y); if (D.mass && friction(s)) silence(s, sq.id, true, true); continue; }
     }
+    // supply (s.logi): short of fuel / water and no truck by it — it waits where it is for one; else no more than
+    // AI_HOP past the nearest that keeps it going
+    const from = s.logi && !s.noAiSupply && leashFrom(s, sq);
+    if (from && from.length) {
+      const f = from[0], df = dist(f, c);
+      if (shortOf(s, sq) < AI_NEED && df > TRUCK_R && !fighting) { setOrder(sq, 'hold', Math.round(c.x / 40) * 40, Math.round(c.y / 40) * 40); continue; }
+      const db = dist(f, best);
+      if (db > AI_HOP) { const k = AI_HOP / db; best = { x: Math.round((f.x + (best.x - f.x) * k) / 40) * 40, y: Math.round((f.y + (best.y - f.y) * k) / 40) * 40 }; }
+    }
     setOrder(sq, 'attack', best.x, best.y);
     // hard: a squad going far (or round a flank) keeps radio silence on the way; near home it talks
     if (D.mass && friction(s)) silence(s, sq.id, dist(c, best) > AI_SILENT_R, true);
@@ -218,7 +265,12 @@ function think(s, side, level) {
   const hand = D.smart && can.drone && s.fog && s.drones[side].stock > 0;
   const free = (x, y) => !s.nodes.some(n => n.side === side && n.kind === 'drone' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0 * 1.5);
   const blur = hand && foes.find(o => o.k.lvl < 2 && s.t - o.k.t < 5 && free(o.k.x, o.k.y));
-  if (blur) drone(s, side, blur.k.x, blur.k.y);
+  const hqKnown = structs.some(n => n.kind === 'hq' && n.id !== 'hq?');
+  if (hand && St.missiles && !hqKnown) {
+    // (missiles: the enemy HQ first — along its strip, top to bottom)
+    const [a, b] = hqBand(s, foe), x = Math.round((a + b) / 2);
+    for (const f of [0.5, 0.2, 0.8, 0.35, 0.65]) { const y = Math.round(s.H * f); if (free(x, y)) { drone(s, side, x, y); break; } }
+  } else if (blur) drone(s, side, blur.k.x, blur.k.y);
   else if (hand) {
     const x = s.bases[foe].x + (s.bases[side].x - s.bases[foe].x) * (0.2 + 0.4 * s.rand()), y = 60 + s.rand() * (s.H - 120);
     if (free(x, y) && !structs.some(n => n.id !== 'hq?' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0)) drone(s, side, x, y);

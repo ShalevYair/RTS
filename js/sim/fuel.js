@@ -12,7 +12,7 @@
 // past the building allowance; 2 trucks each (config.js).
 const needsFuel = type => !CARGO[type] && type !== 'dozer' && (TYPES[type].air || !FOOT.includes(type)); // (not the bulldozer: it builds everything — dry, out by a far site, a side stood still)
 const needsWater = type => FOOT.includes(type);
-const fuelT = type => TYPES[type].air && !TYPES[type].hover ? FUEL_AIR : FUEL_T;
+const fuelT = type => type === 'tanker' ? TANKER_T : TYPES[type].air && !TYPES[type].hover ? FUEL_AIR : FUEL_T;
 const barrelsOf = type => FUEL_BARRELS[type] || 1;
 const cratesOf = type => AMMO_CRATES[type] || 1;
 // what each kind of truck carries: from which building; on whom, how much of a full one a second, and how many of the
@@ -25,13 +25,35 @@ const CARGO = {
 const cargoOn = (s, type) => !!s.logi && !!CARGO[type];
 // (piles of barrels / crates: gone with the trucks that serve on the spot — kept so a missile's blast finds none)
 function blastPiles(s, x, y, R) {}
-// a unit's own fuel this tick (from updateUnit): planes turn back for the airfield. Nothing else goes anywhere for it
+// a unit's own fuel this tick (from updateUnit). Nothing on the ground goes anywhere for it; planes (and tankers) turn
+// for the nearest fuel when what's left is what the way there takes (BINGO_PAD more): a tanker of ours in the air
+// (u.tank: to it, circling by it while it fills them — true, busy with that), else the airfield (u.rearm)
 function fuelUnit(s, u, sq, dt) {
   if (!s.fuel || u.fuel === undefined) return false;
   const T = TYPES[u.type];
-  if (T.air && !T.hover && u.fuel < PLANE_BACK) u.rearm = true; // (planes: back to the airfield, see updateUnit)
+  if (!T.air || T.hover) return false;
+  const need = p => dist(u, p) / (T.speed * fuelT(u.type)) + BINGO_PAD;
+  let k = u.tank != null && s.units.find(m => m.id === u.tank);
+  if (k && (k.hp <= 0 || !tankerOk(k))) { u.tank = null; k = null; }
+  if (k) {
+    if (u.fuel >= FUEL_DONE) { u.tank = null; return false; } // (full: back to what it was doing)
+    const R = TANKER_R * 0.6, a = Math.atan2(u.y - k.y, u.x - k.x) + AIR_LEAD; // (alongside it, round with it)
+    moveTo(s, u, k.x + Math.cos(a) * R, k.y + Math.sin(a) * R, 1.1, dt, true);
+    return true;
+  }
+  if (u.type === 'tanker') { if (u.fuel < need(rearmSpot(s, u)) || u.load <= 0) u.rearm = true; return false; }
+  const home = rearmSpot(s, u), hn = need(home);
+  // (a tanker: nearer than home, and it's in the air with fuel to give)
+  let tk = null, tn = Infinity;
+  for (const m of s.units) if (m.type === 'tanker' && m.side === u.side && m.hp > 0 && tankerOk(m)) { const n = need(m); if (n < tn) { tn = n; tk = m; } }
+  // (going home anyway — out of bombs —, it stops by the tanker on the way when home is past its fuel)
+  if (u.rearm) { if (tk && u.fuel < hn && u.fuel >= tn - BINGO_PAD / 2) { u.tank = tk.id; return true; } return false; }
+  if (tk && tn < hn && u.fuel < tn) { u.tank = tk.id; return true; }
+  if (u.fuel < Math.min(hn, tk ? tn : Infinity) || (!tk && u.fuel < PLANE_BACK && hn < PLANE_BACK)) u.rearm = true;
   return false;
 }
+// a tanker gives fuel: in the air with some left to give, not on its way home
+const tankerOk = m => m.load > 0 && !m.rearm && m.fuel > 0.1;
 // a truck's tick (from updateUnit): empty (or filling up) — to its building and back; true = busy with that, else it
 // goes where its squad's order says
 function truckTick(s, u, sq, dt) {
@@ -73,6 +95,17 @@ function fuelTick(s, dt) {
       if (s.nodes.some(n => n.kind === 'waterst' && n.side === u.side && n.hp > 0 && s.t >= n.ready && dist(n, u) <= nodeR(n) + WATER_NEAR)) u.water = Math.min(1, u.water + WATER_FILL * dt);
     }
     if (s.logi && SUPPLY[u.type] && u.sup < 1 && hqNear(s, u)) u.sup = Math.min(1, u.sup + AMMO_HQ_RATE * dt); // (ammunition: slowly by an HQ)
+  }
+  // (tankers: fill the planes come to them)
+  for (const m of s.units) {
+    if (m.type !== 'tanker') continue;
+    if (m.load === undefined) m.load = TANKER_CAP;
+    if (!tankerOk(m)) continue;
+    for (const u of s.units) {
+      if (u.tank !== m.id || u.fuel === undefined || dist(u, m) > TANKER_R) continue;
+      const add = Math.min(1 - u.fuel, TANKER_FILL * dt, m.load);
+      u.fuel += add; m.load -= add;
+    }
   }
   if (!s.logi) return;
   // (the trucks: each fills what's round it, out of its load)

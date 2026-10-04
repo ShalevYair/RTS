@@ -24,9 +24,9 @@ function fuelGauge(c, u) {
   });
   c.globalAlpha = 1;
   // (a supply truck: a small bar of what it carries — its colour; empty and off to fill up: hollow)
-  const cap = Sim.TRUCK_CAP[u.type];
+  const cap = u.type === 'tanker' ? Sim.TANKER_CAP : Sim.TRUCK_CAP[u.type];
   if (cap && u.load !== undefined) {
-    const w = k * 0.9, h = Math.max(1.6, 2.4 / view.css), y = u.y + k * 0.6 + h, col = { fueltruck: '#ffd23f', truck: '#c9a26a', watertruck: '#4fb3ff' }[u.type];
+    const w = k * 0.9, h = Math.max(1.6, 2.4 / view.css), y = u.y + k * 0.6 + h, col = { tanker: '#ffd23f', fueltruck: '#ffd23f', truck: '#c9a26a', watertruck: '#4fb3ff' }[u.type];
     c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(u.x - w / 2 - 0.5, y - 0.5, w + 1, h + 1);
     c.fillStyle = col; c.fillRect(u.x - w / 2, y, w * Math.max(0, u.load) / cap, h);
   }

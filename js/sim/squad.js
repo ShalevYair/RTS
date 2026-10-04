@@ -146,13 +146,14 @@ function updateUnit(s, u, sq, dt) {
   const T = TYPES[u.type];
   u.cd = Math.max(0, u.cd - dt); u.engaged = false; u.atDrone = false;
   if (cargoOn(s, u.type) && truckTick(s, u, sq, dt)) return; // (a supply truck empty: to its building and back — fuel.js)
-  const fueling = fuelUnit(s, u, sq, dt); // (low on fuel: off to fill up — planes: back to the airfield, below)
-  if (T.ammo) {
-    // aircraft fly sorties: out of ammo -> back to the airfield, rearm, then return
-    if (u.ammo <= 0) u.rearm = true;
+  const fueling = fuelUnit(s, u, sq, dt); // (low on fuel: off to fill up — planes: to a tanker, or back to the airfield, below)
+  if (fueling && T.air) return; // (by a tanker, filling up)
+  if (T.ammo || u.rearm) {
+    // aircraft fly sorties: out of ammo -> back to the airfield, rearm, then return (a tanker: refills there)
+    if (T.ammo && u.ammo <= 0) u.rearm = true;
     if (u.rearm) {
       const f = rearmSpot(s, u), d = dist(u, f);
-      if (d < AIR_ORBIT * 1.5) { u.rearmT += dt; if (u.rearmT >= REARM_TIME) { u.ammo = T.ammo; u.rearm = false; u.rearmT = 0; if (u.fuel !== undefined) u.fuel = 1; } }
+      if (d < AIR_ORBIT * 1.5) { u.rearmT = (u.rearmT || 0) + dt; if (u.rearmT >= REARM_TIME) { u.ammo = T.ammo; u.rearm = false; u.rearmT = 0; if (u.fuel !== undefined) u.fuel = 1; if (u.type === 'tanker') u.load = TANKER_CAP; } }
       if (T.hover) { if (d > 6) moveTo(s, u, f.x + u.sx * 14, f.y + u.sy * 14, 1, dt); } // (a helicopter sets down by its pad)
       else circle(s, u, f.x, f.y, AIR_ORBIT * 0.7, dt); // (over the field while they rearm it)
       return;

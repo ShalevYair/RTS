@@ -111,6 +111,7 @@ function missileTick(s, dt) {
         def.reload = ARROW_RELOAD; s.shots.push({ x1: def.x, y1: def.y, x2: at.x, y2: at.y, dur: 0.6, life: 0.72, side: def.side, kind: 'arrow' });
         if (s.rand() < ARROW_P) {
           m.gone = true; s.fx.push({ x: at.x, y: at.y, life: 0.8, max: 0.8, size: 30, wait: 0.6, air: true });
+          (s.downed = s.downed || { blue: 0, red: 0 })[m.side]++; // (the AI's missile style gives up after a few)
           if (def.side === 'blue') note(s, 'חץ יירט טיל'); else note(s, 'הטיל שלנו יורט');
           s.marks.push({ x: at.x, y: at.y, kind: 'intercept', t: s.t, side: def.side });
         }

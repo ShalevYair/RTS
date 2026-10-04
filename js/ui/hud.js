@@ -205,7 +205,7 @@ $('all').addEventListener('click', () => select('all'));
 // picked group <number> (g.key); the number picks it, and pressed again brings the camera to the middle of its squads.
 // 🔗 (L) ties what's picked into a group on the first free number; ✂ unties it. A squad is in one group at most; a group
 // with no squads left is gone (one made with 🔗 once it's down to one squad).
-const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'heli', 'gunship', 'lift', 'ssm', 'arrow', 'dome', 'commando', 'med', 'mech', 'truck', 'fueltruck', 'watertruck', 'dozer', 'radio'];
+const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'tanker', 'heli', 'gunship', 'lift', 'ssm', 'arrow', 'dome', 'commando', 'med', 'mech', 'truck', 'fueltruck', 'watertruck', 'dozer', 'radio'];
 let groups = [], nextGroup = 1;
 const groupOf = id => groups.find(g => g.ids.includes(id));
 const aliveBlue = () => new Set(s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id));
@@ -309,7 +309,7 @@ function believedShare() {
 // BUILD_UP: where ‹ goes back to.
 const BUILD_PAGES = {
   root: ['page:tents', 'page:shops', 'page:air', 'page:service'],
-  air: ['airfield', 'page:helis'],
+  air: ['airfield', 'tankerbase', 'page:helis'],
   helis: ['heliatk', 'heligun', 'helilift'],
   tents: ['tent', 'atpost', 'aapost', 'clinic', 'commandopost'],
   shops: ['tankshop', 'page:jeeps', 'ssmshop'],
@@ -429,7 +429,7 @@ function nameBuildMenu() {
   }
 }
 // what this game allows on a page (buildings, and sub-pages with anything allowed in them)
-const buildOk = k => !(k === 'decoy' ? !!s.level : !!s.builds && !s.builds.includes(k));
+const buildOk = k => !(k === 'decoy' ? !!s.level : !!s.builds && !s.builds.includes(k)) && !(Sim.STRUCTS[k] && Sim.STRUCTS[k].fuel && !s.fuel); // (the tanker base: only where there's fuel)
 const pageItems = g => BUILD_PAGES[g].filter(e => e.startsWith('page:') ? pageItems(e.slice(5)).length > 0 : buildOk(e));
 // open a page (one with a single sub-page in it opens that one instead)
 function showBuildPage(g) {
