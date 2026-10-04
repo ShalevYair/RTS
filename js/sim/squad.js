@@ -136,7 +136,7 @@ function underFire(s) {
       const h = hqOf(s, u.side); if (!h) continue;
       const d = dist(u, h), go = Math.min(FLEE_D, d - nodeR(h) - 30); if (go < 20) continue;
       sq.reactAt = s.t; selfOrder(sq, 'hold', u.x + (h.x - u.x) / d * go, u.y + (h.y - u.y) / d * go);
-    } else if (sq.arrived && MULT[u.type][a.type] > 0 && s.t - u.lastFire > 1.5) { sq.reactAt = s.t; selfOrder(sq, 'attack', a.x, a.y); }
+    } else if (sq.arrived && !(s.logi && SUPPLY[u.type] && u.sup <= 0) && MULT[u.type][a.type] > 0 && s.t - u.lastFire > 1.5) { sq.reactAt = s.t; selfOrder(sq, 'attack', a.x, a.y); } // (out of ammunition: it stays, it can't fight back)
   }
 }
 // how often a unit chooses its target anew, in ticks: the player's every SCAN_EVERY (twice that in the light mode), the

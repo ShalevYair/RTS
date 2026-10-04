@@ -252,7 +252,7 @@ function think(s, side, level) {
   if (can.build) aiSpecial(s, side);
   const push = D.smart && !s.noAiPush && aiPush(s, side, fighters, structs, St); // (ahead: all together, one blow — not on easy)
   // posts: a squad of soldiers to each one we don't hold (they go on their own; the rest of think leaves them be)
-  const toPost = aiPosts(s, side, mine, setOrder);
+  const toPost = stayHome ? new Set() : aiPosts(s, side, mine, setOrder); // (staying home: no soldiers off to the posts)
   const raid = (D.traits || St.raids) && can.build ? aiLift(s, side, mine, structs) : new Set(); // (commando raids by helicopter)
   let nth = 0, radios = 0; const trucks = {};
   for (const sq of mine) {
