@@ -15,17 +15,18 @@ const hqOf = (s, side) => s.nodes.find(n => n.side === side && n.kind === 'hq' &
 // (× s.scale: the big map 2×, the huge one 4×)
 // (a bigger map: a bigger base allowance, but each HQ / forward HQ still adds the same)
 const buildLimit = (s, side) => BUILD_BASE * (s.scale || 1) + BUILD_PER_NODE * alive(s, side, ['hq', 'fhq']).filter(n => s.t >= n.ready).length;
-const buildCount = (s, side) => alive(s, side, PRODUCERS).length;
+const buildCount = (s, side) => alive(s, side, PRODUCERS.filter(k => !specOf(s, k).free)).length; // (free: the supply buildings, past the allowance)
 // why a building can't go at (x, y): '' when it can; 'q' poor control, 'limit' no free slot, 'gap' too close, 'bad' bad input
 // (kind 'decoy': no slot, but at most DECOY_MAX of them)
 function buildCheck(s, side, x, y, kind) {
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 20 || y < 20 || x > s.W - 20 || y > s.H - 20) return 'bad';
   if (s.hqPending && s.hqPending[side]) return 'nohq'; // (open field: the HQ first)
-  if (STRUCTS[kind] && STRUCTS[kind].max && alive(s, side, [kind]).length >= STRUCTS[kind].max) return 'max'; // (a missile factory: 3 a side)
-  if (kind === 'decoy' ? alive(s, side, ['decoy']).length >= DECOY_MAX : buildCount(s, side) >= buildLimit(s, side)) return 'limit';
+  if (STRUCTS[kind] && specOf(s, kind).max && alive(s, side, [kind]).length >= specOf(s, kind).max) return 'max'; // (a missile factory: 3 a side)
+  if (kind === 'decoy' ? alive(s, side, ['decoy']).length >= DECOY_MAX : !(STRUCTS[kind] && specOf(s, kind).free) && buildCount(s, side) >= buildLimit(s, side)) return 'limit';
   if (quality(s, side, { x, y }, true) < BUILD_MIN_Q) return 'q'; // drones don't count
   if (lakeAt(s, { x, y }, LAKE_PAD) || groundBad(s, x, y, STRUCTS[kind] ? STRUCTS[kind].r : 20)) return 'bad';
   if (crowded(s, kind, x, y)) return 'gap';
+  if (STRUCTS[kind] && STRUCTS[kind].shore && !onShore(s, x, y, STRUCTS[kind].r)) return 'shore'; // (a water building: on a lake's bank)
   if (s.dozers && !dozers(s, side).length) return 'nodozer'; // (the full game: no bulldozer, no building)
   return '';
 }
@@ -182,7 +183,7 @@ function hqCheck(s, side, x, y) {
 }
 // turn a normal opening into an open field: no HQ and no tent; a pair of command tanks by each side's edge
 function openField(s) {
-  s.fuel = true; // (fuel: the full game — fuel.js)
+  s.fuel = true; s.water = true; s.logi = true; // (fuel, water, supply trucks: the full game — fuel.js)
   s.nodes = s.nodes.filter(n => n.kind !== 'hq' && n.kind !== 'tent');
   for (const q of s.squads) if (q.home && !s.nodes.some(n => n.id === q.home)) q.home = null;
   for (const side of ['blue', 'red']) {
@@ -244,8 +245,10 @@ const healSpot = (s, u) => s.nodes.some(n => n.side === u.side && n.hp > 0 && n.
 
 function power(s, side) {
   let p = 0;
-  for (const u of s.units) if (u.side === side) p += UNIT_VALUE[u.type] * Math.max(0, u.hp) / TYPES[u.type].hp;
-  for (const n of s.nodes) if (n.side === side && n.hp > 0) p += STRUCTS[n.kind].value * (n.hp / STRUCTS[n.kind].hp) * (s.t >= n.ready ? 1 : 0.5);
+  // (s.logi: the supply buildings and their trucks count nothing — 6 more buildings a side kept a side that was losing
+  // over the collapse line, and bot games went on for an hour)
+  for (const u of s.units) if (u.side === side && !(s.logi && CARGO[u.type])) p += UNIT_VALUE[u.type] * Math.max(0, u.hp) / TYPES[u.type].hp;
+  for (const n of s.nodes) if (n.side === side && n.hp > 0) p += specOf(s, n.kind).value * (n.hp / STRUCTS[n.kind].hp) * (s.t >= n.ready ? 1 : 0.5);
   return p;
 }
 function updatePower(s) {
@@ -278,6 +281,7 @@ function produceSquad(s, n, S, dt) {
   const have = s.units.filter(u => u.squad === sq.id).length;
   if (have >= sq.size) { n.prog = 0; return; }
   n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / S.every;
+  if (S.first && !n.first) { n.first = true; n.prog = 1; }
   if (n.prog >= 1) {
     n.prog = 0; const k = have || sq.born ? 1 : sq.size;
     for (let i = 0; i < k; i++) { spawn(s, sq, n.x, n.y); s.stats.rein[n.side]++; }
@@ -299,7 +303,10 @@ function rally(s, id, x, y) {
 }
 // the front (the player's): every unit out of a building, and every one done being treated, goes there — null = none
 function setFront(s, side, x, y) {
-  s.front = s.front || {}; s.front[side] = Number.isFinite(x) ? { x: clamp(x, 0, s.W), y: clamp(y, 0, s.H), t: s.t } : null; return true;
+  s.front = s.front || {}; s.front[side] = Number.isFinite(x) ? { x: clamp(x, 0, s.W), y: clamp(y, 0, s.H), t: s.t } : null;
+  // (supply trucks the player hasn't sent anywhere follow the front)
+  if (s.logi && s.front[side]) for (const q of s.squads) if (q.side === side && !q.dead && CARGO[q.type] && !q.told) goOut(s, q, s.front[side]);
+  return true;
 }
 // where a unit new out of n goes: its rally point or the front, whichever was set last (null: stays by it).
 // a forward HQ of the side on its way (a squad driving to set it up, the order still a message) or going up
@@ -330,7 +337,7 @@ function updateStructs(s, dt) {
   const arrived = new Set(s.squads.filter(q => q.arrived && !q.dead && !q.retreating).map(q => q.id));
   const idle = s.units.filter(u => !TYPES[u.type].air && arrived.has(u.squad) && !u.care && !u.resup && !(s.t - u.lastFire < REPAIR_QUIET));
   for (const n of s.nodes) {
-    const S = STRUCTS[n.kind];
+    const S = specOf(s, n.kind); // (the supply buildings: the full game's way — config.js)
     if (n.hp <= 0) {
       if (n.gone) continue;
       if (n.kind === 'hq') { s.hqDown = n.side; s.hqDownAt = { x: n.x, y: n.y }; } // (step: that side has lost; the UI's finale looks there)
@@ -355,6 +362,7 @@ function updateStructs(s, dt) {
     if (s.noReinforce) continue;
     const have = n.squads.length;
     if (have >= (S.keep || BUILD_UNITS)) { n.prog = 0; continue; } // (a missile factory: one truck)
+    if (S.first && !n.first) { n.first = true; n.prog = 1; } // (a supply building: its first truck at once)
     n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / S.every; // (a held power station: faster)
     if (n.prog >= 1) {
       n.prog = 0;

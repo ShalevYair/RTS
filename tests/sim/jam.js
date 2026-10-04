@@ -8,9 +8,9 @@ const step = (s, sec, f) => { for (let i = 0; i < 30 * sec; i++) { Sim.step(s, 1
 const mk = (s, t, x, y) => { const q = Sim._makeSquad(s, 'blue', t, null, x, y); q.size = 1; q.single = true; Sim._fillSquad(s, q, x, y); return q; };
 const unitOf = (s, q) => s.units.find(u => u.squad === q.id);
 const report = (s, qs, from) => {
-  // how far each is from its spot, and how much they still move about (after they should have settled)
+  // how far each is from its spot (an arrived one pushed aside stays where it is, within ARRIVE_LEAVE — squad.js arrivedAt), and how much they still move about (after they should have settled)
   const off = qs.map(q => { const u = unitOf(s, q); return u ? Math.hypot(u.x - q.order.x, u.y - q.order.y) : 0; });
-  return { far: off.filter(d => d > 25).length, worst: Math.round(Math.max(...off)) };
+  return { far: off.filter(d => d > Sim.ARRIVE_LEAVE).length, worst: Math.round(Math.max(...off)) };
 };
 const moved = (s, qs, sec) => { // the path the units drive in sec s, all together
   const last = new Map(qs.map(q => { const u = unitOf(s, q); return [q.id, { x: u.x, y: u.y }]; })); let m = 0;

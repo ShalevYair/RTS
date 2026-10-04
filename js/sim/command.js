@@ -62,6 +62,7 @@ function order(s, squadId, type, x, y, quiet, form) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
   x = clamp(x, 0, s.W); y = clamp(y, 0, s.H);
   if (!TYPES[sq.type].air && lakeAt(s, { x, y })) ({ x, y } = dryOf(s, { x, y }, 10)); // ground squads stop at the shore
+  if (!quiet) sq.told = true; // (the player said where: a truck no longer follows the front — setFront)
   if (friction(s)) send(s, sq, { kind: 'order', type, x, y, quiet, form }); else applyOrder(s, sq, type, x, y, quiet, form);
   return true;
 }

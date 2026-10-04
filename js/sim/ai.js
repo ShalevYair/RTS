@@ -33,12 +33,13 @@ function aiBuild(s, side, D) {
     const f = alive(s, side, ['fhq']).find(n => s.t >= n.ready), foe = s.bases[foeOf(side)];
     if (f) for (let i = 0; i < 8; i++) { const a = Math.atan2(foe.y - f.y, foe.x - f.x) + (s.rand() - 0.5) * 2, r = STRUCTS[f.kind].r + STRUCTS.decoy.r + BUILD_GAP + 5 + s.rand() * 50; if (build(s, side, 'decoy', f.x + Math.cos(a) * r, f.y + Math.sin(a) * r)) break; }
   }
+  if (s.logi) aiSupply(s, side);
   if (buildCount(s, side) >= buildLimit(s, side)) return;
   if (!D.smart && s.t - (s.lastBuild[side] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
   let kind = null;
   const plan = AI_STYLES[s.style[side]].plan;
-  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if ((!s.builds || s.builds.includes(k)) && (k !== 'fuelst' || s.fuel)) { kind = k; s.plan[side] += i; } } // (a fuel station only where there's fuel)
+  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if ((!s.builds || s.builds.includes(k)) && (k !== 'fuelst' || s.fuel) && !(s.logi && LOGI_KINDS.includes(k))) { kind = k; s.plan[side] += i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
   const anchors = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq').sort((a, b) => dist(a, goal) - dist(b, goal));
@@ -49,6 +50,19 @@ function aiBuild(s, side, D) {
   }
 }
 
+// the supply buildings (s.logi; past the allowance): one of each as soon as there's an HQ — a water building on a lake's
+// bank in our control — then a second of each after AI_SUPPLY2 s
+function aiSupply(s, side) {
+  if (s.t - (s.aiSupAt && s.aiSupAt[side] || -99) < 10) return;
+  (s.aiSupAt = s.aiSupAt || {})[side] = s.t;
+  const hq = hqOf(s, side); if (!hq || s.t < hq.ready) return;
+  for (const kind of ['waterst', 'depot', 'fuelst']) {
+    const want = s.t - hq.ready > AI_SUPPLY2 ? 2 : 1;
+    if (alive(s, side, [kind]).length >= want || (s.builds && !s.builds.includes(kind))) continue;
+    if (kind === 'waterst') { for (const p of shoreSpots(s, hq, STRUCTS.waterst.r).slice(0, 30)) if (build(s, side, kind, p.x, p.y)) return; continue; }
+    for (let i = 0; i < 12; i++) { const a = s.rand() * Math.PI * 2, r = STRUCTS.hq.r + STRUCTS[kind].r + BUILD_GAP + 5 + s.rand() * 90; if (build(s, side, kind, hq.x + Math.cos(a) * r, hq.y + Math.sin(a) * r)) return; }
+  }
+}
 // forward HQ on a hill (DESIGN.md §6): a hill just past the edge of our control, clear of known enemies and
 // short of the enemy HQ; the nearest fit jeep/tank squad goes there (the rest of think leaves it alone) and sets up
 function aiForward(s, side, mine, setOrder) {

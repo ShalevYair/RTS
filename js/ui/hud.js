@@ -205,7 +205,7 @@ $('all').addEventListener('click', () => select('all'));
 // picked group <number> (g.key); the number picks it, and pressed again brings the camera to the middle of its squads.
 // 🔗 (L) ties what's picked into a group on the first free number; ✂ unties it. A squad is in one group at most; a group
 // with no squads left is gone (one made with 🔗 once it's down to one squad).
-const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'heli', 'gunship', 'lift', 'ssm', 'arrow', 'dome', 'commando', 'med', 'mech', 'truck', 'fueltruck', 'dozer', 'radio'];
+const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'heli', 'gunship', 'lift', 'ssm', 'arrow', 'dome', 'commando', 'med', 'mech', 'truck', 'fueltruck', 'watertruck', 'dozer', 'radio'];
 let groups = [], nextGroup = 1;
 const groupOf = id => groups.find(g => g.ids.includes(id));
 const aliveBlue = () => new Set(s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id));
@@ -287,7 +287,7 @@ function drawGroupIcon(cvs, kinds) {
 }
 // a squad's button: the unit as it looks on the map (our colour, outlined), big
 function drawSquadIcon(cvs, type) {
-  const c = cvs.getContext('2d'), k = { air: 28, tank: 21, jeep: 23, ajeep: 23, tjeep: 23, mech: 19, truck: 21, fueltruck: 21, dozer: 22, radio: 20 }[type] || 28;
+  const c = cvs.getContext('2d'), k = { air: 28, tank: 21, jeep: 23, ajeep: 23, tjeep: 23, mech: 19, truck: 21, fueltruck: 21, watertruck: 21, dozer: 22, radio: 20 }[type] || 28;
   c.clearRect(0, 0, 64, 64);
   const x = type === 'tank' ? 25 : type === 'mech' ? 40 : type === 'inf' || type === 'aa' || type === 'at' ? 29 : 32, y = type === 'inf' || type === 'med' || type === 'aa' || type === 'at' ? 35 : 32;
   if (hasSprite(type)) { const a = type === 'air' ? -Math.PI / 4 : 0; drawUnitPic(c, type, 32, 32, k * (type === 'air' ? 0.85 : 0.95), colors.blue, a, a); }
@@ -314,7 +314,7 @@ const BUILD_PAGES = {
   tents: ['tent', 'atpost', 'aapost', 'clinic', 'commandopost'],
   shops: ['tankshop', 'page:jeeps', 'ssmshop'],
   jeeps: ['jeepshop', 'jeepat', 'jeepaa'],
-  service: ['garage', 'depot', 'fuelst', 'decoy', 'page:defense'],
+  service: ['garage', 'depot', 'fuelst', 'waterst', 'decoy', 'page:defense'],
   defense: ['arrowsite', 'domesite'],
 };
 const BUILD_UP = { tents: 'root', shops: 'root', service: 'root', air: 'root', jeeps: 'shops', helis: 'air', defense: 'service' };

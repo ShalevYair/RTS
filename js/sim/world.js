@@ -223,7 +223,13 @@ function separate(s, dt = 0) {
         const crush = a.side !== b.side && (a.type === 'tank' && FOOT.includes(b.type) ? b : b.type === 'tank' && FOOT.includes(a.type) ? a : null);
         if (crush) { crush.hp -= CRUSH_DPS * dt; crush.by = (crush === a ? b : a).squad; continue; }
         const d = Math.sqrt(d2) || 0.01, p = (min - d) / 2, nx = d2 ? dx / d : 1, ny = d2 ? dy / d : 0;
-        const wa = MASS[a.type] || 1, wb = MASS[b.type] || 1, ka = 2 * wb / (wa + wb), kb = 2 * wa / (wa + wb); // the heavier gives way less
+        const wa = MASS[a.type] || 1, wb = MASS[b.type] || 1; let ka = 2 * wb / (wa + wb), kb = 2 * wa / (wa + wb); // the heavier gives way less
+        // (the player's units, one moving and the other standing: the standing one is pushed aside, the moving one
+        // hardly — it goes through, as in other RTS games; it was stopped, and stood blocked behind a line)
+        if (a.side === b.side && singles(s, a.side) && !s.noPush) { // (s.noPush: off, to compare)
+          const am = a.moving === s.t, bm = b.moving === s.t;
+          if (am && !bm) { ka = PUSH_THROUGH; kb = 2 - PUSH_THROUGH; } else if (bm && !am) { kb = PUSH_THROUGH; ka = 2 - PUSH_THROUGH; }
+        }
         // (a little to the side as well, so two meeting head-on slide past each other instead of standing locked)
         const tx = nx - ny * SLIDE, ty = ny + nx * SLIDE;
         a.x -= tx * p * ka; a.y -= ty * p * ka; b.x += tx * p * kb; b.y += ty * p * kb;
