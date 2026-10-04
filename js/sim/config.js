@@ -94,6 +94,10 @@ const TYPES = {
 // bumps a second)
 const SPEED_K = 0.5;
 for (const T of Object.values(TYPES)) T.speed *= SPEED_K;
+// all weapon ranges and sight are RANGE_K / SIGHT_K of the numbers above (the player's call: forces closed right in to
+// see and hit each other); the signals truck already sees far (its whole job), so it stays
+const RANGE_K = 1.5, SIGHT_K = 1.5;
+for (const [k, T] of Object.entries(TYPES)) { T.range *= RANGE_K; if (T.gun) T.gun.range *= RANGE_K; if (k !== 'radio') T.sight *= SIGHT_K; }
 // logistics: ground fighters carry SUPPLY shots, one used per shot. Low (below SUPPLY_LOW of a load) a unit goes on
 // its own to the nearest supply truck, or home, holding its fire until refilled to SUPPLY_DONE. Within SUPPLY_R of a
 // truck, or by one of its side's buildings (a forward HQ too), it refills SUPPLY_FILL of a load per second.
@@ -156,7 +160,7 @@ const AIR_ORBIT = 45, AIR_LEAD = 0.6; // aircraft circle: the ring round where t
 // (bodies — buildings' and units' r — are 1/1.5 of what they were at 2× / 2–3×: the world is 1.5× bigger round them,
 // and the UI zooms in 1.5× (WORLD_K); at the full size big bodies jammed in passes and round buildings)
 const STRUCTS = {
-  hq:       { name: 'מפקדה',       icon: '🏰', hp: 1500, value: 10, sight: 180, r: 48 },
+  hq:       { name: 'מפקדה',       icon: '🏰', hp: 1500, value: 10, sight: 270, r: 48 },
   fhq:      { name: 'פיקוד קדמי',  icon: '🏕️', hp: 600,  value: 5, r: 24 },
   drone:    { name: 'רחפן',        icon: '🛸', hp: 30,   value: 0, r: 0 },
   tent:     { name: 'אוהל',        icon: '⛺', hp: 400,  value: 3, unit: 'inf',  build: 20, every: 15,  size: 6, r: 21, cat: 'tents' },
@@ -197,7 +201,7 @@ const BUILDABLE = [...PRODUCERS, 'decoy'], DECOY_MAX = 2;
 // that), counting up to REPAIR_MAX of them
 const REPAIR_R = 70, REPAIR_RATE = 3, REPAIR_MECH = 3, REPAIR_MAX = 8, REPAIR_QUIET = 4;
 // BUILD_GAP: the room kept between two buildings' footprints
-const BUILD_MIN_Q = 0.5, BUILD_BASE = 2, BUILD_PER_NODE = 2, BUILD_GAP = 12, STRUCT_SIGHT = 160;
+const BUILD_MIN_Q = 0.5, BUILD_BASE = 2, BUILD_PER_NODE = 2, BUILD_GAP = 12, STRUCT_SIGHT = 240;
 // nothing drives through a building: ground units are kept its STRUCTS r from its centre.
 // Units keep UNIT_GAP between them. A tank that runs into enemy soldiers (FOOT) crushes them, CRUSH_DPS a second.
 // a building in a ground unit's way is gone round once it's within SKIRT_AHEAD of its edge, SKIRT_STEP a step to the side
@@ -247,7 +251,7 @@ const SURNAMES = ['כהן', 'לוי', 'מזרחי', 'פרץ', 'ביטון', 'א�
 // Drones don't count for building (only the HQ and forward HQs do).
 const NODES = {
   hq:    { q: 1,    r0: 280, r1: 480 },
-  fhq:   { q: 0.85, r0: 110, r1: 220, hp: 600, warm: 30, every: 180, sight: 150, max: 3 },
+  fhq:   { q: 0.85, r0: 110, r1: 220, hp: 600, warm: 30, every: 180, sight: 225, max: 3 },
   drone: { q: 1,    r0: 110, r1: 310, hp: 30,  warm: 5,  every: 60, max: 10 },
   // every production building: it sees round itself, the picture is exact close by, and building reaches a bit past it
   bld:   { q: 1,    r0: 90,  r1: 190 },

@@ -59,8 +59,8 @@ ok(Sim.needsWater('inf') && Sim.needsWater('commando') && Sim.needsWater('med') 
   ok(went && e.load >= Sim.TRUCK_CAP.fueltruck && Math.hypot(e.x - 1000, e.y - 640) < 160, `empty: to the station, filled, back at the front (${s.t.toFixed(0)} s)`);
 }
 {
-  // ammunition: out of it, a unit holds its fire and stays; an ammunition truck by it fills it
-  const s = field(6), q = mk(s, 'tank', 900, 640), u = unitOf(s, q), e = mk(s, 'jeep', 1060, 640, 'red'); step(s, 0.1);
+  // ammunition: out of it, a unit holds its fire and stays; an ammunition truck by it fills it (the jeep: in the tank's range, out of its own)
+  const s = field(6), q = mk(s, 'tank', 900, 640), u = unitOf(s, q), e = mk(s, 'jeep', 1005, 640, 'red'); step(s, 0.1);
   const foe = unitOf(s, e); Sim.order(s, e.id, 'hold', foe.x, foe.y, true); Sim.order(s, q.id, 'hold', u.x, u.y, true); step(s, 1); u.sup = 0; const h0 = foe.hp, x0 = u.x; step(s, 6);
   ok(foe.hp === h0 && Math.abs(u.x - x0) < 20, 'out of ammunition: no shots, and it doesn\'t go back');
   foe.hp = 0; step(s, 0.1);
