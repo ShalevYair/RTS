@@ -408,13 +408,37 @@ function mix(a, b, u, k = 0) {
 // whole again at every pan past the margin, every zoom step and twice a second while tanks crushed trees: 100–170ms
 // each, the game stuttered.
 const bg = { key: '', of: null, sc: 0, tw: 0, tiles: new Map(), old: [], x0: 0, y0: 0, w: 0, h: 0, cv: document.createElement('canvas') };
-const BG_TILE = 384, BG_MS = 5, BG_MS_BLANK = 9, BG_KEEP = 70, BG_STILL = 250;
+const BG_TILE = 384, BG_MS = 5, BG_KEEP = 70, BG_STILL = 250, BG_MAX = 2, OV_PX = 1024;
+// (BG_MAX: tiles a frame at most — the time measured is only ours: most of a tile's cost is the graphics card's, after;
+// by time alone a frame took on 5–8 of them and stalled 100–170ms. OV_PX: the whole map's rough picture, its long
+// side — under every tile not yet painted, after a zoom or a jump)
+const ov = { cv: null, of: null, key: '', k: 0 };
+// (the tiles painted by the processor, not the graphics card — willReadFrequently: thousands of shapes a tile —
+// patches, trees, lines —, the card took 30–75ms over one and the frame waited for it; the processor ~5, and the
+// finished picture goes to the card once. Zoom and jumps: frames over 50ms 25 → 1, the worst 180 → ~55ms)
+const BG_CTX = { willReadFrequently: true };
 bg.cv.width = bg.cv.height = BG_TILE;
+// the whole map, rough (the ground, its colours and shading), in one small picture: under the tiles not painted yet
+// (a jump across the map, a zoom out) — blurry for a moment instead of a flat colour, and no hurry to paint them
+function ovPaint() {
+  const k = OV_PX / Math.max(s.W, s.H), w = Math.ceil(s.W * k), h = Math.ceil(s.H * k);
+  if (!ov.cv) ov.cv = document.createElement('canvas');
+  if (ov.cv.width !== w || ov.cv.height !== h) { ov.cv.width = w; ov.cv.height = h; }
+  const g = ov.cv.getContext('2d', BG_CTX), keep = [bg.x0, bg.y0, bg.w, bg.h, bg.quick];
+  bg.x0 = 0; bg.y0 = 0; bg.w = s.W; bg.h = s.H; bg.quick = true;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.fillStyle = colors.ground; g.fillRect(0, 0, w, h);
+  g.setTransform(k, 0, 0, k, 0, 0);
+  const grass = tilePat(g, 'grass1');
+  if (grass) { g.fillStyle = grass; g.fillRect(0, 0, s.W, s.H); g.globalAlpha = GROUND_TINT; g.fillStyle = colors.ground; g.fillRect(0, 0, s.W, s.H); g.globalAlpha = 1; }
+  drawTerrain(g, s.W, s.H, s.W / 2);
+  [bg.x0, bg.y0, bg.w, bg.h, bg.quick] = keep;
+  ov.k = k;
+}
 function bgPaint(t, quick) {
   bg.quick = !!quick; t.rough = !!quick; // (quick: while the camera moves — see drawGround)
   // (straight into the tile's own canvas: painted on one and copied, each copy waited for all the painting)
   if (!t.cv) { t.cv = document.createElement('canvas'); t.cv.width = t.cv.height = BG_TILE; }
-  const sc = bg.sc, g = t.cv.getContext('2d');
+  const sc = bg.sc, g = t.cv.getContext('2d', BG_CTX);
   bg.x0 = t.x0; bg.y0 = t.y0; bg.w = bg.h = bg.tw; // (what's in this tile: drawScenery draws only that)
   g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
   g.fillStyle = colors.ground; g.fillRect(0, 0, BG_TILE, BG_TILE);
@@ -444,10 +468,10 @@ function bgFree(l) { for (const t of l) if (t.cv) { t.cv.width = 0; t.cv = null;
 function drawGround(c) {
   sunTick(); sunShadeTick(); groundTick(); // (groundTick: woods cut — their tiles painted again) // (the sun turns a minute at a time: the ground, its hills' and trees' shadows, drawn again then)
   const sc = view.scale, vx0 = -view.ox / sc, vy0 = -view.oy / sc, vw = cv.width / sc, vh = cv.height / sc;
-  // (the tiles are painted at the zoom rounded up to a step of √2 and drawn a little smaller: a wheel notch inside the
-  // step paints nothing again)
+  // (the tiles are painted at the zoom rounded up to a power of 2 and drawn smaller: the wheel notches inside it paint
+  // nothing again — with steps of √2 every other notch painted the whole screen anew)
   // (the low graphics: at half that — a quarter of the pixels to paint and keep)
-  const L = Math.pow(2, Math.ceil(Math.log2(sc) * 2 - 1e-6) / 2) * (gfxLow ? 0.5 : 1);
+  const L = Math.pow(2, Math.ceil(Math.log2(sc) - 1e-6)) * (gfxLow ? 0.5 : 1);
   // (a new map: nothing of the old one; another step: the tiles there are stay, stretched, under the new ones until
   // those are painted; the theme, the sun, a picture loaded: each tile painted again in its turn)
   if (bg.of !== decor) { bg.of = decor; bg.tiles.clear(); bg.old = []; bg.sc = 0; }
@@ -457,6 +481,8 @@ function drawGround(c) {
   }
   const key = [colors.ground, colors.hill, colors.tree, decor.hills.sunKey, gfxLow].join();
   if (key !== bg.key) { bg.key = key; for (const t of bg.tiles.values()) t.stale = true; }
+  // (the whole map's rough picture: a new map, the theme — at once; the sun's next minute — once nothing else waits)
+  if (ov.of !== decor || !ov.cv) { ov.of = decor; ov.key = key; ovPaint(); }
   const tw = bg.tw, i0 = Math.floor(vx0 / tw), i1 = Math.floor((vx0 + vw) / tw), j0 = Math.floor(vy0 / tw), j1 = Math.floor((vy0 + vh) / tw);
   const get = (i, j) => { const k = i + ',' + j; let t = bg.tiles.get(k); if (!t) bg.tiles.set(k, t = { i, j, x0: i * tw, y0: j * tw, tw, cv: null, stale: true }); return t; };
   // what to paint, the middle of the screen first; then a ring around it on the map, ready for a pan
@@ -466,7 +492,6 @@ function drawGround(c) {
   for (let i = i0 - 1; i <= i1 + 1; i++) for (let j = j0 - 1; j <= j1 + 1; j++) {
     if (i < i0 || i > i1 || j < j0 || j > j1) { if (onMap(i, j)) ring.push(get(i, j)); } else shown.push(get(i, j));
   }
-  const covered = t => bg.old.some(o => o.x0 < t.x0 + tw && o.y0 < t.y0 + tw && o.x0 + o.tw > t.x0 && o.y0 + o.tw > t.y0);
   const t0 = performance.now(); let n = 0;
   // (the camera moving — a pan, a zoom: new tiles quick and rough, the ground, its colours and shading only; painted
   // whole once it has stood BG_STILL ms. Every tile whole while panning was the slow part of it)
@@ -475,16 +500,14 @@ function drawGround(c) {
   const moving = now - (bg.movedAt || 0) < BG_STILL;
   const redo = t => t.stale || (!moving && t.rough);
   const todo = [...shown.filter(t => !t.cv).sort(near), ...shown.filter(t => t.cv && redo(t)).sort(near), ...ring.filter(t => !moving && redo(t)).sort(near)];
-  // (all while the frame has time — BG_MS, a little more with blanks on screen —, one at least. A blank with nothing
-  // under it used to be painted at once, every one: after a zoom out that was up to 30 tiles in a frame, 50–110ms
-  // stalls at every wheel notch (the player's log). Now it's plain grass for the few frames until its turn)
-  const blanks = shown.filter(t => !t.cv && !covered(t)), budget = blanks.length ? BG_MS_BLANK : BG_MS;
+  // (BG_MAX a frame at most, and while the frame has time — BG_MS. Not painted yet: the map's rough picture shows
+  // there. A blank used to be painted at once, every one: after a zoom out up to 30 tiles in a frame — the stalls)
   for (const t of todo) {
-    if ((n > 0 || !shown.includes(t)) && performance.now() - t0 > budget) continue;
+    if (n >= BG_MAX || (n > 0 && performance.now() - t0 > BG_MS)) break;
     bgPaint(t, moving && !t.cv ? true : moving && t.rough); n++;
   }
-  const grass = null; // (a flat colour: a pattern over them every frame cost more than it saved)
-  for (const t of blanks) if (!t.cv) { c.fillStyle = grass || colors.ground; c.fillRect(t.x0, t.y0, tw, tw); }
+  if (!todo.length && ov.key !== key) { ov.key = key; ovPaint(); } // (the sun moved: the rough picture too, when idle)
+  if (shown.some(t => !t.cv)) c.drawImage(ov.cv, 0, 0, ov.cv.width, ov.cv.height, 0, 0, ov.cv.width / ov.k, ov.cv.height / ov.k);
   // (the old tiles under, until every tile on screen is the new one)
   if (shown.every(t => t.cv) && bg.old.length) { bgFree(bg.old); bg.old = []; }
   for (const o of bg.old) if (o.x0 < vx0 + vw && o.x0 + o.tw > vx0 && o.y0 < vy0 + vh && o.y0 + o.tw > vy0) c.drawImage(o.cv, o.x0, o.y0, o.tw, o.tw);
