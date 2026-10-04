@@ -307,24 +307,32 @@ const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
 // forward HQs: a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
 const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
-const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'airfield', 'tankerbase', 'jeepat', 'garage', 'domesite', 'heliatk', 'tankshop', 'heligun', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost'], AI_READY = 0.6;
-// the AI's style, picked per game for red (blue bots play 'steady'): what it builds first, how worn a squad may be
-// and still attack (ready), and how it goes about it — rush attacks early and often; turtle holds near home until it
-// has `wait` squads (or the upper hand), striking only what comes close; flank goes round by the map's edge.
+const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'airfield', 'tankerbase', 'jeepat', 'garage', 'domesite', 'heliatk', 'tankshop', 'heligun', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost', 'helilift'], AI_READY = 0.6;
+// the AI's commander (style), picked per game for red from the seed or in the main menu (blue bots play 'steady'):
+// what it builds (plan), how worn a squad may be and still attack (ready), and how it goes about it. (The rusher, the
+// turtle and the flanker are gone: the turtle hardly ever won, and the other two weren't much of a difference.)
 const AI_STYLES = {
-  steady: { name: 'שקול',  icon: '🦉', plan: AI_PLAN, ready: AI_READY },
-  rush:   { name: 'מסתער', icon: '⚡', plan: ['jeepshop', 'tent', 'tankshop', 'heligun', 'jeepat', 'depot', 'fuelst', 'aapost', 'clinic', 'airfield', 'tankerbase', 'garage'], ready: 0.45 },
-  turtle: { name: 'מתבצר', icon: '🐢', plan: ['aapost', 'tankshop', 'atpost', 'depot', 'fuelst', 'clinic', 'jeepaa', 'heliatk', 'airfield', 'tankerbase', 'tankshop', 'garage', 'tent'], ready: 0.7, wait: 5 },
-  flank:  { name: 'מאגף',  icon: '↪', plan: AI_PLAN, ready: AI_READY, flank: true },
+  // regular: every kind (and on hard every ability — AI_PLAN_HARD, see think)
+  steady:   { name: 'רגיל', icon: '⚖️', plan: AI_PLAN, ready: AI_READY },
+  // one arm above all (the player can pick the enemy's commander in the main menu)
+  tanks:    { name: 'מפקד השריון', icon: '🛡️', plan: ['tankshop', 'aapost', 'tankshop', 'tankshop', 'garage', 'tankshop'], ready: AI_READY },
+  infantry: { name: 'מפקד חיל הרגלים', icon: '🪖', plan: ['tent', 'atpost', 'aapost', 'clinic', 'tent', 'commandopost', 'atpost', 'aapost', 'tent'], ready: 0.45 }, // (attacks worn: holding back, two sides of soldiers stood off for ever)
+  vehicles: { name: 'מפקד הרכבים הקלים', icon: '🚙', plan: ['jeepshop', 'jeepat', 'jeepaa', 'garage', 'jeepshop', 'jeepat', 'jeepaa'], ready: AI_READY },
+  // the air force: aircraft (with tankers), attack helicopters and gunships, and AA all round home
+  air:      { name: 'מפקד חיל האוויר', icon: '✈️', plan: ['tankshop', 'aapost', 'airfield', 'tankerbase', 'atpost', 'heliatk', 'airfield', 'heligun', 'jeepaa', 'airfield', 'tankshop', 'domesite'], ready: AI_READY }, // (a core on the ground first: alone in the air, it was overrun)
+  // the commandos: bases, transport helicopters that set them down behind the lines (aiLift), a few to hold home
+  commando: { name: 'מפקד הקומנדו', icon: '🗡️', plan: ['tankshop', 'aapost', 'commandopost', 'helilift', 'atpost', 'commandopost', 'tankshop', 'helilift', 'commandopost', 'jeepat', 'domesite'], ready: AI_READY, raids: true }, // (a core on the ground first: with commandos only, it fell in 10 minutes)
   // missiles: a few squads keep home; the missile works first, drones look for the enemy HQ along its strip, and the
   // trucks fire at it. AI_MISSILE_MISS of its missiles shot down (Arrow) — it turns 'steady'
-  // one kind above all (the player can pick the enemy's style in the main menu): tanks (and an AA tent); soldiers of
-  // every kind; jeeps of every kind
-  tanks:    { name: 'טנקיסט', icon: '🛡️', plan: ['tankshop', 'aapost', 'tankshop', 'tankshop', 'garage', 'tankshop'], ready: AI_READY },
-  infantry: { name: 'איש החיילים', icon: '🪖', plan: ['tent', 'atpost', 'aapost', 'clinic', 'tent', 'commandopost', 'atpost', 'aapost', 'tent'], ready: 0.45 }, // (attacks worn, like the rusher: holding back, two sides of soldiers stood off for ever)
-  vehicles: { name: 'איש הרכבים', icon: '🚙', plan: ['jeepshop', 'jeepat', 'jeepaa', 'garage', 'jeepshop', 'jeepat', 'jeepaa'], ready: AI_READY },
-  missile: { name: 'טילים', icon: '🚀', plan: ['aapost', 'ssmshop', 'domesite', 'ssmshop', 'tankshop', 'ssmshop', 'atpost', 'arrowsite', 'aapost', 'tankshop'], ready: 0.7, home: true, missiles: true },
+  missile:  { name: 'מפקד הטילים', icon: '🚀', plan: ['aapost', 'ssmshop', 'domesite', 'ssmshop', 'tankshop', 'ssmshop', 'atpost', 'arrowsite', 'aapost', 'tankshop'], ready: 0.7, home: true, missiles: true },
 };
+// hard, regular: every ability together — missiles, armour, the air force with its tankers, commando raids by
+// helicopter, a fake HQ or two; and (see think) it hunts supply trucks and keeps the posts
+const AI_PLAN_HARD = ['aapost', 'tankshop', 'atpost', 'tankshop', 'jeepat', 'airfield', 'ssmshop', 'commandopost', 'helilift', 'tankerbase', 'domesite', 'tankshop', 'arrowsite', 'heliatk', 'ssmshop', 'commandopost', 'jeepaa', 'garage', 'clinic', 'heligun', 'tent'];
+// raids (hard, and the commando commander): a transport helicopter takes AI_RAID_MIN commandos at least (or what's
+// there after AI_RAID_WAIT s) and sets them down AI_RAID_BEHIND past an enemy building it knows of; hard also goes for
+// supply trucks first (AI_HUNT_W off a target's score)
+const AI_RAID_MIN = 2, AI_RAID_WAIT = 60, AI_RAID_BEHIND = 90, AI_RAID_BOARD = 40, AI_HUNT_W = 250;
 const AI_MISSILE_MISS = 2;
 // the knockout blow: ahead (AI_PUSH_SHARE of the power, AI_PUSH_MIN fighting squads at least) the AI gathers its
 // fighters where they are (gather: until AI_PUSH_IN of them are within AI_PUSH_R of the spot, AI_PUSH_GATHER s at
@@ -337,7 +345,7 @@ const AI_PUSH_SHARE = 0.6, AI_PUSH_STOP = 0.5, AI_PUSH_MIN = 4, AI_PUSH_IN = 0.7
 const AI_TRUCK_BACK = 60, AI_HOP = 450, AI_NEED = 0.3;
 // AI_SILENT_R: the hard AI sends squads going farther than this in radio silence
 // AI_RADIO_BACK: how far behind a leading squad the AI keeps a signals truck
-const AI_RADIO_BACK = 140, AI_HOME_R = 350, AI_FLANK_R = 350, FALLEN_T = 12, AI_SILENT_R = 500;
+const AI_RADIO_BACK = 140, AI_HOME_R = 350, FALLEN_T = 12, AI_SILENT_R = 500;
 
 // radio silence: a silent squad sends no reports (only the full-control ring still shows it), moves at SILENT_SPEED
 // and raises no dust. A talking squad is heard by the enemy: each of its check-ins gives the enemy a vague fix

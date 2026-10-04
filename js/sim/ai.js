@@ -29,7 +29,7 @@ function knownStructs(s, side) {
 
 // put a building of the next planned kind near the most forward control node, toward the enemy
 function aiBuild(s, side, D) {
-  if (D.mass && !s.level && s.fog && !alive(s, side, ['decoy']).length) {
+  if (D.mass && !s.level && s.fog && alive(s, side, ['decoy']).length < 2) { // (hard: deception — a fake HQ or two by the forward HQs)
     const f = alive(s, side, ['fhq']).find(n => s.t >= n.ready), foe = s.bases[foeOf(side)];
     if (f) for (let i = 0; i < 8; i++) { const a = Math.atan2(foe.y - f.y, foe.x - f.x) + (s.rand() - 0.5) * 2, r = STRUCTS[f.kind].r + STRUCTS.decoy.r + BUILD_GAP + 5 + s.rand() * 50; if (build(s, side, 'decoy', f.x + Math.cos(a) * r, f.y + Math.sin(a) * r)) break; }
   }
@@ -38,16 +38,21 @@ function aiBuild(s, side, D) {
   if (!D.smart && s.t - (s.lastBuild[side] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
   let kind = null;
-  const plan = AI_STYLES[s.style[side]].plan;
+  const plan = D.traits && s.style[side] === 'steady' && !s.level ? AI_PLAN_HARD : AI_STYLES[s.style[side]].plan; // (hard, regular: everything)
   for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if ((!s.builds || s.builds.includes(k)) && (k !== 'fuelst' || s.fuel) && (!STRUCTS[k].fuel || s.fuel) && !(s.logi && LOGI_KINDS.includes(k))) { kind = k; s.plan[side] += i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
   const anchors = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq').sort((a, b) => dist(a, goal) - dist(b, goal));
-  for (const a of anchors) for (let i = 0; i < 12; i++) {
-    const ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * 2.4, r = STRUCTS[a.kind].r + STRUCTS[kind].r + BUILD_GAP + 5 + s.rand() * 110;
+  for (const a of anchors) for (let i = 0; i < 24; i++) {
+    // (toward the enemy first; then all round it, a little farther — a crowded front left no room, and it stood stuck)
+    const wide = i >= 12, ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * (wide ? 2 * Math.PI : 2.4), r = STRUCTS[a.kind].r + STRUCTS[kind].r + BUILD_GAP + 5 + s.rand() * (wide ? 180 : 110);
     const x = a.x + Math.cos(ang) * r, y = a.y + Math.sin(ang) * r;
-    if (build(s, side, kind, x, y)) { s.plan[side]++; s.lastBuild[side] = s.t; return; }
+    if (build(s, side, kind, x, y)) { s.plan[side]++; s.lastBuild[side] = s.t; (s.planMiss = s.planMiss || {})[side] = 0; return; }
   }
+  // (no room for it — a big one, a crowded base: after a few tries the next one; it stood stuck on an airfield)
+  if (!anchors.length) return; // (nowhere to build from yet: not a miss)
+  s.planMiss = s.planMiss || {}; s.planMiss[side] = (s.planMiss[side] || 0) + 1;
+  if (s.planMiss[side] >= 3) { s.planMiss[side] = 0; s.plan[side]++; }
 }
 
 // the supply buildings (s.logi; past the allowance): one of each as soon as there's an HQ — a water building on a lake's
@@ -143,6 +148,40 @@ function aiPush(s, side, fighters, structs, St) {
   if (!hq || s.t - P.t1 > AI_PUSH_T) return stop();
   return { x: Math.round(hq.x / 20) * 20, y: Math.round(hq.y / 20) * 20 };
 }
+// commando raids (hard, and the commando commander): each transport helicopter takes the commandos at home on board
+// (AI_RAID_MIN, or what's there after AI_RAID_WAIT s), flies them to AI_RAID_BEHIND past an enemy building it knows of —
+// the far side, from home — and sets them down; from there they go for the buildings (think). Returns the squads busy
+// with it (think leaves them be)
+function aiLift(s, side, mine, structs) {
+  const busy = new Set(), home = hqOf(s, side) || s.bases[side];
+  const known = structs.filter(n => n.id !== 'hq?');
+  for (const lq of mine) {
+    if (lq.type !== 'lift') continue;
+    const L = s.units.find(u => u.squad === lq.id); if (!L) continue;
+    let n = (L.cargo || []).length;
+    // (boarding AI_RAID_BOARD s and some aren't on — one stuck far off: off with those that are; none — called off)
+    const late = lq.boardAt != null && s.t - lq.boardAt > AI_RAID_BOARD;
+    if (late) { lq.boardAt = null; for (const q of s.squads) if (q.boarding === L.id) q.boarding = null; }
+    if (n && !lq.drop && (late || !s.squads.some(q => q.boarding === L.id))) {
+      // (loaded: the HQ if we know it, else the nearest building we do)
+      const tg = known.find(k => k.kind === 'hq') || known.sort((a, b) => dist(a, L) - dist(b, L))[0];
+      if (tg) { const d = dist(tg, home) || 1, R = (STRUCTS[tg.kind] ? STRUCTS[tg.kind].r : 30) + AI_RAID_BEHIND; unload(s, lq.id, tg.x + (tg.x - home.x) / d * R, tg.y + (tg.y - home.y) / d * R); }
+    }
+    if (lq.drop) lq.boardAt = null;
+    if (n || lq.drop) { busy.add(lq.id); for (const q of s.squads) if (q.boarding === L.id) busy.add(q.id); continue; }
+    // (empty: the commandos at home, not out on a raid already, get on)
+    const waiting = mine.filter(q => q.type === 'commando' && !q.aboard && s.units.some(u => u.squad === q.id) && s.units.every(u => u.squad !== q.id || dist(u, home) < 500)); // (all of it home: not out on a raid)
+    const boarding = waiting.filter(q => q.boarding === L.id);
+    if (boarding.length) { busy.add(lq.id); for (const q of boarding) busy.add(q.id); continue; }
+    const men = waiting.reduce((a, q) => a + s.units.filter(u => u.squad === q.id).length, 0);
+    lq.raidAt = lq.raidAt ?? s.t;
+    if (men && known.length && (men >= AI_RAID_MIN || s.t - lq.raidAt > AI_RAID_WAIT)) {
+      board(s, waiting.map(q => q.id), lq.id); lq.raidAt = s.t; lq.boardAt = s.t;
+      for (const q of waiting) busy.add(q.id); busy.add(lq.id);
+    }
+  }
+  return busy;
+}
 // where a medic / mechanic squad waits: a little behind the squads it treats (or all of ours), toward home;
 // on a coarse grid so the order isn't resent for every step they take
 function careStation(s, sq, mine) {
@@ -204,23 +243,26 @@ function think(s, side, level) {
   if (D.smart && can.fhq) aiForward(s, side, mine, setOrder);
   const structs = knownStructs(s, side);
   const foes = s.squads.filter(q => q.side === foe).map(q => ({ q, k: intel(s, side, q) })).filter(o => o.k);
-  // style: the turtle stays home until it has enough squads (or the upper hand); the flanker goes round by an edge
+  // the commander: missiles keep a few squads home
   // (missiles: shot down too often — Arrow over there — it plays steady from now on)
   if (AI_STYLES[s.style[side]] && AI_STYLES[s.style[side]].missiles && s.downed && s.downed[side] >= AI_MISSILE_MISS) s.style[side] = 'steady';
   const St = AI_STYLES[s.style[side]] || AI_STYLES.steady, home = hqOf(s, side) || s.bases[side];
   const fighters = mine.filter(q => !TYPES[q.type].care);
-  const stayHome = St.home || (St.wait && s.t < 300 && !(fighters.length >= St.wait && s.t > 150) && share(s, side) < 0.55); // (never past 5 minutes; missiles: always)
+  const stayHome = !!St.home; // (missiles: a few squads keep home)
   if (can.build) aiSpecial(s, side);
   const push = D.smart && !s.noAiPush && aiPush(s, side, fighters, structs, St); // (ahead: all together, one blow — not on easy)
   // posts: a squad of soldiers to each one we don't hold (they go on their own; the rest of think leaves them be)
   const toPost = aiPosts(s, side, mine, setOrder);
+  const raid = (D.traits || St.raids) && can.build ? aiLift(s, side, mine, structs) : new Set(); // (commando raids by helicopter)
   let nth = 0, radios = 0; const trucks = {};
   for (const sq of mine) {
     if (toPost.has(sq.id)) continue;
     if (sq.type === 'ssm' && sq.fire) continue; // (setting up to launch: it stays put)
+    if (raid.has(sq.id) || sq.boarding || sq.aboard) continue; // (a raid: the helicopter and its commandos — aiLift)
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
     // support: bulldozers go where their sites are (on their own); signals trucks stay a little behind the squads
     if (TYPES[sq.type].support) { if (sq.type === 'radio') { const p = radioStation(s, sq, mine, radios++); setOrder(sq, 'hold', p.x, p.y); } continue; }
+    if (sq.type === 'lift') { const h = homeOf(s, sq), off = (h.kind && STRUCTS[h.kind] ? STRUCTS[h.kind].r : 50) + 45; setOrder(sq, 'hold', Math.round(h.x), Math.round(h.y + (h.y < s.H / 2 ? off : -off))); continue; } // (a transport helicopter not on a raid: waits at home, beside its pad / the HQ, toward the middle — over it, the commandos couldn't reach it — aiLift)
     if (sq.type === 'tanker') { const p = tankerStation(s, sq, foes); setOrder(sq, 'hold', p.x, p.y); continue; }
     if (s.logi && CARGO[sq.type] && !s.noAiSupply) { const k = trucks[sq.type] = (trucks[sq.type] || 0) + 1, p = truckStation(s, sq, mine, k - 1); setOrder(sq, 'hold', p.x, p.y); continue; }
     if (TYPES[sq.type].care) { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); continue; }
@@ -234,7 +276,8 @@ function think(s, side, level) {
       // (one target for those close together: the player's units are singles — hundreds of targets, each weighed
       // against all the rest)
       const key = Math.floor(k.x / AI_CLUSTER) * 4096 + Math.floor(k.y / AI_CLUSTER); if (seen.has(key)) continue; seen.add(key);
-      cands.push({ x: k.x, y: k.y, w: 0, edge: true });
+      if (sq.type === 'commando') continue; // (commandos: buildings only — their charges)
+      cands.push({ x: k.x, y: k.y, w: D.traits && CARGO[k.type] ? -AI_HUNT_W : 0, edge: true }); // (hard: the supply trucks first — no fuel, water or shells, the rest stands)
     }
     // structures: production and forward HQs matter most; aircraft go for them when there's nothing better
     if (!(MULT[sq.type].air > 0) || TYPES[sq.type].hover) for (const n of structs) cands.push({ x: n.x, y: n.y, w: n.kind === 'hq' ? 120 : n.kind === 'fhq' ? -60 : -30 });
@@ -258,15 +301,6 @@ function think(s, side, level) {
     const aim = sq.order.want || sq.order, cur = D.smart && cands.find(p => Math.hypot(p.x - aim.x, p.y - aim.y) < 40);
     if (cur && cur !== best && score(cur) < bs + AI_KEEP) best = cur;
     taken.set(best.x + ',' + best.y, (taken.get(best.x + ',' + best.y) || 0) + 1);
-    // flanking: a far target is reached by way of a point off to one side of it, halfway there — the side toward the
-    // nearer edge, the same for every squad (together, not split between the two edges)
-    if (St.flank && !TYPES[sq.type].air && dist(c, best) > AI_FLANK_R) {
-      const key = Math.round(best.x / 50) + ',' + Math.round(best.y / 50);
-      if (sq.flankKey !== key) { sq.flankKey = key; sq.flanked = false; sq.flankY = clamp(best.y + (best.y < s.H / 2 ? -1 : 1) * AI_FLANK_R, 0.1 * s.H, 0.9 * s.H); }
-      const wp = { x: Math.round((c.x + best.x) / 2), y: Math.round(sq.flankY) };
-      if (!sq.flanked && dist(c, wp) < 120) sq.flanked = true;
-      if (!sq.flanked) { setOrder(sq, 'attack', wp.x, wp.y); if (D.mass && friction(s)) silence(s, sq.id, true, true); continue; }
-    }
     // supply (s.logi): short of fuel / water and no truck by it — it waits where it is for one; else no more than
     // AI_HOP past the nearest that keeps it going
     const from = s.logi && !s.noAiSupply && leashFrom(s, sq);
@@ -277,7 +311,7 @@ function think(s, side, level) {
       if (db > AI_HOP) { const k = AI_HOP / db; best = { x: Math.round((f.x + (best.x - f.x) * k) / 40) * 40, y: Math.round((f.y + (best.y - f.y) * k) / 40) * 40 }; }
     }
     setOrder(sq, 'attack', best.x, best.y);
-    // hard: a squad going far (or round a flank) keeps radio silence on the way; near home it talks
+    // hard: a squad going far keeps radio silence on the way; near home it talks
     if (D.mass && friction(s)) silence(s, sq.id, dist(c, best) > AI_SILENT_R, true);
   }
   // posture (hard): press when losing, play safe when winning
