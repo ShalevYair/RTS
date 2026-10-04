@@ -120,6 +120,29 @@ function tankerStation(s, sq, foes) {
   if (!foes.some(({ k }) => (k.type === 'aa' || k.type === 'ajeep') && Math.hypot(k.x - p.x, k.y - p.y) < 220)) return p;
   return { x: Math.round((p.x + h.x) / 2), y: p.y };
 }
+// the knockout blow (see AI_PUSH_*): where every fighting squad goes now — the gathering spot, then the enemy HQ as
+// far as we know it; null = no blow under way (each squad its own target). Only on the big maps: on the small one the
+// games end anyway, and with the blow fewer of them did (the side ahead lost it)
+function aiPush(s, side, fighters, structs, St) {
+  const P = (s.aiPush = s.aiPush || {})[side] = (s.aiPush[side] || { phase: null, rest: 0 });
+  const sh = share(s, side), ground = fighters.filter(q => !TYPES[q.type].air);
+  const stop = () => { P.phase = null; P.rest = s.t + AI_PUSH_REST; return null; };
+  if (P.phase && (sh < AI_PUSH_STOP || ground.length < 2)) return stop();
+  if (!P.phase) {
+    if (St.home || s.level || s.H <= H || s.t < P.rest || sh < AI_PUSH_SHARE || ground.length < AI_PUSH_MIN) return null;
+    const G = 40, n = ground.length;
+    P.at = { x: Math.round(ground.reduce((a, q) => a + q.cx, 0) / n / G) * G, y: Math.round(ground.reduce((a, q) => a + q.cy, 0) / n / G) * G };
+    P.phase = 'gather'; P.t0 = s.t;
+  }
+  if (P.phase === 'gather') {
+    const inn = ground.filter(q => dist({ x: q.cx, y: q.cy }, P.at) < AI_PUSH_R).length;
+    if (inn < AI_PUSH_IN * ground.length && s.t - P.t0 < AI_PUSH_GATHER) return P.at;
+    P.phase = 'strike'; P.t1 = s.t;
+  }
+  const hq = structs.find(n => n.kind === 'hq');
+  if (!hq || s.t - P.t1 > AI_PUSH_T) return stop();
+  return { x: Math.round(hq.x / 20) * 20, y: Math.round(hq.y / 20) * 20 };
+}
 // where a medic / mechanic squad waits: a little behind the squads it treats (or all of ours), toward home;
 // on a coarse grid so the order isn't resent for every step they take
 function careStation(s, sq, mine) {
@@ -188,6 +211,7 @@ function think(s, side, level) {
   const fighters = mine.filter(q => !TYPES[q.type].care);
   const stayHome = St.home || (St.wait && s.t < 300 && !(fighters.length >= St.wait && s.t > 150) && share(s, side) < 0.55); // (never past 5 minutes; missiles: always)
   if (can.build) aiSpecial(s, side);
+  const push = D.smart && !s.noAiPush && aiPush(s, side, fighters, structs, St); // (ahead: all together, one blow — not on easy)
   // posts: a squad of soldiers to each one we don't hold (they go on their own; the rest of think leaves them be)
   const toPost = aiPosts(s, side, mine, setOrder);
   let nth = 0, radios = 0; const trucks = {};
@@ -203,6 +227,7 @@ function think(s, side, level) {
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
     if (D.smart && sq.strength < St.ready && !fighting) { const h = homeOf(s, sq); setOrder(sq, 'hold', h.x, h.y); continue; }
+    if (push) { setOrder(sq, 'attack', push.x, push.y); if (D.mass && friction(s)) silence(s, sq.id, dist(c, push) > AI_SILENT_R, true); continue; } // (the blow: gathering, then the enemy HQ)
     const cands = [], seen = new Set();
     for (const { q, k } of foes) {
       if (!canHit(sq, k)) continue; // can't hurt it (aircraft for everyone but AA), as far as we can tell

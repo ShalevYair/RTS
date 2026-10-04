@@ -7,6 +7,9 @@ let roadArmed = false, roadFrom = null; // (laying a road: armed, and where it s
 let s, decor, sel = 'all', mode = 'hold', playing = false, rate = 1, logKey = '', hudAt = 0, diff = 'normal', endShown = false, fog = true, buildArmed = null;
 try { fog = localStorage.getItem('irts-fog') !== '0'; } catch (e) { /* storage unavailable */ }
 try { const d = localStorage.getItem('irts-diff'); if (d in Sim.DIFFS) diff = d; } catch (e) { /* storage unavailable */ }
+// the enemy's style in the full game (the main menu): 'random' = a different one each game (Sim.AI_STYLES)
+let foeStyle = 'random';
+try { const f = localStorage.getItem('irts-foe'); if (f && (f === 'random' || f in Sim.AI_STYLES)) foeStyle = f; } catch (e) { /* storage unavailable */ }
 // tutorial: `done` = the highest level won; `lvl` = the level being played (0 = the full game, with its settings)
 let done = 0;
 try { done = Math.max(0, Math.min(Sim.LEVELS, +localStorage.getItem('irts-done') || 0)); } catch (e) { /* storage unavailable */ }
