@@ -17,8 +17,11 @@ const has = (s, kind) => s.nodes.some(n => n.side === 'red' && n.kind === kind &
   // (s.noCounter: the regular commander on the other side answers soldiers with MLRS and jeeps — aiCounter — and overran
   // this one before its raids; what's checked here is the raid)
   const s = game(317, 'normal', 'commando'); s.noCounter = true; let dropped = 0, liftAt = null;
-  run(s, 1500, () => { for (const u of s.units) if (u.side === 'red' && u.type === 'commando' && u.x < s.W * 0.4 && !u.seenDrop) { u.seenDrop = true; dropped++; } if (!liftAt && s.units.some(u => u.side === 'red' && u.type === 'lift')) liftAt = s.t; });
-  ok(liftAt !== null && dropped >= 1, `the commando commander: a helicopter (${liftAt ? Math.round(liftAt / 60) + ' min' : '-'}) set ${dropped} commandos down deep on our side`);
+  // (a raid flown: a helicopter with commandos aboard past the middle of the map, on its way in — set down, or shot
+  // down by our AA on the way: the defence's business, not the raid's)
+  let flown = 0;
+  run(s, 1500, () => { for (const u of s.units) { if (u.side === 'red' && u.type === 'commando' && u.x < s.W * 0.4 && !u.seenDrop) { u.seenDrop = true; dropped++; } if (u.side === 'red' && u.type === 'lift' && u.cargo && u.cargo.length && u.x < s.W * 0.5 && !u.seenRaid) { u.seenRaid = true; flown++; } } if (!liftAt && s.units.some(u => u.side === 'red' && u.type === 'lift')) liftAt = s.t; });
+  ok(liftAt !== null && flown + dropped >= 1, `the commando commander: a helicopter (${liftAt ? Math.round(liftAt / 60) + ' min' : '-'}) flew ${flown} raid(s) in over the middle, ${dropped} commandos set down deep on our side`);
 }
 {
   const s = game(314, 'hard'); s.style.red = 'steady'; const seen = new Set();

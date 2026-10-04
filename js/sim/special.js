@@ -44,7 +44,8 @@ function liftTick(s, dt) {
   }
   s.units = s.units.filter(u => !u.ridden); // (on board: off the map, inside the helicopter)
   for (const L of lifts.values()) {
-    const lq = s.squads.find(k => k.id === L.squad); if (!lq || !lq.drop || !aboard(s, L)) continue;
+    const lq = s.squads.find(k => k.id === L.squad); if (!lq || !lq.drop) continue;
+    if (!aboard(s, L)) { lq.drop = null; continue; } // (nobody on: no drop — the helicopter that had them was shot down, and the new one off the pad flew the same raid empty, again and again)
     if (Math.hypot(L.x - lq.drop.x, L.y - lq.drop.y) > 12) { L.landT = 0; continue; }
     L.landT = (L.landT || 0) + dt; if (L.landT < LAND_T) continue;
     const d = lq.drop, n = L.cargo.length;
