@@ -37,7 +37,7 @@ function aiBuild(s, side, D) {
   if (buildCount(s, side) >= buildLimit(s, side)) return;
   if (!D.smart && s.t - (s.lastBuild[side] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
-  let kind = D.smart ? aiCounter(s, side) : null, counter = !!kind; // (what it has seen of the enemy first: an answer to it)
+  let kind = D.smart && !s.noCounter && s.style[side] === 'steady' ? aiCounter(s, side) : null, counter = !!kind; // (what it has seen of the enemy first: an answer to it — the regular commander, who mixes; the others keep to their arm)
   const plan = D.traits && s.style[side] === 'steady' && !s.level ? AI_PLAN_HARD : AI_STYLES[s.style[side]].plan; // (hard, regular: everything)
   for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if (buildable(s, k)) { kind = k; s.plan[side] += i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
   if (!kind) return;
