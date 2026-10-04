@@ -475,7 +475,7 @@ const specOf = (s, kind) => (s.logi && LOGI_STRUCTS[kind]) || STRUCTS[kind];
 // stays the same and it's within ARRIVE_LEAVE of it — pushed off, it walks back once none of ours has touched it for
 // ARRIVE_CALM s (within ARRIVE_SLACK: where it is will do); within ARRIVE_STALL_R and no nearer for ARRIVE_STALL s:
 // arrived where it is (squad.js arrivedAt)
-const PUSH_THROUGH = 0.3, ARRIVE_NEAR = 45, ARRIVE_LEAVE = 80, ARRIVE_STUCK = 0.4, ARRIVE_CALM = 6, ARRIVE_SLACK = 16, ARRIVE_STALL = 2, ARRIVE_STALL_R = 90;
+const PUSH_THROUGH = 0.3, ARRIVE_NEAR = 45, ARRIVE_LEAVE = 80, ARRIVE_STUCK = 0.4, ARRIVE_CALM = 6, ARRIVE_SLACK = 16, ARRIVE_STALL = 2, ARRIVE_STALL_R = 70;
 const WATER_T = 300, THIRST = 0.01, LIGHT_AT = 0.2, MED_SEEK = 180, WATER_NEAR = 60, SHORE_R = 34, LOGI_KINDS = ['depot', 'fuelst', 'waterst'];
 const FUEL_MAKE = 10, FUEL_STOCK = 24, FUEL_LOAD = 6, PILE_MAX = 24, PILE_BACK = 50, FUEL_LOOK = 2, FUEL_SPARE = 1.3;
 // the fuel truck: like the supply truck in every table by type

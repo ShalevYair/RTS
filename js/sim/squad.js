@@ -246,15 +246,17 @@ function updateUnit(s, u, sq, dt) {
   // (the player's units, to their place: arrived — at it, or touching one of ours that has arrived there — it stands,
   // even pushed a little off it: units circling a crowded spot for ever, shoving one another, was the jam. The AI's as
   // before: changes to them stalled bot games)
-  if (mine && !T.air && !best && !retreat && !s.noArrive && arrivedAt(s, u, tx, ty, sq.order)) return; // (s.noArrive: off, to compare)
+  if (mine && !T.air && !best && !retreat && !s.noArrive && !(sq.order.form && sq.order.form.march) && arrivedAt(s, u, tx, ty, sq.order)) return; // (s.noArrive: off, to compare; marching: its place moves on — never 'arrived' on the way)
   moveTo(s, u, tx, ty, (retreat ? 1.15 : 1) * (sq.silent ? SILENT_SPEED : 1), dt);
 }
 function arrivedAt(s, u, tx, ty, key) {
   if (u.yield && u.yield.until > s.t) return false; // (making way for one: it moves)
   // (arrived for this order only, and only once its place has stopped moving — a squad marching in step, a bulldozer
   // paving square by square: their places move a little every tick)
-  const moved = u.lastT && Math.hypot(u.lastT.x - tx, u.lastT.y - ty) > 0.5; u.lastT = { x: tx, y: ty };
-  if (moved || u.arrKey !== key) { u.arr = null; u.arrBest = null; u.arrKey = key; if (moved) return false; }
+  // (moved: this tick, or bit by bit since it arrived / since it last got nearer — a place creeping on slower than 0.5
+  // a tick never counted, and units stood 'arrived' while their places went on without them)
+  const moved = (u.lastT && Math.hypot(u.lastT.x - tx, u.lastT.y - ty) > 0.5) || (u.arrT && Math.hypot(u.arrT.x - tx, u.arrT.y - ty) > ARRIVE_SLACK); u.lastT = { x: tx, y: ty };
+  if (moved || u.arrKey !== key) { u.arr = null; u.arrBest = null; u.arrT = { x: tx, y: ty }; u.arrKey = key; if (moved) return false; }
   if (u.arr) {
     const off = dist(u, u.arr);
     if (off >= ARRIVE_LEAVE) u.arr = null; // (pushed far off: it goes back)
