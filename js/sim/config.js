@@ -493,6 +493,11 @@ for (const k of ['how', 'mlrs']) {
   for (const a in MULT) MULT[a][k] = MULT[a].truck;
   MULT[k] = { ...MULT.truck }; NODE_MULT[k] = 0; UNIT_VALUE[k] = 3; CARER[k] = 'mech'; MASS[k] = 3; FORM_ROW[k] = 4; DUSTY.push(k);
 }
+// the score (s.score): what a side destroyed of the enemy's — each unit by its kind (SCORE; else SCORE_UNIT), each
+// building SCORE_NODE (some their own, SCORE_NODES; half while it's still going up). Only kills: a unit lost to thirst
+// or pulled down by its own side gives nobody anything. The score doesn't decide the game — the HQ and the collapse do.
+const SCORE = { inf: 100, at: 120, aa: 120, med: 100, commando: 500, jeep: 250, ajeep: 300, tjeep: 300, tank: 500, air: 500, tanker: 400, heli: 500, gunship: 450, lift: 400, mech: 150, truck: 250, fueltruck: 250, watertruck: 250, dozer: 300, radio: 300, ssm: 400, arrow: 400, dome: 400, how: 450, mlrs: 450 };
+const SCORE_UNIT = 100, SCORE_NODE = 1000, SCORE_NODES = { hq: 5000, fhq: 2000, decoy: 300, drone: 150 };
 // the AI builds by what it sees (ai.js aiCounter): each kind of enemy force — what it is, which of our units answer it,
 // and the buildings that make them
 const AI_THREATS = {

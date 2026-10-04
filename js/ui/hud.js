@@ -128,8 +128,19 @@ function syncHeld() {
   const put = (el, l) => { el.replaceChildren(...l.map(k => { const i = document.createElement('i'); i.textContent = Sim.POSTS[k].icon; i.dataset.tip = 'held_' + k; i.tipText = () => pn(k) + '\n' + tr('held_' + k); return i; })); };
   put($('heldB'), b); put($('heldR'), r);
 }
+// the score by the power bar (what each side has destroyed of the other's); it swells a moment when it goes up
+const ptsShown = { blue: -1, red: -1 };
+function syncScore() {
+  const sc = s.score || { blue: 0, red: 0 };
+  for (const [side, id] of [['blue', 'ptsB'], ['red', 'ptsR']]) {
+    if (sc[side] === ptsShown[side]) continue;
+    const el = $(id), up = ptsShown[side] >= 0 && sc[side] > ptsShown[side]; ptsShown[side] = sc[side];
+    el.textContent = sc[side].toLocaleString('en-US');
+    if (up) { el.classList.add('up'); clearTimeout(el.upT); el.upT = setTimeout(() => el.classList.remove('up'), 180); }
+  }
+}
 function updateHud() {
-  syncHeld();
+  syncHeld(); syncScore();
   // power share: the truth without fog; under fog the enemy side is only what we know of it
   const b = Math.round(100 * (s.fog ? believedShare() : Sim.share(s, 'blue')));
   $('pwB').style.width = b + '%'; $('power').classList.toggle('est', !!s.fog); $('power').style.setProperty('--lose', pctLose() + '%');
@@ -309,21 +320,22 @@ function believedShare() {
 // control is strong enough. The pages: BUILD_PAGES (a page's entries: buildings, or 'page:<name>' for a sub-page);
 // BUILD_UP: where ‹ goes back to.
 const BUILD_PAGES = {
-  root: ['page:tents', 'page:shops', 'page:air', 'page:service'],
+  root: ['page:tents', 'page:shops', 'page:air', 'page:service', 'page:supply'],
   air: ['airfield', 'tankerbase', 'page:helis'],
   helis: ['heliatk', 'heligun', 'helilift'],
   tents: ['tent', 'atpost', 'aapost', 'clinic', 'commandopost'],
   shops: ['tankshop', 'page:jeeps', 'page:guns', 'ssmshop'],
   guns: ['howshop', 'mlrsshop'],
   jeeps: ['jeepshop', 'jeepat', 'jeepaa'],
-  service: ['garage', 'depot', 'fuelst', 'waterst', 'decoy', 'page:defense'],
+  service: ['garage', 'decoy', 'page:defense'],
+  supply: ['depot', 'fuelst', 'waterst'], // (the full game: past the allowance — 2 of each, apart from the rest)
   defense: ['arrowsite', 'domesite'],
 };
-const BUILD_UP = { tents: 'root', shops: 'root', service: 'root', air: 'root', jeeps: 'shops', guns: 'shops', helis: 'air', defense: 'service' };
+const BUILD_UP = { tents: 'root', shops: 'root', service: 'root', supply: 'root', air: 'root', jeeps: 'shops', guns: 'shops', helis: 'air', defense: 'service' };
 // the column top left: the root page's kinds (aviation: the airfield and the helipads)
-const BUILD_CATS = ['tents', 'shops', 'air', 'service'];
+const BUILD_CATS = ['tents', 'shops', 'air', 'service', 'supply'];
 // (the picture on a page's button)
-const PAGE_PIC = { tents: 'tent', shops: 'tankshop', jeeps: 'jeepshop', guns: 'howshop', service: 'garage', air: 'airfield', helis: 'heliatk', defense: 'arrowsite' };
+const PAGE_PIC = { supply: 'depot', tents: 'tent', shops: 'tankshop', jeeps: 'jeepshop', guns: 'howshop', service: 'garage', air: 'airfield', helis: 'heliatk', defense: 'arrowsite' };
 let buildPage = 'root';
 // the drone and forward-HQ buttons: their icons from art/ (ICONS, white on clear) instead of the drawn ones
 for (const [id, k] of [['eye', 'drone'], ['fhq', 'fhq']]) {
@@ -377,7 +389,7 @@ function initBuildMenu() {
   for (const g of BUILD_CATS) {
     const b = document.createElement('button');
     b.dataset.cat = g; b.dataset.tip = 'bcat'; b.innerHTML = '<canvas width="96" height="96"></canvas><span></span>';
-    b.tipText = () => tr('bp_' + g) + ' · ' + tr('bpn_' + g) + ' · ' + tr('slotsLeft', Math.max(0, Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue')));
+    b.tipText = () => tr('bp_' + g) + ' · ' + tr('bpn_' + g) + ' · ' + tr('slotsLeft', g === 'supply' && freePage() ? supplyLeft() : Math.max(0, Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue')));
     b.addEventListener('click', () => pickCat(g, b));
     cats.appendChild(b);
   }
@@ -388,7 +400,7 @@ function initBuildMenu() {
 function pickCat(g, b) {
   const m = $('buildm');
   if (s.hqPending && s.hqPending.blue) { blink($('hqb')); const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('why').nohq, r.right - st.left + 60, r.top - st.top + 20); return; }
-  if (buildFull()) { blink(b); if (!$('fhq').hidden) blink($('fhq')); return; }
+  if (g === 'supply' && freePage() ? !supplyLeft() : buildFull()) { blink(b); if (g !== 'supply' && !$('fhq').hidden) blink($('fhq')); return; } // (supply: its own allowance)
   const open = !m.hidden && m.dataset.open === g && buildPage === g; // (on one of its inner pages: back to its first)
   buildArmed = null; m.hidden = true; m.classList.remove('side');
   if (!open) {
@@ -403,10 +415,10 @@ function pickCat(g, b) {
 function syncCats() {
   const root = new Set(pageItems('root')), full = buildFull() || !!(s.hqPending && s.hqPending.blue), m = $('buildm');
   for (const b of document.querySelectorAll('[data-cat]')) {
-    const g = b.dataset.cat;
+    const g = b.dataset.cat, f = g === 'supply' && freePage() ? !supplyLeft() || !!(s.hqPending && s.hqPending.blue) : full; // (supply: its own allowance)
     b.hidden = !root.has('page:' + g);
-    b.setAttribute('aria-disabled', String(full && !buildArmed));
-    b.classList.toggle('can', !full && !buildArmed && m.hidden && !b.hidden && !!s.t); // (room to build: the halo)
+    b.setAttribute('aria-disabled', String(f && !buildArmed));
+    b.classList.toggle('can', !f && !buildArmed && m.hidden && !b.hidden && !!s.t); // (room to build: the halo)
     b.setAttribute('aria-expanded', String(!m.hidden && m.dataset.open === g || !!buildArmed && pageHas(g, buildArmed)));
   }
 }
@@ -454,6 +466,9 @@ function syncBuildMenu(fresh) {
   for (const b of document.querySelectorAll('[data-cat]')) b.classList.toggle('new', has(b.dataset.cat));
 }
 const buildFull = () => Sim.buildCount(s, 'blue') >= Sim.buildLimit(s, 'blue');
+// the supply buildings (the full game): past the allowance, up to their own max of each — how many more we may lay
+const freePage = () => BUILD_PAGES.supply.some(k => Sim.specOf(s, k).free);
+const supplyLeft = () => BUILD_PAGES.supply.filter(buildOk).reduce((a, k) => { const sp = Sim.specOf(s, k); return a + (sp.free ? Math.max(0, (sp.max || 2) - s.nodes.filter(n => n.side === 'blue' && n.kind === k && n.hp > 0).length) : 0); }, 0);
 const blink = el => { el.classList.remove('blink'); void el.offsetWidth; el.classList.add('blink'); };
 // no free slot: the button is dimmed, and pressing it anyway flashes it and the way out: 🏕️
 function toggleBuild() {

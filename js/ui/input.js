@@ -371,7 +371,7 @@ document.addEventListener('keydown', e => {
   // physical key codes, so the shortcuts also work on a Hebrew keyboard layout
   const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : /^(Digit|Numpad)\d$/.test(e.code) ? e.code.slice(-1) : e.key.toLowerCase();
   // keys for controls this level doesn't have yet do nothing
-  const need = /^\d$/.test(k) ? 'squads' : 'har'.includes(k) ? 'orders' : { d: 'eye', b: 'fhq', g: 'build' }[k];
+  const need = /^\d$/.test(k) ? 'squads' : 'qar'.includes(k) ? 'orders' : { d: 'eye', b: 'fhq', g: 'build' }[k];
   if (need && !uiHas(need)) return;
   // Ctrl + a number: what's picked becomes that group; the number alone: the button with that number (a second press
   // brings the camera there). Alt + a number: this view is saved as that point; Shift + it: back to it (field.js)
@@ -386,7 +386,9 @@ document.addEventListener('keydown', e => {
     if (to) toast(tr(to === 'block' ? 'packBlock' : 'packLine'), innerWidth / 2, innerHeight / 2, 1200);
   }
   else if (k === '0') select('all');
-  else if (k === 'h') { mode = 'hold'; syncButtons(); }
+  else if (k === 'q') { mode = 'hold'; syncButtons(); }
+  else if (k === 'h') toHq();
+  else if (k === 't') keyDozer();
   else if (k === 'a') { mode = 'attack'; syncButtons(); }
   else if (k === 'r') issue('retreat');
   else if (k === ' ') { e.preventDefault(); if (!e.repeat) setPlaying(!playing); }
@@ -398,3 +400,16 @@ document.addEventListener('keydown', e => {
   else if (e.key === '+' || e.key === '=' || e.key === '-') zoomAt(fit.w / 2, fit.top + fit.h / 2, e.key === '-' ? 1 / 1.25 : 1.25);
   else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; frontArmed = false; roadArmed = false; $('buildm').hidden = true; syncButtons(); closeMenu(); }
 });
+// H: the camera to our main HQ (before it stands: to the command tanks)
+function toHq() {
+  const h = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq' && n.hp > 0), c = !h && s.squads.find(q => q.side === 'blue' && q.cmd && !q.dead);
+  const p = h || c && { x: c.cx, y: c.cy }; if (p) lookAt(p.x, p.y);
+}
+// T: a bulldozer with nothing to do picked (else one — the next each time); T again on the one picked: the camera to it
+function keyDozer() {
+  const l = s.squads.filter(q => q.side === 'blue' && q.type === 'dozer' && !q.dead); if (!l.length) return;
+  const cur = oneSel(), at = cur && l.find(q => q.id === cur);
+  if (at) { const u = s.units.find(k => k.squad === at.id); lookAt(u ? u.x : at.cx, u ? u.y : at.cy); return; }
+  const free = l.filter(q => !Sim.jobOf(s, q) && !q.hqAt && !q.fhqAt && !q.fixHq), pool = free.length ? free : l;
+  select(pool[(keyDozer.n = ((keyDozer.n || 0) + 1)) % pool.length].id);
+}
