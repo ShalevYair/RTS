@@ -7,6 +7,7 @@ let bad = false; const check = (name, c, m) => { console.log(name, c ? 'ok  ' : 
 (async () => {
   const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
   const ctx = await b.newContext({ viewport: { width: 1400, height: 800 } });
+  await ctx.addInitScript(() => { try { localStorage.setItem('irts-mic', 'no'); } catch (e) { /* no storage */ } }); // (no "allow the microphone" window holding the game: micGate)
   await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); } catch (e) { /* no storage */ } });
   const p = await ctx.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message));

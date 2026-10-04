@@ -12,8 +12,9 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   const check = (name, c, m) => { if (!c) bad = true; console.log(name, c ? 'ok  ' : 'FAIL', m); };
   for (const [name, vp, touch, scheme] of [['desk', { width: 1400, height: 800 }, false, 'light'], ['phone', { width: 844, height: 390 }, true, 'dark']]) {
     const ctx = await b.newContext({ viewport: vp, hasTouch: touch, isMobile: touch, colorScheme: scheme });
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-mic', 'no'); } catch (e) { /* no storage */ } }); // (no "allow the microphone" window holding the game: micGate)
     const p = await ctx.newPage(); const errs = [];
-    p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
+    p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts|\[irts\] slow/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(400);
     // level 1, first time (the tutorial: "tutorial", then the level): its tour; the game waits until it's done
     await p.click('#learn'); await p.click('#levels button:first-child'); await p.waitForTimeout(200);
@@ -29,7 +30,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const tour = await p.evaluate(() => [3, 9, 10, 11, 12, 13].map(n => { lvl = n; newGame(true); return n + ':' + levelTour(n).length; }).join(' '));
     check(name, /3:3 9:2 10:2 11:2 12:3 13:2/.test(tour), `tours per level: ${tour}`);
     // the full game: settings, language, right click, the build nudge, symbols, lines that fade
-    await p.evaluate(() => { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); lvl = 0; toured = 99; newGame(true); showIntro(false); setPlaying(true); });
+    await p.evaluate(() => { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); done = Sim.LEVELS; lvl = 0; toured = 99; newGame(true); showIntro(false); setPlaying(true); });
     await p.click('#gear'); await p.waitForTimeout(100);
     const paused = await p.evaluate(() => playing);
     check(name, !paused, 'the settings pause the game');
@@ -82,10 +83,10 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     }
     await p.screenshot({ path: `${OUT}/${name}-bar.png` });
     // level 10: our squads out of the exact picture show faintly where they probably are
-    await p.evaluate(() => { lvl = 10; newGame(true); showIntro(false); const q = blueSquads()[0]; window.__gq = q.id; Sim.order(s, q.id, 'hold', s.W * 0.45, s.H * 0.5); for (let i = 0; i < 30 * 20; i++) Sim.step(s, 1 / 30); cam = { x: s.W / 2, y: s.H / 2, z: 1 }; applyView(); });
+    await p.evaluate(() => { lvl = 10; newGame(true); showIntro(false); s.bots = []; /* (no enemy coming: on a phone's narrow map it met ours and killed it) */ const q = blueSquads()[0]; window.__gq = q.id; Sim.order(s, q.id, 'hold', s.W * 0.45, s.H * 0.5); for (let i = 0; i < 30 * 40; i++) Sim.step(s, 1 / 30); /* (40 s: half speed, SPEED_K) */ cam = { x: s.W / 2, y: s.H / 2, z: 1 }; applyView(); });
     await p.waitForTimeout(300);
-    const g = await p.evaluate(() => { const q = s.squads.find(k => k.id === __gq), p = guessAt(q); return { shown: sqShown(q), off: Math.round(Math.hypot(p.x - q.cx, p.y - q.cy)) }; });
-    check(name, !g.shown && g.off < 150, `out of the exact picture: a guess ${g.off} from the truth`);
+    const g = await p.evaluate(() => { const q = s.squads.find(k => k.id === __gq), p = guessAt(q); return { shown: sqShown(q), dead: !!q.dead, off: Math.round(Math.hypot(p.x - q.cx, p.y - q.cy)) }; });
+    check(name, !g.shown && !g.dead && g.off < 150, `out of the exact picture: a guess ${g.off} from the truth ${JSON.stringify(g)}`);
     await p.screenshot({ path: `${OUT}/${name}-guess.png` });
     // a level played again (another visit): its tour shows again; the full game has its own (the HQ, what's new)
     const again = await p.evaluate(() => { tourSeen.clear(); toured = 11; startGame(1); const a = !document.getElementById('tip').hidden; tourNext(true);

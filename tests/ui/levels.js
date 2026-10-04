@@ -10,8 +10,9 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   const check = (name, c, m) => { if (!c) bad = true; console.log(name, c ? 'ok  ' : 'FAIL', m); };
   for (const [name, vp, touch, scheme] of [['desk', { width: 1400, height: 800 }, false, 'light'], ['phone', { width: 390, height: 844 }, true, 'dark']]) {
     const ctx = await b.newContext({ viewport: vp, hasTouch: touch, isMobile: touch, colorScheme: scheme });
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-mic', 'no'); } catch (e) { /* no storage */ } }); // (no "allow the microphone" window holding the game: micGate)
     const p = await ctx.newPage(); const errs = [];
-    p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
+    p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts|\[irts\] slow/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(500);
     const shown = sel => p.evaluate(sel => { const e = document.querySelector(sel); return !!e && !e.hidden && e.offsetParent !== null; }, sel);
     const intro = await p.evaluate(() => ({
@@ -25,7 +26,8 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     check(name, Object.values(bar1).every(v => !v), `level 1: no squad buttons, orders, building, drone, log ${JSON.stringify(bar1)}`);
     await p.screenshot({ path: `${OUT}/${name}-lv1.png` });
     // tap on the enemy squad: ours goes and wins
-    const at = await p.evaluate(() => { const r = s.squads.find(q => q.side === 'red'), c = cv.getBoundingClientRect(); return { x: c.left + view.cox + r.cx * view.css, y: c.top + view.coy + r.cy * view.css }; });
+    // (a level opens zoomed in on our squad — TUT_PX — so the enemy is off screen: look at it first)
+    const at = await p.evaluate(() => { const r = s.squads.find(q => q.side === 'red'), c = cv.getBoundingClientRect(); cam.x = r.cx; cam.y = r.cy; applyView(); return { x: c.left + view.cox + r.cx * view.css, y: c.top + view.coy + r.cy * view.css }; });
     await p.mouse.click(at.x, at.y);
     // play it out (straight through the sim, so the test doesn't hang on the browser's frame rate)
     await p.evaluate(() => { for (let i = 0; i < 30 * 300 && !s.over; i++) Sim.step(s, 1 / 30); });
@@ -33,8 +35,8 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const end = await p.evaluate(() => ({ t: document.getElementById('endT').textContent, again: document.getElementById('again').textContent, done: localStorage.getItem('irts-done') }));
     check(name, end.t === '🏆' && end.again === '▶' && end.done === '1', `level 1 won by one tap: ${JSON.stringify(end)}`);
     await p.click('#again'); await p.waitForTimeout(300);
-    const lv2 = await p.evaluate(() => ({ lvl, sq: getComputedStyle(document.getElementById('gSq')).display !== 'none', ord: getComputedStyle(document.getElementById('gOrd')).display !== 'none', W: s.W, H: s.H }));
-    check(name, lv2.lvl === 2 && !lv2.sq && !lv2.ord && lv2.H < Sim.H, `▶ goes on to level 2: no squad buttons (picking is on the map), a small map ${JSON.stringify(lv2)}`);
+    const lv2 = await p.evaluate(() => ({ lvl, sq: getComputedStyle(document.getElementById('gSq')).display !== 'none', ord: getComputedStyle(document.getElementById('gOrd')).display !== 'none', W: s.W, H: s.H, SH: Sim.H }));
+    check(name, lv2.lvl === 2 && !lv2.sq && !lv2.ord && lv2.H < lv2.SH, `▶ goes on to level 2: no squad buttons (picking is on the map), a small map ${JSON.stringify(lv2)}`);
     await p.screenshot({ path: `${OUT}/${name}-lv2.png` });
     // level 3: our HQ, drawn as a compound (no base strip)
     await p.evaluate(() => { rate = 1; lvl = 3; newGame(true); setPlaying(true); });

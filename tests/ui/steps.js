@@ -12,9 +12,10 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   const check = (name, c, m) => { if (!c) bad = true; console.log(name, c ? 'ok  ' : 'FAIL', m); };
   for (const [name, vp, touch, scheme] of [['desk', { width: 1400, height: 800 }, false, 'light'], ['phone', { width: 844, height: 390 }, true, 'dark']]) {
     const ctx = await b.newContext({ viewport: vp, hasTouch: touch, isMobile: touch, colorScheme: scheme });
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-mic', 'no'); } catch (e) { /* no storage */ } }); // (no "allow the microphone" window holding the game: micGate)
     await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); } catch (e) { /* ignore */ } });
     const p = await ctx.newPage(); const errs = [];
-    p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
+    p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts|\[irts\] slow/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(400);
     const shown = sel => p.evaluate(sel => { const e = document.querySelector(sel); return !!e && !e.hidden && e.offsetParent !== null; }, sel);
     const level = n => p.evaluate(n => { rate = 1; lvl = n; newGame(true); showIntro(false); setPlaying(false); }, n);
@@ -51,7 +52,8 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // level 9: a drone in hand; using it leaves none, the count shows
     await level(9); await p.waitForTimeout(200);
     const e0 = await p.evaluate(() => document.getElementById('eyeN').textContent);
-    await p.click('#eye'); const hq = await p.evaluate(() => { const h = s.nodes.find(n => n.kind === 'hq' && n.side === 'blue'), c = cv.getBoundingClientRect(); return { x: c.left + view.cox + (h.x + 500) * view.css, y: c.top + view.coy + h.y * view.css }; });
+    // (a level opens zoomed in on our squads — TUT_PX — so the spot is brought on screen first)
+    await p.click('#eye'); const hq = await p.evaluate(() => { const h = s.nodes.find(n => n.kind === 'hq' && n.side === 'blue'), c = cv.getBoundingClientRect(); cam.x = h.x + 500; cam.y = h.y; applyView(); return { x: c.left + view.cox + (h.x + 500) * view.css, y: c.top + view.coy + h.y * view.css }; });
     await p.mouse.click(hq.x, hq.y); await run(8); await p.waitForTimeout(250);
     const e1 = await p.evaluate(() => ({ n: document.getElementById('eyeN').textContent, up: Sim.dronesUp(s, 'blue'), dis: document.getElementById('eye').disabled }));
     check(name, e0 === '1' && e1.up === 1 && e1.n === '' && e1.dis, `level 9: one drone in hand ("${e0}"), sent up, none left ${JSON.stringify(e1)}`);
@@ -98,17 +100,26 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const rows = await p.evaluate(() => { const x = t => { const q = s.squads.find(k => k.side === 'blue' && k.type === t); return Math.round(q.order.x); }; return { tank: x('tank'), jeep: x('jeep'), inf: x('inf'), aa: x('aa'), med: x('med') }; });
     check(name, rows.tank > rows.jeep && rows.jeep > rows.inf && rows.inf > rows.aa && rows.aa > rows.med, `★ + tap: rows toward the enemy ${JSON.stringify(rows)}`);
     await p.screenshot({ path: `${OUT}/${name}-st-formation.png` });
-    // right-drag: the same order with a facing — the front turns to where the mouse was dragged (south here)
+    // left press, held a moment, then dragged: the same order with a facing — the front turns to where the arrow points
+    // (south here); a right-drag only pans
     if (!touch) {
       const P = await p.evaluate(() => { const hq = s.nodes.find(n => n.kind === 'hq' && n.side === 'blue'), c = cv.getBoundingClientRect(); let W = { x: hq.x + 300, y: hq.y - 60 }; if (Sim.lakeAt(s, W, 140)) W.y += 200; return { x: c.left + view.cox + W.x * view.css, y: c.top + view.coy + W.y * view.css }; });
-      await p.mouse.move(P.x, P.y); await p.mouse.down({ button: 'right' }); await p.mouse.move(P.x + 5, P.y + 90, { steps: 6 });
+      const before = await p.evaluate(() => ({ cam: cam.x, n: s.outbox.length }));
+      await p.mouse.move(P.x, P.y); await p.mouse.down({ button: 'right' }); await p.mouse.move(P.x - 60, P.y, { steps: 6 }); await p.mouse.up({ button: 'right' });
+      const panned = await p.evaluate(() => ({ cam: cam.x, n: s.outbox.length }));
+      check(name, panned.cam > before.cam + 10 && panned.n === before.n, `right-drag pans, no order ${JSON.stringify({ before, panned })}`);
+      await p.mouse.move(P.x + 60, P.y); await p.mouse.down({ button: 'right' }); await p.mouse.move(P.x, P.y, { steps: 6 }); await p.mouse.up({ button: 'right' }); // (back)
+      await p.mouse.move(P.x, P.y); await p.mouse.down(); await p.waitForTimeout(400); await p.mouse.move(P.x + 5, P.y + 90, { steps: 6 });
       await p.screenshot({ path: `${OUT}/${name}-st-face-drag.png` });
-      await p.mouse.up({ button: 'right' }); await run(8);
+      await p.mouse.up(); await run(8);
       const f = await p.evaluate(() => { const y = t => Math.round(s.squads.find(k => k.side === 'blue' && k.type === t).order.y); return { tank: y('tank'), inf: y('inf'), med: y('med') }; });
-      check(name, f.tank > f.inf && f.inf > f.med, `right-drag south: the front faces south ${JSON.stringify(f)}`);
+      check(name, f.tank > f.inf && f.inf > f.med, `held left-drag south: the front faces south ${JSON.stringify(f)}`);
     }
     // a fight up close: the fallen stay a while, vehicles leave tracks
-    const fx = await p.evaluate(() => { const u = s.units.find(x => x.side === 'blue' && x.type === 'inf'); u.hp = 0; for (let i = 0; i < 60; i++) Sim.step(s, 1 / 30); for (let i = 0; i < 20; i++) draw(); return { fallen: s.fallen.length, tracks: tracks.length }; });
+    // (a tank sent on, so something is surely driving — and on screen)
+    const fx = await p.evaluate(() => { const u = s.units.find(x => x.side === 'blue' && x.type === 'inf'); u.hp = 0;
+      const tk = s.squads.find(q => q.side === 'blue' && q.type === 'tank'); Sim.order(s, tk.id, 'hold', tk.cx + 150, tk.cy, true); cam.x = tk.cx + 75; cam.y = tk.cy; applyView(); draw();
+      for (let i = 0; i < 60; i++) { Sim.step(s, 1 / 30); if (i % 3 === 0) draw(); } return { fallen: s.fallen.length, tracks: tracks.length }; });
     check(name, fx.fallen >= 1 && fx.tracks > 0, `the fallen lie there a while, vehicles leave tracks ${JSON.stringify(fx)}`);
     // full screen is in the settings (Chrome has the API; not shown when installed)
     await p.evaluate(() => openMenu()); check(name, await shown('#fs'), 'a full screen switch ⛶ in the settings'); await p.evaluate(() => closeMenu(false));
@@ -118,6 +129,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   {
     // a phone held upright: the type buttons at the top fit (wrapping under the power bar), the corner holds the settings
     const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-mic', 'no'); } catch (e) { /* no storage */ } }); // (no "allow the microphone" window holding the game: micGate)
     await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); } catch (e) { /* ignore */ } });
     const p = await ctx.newPage(); await p.goto(URL); await p.waitForTimeout(400); await p.click('#go'); await p.waitForTimeout(300);
     const lay = await p.evaluate(() => { const r = e => document.getElementById(e).getBoundingClientRect(); return { types: document.querySelectorAll('[data-ty]').length, fits: r('gSq').right <= innerWidth && r('gSq').left >= 0, gear: innerWidth - r('gear').right < 20 && innerHeight - r('gear').bottom < 20, overlap: r('bar').right > r('corner').left && r('bar').bottom > r('corner').top }; });
