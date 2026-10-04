@@ -424,6 +424,7 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
 .hudc .score{position:static}
 /* the key posts each side holds (radar, power, fuel): ours left of the power bar, theirs right of it */
 .hudc{display:flex;align-items:center;gap:8px;direction:ltr}
+.bye{position:fixed;inset:0;display:grid;place-items:center;background:#000;color:#ddd;font:500 22px/1.4 Rubik,system-ui,sans-serif;text-align:center;padding:16px}
 .pts{font:700 17px/1 Rubik,system-ui,sans-serif;font-variant-numeric:tabular-nums;min-width:52px;color:#fff;letter-spacing:.02em;text-shadow:0 1px 3px rgb(0 0 0 / .8),0 0 10px var(--pc);pointer-events:auto;transition:transform .15s}
 .pts.blue{--pc:rgb(59 125 216 / .9);text-align:right}.pts.red{--pc:rgb(214 64 52 / .9);text-align:left}
 .pts.up{transform:scale(1.25)}

@@ -507,7 +507,17 @@ if (typeof MENU_ART === 'object') for (const [k, v] of [['--menuArt', MENU_ART.w
 // the moving one: plays only while the menu shows (and not for reduced motion); fades in once it's running
 const menuVid = $('menuVid'), vidOk = typeof MENU_ART === 'object' && MENU_ART.video && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 if (vidOk) { menuVid.src = MENU_ART.video; menuVid.addEventListener('playing', () => menuVid.classList.add('on')); }
-function menuVideo(on) { if (!vidOk) return; if (on) menuVid.play().catch(() => { /* not allowed yet: the still picture stays */ }); else menuVid.pause(); }
+// (a video with its own sound — MENU_ART.sound — plays with it, as loud as the music, over and over; the browser lets
+// sound play only after a tap or a key: till then it plays silent, and the first one turns the sound on)
+const vidSound = () => vidOk && MENU_ART.sound && musicOn && vol > 0;
+function menuVideo(on) {
+  if (!vidOk) return;
+  if (!on) { menuVid.pause(); return; }
+  menuVid.muted = !vidSound(); menuVid.volume = Math.min(1, Math.pow(vol / 100, 2) * 1.5);
+  menuVid.play().catch(() => { menuVid.muted = true; menuVid.play().catch(() => { /* not allowed yet: the still picture stays */ }); });
+}
+const vidWake = () => { if (!$('intro').hidden && vidSound() && menuVid.muted) { menuVid.muted = false; menuVid.play().catch(() => {}); } };
+document.addEventListener('pointerdown', vidWake, true); document.addEventListener('keydown', vidWake, true);
 // music, radio, explosions and full screen live in the in-game settings; on the main menu, under "more settings"
 const SHARED_ROWS = ['music', 'radio', 'sfx', 'fs', 'gfxHi'].map(id => $(id).closest('.mrow'));
 function moveShared(toMenu) { const box = toMenu ? $('moreBox') : $('menu'), before = toMenu ? null : $('menu').querySelector('[data-lang]').closest('.mrow'); for (const r of SHARED_ROWS) box.insertBefore(r, before); }
@@ -519,10 +529,17 @@ function showIntro(on) {
 function sidePage(p) { $('sideMain').hidden = p !== 'main'; $('sideLevels').hidden = p !== 'levels'; }
 $('learn').addEventListener('click', () => { renderLevels(); sidePage('levels'); });
 $('lvBack').addEventListener('click', () => sidePage('main'));
+// quit: the window closes (a tab play.bat opened — one page in its history — may be closed by the page); where the
+// browser won't, everything stops and a black screen says the tab can be closed
+$('quitBtn').addEventListener('click', () => {
+  fullScreen(false); Soundtrack.stop(); try { menuVid.pause(); } catch (e) { /* no video */ }
+  window.close();
+  setTimeout(() => { if (window.closed) return; setPlaying(false); document.body.innerHTML = `<div class="bye">${tr('quitDone')}</div>`; }, 300);
+});
 $('moreBtn').addEventListener('click', () => { const b = $('moreBox'); b.hidden = !b.hidden; $('moreBtn').setAttribute('aria-expanded', String(!b.hidden)); });
 // a game starts: the full one (no tutorial: as if it were skipped), or a tutorial level with its tour
 function startGame(level) {
-  if (fsWant && fsCan()) fullScreen(true);
+  if (fsCan()) fullScreen(true); // (into the game: always full screen — the switch is for while playing; an old 'off' kept it windowed for good)
   lvl = level; newGame(true); showIntro(false);
   // a tutorial level, once per visit: the goal in a few words and what's new, one by one, then the fight
   // (irts-tour = 99: never — the UI tests)
@@ -680,7 +697,7 @@ function placeFhq(x, y) {
 }
 // full screen (and landscape, where the phone allows it); a tap on ▶ on a phone goes full screen by itself
 const fsEl = document.documentElement;
-const fsCan = () => !!(fsEl.requestFullscreen || fsEl.webkitRequestFullscreen) && !matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
+const fsCan = () => !!(fsEl.requestFullscreen || fsEl.webkitRequestFullscreen) && !matchMedia('(display-mode: fullscreen)').matches; // (installed as an app — standalone — it can still go full screen)
 const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 function fullScreen(on = !fsOn()) {
   try {
