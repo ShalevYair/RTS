@@ -176,7 +176,7 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     if (outline) { c.strokeStyle = outline; c.lineWidth = w + lw * 2; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); }
     c.strokeStyle = fill; c.lineWidth = w; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
   };
-  if (type === 'air') { c.rotate(hd); c.beginPath(); poly(c, PLANE, k); paint(); }
+  if (type === 'air' || type === 'tanker') { c.rotate(hd); c.beginPath(); poly(c, PLANE, k); paint(); }
   else if (type === 'lift') {
     // a transport helicopter from above: a long body and two big rotors, front and back
     c.rotate(hd); c.beginPath(); c.roundRect ? c.roundRect(-k * 0.85, -k * 0.24, k * 1.7, k * 0.48, k * 0.22) : c.rect(-k * 0.85, -k * 0.24, k * 1.7, k * 0.48); paint();

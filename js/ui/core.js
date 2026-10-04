@@ -25,14 +25,14 @@ function readColors() {
 readColors();
 try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) { /* old browsers */ }
 new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-const TC = { inf: 'tInf', aa: 'tAa', at: 'tAa', tank: 'tTank', air: 'tAir', jeep: 'tJeep', ajeep: 'tJeep', tjeep: 'tJeep', med: 'tMed', mech: 'tMech', truck: 'tTruck', fueltruck: 'tTruck', watertruck: 'tTruck' }, tcol = t => colors[TC[t]];
+const TC = { inf: 'tInf', aa: 'tAa', at: 'tAa', tank: 'tTank', air: 'tAir', tanker: 'tAir', jeep: 'tJeep', ajeep: 'tJeep', tjeep: 'tJeep', med: 'tMed', mech: 'tMech', truck: 'tTruck', fueltruck: 'tTruck', watertruck: 'tTruck' }, tcol = t => colors[TC[t]];
 // drawn sizes: tanks big, soldiers (infantry, AA, medics) small
 // (the soldiers as they were; the vehicles 2–3× that, the aircraft the biggest, then the tanks — with their bodies in
 // the sim, TYPES[..].r, grown the same)
 // WORLD_K: the world is 1.5× bigger than the units (the sim's bodies 1/1.5 of their look before); everything drawn
 // for them is 1/WORLD_K and the camera opens / zooms WORLD_K× closer, so on screen they look the same
 const WORLD_K = 1.5;
-const SIZE = Object.fromEntries(Object.entries({ commando: 5.5, ssm: 24, arrow: 22, dome: 22, lift: 40, heli: 36, gunship: 34, inf: 5, aa: 5.5, at: 5.5, tank: 40, air: 42, jeep: 26, ajeep: 26, tjeep: 26, med: 5, mech: 20, truck: 20, fueltruck: 20, watertruck: 20, dozer: 24, radio: 22 }).map(([k, v]) => [k, v / WORLD_K]));
+const SIZE = Object.fromEntries(Object.entries({ commando: 5.5, ssm: 24, arrow: 22, dome: 22, lift: 40, heli: 36, gunship: 34, inf: 5, aa: 5.5, at: 5.5, tank: 40, air: 42, tanker: 50, jeep: 26, ajeep: 26, tjeep: 26, med: 5, mech: 20, truck: 20, fueltruck: 20, watertruck: 20, dozer: 24, radio: 22 }).map(([k, v]) => [k, v / WORLD_K]));
 // vehicles (tracks, dust, wrecks)
 const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck', 'fueltruck', 'watertruck', 'dozer', 'radio', 'ssm', 'arrow', 'dome']);
 

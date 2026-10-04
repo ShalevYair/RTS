@@ -156,7 +156,7 @@ function create(seed = 1, W = 1000, diff = 'normal', mapH = H, opts = {}) {
   // bigger maps allow more: the big one 2× the buildings and forward HQs, the huge one 4×
   s.scale = h > 2 * H * 1.5 ? 4 : h > H ? 2 : 1;
   // the enemy's style: from the seed, on its own stream
-  const st = ['rush', 'turtle', 'flank', 'steady'];
+  const st = ['rush', 'turtle', 'flank', 'steady', 'missile'];
   s.style = { blue: 'steady', red: st[Math.floor(rng(seed ^ 0x2545f491)() * st.length)] };
   makeTerrain(s);
   for (const side of ['blue', 'red']) {

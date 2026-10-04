@@ -12,6 +12,7 @@ const WIKI_UNIT = {
     air: 'מטוסים חגים מעל המטרה ויורים עד שנגמרת התחמושת, ואז חוזרים להתחמש. רק נ"מ פוגע בהם.',
     heli: 'מסוקי קרב: מרחפים במקום ויורים טילים — במטוסים, במסוקים, בטנקים ובג׳יפים. נ"מ פוגע בהם חזק, וחיילים וג׳יפים קצת (הם טסים נמוך).',
     gunship: 'מסוקי מקלע: מרחפים מעל חיילים ומחסלים אותם. חלשים מול רכבים; נ"מ, חיילים וג׳יפים פוגעים בהם.',
+    tanker: 'מטוס תדלוק: לא יורה. חג באמצע הדרך לאויב (או איפה ששולחים אותו) עם דלק ל-10 דקות. מטוס קרב שהדלק שלו מספיק רק לחזור — טס אליו, מתדלק וממשיך לתקוף; כך מטוסים מגיעים רחוק. כשהוא עצמו ריק — חוזר לבסיס.',
     lift: 'מסוקי תובלה: לא יורים. נושאים עד 10 חיילים מכל סוג רגלי (גם קומנדו). בוחרים חיילים ולוחצים על המסוק — הם עולים; בוחרים את המסוק ולוחצים על המפה — הוא נוחת ומוריד אותם. מסוק שמופל — כולם איתו.',
     ssm: 'משאיות טילי קרקע-קרקע: בוחרים ולוחצים על מבנה אויב שראית — המשאית עוצרת, מתכוננת 10 ש׳ ומשגרת (טיל כל 2 דקות). מבנה רגיל נהרס בפגיעה אחת, המפקדה בארבע. השיגור מגלה לאויב איפה היא. עד 3 מפעלי טילים, ומשאית אחת מכל מפעל.',
     arrow: 'משאיות חץ: מיירטות טילי קרקע-קרקע באמצע הדרך, בטווח של כגובה המפה. טיל אחד בדקה לכל משאית.',
@@ -36,6 +37,7 @@ const WIKI_UNIT = {
     air: 'Aircraft circle over their target and fire until out of ammunition, then fly back to rearm. Only AA hits them.',
     heli: 'Attack helicopters hover and fire missiles — at aircraft, helicopters, tanks and jeeps. AA hits them hard, soldiers and jeeps a little (they fly low).',
     gunship: 'Gunships hover over soldiers and cut them down. Weak against vehicles; AA, soldiers and jeeps hit them.',
+    tanker: 'A tanker does not shoot. It circles halfway to the enemy (or where you send it) with 10 minutes of fuel. A plane with only enough fuel to get back flies to it, fills up and goes on fighting — so planes reach far. Empty itself, it flies home.',
     lift: 'Transport helicopters don\'t shoot. They carry up to 10 soldiers of any kind on foot (commandos too). Pick soldiers and click the helicopter — they get on; pick the helicopter and click the map — it lands and sets them down. Shot down, it takes them all.',
     ssm: 'Surface-to-surface missile trucks: pick them and click an enemy building you have seen — the truck stops, sets up for 10 s and launches (one every 2 minutes). A building goes down in one hit, the HQ in four. The launch shows the enemy where it is. Up to 3 missile works, one truck each.',
     arrow: 'Arrow trucks shoot down surface-to-surface missiles halfway, anywhere within about the map\'s height. One a minute each.',
@@ -53,10 +55,10 @@ const WIKI_UNIT = {
 const WIKI_STRUCT = {
   he: { hq: 'המפקדה הראשית: לב השליטה. אם היא נופלת — הפסדת.', fhq: 'פיקוד קדמי: מרחיב את השליטה ואת השטח שאפשר לבנות בו, ומוסיף מקום למבנים.',
     tent: 'מגייס חי"ר.', atpost: 'מגייס לוחמי נ"ט.', aapost: 'מגייס לוחמי נ"מ.', jeepshop: 'מייצר ג׳יפים.', jeepaa: 'מייצר ג׳יפי נ"מ (לאט).', jeepat: 'מייצר ג׳יפי נ"ט (לאט).',
-    tankshop: 'מייצר טנקים.', airfield: 'מייצר מטוסים, ושם הם מתחמשים.', clinic: 'מוציא חובשים.', garage: 'מוציא מכונאים.', fuelst: 'מוציא 2 משאיות דלק (השנייה אחרי 2 דק׳). עד 2 תחנות, מעבר למכסה.', waterst: 'מוציא 2 משאיות מים. רק על גדת אגם; חיילים לידו שותים. עד 2, מעבר למכסה.', depot: 'מוציא 2 משאיות תחמושת (השנייה אחרי 2 דק׳). עד 2, מעבר למכסה.', decoy: 'מפקדה מזויפת: בערפל האויב חושב שזו המפקדה שלך ותוקף אותה.' },
+    tankshop: 'מייצר טנקים.', airfield: 'מייצר מטוסים, ושם הם מתחמשים.', tankerbase: 'מוציא 2 מטוסי תדלוק (השני אחרי 2 דק׳). אחד לצד.', clinic: 'מוציא חובשים.', garage: 'מוציא מכונאים.', fuelst: 'מוציא 2 משאיות דלק (השנייה אחרי 2 דק׳). עד 2 תחנות, מעבר למכסה.', waterst: 'מוציא 2 משאיות מים. רק על גדת אגם; חיילים לידו שותים. עד 2, מעבר למכסה.', depot: 'מוציא 2 משאיות תחמושת (השנייה אחרי 2 דק׳). עד 2, מעבר למכסה.', decoy: 'מפקדה מזויפת: בערפל האויב חושב שזו המפקדה שלך ותוקף אותה.' },
   en: { hq: 'The main HQ: the heart of command. If it falls, you lose.', fhq: 'A forward HQ: spreads control and the ground you may build on, and adds room for buildings.',
     tent: 'Raises infantry.', atpost: 'Raises anti-tank soldiers.', aapost: 'Raises anti-air soldiers.', jeepshop: 'Makes jeeps.', jeepaa: 'Makes AA jeeps (slowly).', jeepat: 'Makes AT jeeps (slowly).',
-    tankshop: 'Makes tanks.', airfield: 'Makes aircraft, and they rearm there.', clinic: 'Sends out medics.', garage: 'Sends out mechanics.', fuelst: 'Sends out 2 fuel trucks (the second 2 min on). Up to 2, past the allowance.', waterst: 'Sends out 2 water trucks. Only on a lake bank; soldiers by it drink. Up to 2, past the allowance.', depot: 'Sends out 2 ammunition trucks (the second 2 min on). Up to 2, past the allowance.', decoy: 'A fake HQ: under fog the enemy takes it for yours and attacks it.' },
+    tankshop: 'Makes tanks.', airfield: 'Makes aircraft, and they rearm there.', tankerbase: 'Sends out 2 tankers (the second 2 min on). One a side.', clinic: 'Sends out medics.', garage: 'Sends out mechanics.', fuelst: 'Sends out 2 fuel trucks (the second 2 min on). Up to 2, past the allowance.', waterst: 'Sends out 2 water trucks. Only on a lake bank; soldiers by it drink. Up to 2, past the allowance.', depot: 'Sends out 2 ammunition trucks (the second 2 min on). Up to 2, past the allowance.', decoy: 'A fake HQ: under fog the enemy takes it for yours and attacks it.' },
 };
 // the pages: [icon, title, body]; a body is HTML, or a function making it (the cards)
 const WIKI = {

@@ -21,6 +21,7 @@ const buildCount = (s, side) => alive(s, side, PRODUCERS.filter(k => !specOf(s, 
 function buildCheck(s, side, x, y, kind) {
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 20 || y < 20 || x > s.W - 20 || y > s.H - 20) return 'bad';
   if (s.hqPending && s.hqPending[side]) return 'nohq'; // (open field: the HQ first)
+  if (STRUCTS[kind] && STRUCTS[kind].fuel && !s.fuel) return 'bad'; // (the tanker base: only where there's fuel)
   if (STRUCTS[kind] && specOf(s, kind).max && alive(s, side, [kind]).length >= specOf(s, kind).max) return 'max'; // (a missile factory: 3 a side)
   if (kind === 'decoy' ? alive(s, side, ['decoy']).length >= DECOY_MAX : !(STRUCTS[kind] && specOf(s, kind).free) && buildCount(s, side) >= buildLimit(s, side)) return 'limit';
   if (quality(s, side, { x, y }, true) < BUILD_MIN_Q) return 'q'; // drones don't count
@@ -237,7 +238,7 @@ function homeOf(s, sq) {
 // aircraft rearm at the nearest working airfield, or at the HQ
 function rearmSpot(s, u) {
   let best = hqOf(s, u.side), bd = best ? dist(u, best) : Infinity;
-  for (const n of alive(s, u.side, TYPES[u.type].hover ? ['heliatk', 'heligun', 'airfield'] : ['airfield'])) if (s.t >= n.ready && dist(u, n) < bd) { bd = dist(u, n); best = n; }
+  for (const n of alive(s, u.side, TYPES[u.type].hover ? ['heliatk', 'heligun', 'airfield'] : u.type === 'tanker' ? ['tankerbase', 'airfield'] : ['airfield'])) if (s.t >= n.ready && dist(u, n) < bd) { bd = dist(u, n); best = n; }
   return best || s.bases[u.side];
 }
 // units heal near their own HQ, working buildings and forward HQs
@@ -314,8 +315,11 @@ const fhqUnderway = (s, side) => s.nodes.some(n => n.side === side && n.kind ===
 // Missile trucks never go to the front (FRONT_NOT): they fire from far behind
 function outSpot(s, side, n, type) {
   const f = !FRONT_NOT.includes(type) && s.front && s.front[side], r = n && n.rally;
+  if (type === 'tanker' && !r) return tankerSpot(s, side); // (a tanker: up to its place over the middle)
   return r && (!f || (r.t ?? 0) >= f.t) ? r : f || null;
 }
+// where a tanker circles: TANKER_MID of the way from home to the middle of the map
+function tankerSpot(s, side) { const h = hqOf(s, side) || s.bases[side]; return { x: Math.round(h.x + (s.W / 2 - h.x) * TANKER_MID), y: Math.round(s.H / 2) }; }
 // a free spot by p for one of ours of this type: the nearest on a spiral round it that no other of ours is going to
 // (everyone sent to the front went for its very point, and they shoved one another there for ever)
 function freeSpot(s, side, p, type, self) {

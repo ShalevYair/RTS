@@ -50,6 +50,9 @@ const TYPES = {
   inf:  { name: 'חי"ר',  hp: 60,  speed: 26, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 3, rein: 7, cost: 1 },
   tank: { name: 'טנקים', hp: 150, speed: 37, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 13, rein: 12, cost: 2 },
   air:  { name: 'מטוסים', hp: 90, speed: 80, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 9, rein: 15, air: true, ammo: 10, cost: 2 },
+  // the tanker (fuel.js): doesn't fight; flies TANKER_T s on its own fuel, circling its place (new ones: tankerSpot,
+  // between home and the middle), and fills the planes that come to it
+  tanker: { name: 'מטוסי תדלוק', hp: 120, speed: 70, range: 0, dmg: 0, cd: 1, sight: 160, r: 10, rein: 15, air: true, care: true, cost: 2 },
   // (AA soldiers: missiles only at what flies; at the ground a rifle — gun: an infantryman's range and pace, half his
   // hitting power, hitting as infantry does, MULT.inf)
   aa:   { name: 'נ"מ',   hp: 70,  speed: 29, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 3, rein: 9, cost: 1, gun: { range: 50, dmg: 3.5, cd: 0.8, as: 'inf' } },
@@ -177,6 +180,7 @@ const STRUCTS = {
   helilift: { name: 'מנחת מסוקי תובלה', icon: '🚁', hp: 500, value: 5, unit: 'lift', build: 40, every: 90, size: 1, badge: '🪂', r: 36, cat: 'helis' },
   heligun:  { name: 'מנחת מסוקי מקלע', icon: '🚁', hp: 550, value: 7, unit: 'gunship', build: 50, every: 90, size: 2, badge: '🔫', r: 36, cat: 'helis' },
   airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2, r: 45, cat: 'air' },
+  tankerbase: { name: 'בסיס מטוסי תדלוק', icon: '🛩️', hp: 500, value: 5, unit: 'tanker', build: 60, every: 120, size: 2, keep: 2, max: 1, first: true, r: 40, cat: 'air', fuel: true }, // (fuel: only where there's fuel)
   garage:   { name: 'מוסך',        icon: '🛠️', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2, r: 28, cat: 'service' },
   depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 28, cat: 'service' },
   // the fuel station (fuel.js): barrels into its yard, and up to `keep` fuel trucks
@@ -285,7 +289,7 @@ const SUPPORT_BACK = 50;
 // (together, far off: marching there in the formation — see formation; deep: the player's arrow, rows DEEP_MIN–DEEP_MAX apart)
 const MARCH_MIN = 220, MARCH_PACE = 0.9, MARCH_WAIT = 2.5, DEEP_MIN = 20, DEEP_MAX = 260;
 // (the front: what never goes there — missile trucks fire from far behind)
-const FRONT_NOT = ['ssm', 'dozer'];
+const FRONT_NOT = ['ssm', 'dozer', 'tanker'];
 // under fire: a fighting unit of the player's goes at the shooter, one that doesn't falls back FLEE_D toward the HQ
 // (each squad once per REACT_EVERY s)
 const FLEE_D = 190, REACT_EVERY = 4;
@@ -303,16 +307,24 @@ const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
 // forward HQs: a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
 const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
-const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'airfield', 'jeepat', 'garage', 'domesite', 'heliatk', 'tankshop', 'heligun', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost'], AI_READY = 0.6;
+const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'airfield', 'tankerbase', 'jeepat', 'garage', 'domesite', 'heliatk', 'tankshop', 'heligun', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost'], AI_READY = 0.6;
 // the AI's style, picked per game for red (blue bots play 'steady'): what it builds first, how worn a squad may be
 // and still attack (ready), and how it goes about it — rush attacks early and often; turtle holds near home until it
 // has `wait` squads (or the upper hand), striking only what comes close; flank goes round by the map's edge.
 const AI_STYLES = {
   steady: { name: 'שקול',  icon: '🦉', plan: AI_PLAN, ready: AI_READY },
-  rush:   { name: 'מסתער', icon: '⚡', plan: ['jeepshop', 'tent', 'tankshop', 'heligun', 'jeepat', 'depot', 'fuelst', 'aapost', 'clinic', 'airfield', 'garage'], ready: 0.45 },
-  turtle: { name: 'מתבצר', icon: '🐢', plan: ['aapost', 'tankshop', 'atpost', 'depot', 'fuelst', 'clinic', 'jeepaa', 'heliatk', 'airfield', 'tankshop', 'garage', 'tent'], ready: 0.7, wait: 5 },
+  rush:   { name: 'מסתער', icon: '⚡', plan: ['jeepshop', 'tent', 'tankshop', 'heligun', 'jeepat', 'depot', 'fuelst', 'aapost', 'clinic', 'airfield', 'tankerbase', 'garage'], ready: 0.45 },
+  turtle: { name: 'מתבצר', icon: '🐢', plan: ['aapost', 'tankshop', 'atpost', 'depot', 'fuelst', 'clinic', 'jeepaa', 'heliatk', 'airfield', 'tankerbase', 'tankshop', 'garage', 'tent'], ready: 0.7, wait: 5 },
   flank:  { name: 'מאגף',  icon: '↪', plan: AI_PLAN, ready: AI_READY, flank: true },
+  // missiles: a few squads keep home; the missile works first, drones look for the enemy HQ along its strip, and the
+  // trucks fire at it. AI_MISSILE_MISS of its missiles shot down (Arrow) — it turns 'steady'
+  missile: { name: 'טילים', icon: '🚀', plan: ['aapost', 'ssmshop', 'domesite', 'ssmshop', 'tankshop', 'ssmshop', 'atpost', 'arrowsite', 'aapost', 'tankshop'], ready: 0.7, home: true, missiles: true },
 };
+const AI_MISSILE_MISS = 2;
+// supply (s.logi): each supply truck keeps AI_TRUCK_BACK behind one of our squads — the neediest of what it carries
+// first, else the k-th furthest forward —; a squad goes no more than AI_HOP past the nearest truck that keeps it going
+// (fuel for vehicles, water for soldiers; or an HQ), and one short of it (under AI_NEED) waits for its truck
+const AI_TRUCK_BACK = 60, AI_HOP = 450, AI_NEED = 0.3;
 // AI_SILENT_R: the hard AI sends squads going farther than this in radio silence
 // AI_RADIO_BACK: how far behind a leading squad the AI keeps a signals truck
 const AI_RADIO_BACK = 140, AI_HOME_R = 350, AI_FLANK_R = 350, FALLEN_T = 12, AI_SILENT_R = 500;
@@ -426,6 +438,10 @@ const FUEL_BARRELS = { tank: 2, dozer: 2 }, FUEL_HQ_RATE = 0.05, FUEL_HQ_FAR = 1
 const TRUCK_CAP = { fueltruck: 8, truck: 8, watertruck: 30 }, TRUCK_R = 100, TRUCK_REFILL = 12, FUEL_FILL = 0.25, AMMO_FILL = 0.2, WATER_FILL = 0.1;
 const AMMO_CRATES = { tank: 2 }, AMMO_HQ_RATE = 0.04;
 const AI_SUPPLY2 = 300;
+// the tanker: TANKER_T s of its own fuel, TANKER_CAP planes' fulls; a plane within TANKER_R of it fills TANKER_FILL a
+// second. A plane turns for the nearest fuel (a tanker, or home) when what's left is what the way there takes plus
+// BINGO_PAD (planes: PLANE_BACK no more). A tanker's place: TANKER_MID of the way from home to the middle
+const TANKER_T = 600, TANKER_CAP = 8, TANKER_R = 45, TANKER_FILL = 0.25, BINGO_PAD = 0.06, TANKER_MID = 0.8;
 // (the supply buildings in the full game, s.logi — ammunition, fuel, water: at most 2 of each, past the building
 // allowance (free); a truck at once (first), another 2 minutes on, one lost — another 2 minutes on: 4 trucks of each
 // kind at most. Outside it (the tutorial) as they were: specOf)
@@ -441,6 +457,9 @@ const PUSH_THROUGH = 0.3, ARRIVE_NEAR = 45, ARRIVE_LEAVE = 80, ARRIVE_STUCK = 0.
 const WATER_T = 300, THIRST = 0.01, LIGHT_AT = 0.2, MED_SEEK = 180, WATER_NEAR = 60, SHORE_R = 34, LOGI_KINDS = ['depot', 'fuelst', 'waterst'];
 const FUEL_MAKE = 10, FUEL_STOCK = 24, FUEL_LOAD = 6, PILE_MAX = 24, PILE_BACK = 50, FUEL_LOOK = 2, FUEL_SPARE = 1.3;
 // the fuel truck: like the supply truck in every table by type
+// the tanker: like an aircraft as a target, hits nothing; worth an aircraft
+for (const a in MULT) MULT[a].tanker = MULT[a].air;
+MULT.tanker = { ...MULT.lift }; NODE_MULT.tanker = 0; UNIT_VALUE.tanker = 3; if (MASS.air !== undefined) MASS.tanker = MASS.air; if (FORM_ROW.air !== undefined) FORM_ROW.tanker = FORM_ROW.air;
 for (const k of ['fueltruck', 'watertruck']) {
   for (const T of [CARER, UNIT_VALUE, MASS, FORM_ROW]) if (T.truck !== undefined) T[k] = T.truck;
   for (const a in MULT) MULT[a][k] = MULT[a].truck;

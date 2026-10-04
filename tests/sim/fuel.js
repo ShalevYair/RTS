@@ -98,6 +98,34 @@ ok(Sim.needsWater('inf') && Sim.needsWater('commando') && Sim.needsWater('med') 
   ok(!p.rearm && p.fuel > 0.95, `filled up at the airfield (${(p.fuel * 100).toFixed(0)}%)`);
 }
 {
+  // the tanker: out of its base to its place over the middle; a plane sent far fills up by it on the way, and never
+  // runs dry; without one, a plane turns back when what's left takes it home
+  const s = field(11); Sim.build(s, 'blue', 'airfield', 330, 820); Sim.build(s, 'blue', 'tankerbase', 330, 460);
+  step(s, 400, () => built(s, 'airfield') && built(s, 'tankerbase'));
+  step(s, 60, () => s.units.some(u => u.side === 'blue' && u.type === 'tanker'));
+  const tk = s.units.find(u => u.side === 'blue' && u.type === 'tanker');
+  ok(!!tk, 'the tanker base sends out a tanker at once');
+  step(s, 60);
+  const spot = { x: 250 + (1200 - 250) * 0.8, y: 640 };
+  ok(tk && Math.hypot(tk.x - spot.x, tk.y - spot.y) < 160, `it circles over the middle (${tk && Math.round(tk.x)}, ${tk && Math.round(tk.y)})`);
+  const pq = mk(s, 'air', 400, 640), p = unitOf(s, pq); step(s, 0.1);
+  Sim.order(s, pq.id, 'hold', 2100, 200, true); // (far out, clear of the enemy's tanks)
+  let low = 1, tanked = 0, wasT = false, home = false; tk.fuel = 1;
+  step(s, 280, () => { low = Math.min(low, p.fuel); if (p.tank != null && !wasT) tanked++; wasT = p.tank != null; if (p.rearm) home = true; return p.hp <= 0; });
+  ok(tanked >= 2 && low > 0.02 && !home, `a plane far out filled up by the tanker ${tanked} times, never under ${(low * 100).toFixed(0)}%, never back home`);
+  const given = s.units.filter(u => u.side === 'blue' && u.type === 'tanker').reduce((a, u) => a + Sim.TANKER_CAP - u.load, 0);
+  ok(given > 1, `the tankers gave of their fuel (${given.toFixed(1)} fulls)`);
+  // no tanker: back home, with what the way takes left
+}
+{
+  const s = field(12); Sim.build(s, 'blue', 'airfield', 330, 820); step(s, 400, () => built(s, 'airfield'));
+  const q2 = mk(s, 'air', 400, 640), p2 = unitOf(s, q2); step(s, 0.1);
+  Sim.order(s, q2.id, 'hold', 2300, 640, true); let at = null;
+  step(s, 200, () => { if (p2.rearm && at === null) at = p2.fuel; return p2.rearm; })
+  ok(at !== null && at > 0.2, `without a tanker it turns for home in time (${at !== null ? (at * 100).toFixed(0) : '-'}% left)`);
+  step(s, 120, () => !p2.rearm); ok(!p2.rearm && p2.fuel > 0.95, 'and fills up there');
+}
+{
   // the tutorial (no s.logi): trucks and medics as before
   const s = Sim.create(9, 1400, 'normal'); s.bots = []; s.fog = false; s.collapseAfter = Infinity;
   ok(!s.logi && !s.water, 'no supply rules outside the full game');
