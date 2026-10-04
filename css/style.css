@@ -57,6 +57,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 .mrow>span{min-width:60px;color:var(--muted);font-size:14px}
 .mrow button{flex:1}
 .mrow input{flex:1;accent-color:var(--accent)}
+.foeRow button,#intro.mainmenu .foeRow button{font-size:19px;padding:2px 0;line-height:1}
 .legend{margin:0;font-size:13px;color:var(--muted);line-height:1.5}
 .sqb{position:relative;min-width:44px;padding:4px 6px}
 .sqb canvas{position:static;width:34px;height:34px;display:block;margin:-4px auto;cursor:inherit}

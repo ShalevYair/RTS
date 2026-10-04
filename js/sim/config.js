@@ -318,9 +318,19 @@ const AI_STYLES = {
   flank:  { name: 'מאגף',  icon: '↪', plan: AI_PLAN, ready: AI_READY, flank: true },
   // missiles: a few squads keep home; the missile works first, drones look for the enemy HQ along its strip, and the
   // trucks fire at it. AI_MISSILE_MISS of its missiles shot down (Arrow) — it turns 'steady'
+  // one kind above all (the player can pick the enemy's style in the main menu): tanks (and an AA tent); soldiers of
+  // every kind; jeeps of every kind
+  tanks:    { name: 'טנקיסט', icon: '🛡️', plan: ['tankshop', 'aapost', 'tankshop', 'tankshop', 'garage', 'tankshop'], ready: AI_READY },
+  infantry: { name: 'איש החיילים', icon: '🪖', plan: ['tent', 'atpost', 'aapost', 'clinic', 'tent', 'commandopost', 'atpost', 'aapost', 'tent'], ready: 0.45 }, // (attacks worn, like the rusher: holding back, two sides of soldiers stood off for ever)
+  vehicles: { name: 'איש הרכבים', icon: '🚙', plan: ['jeepshop', 'jeepat', 'jeepaa', 'garage', 'jeepshop', 'jeepat', 'jeepaa'], ready: AI_READY },
   missile: { name: 'טילים', icon: '🚀', plan: ['aapost', 'ssmshop', 'domesite', 'ssmshop', 'tankshop', 'ssmshop', 'atpost', 'arrowsite', 'aapost', 'tankshop'], ready: 0.7, home: true, missiles: true },
 };
 const AI_MISSILE_MISS = 2;
+// the knockout blow: ahead (AI_PUSH_SHARE of the power, AI_PUSH_MIN fighting squads at least) the AI gathers its
+// fighters where they are (gather: until AI_PUSH_IN of them are within AI_PUSH_R of the spot, AI_PUSH_GATHER s at
+// most), then all of them go for the enemy HQ together — until it falls, the edge is gone (under AI_PUSH_STOP) or
+// AI_PUSH_T s; then not again for AI_PUSH_REST s
+const AI_PUSH_SHARE = 0.6, AI_PUSH_STOP = 0.5, AI_PUSH_MIN = 4, AI_PUSH_IN = 0.7, AI_PUSH_R = 250, AI_PUSH_GATHER = 60, AI_PUSH_T = 300, AI_PUSH_REST = 120;
 // supply (s.logi): each supply truck keeps AI_TRUCK_BACK behind one of our squads — the neediest of what it carries
 // first, else the k-th furthest forward —; a squad goes no more than AI_HOP past the nearest truck that keeps it going
 // (fuel for vehicles, water for soldiers; or an HQ), and one short of it (under AI_NEED) waits for its truck

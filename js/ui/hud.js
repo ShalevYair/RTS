@@ -52,6 +52,7 @@ function syncButtons() {
   // the orders show only while something is picked
   $('gOrd').hidden = !uiHas('orders') || !selIds().length;
   document.querySelectorAll('[data-diff]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.diff === diff)));
+  document.querySelectorAll('[data-foe]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.foe === foeStyle)));
   // the one order button shows the order a tap on the map gives (attack: a sword, hold: a shield)
   const ob = $('ordMode'); if (ob.dataset.m !== mode) { ob.dataset.m = mode; ob.innerHTML = orderSvg(mode); } ob.setAttribute('aria-label', tr(mode));
   // radio silence for the picked squads (where orders travel as messages): 📻 on the air, 🤫 silent
@@ -475,6 +476,11 @@ function placeBuilding(x, y, again) {
   if (!why && !(again && room)) buildArmed = null;
   syncButtons(); updateHud();
 }
+document.querySelectorAll('[data-foe]').forEach(b => b.addEventListener('click', () => {
+  foeStyle = b.dataset.foe; try { localStorage.setItem('irts-foe', foeStyle); } catch (e) { /* ignore */ }
+  if (!lvl && s) { if (foeStyle !== 'random') s.style.red = foeStyle; else s.style.red = s.rolledStyle || s.style.red; } // (the intro's game: not started yet)
+  syncButtons();
+}));
 document.querySelectorAll('[data-diff]').forEach(b => b.addEventListener('click', () => {
   diff = b.dataset.diff; s.diff = diff; try { localStorage.setItem('irts-diff', diff); } catch (e) { /* ignore */ }
   syncButtons();
@@ -506,7 +512,6 @@ function startGame(level) {
   // (irts-tour = 99: never — the UI tests)
   if (lvl && toured !== 99 && !tourSeen.has(lvl)) { tourSeen.add(lvl); toured = Math.max(toured, lvl); try { localStorage.setItem('irts-tour', String(toured)); } catch (e) { /* ignore */ } runTour(levelTour(lvl), () => setPlaying(true)); }
   else setPlaying(true);
-  if (!lvl) micGate(); // (spoken orders: the microphone, asked for in a window of ours — field.js)
 }
 function renderLevels() {
   const box = $('levels'); box.textContent = ''; box.setAttribute('aria-label', tr('level', ''));
