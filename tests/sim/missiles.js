@@ -64,16 +64,17 @@ ok(S.ssmshop.build === 180 && S.ssmshop.every === 120 && S.ssmshop.size === 1 &&
   // the AI's missile style (the full game): few squads, kept home; missile works; drones find the HQ; the trucks fire
   // at it. Shot down AI_MISSILE_MISS times (Arrow) — it turns steady
   let s = Sim.create(311, 2200, 'normal', Sim.H * 2); Sim.extras(s); s = Sim.openField(s); s.fog = true; s.bots = ['blue', 'red']; s.style.red = 'missile';
-  let far = 0, n = 0, works = 0;
+  let far = 0, n = 0, works = 0, low = Sim.STRUCTS.hq.hp; // (low: the enemy HQ's lowest — the bulldozer mends it between hits)
   while (!s.over && s.t < 900) {
     Sim.step(s, 1 / 30);
     if (Math.abs(s.t % 30) < 1 / 30) { const hq = s.nodes.find(k => k.side === 'red' && k.kind === 'hq'); if (hq) for (const u of s.units) if (u.side === 'red' && !Sim.TYPES[u.type].care && !Sim.TYPES[u.type].air) { n++; if (Math.abs(u.x - hq.x) > 450) far++; } }
     works = Math.max(works, s.nodes.filter(k => k.side === 'red' && k.kind === 'ssmshop').length);
+    const bh = s.nodes.find(k => k.side === 'blue' && k.kind === 'hq'); if (bh) low = Math.min(low, bh.hp);
   }
   const blueHq = s.nodes.find(k => k.side === 'blue' && k.kind === 'hq');
   ok(works >= 2, `it builds missile works (${works})`);
   ok(far / Math.max(1, n) < 0.15, `its squads keep home (${(far / Math.max(1, n) * 100).toFixed(0)}% far out)`);
-  ok(s.hqDown === 'blue' || (blueHq && blueHq.hp < Sim.STRUCTS.hq.hp * 0.8), `its missiles bring the enemy HQ down (${s.hqDown ? 'down at ' + Math.round(s.t / 60) + ' min' : blueHq ? Math.round(blueHq.hp) + ' hp' : '-'})`);
+  ok(s.hqDown === 'blue' || low < Sim.STRUCTS.hq.hp * 0.75, `its missiles hit the enemy HQ hard (${s.hqDown ? 'down at ' + Math.round(s.t / 60) + ' min' : 'down to ' + Math.round(low) + ' hp'})`);
   const s2 = Sim.create(3, 1400, 'normal'); s2.style.red = 'missile'; s2.downed = { blue: 0, red: Sim.AI_MISSILE_MISS }; Sim.think(s2, 'red', 'normal');
   ok(s2.style.red === 'steady', 'shot down too often: it plays steady');
 }

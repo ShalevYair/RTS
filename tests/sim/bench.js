@@ -7,7 +7,7 @@ function play(seed, W, diff, opts = {}) {
   let s = opts.big ? Sim.create(seed, W * 2, diff, Sim.H * 2) : Sim.create(seed, W, diff);
   if (opts.extras) Sim.extras(s); // (posts, weather, roads: the full game on the big maps)
   if (opts.field) s = Sim.openField(s);
-  s.fog = opts.fog ?? true; s.bots = ['blue', 'red']; s.botDiff = opts.blue || 'normal';
+  s.fog = opts.fog ?? true; s.bots = ['blue', 'red']; s.botDiff = opts.blue || 'normal'; if (opts.style) s.style.red = opts.style;
   const shares = [];
   while (!s.over && s.t < (opts.limit || 900)) { Sim.step(s, 1 / 30); if (Math.abs(s.t % 60) < 1 / 30) shares.push(Sim.share(s, 'blue')); }
   return { s, shares };

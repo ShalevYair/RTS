@@ -12,7 +12,8 @@ function newGame(skipIntro) {
     // the full game opens on an open field: each side picks where its HQ goes (tests may keep the fixed HQ)
     let fixed = false; try { fixed = localStorage.getItem('irts-fixedhq') === '1'; } catch (e) { /* storage unavailable */ }
     if (!fixed) Sim.openField(s);
-    s.rolledStyle = s.style.red; if (foeStyle !== 'random') s.style.red = foeStyle; // (the enemy's style: picked in the main menu, or the seed's)
+    // (the enemy's commander: picked in the main menu, or the seed's — on hard, random is the regular one: every ability)
+    s.rolledStyle = diff === 'hard' ? 'steady' : s.style.red; s.style.red = foeStyle !== 'random' ? foeStyle : s.rolledStyle;
   }
   // the low graphics: no day and night, no rain or morning fog in this game at all (both sides alike)
   if (gfxLow) { s.night = false; s.wxPlan = []; lite = Math.max(lite, 1); }
