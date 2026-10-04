@@ -128,6 +128,43 @@ function missileTick(s, dt) {
   s.missiles = s.missiles.filter(m => !m.gone);
 }
 
+// ---- artillery: the 200 mm gun and the MLRS (ARTY_* in config.js) ----
+const TRACKED = ['tank', 'dozer']; // (an MLRS salvo only scratches these; everything else on the ground in it is gone)
+function artyTick(s, dt) {
+  for (const u of s.units) {
+    const T = TYPES[u.type]; if (!T.arty || u.hp <= 0) continue;
+    const still = u.aAt && Math.hypot(u.x - u.aAt.x, u.y - u.aAt.y) < 0.5; u.aAt = { x: u.x, y: u.y };
+    u.setup = still ? (u.setup || 0) + dt : 0; u.acd = Math.max(0, (u.acd || 0) - dt);
+    if (u.setup < ARTY_SETUP || u.acd > 0 || (s.logi && SUPPLY[u.type] && u.sup <= 0)) continue;
+    const q = s.squads.find(k => k.id === u.squad); if (!q) continue;
+    const R = ARTY_R * (1 + ELEV_RANGE * (u.lvl || 0)) * envRange(s, u), foe = foeOf(u.side), how = u.type === 'how';
+    // what its side sees now, on the ground, in reach
+    const foes = around(s, u.x, u.y, R).filter(e => e.side === foe && e.hp > 0 && !TYPES[e.type].air && dist(u, e) <= R && seen(s, u.side, e));
+    const worth = e => (UNIT_VALUE[e.type] || 1) * (TRACKED.includes(e.type) && !how ? MLRS_TANK : 1);
+    let at = null, best = 0;
+    if (how) { for (const e of foes) { const w = worth(e) - dist(u, e) / (10 * R); if (w > best) { best = w; at = e; } } }
+    else for (const e of foes) { let w = 0; for (const f of foes) if (Math.hypot(f.x - e.x, f.y - e.y) <= ARTY_AREA) w += worth(f); if (w > best) { best = w; at = e; } }
+    let node = null;
+    if (!at) node = s.nodes.find(n => n.side === foe && n.hp > 0 && n.kind !== 'drone' && dist(u, n) <= R + nodeR(n) && (!s.fog || s.visNodes[u.side].has(n.id)));
+    if (!at && !node) continue;
+    const tg = at || node;
+    u.acd = how ? HOW_CD : MLRS_CD; u.lastFire = s.t; u.aim = Math.atan2(tg.y - u.y, tg.x - u.x);
+    if (s.supply && SUPPLY[u.type]) u.sup = Math.max(0, u.sup - 1 / SUPPLY[u.type]);
+    const hitU = e => { e.by = q.id; e.shotAt = s.t; e.shotBy = u.id; };
+    if (node) node.hp -= how ? HOW_NODE : MLRS_NODE;
+    else if (how) { at.hp = 0; hitU(at); }
+    else for (const e of foes) if (Math.hypot(e.x - at.x, e.y - at.y) <= ARTY_AREA) { e.hp -= TRACKED.includes(e.type) ? MLRS_TANK * TYPES[e.type].hp : e.hp; hitU(e); }
+    // (on the map: one big shell, or a salvo of rockets scattered over the area)
+    const n = how ? 1 : MLRS_ROCKETS, fx = IMPACT[u.type];
+    for (let i = 0; i < n; i++) {
+      const a = s.rand() * 2 * Math.PI, r = how ? 0 : Math.sqrt(s.rand()) * ARTY_AREA * (node ? 0.5 : 1), p = { x: tg.x + Math.cos(a) * r, y: tg.y + Math.sin(a) * r };
+      shot(s, u, p, u.type); s.fx.push({ x: p.x, y: p.y, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[u.type] + i * 0.12 });
+    }
+    // (the firing is seen: the enemy now knows where it stands)
+    s.mem[foe][q.id] = { x: u.x, y: u.y, lvl: 2, t: s.t, type: u.type, air: false, n: 1, strength: q.strength };
+  }
+}
+
 // ---- Iron Dome and Trophy: a short missile (MISSILE_SHOTS) at `hit` stopped? (a unit or a building) ----
 function shield(s, kind, hit, side) {
   if (!MISSILE_SHOTS.includes(kind)) return false;

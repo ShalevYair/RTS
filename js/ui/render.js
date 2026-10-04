@@ -218,6 +218,18 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     c.rotate(aim - hd); barrel(0, 0, 1.3 * k * (1 - 0.28 * glyphRecoil), 0, 0.22 * k);
     c.beginPath(); c.arc(0, 0, 0.36 * k, 0, Math.PI * 2); paint();
     if (outline) { c.fillStyle = 'rgba(255,255,255,.3)'; c.beginPath(); c.arc(-0.1 * k, -0.1 * k, 0.16 * k, 0, Math.PI * 2); c.fill(); }
+  } else if (type === 'how') {
+    // a 200 mm gun: a long hull, a long heavy barrel turning to where it fires, with recoil
+    c.rotate(hd); c.beginPath(); c.rect(-0.75 * k, -0.45 * k, 1.5 * k, 0.9 * k); paint();
+    c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(-0.75 * k, -0.45 * k, 1.5 * k, 0.18 * k); c.fillRect(-0.75 * k, 0.27 * k, 1.5 * k, 0.18 * k);
+    c.rotate(aim - hd); barrel(0, 0, 1.6 * k * (1 - 0.28 * glyphRecoil), 0, 0.2 * k);
+    c.beginPath(); c.rect(-0.35 * k, -0.32 * k, 0.6 * k, 0.64 * k); paint();
+  } else if (type === 'mlrs') {
+    // an MLRS: a truck with a box of rocket tubes on the back, turning to where it fires
+    c.rotate(hd); c.beginPath(); c.rect(-0.85 * k, -0.42 * k, 1.7 * k, 0.84 * k); paint();
+    c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0.5 * k, -0.38 * k, 0.35 * k, 0.76 * k);
+    c.translate(-0.2 * k, 0); c.rotate(aim - hd); c.fillStyle = outline ? '#e8e2d0' : fill; c.fillRect(-0.45 * k, -0.33 * k, 0.9 * k, 0.66 * k);
+    c.fillStyle = 'rgba(0,0,0,.45)'; for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { c.beginPath(); c.arc(0.38 * k, -0.2 * k + i * 0.2 * k, 0.07 * k, 0, Math.PI * 2); c.fill(); }
   } else if (type === 'ssm' || type === 'arrow' || type === 'dome') {
     // a missile truck: the cab in front, a launcher on the back — one long missile, two (Arrow), a box of tubes (Dome)
     c.rotate(hd); c.beginPath(); c.rect(-0.85 * k, -0.42 * k, 1.7 * k, 0.84 * k); paint();
@@ -1121,7 +1133,7 @@ function draw() {
       if (k < 1) { c.globalAlpha = 1; c.strokeStyle = sh.kind !== 'air' ? '#fff1a8' : colors[sh.side]; c.lineWidth = 2.2; c.beginPath(); c.moveTo(x - ux * 5, y - uy * 5); c.lineTo(x, y); c.stroke(); c.fillStyle = '#ffb040'; ring(x - ux * 6, y - uy * 6, 1.6); c.fill(); }
     } else if (k < 1) {
       // (a tracer: a longer faint tail, a bright head — added light, no blur)
-      const tank = sh.kind === 'tank', len = tank ? 22 : 12;
+      const tank = sh.kind === 'tank' || sh.kind === 'how' || sh.kind === 'mlrs', len = tank ? 22 : 12; // (artillery: shells / rockets, as a tank's)
       c.globalCompositeOperation = 'lighter';
       c.globalAlpha = 0.35; c.strokeStyle = tank ? '#ff9a3c' : '#ffd36a'; c.lineWidth = tank ? 4 : 2.2;
       c.beginPath(); c.moveTo(x - ux * len, y - uy * len); c.lineTo(x, y); c.stroke();

@@ -35,9 +35,9 @@ const TC = { inf: 'tInf', aa: 'tAa', at: 'tAa', tank: 'tTank', air: 'tAir', tank
 // WORLD_K: the world is 1.5× bigger than the units (the sim's bodies 1/1.5 of their look before); everything drawn
 // for them is 1/WORLD_K and the camera opens / zooms WORLD_K× closer, so on screen they look the same
 const WORLD_K = 1.5;
-const SIZE = Object.fromEntries(Object.entries({ commando: 5.5, ssm: 24, arrow: 22, dome: 22, lift: 40, heli: 36, gunship: 34, inf: 5, aa: 5.5, at: 5.5, tank: 40, air: 42, tanker: 50, jeep: 26, ajeep: 26, tjeep: 26, med: 5, mech: 20, truck: 20, fueltruck: 20, watertruck: 20, dozer: 24, radio: 22 }).map(([k, v]) => [k, v / WORLD_K]));
+const SIZE = Object.fromEntries(Object.entries({ commando: 5.5, how: 30, mlrs: 26, ssm: 24, arrow: 22, dome: 22, lift: 40, heli: 36, gunship: 34, inf: 5, aa: 5.5, at: 5.5, tank: 40, air: 42, tanker: 50, jeep: 26, ajeep: 26, tjeep: 26, med: 5, mech: 20, truck: 20, fueltruck: 20, watertruck: 20, dozer: 24, radio: 22 }).map(([k, v]) => [k, v / WORLD_K]));
 // vehicles (tracks, dust, wrecks)
-const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck', 'fueltruck', 'watertruck', 'dozer', 'radio', 'ssm', 'arrow', 'dome']);
+const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck', 'fueltruck', 'watertruck', 'dozer', 'radio', 'ssm', 'arrow', 'dome', 'how', 'mlrs']);
 
 // ---- viewport: world is sized to the screen's aspect at game start; a camera (centre + zoom) looks at it ----
 // zoom 1 = the whole map fits; zooming in stops at ZOOM_PX screen px per world unit. The big map opens on our base at
