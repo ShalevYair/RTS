@@ -55,3 +55,19 @@ ok([a, b].every(n => s.t >= n.ready), 'then the rest, in order');
   step(g, 60);
   ok(g.t >= site.ready, 'ours went back and put the tent up');
 }
+{
+  // a second bulldozer out of the HQ: it takes every other waiting site — one at work on site 1 with 2…6 waiting: 2, 4, 6
+  const g = Sim.openField(Sim.create(12, 2000, 'normal', 1280)); g.bots = []; g.fog = false;
+  Sim.planHq(g, 'blue', 250, 640); step(g, 50);
+  const d1 = g.squads.find(q => q.side === 'blue' && q.type === 'dozer');
+  const spots = [[400, 420], [400, 520], [400, 760], [400, 860], [480, 420], [480, 860]];
+  for (const [x, y] of spots) Sim.build(g, 'blue', 'tent', x, y);
+  step(g, 2); const sites = d1.jobs.filter(id => { const n = g.nodes.find(k => k.id === id); return n && n.kind === 'tent'; });
+  const now = Sim.jobOf(g, d1);
+  const d2 = Sim._makeSquad(g, 'blue', 'dozer', null, 300, 640); Sim._fillSquad(g, d2, 300, 640); step(g, 2);
+  const waiting = sites.filter(id => id !== now.id), want = waiting.filter((id, i) => i % 2 === 0);
+  ok(sites.length === 6 && JSON.stringify(d2.jobs) === JSON.stringify(want), `the new one took ${d2.jobs} of the waiting ${waiting} (want ${want})`);
+  ok(Sim.jobOf(g, d1) === now && d1.jobs.filter(id => sites.includes(id)).length === 3, `the first keeps its site and the rest (${d1.jobs})`);
+  step(g, 200);
+  ok(g.nodes.filter(n => n.side === 'blue' && n.kind === 'tent').every(n => g.t >= n.ready), 'all six up');
+}

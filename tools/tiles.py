@@ -41,8 +41,15 @@ def build():
     # (and the moving one: video/menu_loop.mp4, made from video/Menu.mp4 — slowed to half, its end faded into its
     # start — with video/menu_poster.jpg showing until it plays)
     has = lambda p: os.path.exists(os.path.join(ROOT, *p.split('/')))
-    if has('video/menu_poster.jpg'): art['wide'] = art['wide'] or 'video/menu_poster.jpg'
-    art['video'] = 'video/menu_loop.mp4' if has('video/menu_loop.mp4') else None
+    # first choice: video/menu_rts.mp4 — video/RTS.mp4 (40 s, with its own sound) made smaller (ffmpeg -crf 24, aac
+    # 160k, +faststart), and its frame video/menu_rts.jpg until it plays; it plays with its sound, over and over, and
+    # the menu has no music of its own then (sound: True)
+    if has('video/menu_rts.mp4'):
+        art['wide'] = art['wide'] or ('video/menu_rts.jpg' if has('video/menu_rts.jpg') else None)
+        art['video'], art['sound'] = 'video/menu_rts.mp4', True
+    else:
+        if has('video/menu_poster.jpg'): art['wide'] = art['wide'] or 'video/menu_poster.jpg'
+        art['video'] = 'video/menu_loop.mp4' if has('video/menu_loop.mp4') else None
     # (the end of the full game: video/win.mp4 after a victory, video/lose.mp4 after a defeat, if they're there)
     for key in ('win', 'lose'): art[key] = f'video/{key}.mp4' if has(f'video/{key}.mp4') else None
     js.append('const MENU_ART = ' + json.dumps(art) + ';')

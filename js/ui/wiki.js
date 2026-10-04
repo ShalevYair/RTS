@@ -103,7 +103,7 @@ const WIKI = {
       <h3>טיפול ותיקון</h3><p>יחידה פצועה (נקודה כתומה או אדומה עליה) נשארת במקומה; חובש או מכונאי קרוב הולך אליה ומטפל בה. ליד מבנים שלך מתרפאים, ויחידות פנויות מתקנות מבנים פגועים.</p>
       <h3>רחפנים</h3><p>אחד חדש כל דקה. מטיסים מעל מקום כדי לראות ולשלוט שם, עד שנ"מ מפיל אותו.</p>`],
     ['⌨', 'מקשים', `<h2>מקשים</h2><ul>
-      <li><kbd>1</kbd>–<kbd>9</kbd> בחירת סוג כוח · <kbd>0</kbd> כולם</li><li><kbd>A</kbd> לתקוף · <kbd>H</kbd> להחזיק · <kbd>R</kbd> לסגת</li>
+      <li><kbd>1</kbd>–<kbd>9</kbd> בחירת סוג כוח · <kbd>0</kbd> כולם</li><li><kbd>A</kbd> לתקוף · <kbd>Q</kbd> להחזיק · <kbd>R</kbd> לסגת</li><li><kbd>H</kbd> המסך למפקדה · <kbd>T</kbd> טרקטור פנוי (שוב: המסך אליו)</li>
       <li><kbd>G</kbd> בנייה · <kbd>B</kbd> פיקוד קדמי · <kbd>D</kbd> רחפן · <kbd>S</kbd> שקט אלחוטי · <kbd>P</kbd> שורה / קובייה</li>
       <li><kbd>L</kbd> לקשור / לפרק קבוצה · <kbd>Ctrl</kbd>+מספר קבוצה · <kbd>F</kbd> מסך מלא · <kbd>Esc</kbd> ביטול</li>
       <li><kbd>רווח</kbd> עצירה · <kbd>Alt</kbd>+מספר שמירת נקודה · <kbd>Shift</kbd>+מספר קפיצה אליה</li></ul>`],
@@ -145,7 +145,7 @@ const WIKI = {
       <h3>Care and repair</h3><p>A hurt unit (an orange or red dot on it) stays where it is; a medic or mechanic nearby goes to it and treats it. Near your buildings units heal, and idle units repair damaged buildings.</p>
       <h3>Drones</h3><p>A new one every minute. Fly it over a spot to see and command there, until AA brings it down.</p>`],
     ['⌨', 'Keys', `<h2>Keys</h2><ul>
-      <li><kbd>1</kbd>–<kbd>9</kbd> pick a kind · <kbd>0</kbd> all</li><li><kbd>A</kbd> attack · <kbd>H</kbd> hold · <kbd>R</kbd> fall back</li>
+      <li><kbd>1</kbd>–<kbd>9</kbd> pick a kind · <kbd>0</kbd> all</li><li><kbd>A</kbd> attack · <kbd>Q</kbd> hold · <kbd>R</kbd> fall back</li><li><kbd>H</kbd> the camera to the HQ · <kbd>T</kbd> a free bulldozer (again: the camera to it)</li>
       <li><kbd>G</kbd> build · <kbd>B</kbd> forward HQ · <kbd>D</kbd> drone · <kbd>S</kbd> radio silence · <kbd>P</kbd> line / block</li>
       <li><kbd>L</kbd> group / ungroup · <kbd>Ctrl</kbd>+number group · <kbd>F</kbd> full screen · <kbd>Esc</kbd> cancel</li>
       <li><kbd>Space</kbd> pause · <kbd>Alt</kbd>+number save a point · <kbd>Shift</kbd>+number jump there</li></ul>`],

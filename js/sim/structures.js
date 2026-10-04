@@ -48,6 +48,8 @@ const isSite = n => Number.isFinite(n.work); // (a building the bulldozers put u
 // a bulldozer's job now: the first building on its list still going up
 // (a road on the list — roads.js, ids 'r…' — is a job too, until it's all paved)
 const jobOf = (s, sq) => (sq.jobs || []).map(id => typeof id === 'string' ? roadOf(s, id) : s.nodes.find(n => n.id === id)).find(n => n && (n.road ? !n.done : n.hp > 0 && isSite(n) && s.t < n.ready)) || null;
+// the sites on a bulldozer's list after the one it's on now (buildings only: a road is paved on, square by square)
+const waitingSites = (s, sq) => { const now = jobOf(s, sq); return (sq.jobs || []).map(id => typeof id === 'string' ? null : s.nodes.find(n => n.id === id)).filter(n => n && n !== now && n.hp > 0 && isSite(n) && s.t < n.ready); };
 // the bulldozer for a new site: the one asked for, else the nearest one with nothing to do, else the nearest
 function pickDozer(s, side, p, want) {
   const l = dozers(s, side); if (!l.length) return null;
@@ -99,6 +101,16 @@ function dozerWork(s, dt) {
     const held = new Set(l.flatMap(q => q.jobs || []));
     for (const n of s.nodes) if (n.side === side && isSite(n) && n.hp > 0 && s.t < n.ready && !held.has(n.id)) assignSite(s, pickDozer(s, side, n), n);
     for (const r of s.roadJobs || []) if (r.side === side && !r.done && !held.has(r.id)) { const d = pickDozer(s, side, r); d.jobs = d.jobs || []; d.jobs.push(r.id); }
+    // (a bulldozer with nothing to do — a new one out of the HQ, or done with its list — takes every other site still
+    // waiting on another's list: one at work on site 1 with 2…6 waiting — the free one takes 2, 4 and 6)
+    for (const f of l) {
+      if (jobOf(s, f) || f.paused || f.hqAt || f.fhqAt || f.fixHq) continue;
+      const busy = l.filter(q => q !== f).map(q => ({ q, wait: waitingSites(s, q) })).sort((a, b) => b.wait.length - a.wait.length)[0];
+      if (!busy || !busy.wait.length) continue;
+      const take = busy.wait.filter((n, i) => i % 2 === 0);
+      busy.q.jobs = busy.q.jobs.filter(id => !take.some(n => n.id === id));
+      for (const n of take) assignSite(s, f, n);
+    }
   }
   hqFix(s, dt);
   for (const sq of s.squads) {
@@ -345,6 +357,7 @@ function updateStructs(s, dt) {
     if (n.hp <= 0) {
       if (n.gone) continue;
       if (n.kind === 'hq') { s.hqDown = n.side; s.hqDownAt = { x: n.x, y: n.y }; } // (step: that side has lost; the UI's finale looks there)
+      if (!n.razed) scoreUp(s, n.side === 'blue' ? 'red' : 'blue', Math.round((SCORE_NODES[n.kind] || SCORE_NODE) * (s.t < n.ready && n.kind !== 'drone' ? 0.5 : 1))); // (the enemy's score; pulled down by us — nothing)
       n.gone = true; s.fx.push({ x: n.x, y: n.y, life: 0.9, max: 0.9, size: n.kind === 'drone' ? 18 : 34 });
       for (const q of s.squads) if (q.home === n.id) q.home = null; // its squads fight on, without refills
       const sq = n.squad && s.squads.find(q => q.id === n.squad); if (sq) sq.home = null;

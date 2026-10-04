@@ -30,9 +30,11 @@
   <div id="feed" class="feed" aria-live="polite"></div>
   <!-- top middle: the power bar, us against them -->
   <div class="hudc">
+    <b class="pts blue" id="ptsB" data-tip="tipScore">0</b>
     <span class="heldp" id="heldB"></span>
     <div class="score blue glass" id="power"><span class="pwbar"><i id="pwB"></i></span><i class="boost" id="moon" data-tip="tipNight" hidden>🌙</i></div>
     <span class="heldp" id="heldR"></span>
+    <b class="pts red" id="ptsR" data-tip="tipScore">0</b>
   </div>
   <!-- top left: the kinds of building, one under the other (dimmed with no free slot); the squad buttons only in the
        tutorial -->
@@ -87,6 +89,7 @@
           <button class="sideBtn" id="wikiBtn"><span aria-hidden="true">📖</span><span data-t="wiki"></span></button>
           <button class="sideBtn" id="micBtn"><span aria-hidden="true">🎙️</span><span data-t="micAsk"></span></button>
           <button class="sideBtn" id="moreBtn" aria-expanded="false"><span aria-hidden="true">⚙</span><span data-t="more"></span></button>
+          <button class="sideBtn" id="quitBtn"><span aria-hidden="true">⏻</span><span data-t="quit"></span></button>
         </div>
         <div id="moreBox" class="moreBox" hidden></div>
       </div>

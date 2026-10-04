@@ -80,3 +80,5 @@ const note = (s, msg) => report(s, null, msg);
 const friction = s => s.fog && s.c2 !== false;
 // how much of its speed and firepower a hurt unit keeps (HURT_AT / HURT_K)
 const hurtK = u => { const f = u.hp / TYPES[u.type].hp; let i = 0; while (i < HURT_AT.length && f < HURT_AT[i]) i++; return HURT_K[i]; };
+// the score: points to side (config.js SCORE)
+const scoreUp = (s, side, p) => { s.score = s.score || { blue: 0, red: 0 }; s.score[side] += p; };

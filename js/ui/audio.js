@@ -346,19 +346,21 @@ const Music = (() => {
 // loads, else at the first tap); in the game calm pieces while it's quiet
 // and battle pieces once there's fighting (setMood), in random order, one after another with a crossfade. Only ever
 // one piece: a piece still starting when another takes over is stopped, not faded back in. If they can't be played,
-// the generated music above instead ----
+// the generated music above instead. A game starts with FIRST (FirstRound), then on as above. A menu video with its own
+// sound (MENU_ART.sound): no music on the menu ----
 const Tracks = (() => {
-  const MENU = 'music/last_stand.mp3', CALM = ['music/planning.mp3', 'music/ashes.mp3'], BATTLE = ['music/iron_line.mp3', 'music/breakthrough.mp3', 'music/last_stand.mp3'];
+  const MENU = typeof MENU_ART === 'object' && MENU_ART.sound ? null : 'music/last_stand.mp3', FIRST = 'music/FirstRound.mp3', CALM = ['music/planning.mp3', 'music/ashes.mp3'], BATTLE = ['music/iron_line.mp3', 'music/breakthrough.mp3', 'music/last_stand.mp3'];
   const FADE = 3; // seconds
-  let mode = 'menu', mood = 'calm', vol = 0.3, on = false, cur = null, last = '', failed = false;
+  let mode = 'menu', mood = 'calm', vol = 0.3, on = false, cur = null, last = '', failed = false, fresh = false; // (fresh: a game just started — FIRST next)
   const all = new Set(); // (every piece made: whatever isn't cur is faded out and stopped)
   const fade = (a, to, sec, then) => {
     clearInterval(a.fadeT); const v0 = a.volume, t0 = performance.now();
     a.fadeT = setInterval(() => { const k = Math.min(1, (performance.now() - t0) / (sec * 1000)); a.volume = Math.max(0, Math.min(1, v0 + (to - v0) * k)); if (k >= 1) { clearInterval(a.fadeT); a.fadeT = 0; then && then(); } }, 50);
   };
   const quiet = a => fade(a, 0, a.volume > 0 ? FADE : 0.05, () => { a.pause(); all.delete(a); });
-  const pick = () => { if (mode === 'menu') return MENU; const pool = (mood === 'battle' ? BATTLE : CALM).filter(f => f !== last); return (last = pool[Math.floor(Math.random() * pool.length)]); };
+  const pick = () => { if (mode === 'menu') return MENU; if (fresh) { fresh = false; return (last = FIRST); } const pool = (mood === 'battle' ? BATTLE : CALM).filter(f => f !== last); return (last = pool[Math.floor(Math.random() * pool.length)]); };
   function play(src) {
+    if (!src) { cur = null; for (const o of all) if (!o.starting) quiet(o); return; } // (nothing to play here: the others fade out)
     const a = new Audio(src); cur = a; all.add(a); a.starting = true;
     a.volume = 0; a.loop = mode === 'menu';
     a.onerror = () => { all.delete(a); if (a === cur) { failed = true; cur = null; if (on) Music.start(); } };
@@ -374,9 +376,10 @@ const Tracks = (() => {
     stop() { on = false; cur = null; for (const a of all) if (!a.starting) quiet(a); },
     setVolume(v) { vol = Math.min(1, v); if (cur && !cur.fadeT && !cur.starting) cur.volume = vol; },
     // the menu's piece or the game's: a change fades from one to the other
-    setMode(m) { if (m === mode) return; mode = m; mood = 'calm'; if (on && !failed) play(pick()); },
+    setMode(m) { if (m === mode) return; mode = m; mood = 'calm'; fresh = m === 'game'; if (on && !failed) play(pick()); },
     // calm or battle (in the game): a change fades to a piece of the other kind
-    setMood(m) { if (m === mood) return; mood = m; if (mode === 'game' && on && !failed) play(pick()); },
+    setMood(m) { if (m === mood) return; mood = m; if (cur && last === FIRST && !cur.paused) return; // (the first piece plays to its end)
+      if (mode === 'game' && on && !failed) play(pick()); },
     _debug: () => ({ mode, mood, src: cur && cur.src, vol: cur && cur.volume, failed, playing: [...all].filter(a => !a.paused).length })
   };
 })();
@@ -395,6 +398,7 @@ function syncMusic(play) {
   musBtn.setAttribute('aria-pressed', String(musicOn));
   Soundtrack.setVolume(Math.pow(vol / 100, 2) * 0.6);
   if (!musicOn || vol === 0) Soundtrack.stop(); else if (play) Soundtrack.start();
+  if (typeof menuVideo === 'function' && !$('intro').hidden) menuVideo(true); // (the menu video's own sound goes with the music switch)
 }
 const sfxBtn = $('sfx'), sfxEl = $('sfxvol');
 sfxEl.value = sfxVol;
