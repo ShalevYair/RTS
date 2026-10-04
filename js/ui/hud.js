@@ -206,7 +206,7 @@ $('all').addEventListener('click', () => select('all'));
 // picked group <number> (g.key); the number picks it, and pressed again brings the camera to the middle of its squads.
 // 🔗 (L) ties what's picked into a group on the first free number; ✂ unties it. A squad is in one group at most; a group
 // with no squads left is gone (one made with 🔗 once it's down to one squad).
-const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'tanker', 'heli', 'gunship', 'lift', 'ssm', 'arrow', 'dome', 'commando', 'med', 'mech', 'truck', 'fueltruck', 'watertruck', 'dozer', 'radio'];
+const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'tanker', 'heli', 'gunship', 'lift', 'how', 'mlrs', 'ssm', 'arrow', 'dome', 'commando', 'med', 'mech', 'truck', 'fueltruck', 'watertruck', 'dozer', 'radio'];
 let groups = [], nextGroup = 1;
 const groupOf = id => groups.find(g => g.ids.includes(id));
 const aliveBlue = () => new Set(s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id));
@@ -313,16 +313,17 @@ const BUILD_PAGES = {
   air: ['airfield', 'tankerbase', 'page:helis'],
   helis: ['heliatk', 'heligun', 'helilift'],
   tents: ['tent', 'atpost', 'aapost', 'clinic', 'commandopost'],
-  shops: ['tankshop', 'page:jeeps', 'ssmshop'],
+  shops: ['tankshop', 'page:jeeps', 'page:guns', 'ssmshop'],
+  guns: ['howshop', 'mlrsshop'],
   jeeps: ['jeepshop', 'jeepat', 'jeepaa'],
   service: ['garage', 'depot', 'fuelst', 'waterst', 'decoy', 'page:defense'],
   defense: ['arrowsite', 'domesite'],
 };
-const BUILD_UP = { tents: 'root', shops: 'root', service: 'root', air: 'root', jeeps: 'shops', helis: 'air', defense: 'service' };
+const BUILD_UP = { tents: 'root', shops: 'root', service: 'root', air: 'root', jeeps: 'shops', guns: 'shops', helis: 'air', defense: 'service' };
 // the column top left: the root page's kinds (aviation: the airfield and the helipads)
 const BUILD_CATS = ['tents', 'shops', 'air', 'service'];
 // (the picture on a page's button)
-const PAGE_PIC = { tents: 'tent', shops: 'tankshop', jeeps: 'jeepshop', service: 'garage', air: 'airfield', helis: 'heliatk', defense: 'arrowsite' };
+const PAGE_PIC = { tents: 'tent', shops: 'tankshop', jeeps: 'jeepshop', guns: 'howshop', service: 'garage', air: 'airfield', helis: 'heliatk', defense: 'arrowsite' };
 let buildPage = 'root';
 // the drone and forward-HQ buttons: their icons from art/ (ICONS, white on clear) instead of the drawn ones
 for (const [id, k] of [['eye', 'drone'], ['fhq', 'fhq']]) {

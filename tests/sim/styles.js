@@ -14,7 +14,9 @@ const has = (s, kind) => s.nodes.some(n => n.side === 'red' && n.kind === kind &
 }
 {
   // (the drop: a red commando set down on our side of the map — x under 40% of it — straight from a helicopter)
-  const s = game(317, 'normal', 'commando'); let dropped = 0, liftAt = null;
+  // (s.noCounter: the regular commander on the other side answers soldiers with MLRS and jeeps — aiCounter — and overran
+  // this one before its raids; what's checked here is the raid)
+  const s = game(317, 'normal', 'commando'); s.noCounter = true; let dropped = 0, liftAt = null;
   run(s, 1500, () => { for (const u of s.units) if (u.side === 'red' && u.type === 'commando' && u.x < s.W * 0.4 && !u.seenDrop) { u.seenDrop = true; dropped++; } if (!liftAt && s.units.some(u => u.side === 'red' && u.type === 'lift')) liftAt = s.t; });
   ok(liftAt !== null && dropped >= 1, `the commando commander: a helicopter (${liftAt ? Math.round(liftAt / 60) + ' min' : '-'}) set ${dropped} commandos down deep on our side`);
 }

@@ -88,6 +88,10 @@ const TYPES = {
   // units or buildings, or for a moment when he fires; he sees round him as a drone does (all of it made out). One
   // shot kills a soldier (a few seconds between); by an enemy building, standing still, he blows it up (the HQ: four)
   commando: { name: 'קומנדו', hp: 70, speed: 30, range: 70, dmg: 70, cd: 3, sight: 200, r: 3, rein: 8, cost: 2, stealth: true },
+  // artillery (special.js artyTick): the 200 mm gun and the MLRS — no direct fire (care: up close they flee); they fire
+  // on their own at what their side sees, far off (ARTY_R)
+  how:  { name: 'תותחי 200 מ"מ', hp: 90, speed: 22, range: 0, dmg: 0, cd: 1, sight: 100, r: 9, rein: 10, care: true, arty: true, cost: 2 },
+  mlrs: { name: 'משגרי MLRS', hp: 90, speed: 26, range: 0, dmg: 0, cd: 1, sight: 100, r: 9, rein: 10, care: true, arty: true, cost: 2 },
   radio: { name: 'משאיות קשר', hp: 90, speed: 42, range: 0, dmg: 0, cd: 1, sight: 510, r: 8, rein: 8, cost: 1, care: true, support: true },
 };
 // everything moves at SPEED_K of the speeds above (half: the player's call — slower, more a commander's game, fewer
@@ -171,6 +175,8 @@ const STRUCTS = {
   clinic:   { name: 'אוהל חובשים', icon: '🏥', hp: 350,  value: 3, unit: 'med',  build: 20, every: 25,  size: 2, r: 21, cat: 'tents' },
   tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 50, every: 60,  size: 3, r: 36, cat: 'shops', upgrade: 'trophy' },
   // the missile works: surface-to-surface missile trucks (3 minutes to set up, one every 2 minutes, at most 3)
+  howshop:  { name: 'סדנת תותחים 200 מ"מ', icon: '💥', hp: 550, value: 6, unit: 'how', build: 90, every: 90, size: 3, r: 32, cat: 'shops' },
+  mlrsshop: { name: 'סדנת MLRS', icon: '🎆', hp: 550, value: 6, unit: 'mlrs', build: 90, every: 90, size: 3, r: 32, cat: 'shops' },
   ssmshop:  { name: 'מפעל טילים', icon: '🚀', hp: 600, value: 6, unit: 'ssm', build: 180, every: 120, size: 1, keep: 1, max: 3, r: 32, cat: 'shops' }, // (at most max of it a side, keep trucks each)
   // the missile defences (the service menu's page): Arrow, Iron Dome
   arrowsite: { name: 'אתר חץ', icon: '🛡️', hp: 500, value: 5, unit: 'arrow', build: 120, every: 60, size: 3, r: 28, cat: 'defense' },
@@ -311,7 +317,7 @@ const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
 // forward HQs: a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
 const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
-const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'airfield', 'tankerbase', 'jeepat', 'garage', 'domesite', 'heliatk', 'tankshop', 'heligun', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost', 'helilift'], AI_READY = 0.6;
+const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'howshop', 'airfield', 'tankerbase', 'jeepat', 'garage', 'domesite', 'mlrsshop', 'heliatk', 'tankshop', 'heligun', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost', 'helilift'], AI_READY = 0.6;
 // the AI's commander (style), picked per game for red from the seed or in the main menu (blue bots play 'steady'):
 // what it builds (plan), how worn a squad may be and still attack (ready), and how it goes about it. (The rusher, the
 // turtle and the flanker are gone: the turtle hardly ever won, and the other two weren't much of a difference.)
@@ -319,7 +325,7 @@ const AI_STYLES = {
   // regular: every kind (and on hard every ability — AI_PLAN_HARD, see think)
   steady:   { name: 'רגיל', icon: '⚖️', plan: AI_PLAN, ready: AI_READY },
   // one arm above all (the player can pick the enemy's commander in the main menu)
-  tanks:    { name: 'מפקד השריון', icon: '🛡️', plan: ['tankshop', 'aapost', 'tankshop', 'tankshop', 'garage', 'tankshop'], ready: AI_READY },
+  tanks:    { name: 'מפקד השריון', icon: '🛡️', plan: ['tankshop', 'aapost', 'tankshop', 'tankshop', 'garage', 'howshop', 'tankshop'], ready: AI_READY },
   infantry: { name: 'מפקד חיל הרגלים', icon: '🪖', plan: ['tent', 'atpost', 'aapost', 'clinic', 'tent', 'commandopost', 'atpost', 'aapost', 'tent'], ready: 0.45 }, // (attacks worn: holding back, two sides of soldiers stood off for ever)
   vehicles: { name: 'מפקד הרכבים הקלים', icon: '🚙', plan: ['jeepshop', 'jeepat', 'jeepaa', 'garage', 'jeepshop', 'jeepat', 'jeepaa'], ready: AI_READY },
   // the air force: aircraft (with tankers), attack helicopters and gunships, and AA all round home
@@ -332,7 +338,7 @@ const AI_STYLES = {
 };
 // hard, regular: every ability together — missiles, armour, the air force with its tankers, commando raids by
 // helicopter, a fake HQ or two; and (see think) it hunts supply trucks and keeps the posts
-const AI_PLAN_HARD = ['aapost', 'tankshop', 'atpost', 'tankshop', 'jeepat', 'airfield', 'ssmshop', 'commandopost', 'helilift', 'tankerbase', 'domesite', 'tankshop', 'arrowsite', 'heliatk', 'ssmshop', 'commandopost', 'jeepaa', 'garage', 'clinic', 'heligun', 'tent'];
+const AI_PLAN_HARD = ['aapost', 'tankshop', 'atpost', 'tankshop', 'jeepat', 'airfield', 'ssmshop', 'commandopost', 'helilift', 'howshop', 'tankerbase', 'domesite', 'mlrsshop', 'tankshop', 'arrowsite', 'heliatk', 'ssmshop', 'commandopost', 'jeepaa', 'garage', 'clinic', 'heligun', 'tent'];
 // raids (hard, and the commando commander): a transport helicopter takes AI_RAID_MIN commandos at least (or what's
 // there after AI_RAID_WAIT s) and sets them down AI_RAID_BEHIND past an enemy building it knows of; hard also goes for
 // supply trucks first (AI_HUNT_W off a target's score)
@@ -482,6 +488,30 @@ const FUEL_MAKE = 10, FUEL_STOCK = 24, FUEL_LOAD = 6, PILE_MAX = 24, PILE_BACK =
 // the tanker: like an aircraft as a target, hits nothing; worth an aircraft
 for (const a in MULT) MULT[a].tanker = MULT[a].air;
 MULT.tanker = { ...MULT.lift }; NODE_MULT.tanker = 0; UNIT_VALUE.tanker = 3; if (MASS.air !== undefined) MASS.tanker = MASS.air; if (FORM_ROW.air !== undefined) FORM_ROW.tanker = FORM_ROW.air;
+// artillery: as a target like a truck (a vehicle), hits nothing directly (artyTick does); worth a tank
+for (const k of ['how', 'mlrs']) {
+  for (const a in MULT) MULT[a][k] = MULT[a].truck;
+  MULT[k] = { ...MULT.truck }; NODE_MULT[k] = 0; UNIT_VALUE[k] = 3; CARER[k] = 'mech'; MASS[k] = 3; FORM_ROW[k] = 4; DUSTY.push(k);
+}
+// the AI builds by what it sees (ai.js aiCounter): each kind of enemy force — what it is, which of our units answer it,
+// and the buildings that make them
+const AI_THREATS = {
+  armour: { is: ['tank'], by: ['at', 'tjeep', 'how', 'air', 'heli'], build: ['atpost', 'jeepat', 'howshop'] },
+  air:    { is: ['air', 'heli', 'gunship', 'lift'], by: ['aa', 'ajeep'], build: ['aapost', 'jeepaa'] },
+  foot:   { is: ['inf', 'at', 'aa', 'commando'], by: ['mlrs', 'gunship', 'tank', 'jeep'], build: ['mlrsshop', 'jeepshop', 'heligun'] },
+  wheels: { is: ['jeep', 'ajeep', 'tjeep'], by: ['tank', 'inf', 'at'], build: ['tankshop', 'tent'] },
+};
+const AI_SEEN_T = 300, AI_COUNTER_MIN = 4, AI_COUNTER_K = 1, AI_COUNTER_EVERY = 120;
+// artillery fires only at what its side sees now (any eye: units, drones, signals trucks, buildings), within ARTY_R —
+// twice the longest direct range — after standing ARTY_SETUP s. The 200 mm gun: a shell every HOW_CD s destroys one
+// unit, any (a tank too: the best one it sees first), or takes HOW_NODE off a building. The MLRS: a salvo every
+// MLRS_CD s over ARTY_AREA round the target — soldiers and wheels in it gone, tanks and bulldozers lose MLRS_TANK of
+// their health, a building MLRS_NODE. Firing shows the enemy where it stands. Shells fly ARTY_FLIGHT s (the damage is
+// done at the firing, as every shot). The AI keeps them ARTY_BACK behind its leading squads.
+const ARTY_R = 2 * Math.max(...Object.values(TYPES).map(T => Math.max(T.range, T.gun ? T.gun.range : 0)));
+const ARTY_SETUP = 10, HOW_CD = 15, MLRS_CD = 30, ARTY_AREA = 50, MLRS_TANK = 0.15, HOW_NODE = 120, MLRS_NODE = 40, ARTY_FLIGHT = 2.5, ARTY_BACK = 160, MLRS_ROCKETS = 8;
+SHOT_TIME.how = SHOT_TIME.mlrs = ARTY_FLIGHT; IMPACT.how = { size: 28, life: 0.8 }; IMPACT.mlrs = { size: 14, life: 0.5 };
+SUPPLY.how = 12; SUPPLY.mlrs = 6;
 for (const k of ['fueltruck', 'watertruck']) {
   for (const T of [CARER, UNIT_VALUE, MASS, FORM_ROW]) if (T.truck !== undefined) T[k] = T.truck;
   for (const a in MULT) MULT[a][k] = MULT[a].truck;

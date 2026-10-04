@@ -37,9 +37,9 @@ function aiBuild(s, side, D) {
   if (buildCount(s, side) >= buildLimit(s, side)) return;
   if (!D.smart && s.t - (s.lastBuild[side] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
-  let kind = null;
+  let kind = D.smart && !s.noCounter && s.style[side] === 'steady' ? aiCounter(s, side) : null, counter = !!kind; // (what it has seen of the enemy first: an answer to it — the regular commander, who mixes; the others keep to their arm)
   const plan = D.traits && s.style[side] === 'steady' && !s.level ? AI_PLAN_HARD : AI_STYLES[s.style[side]].plan; // (hard, regular: everything)
-  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if ((!s.builds || s.builds.includes(k)) && (k !== 'fuelst' || s.fuel) && (!STRUCTS[k].fuel || s.fuel) && !(s.logi && LOGI_KINDS.includes(k))) { kind = k; s.plan[side] += i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
+  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if (buildable(s, k)) { kind = k; s.plan[side] += i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
   const anchors = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq').sort((a, b) => dist(a, goal) - dist(b, goal));
@@ -47,14 +47,38 @@ function aiBuild(s, side, D) {
     // (toward the enemy first; then all round it, a little farther — a crowded front left no room, and it stood stuck)
     const wide = i >= 12, ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * (wide ? 2 * Math.PI : 2.4), r = STRUCTS[a.kind].r + STRUCTS[kind].r + BUILD_GAP + 5 + s.rand() * (wide ? 180 : 110);
     const x = a.x + Math.cos(ang) * r, y = a.y + Math.sin(ang) * r;
-    if (build(s, side, kind, x, y)) { s.plan[side]++; s.lastBuild[side] = s.t; (s.planMiss = s.planMiss || {})[side] = 0; return; }
+    if (build(s, side, kind, x, y)) { if (counter) { s.aiCounter[side] = { kind, t: s.t }; (s.aiCounterLog = s.aiCounterLog || []).push({ side, kind, t: Math.round(s.t) }); } else s.plan[side]++; s.lastBuild[side] = s.t; (s.planMiss = s.planMiss || {})[side] = 0; return; }
   }
   // (no room for it — a big one, a crowded base: after a few tries the next one; it stood stuck on an airfield)
   if (!anchors.length) return; // (nowhere to build from yet: not a miss)
+  if (counter) { s.aiCounter[side] = { kind, t: s.t }; return; } // (no room for the answer: the plan, and try it again later)
   s.planMiss = s.planMiss || {}; s.planMiss[side] = (s.planMiss[side] || 0) + 1;
   if (s.planMiss[side] >= 3) { s.planMiss[side] = 0; s.plan[side]++; }
 }
 
+// what this game lets a side build of kind (tutorial levels: only some; fuel only where there's fuel; s.logi: the supply
+// buildings apart — aiSupply)
+const buildable = (s, k) => (!s.builds || s.builds.includes(k)) && (k !== 'fuelst' || s.fuel) && (!STRUCTS[k].fuel || s.fuel) && !(s.logi && LOGI_KINDS.includes(k));
+// building by what it sees (normal and hard; no cheating — only what it has made out, by type, over the last
+// AI_SEEN_T s): for each kind of enemy force (AI_THREATS) how many it has seen against how many of ours answer it; the
+// worst gap past AI_COUNTER_MIN units, and our answer under AI_COUNTER_K of theirs — one of its answering buildings
+// (in turn), at most every AI_COUNTER_EVERY s; between them, the plan
+function aiCounter(s, side) {
+  s.aiCounter = s.aiCounter || {}; s.aiSeen = s.aiSeen || {};
+  const seen = s.aiSeen[side] = s.aiSeen[side] || {}, last = s.aiCounter[side];
+  for (const q of s.squads) if (q.side !== side && !q.dead) { const k = intel(s, side, q); if (k && k.lvl === 2 && k.type) seen[q.id] = { type: k.type, n: k.n || 1, t: s.t }; }
+  if (last && s.t - last.t < AI_COUNTER_EVERY) return null;
+  const theirs = {}, ours = {};
+  for (const id in seen) { const m = seen[id]; if (s.t - m.t > AI_SEEN_T) { delete seen[id]; continue; } for (const c in AI_THREATS) if (AI_THREATS[c].is.includes(m.type)) theirs[c] = (theirs[c] || 0) + m.n; }
+  for (const u of s.units) if (u.side === side) for (const c in AI_THREATS) if (AI_THREATS[c].by.includes(u.type)) ours[c] = (ours[c] || 0) + 1;
+  let worst = null, gap = 0;
+  for (const c in theirs) { const g = theirs[c] - (ours[c] || 0) / AI_COUNTER_K; if (theirs[c] >= AI_COUNTER_MIN && g > gap) { gap = g; worst = c; } }
+  if (!worst) return null;
+  const opts = AI_THREATS[worst].build.filter(k => buildable(s, k) && (!STRUCTS[k].max || alive(s, side, [k]).length < STRUCTS[k].max));
+  if (!opts.length) return null;
+  const n = (s.aiCounterN = s.aiCounterN || {})[side + worst] = ((s.aiCounterN[side + worst] || 0) + 1);
+  return opts[n % opts.length];
+}
 // the supply buildings (s.logi; past the allowance): one of each as soon as there's an HQ — a water building on a lake's
 // bank in our control — then a second of each after AI_SUPPLY2 s
 function aiSupply(s, side) {
@@ -195,11 +219,11 @@ function careStation(s, sq, mine) {
 }
 // where a signals truck goes: a little behind one of our leading squads (the k-th truck behind the k-th furthest
 // forward), so it sees far ahead and gives control out there; back to the middle of our squads if enemies are close
-function radioStation(s, sq, mine, k) {
+function radioStation(s, sq, mine, k, B = AI_RADIO_BACK) {
   const foe = s.bases[foeOf(sq.side)], home = homeOf(s, sq);
   const front = mine.filter(q => !TYPES[q.type].care && !TYPES[q.type].air).sort((a, b) => Math.abs(a.cx - foe.x) - Math.abs(b.cx - foe.x));
   if (!front.length) return careStation(s, sq, mine);
-  const q = front[k % front.length], c = { x: q.cx, y: q.cy }, d = dist(c, home) || 1, back = Math.min(d, AI_RADIO_BACK), G = 40;
+  const q = front[k % front.length], c = { x: q.cx, y: q.cy }, d = dist(c, home) || 1, back = Math.min(d, B), G = 40;
   const p = { x: Math.round((c.x + (home.x - c.x) / d * back) / G) * G, y: Math.round((c.y + (home.y - c.y) / d * back) / G) * G };
   return threatAt(s, sq.side, p, AI_NEAR) ? careStation(s, sq, mine) : p;
 }
@@ -254,7 +278,7 @@ function think(s, side, level) {
   // posts: a squad of soldiers to each one we don't hold (they go on their own; the rest of think leaves them be)
   const toPost = stayHome ? new Set() : aiPosts(s, side, mine, setOrder); // (staying home: no soldiers off to the posts)
   const raid = (D.traits || St.raids) && can.build ? aiLift(s, side, mine, structs) : new Set(); // (commando raids by helicopter)
-  let nth = 0, radios = 0; const trucks = {};
+  let nth = 0, radios = 0, arty = 0; const trucks = {};
   for (const sq of mine) {
     if (toPost.has(sq.id)) continue;
     if (sq.type === 'ssm' && sq.fire) continue; // (setting up to launch: it stays put)
@@ -265,6 +289,7 @@ function think(s, side, level) {
     if (sq.type === 'lift') { const h = homeOf(s, sq), off = (h.kind && STRUCTS[h.kind] ? STRUCTS[h.kind].r : 50) + 45; setOrder(sq, 'hold', Math.round(h.x), Math.round(h.y + (h.y < s.H / 2 ? off : -off))); continue; } // (a transport helicopter not on a raid: waits at home, beside its pad / the HQ, toward the middle — over it, the commandos couldn't reach it — aiLift)
     if (sq.type === 'tanker') { const p = tankerStation(s, sq, foes); setOrder(sq, 'hold', p.x, p.y); continue; }
     if (s.logi && CARGO[sq.type] && !s.noAiSupply) { const k = trucks[sq.type] = (trucks[sq.type] || 0) + 1, p = truckStation(s, sq, mine, k - 1); setOrder(sq, 'hold', p.x, p.y); continue; }
+    if (TYPES[sq.type].arty) { const p = radioStation(s, sq, mine, arty++, ARTY_BACK); setOrder(sq, 'hold', p.x, p.y); continue; } // (artillery: behind the leading squads — it fires over them on its own, artyTick)
     if (TYPES[sq.type].care) { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); continue; }
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)

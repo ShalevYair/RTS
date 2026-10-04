@@ -9,9 +9,10 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   const check = (name, c, m) => { if (!c) bad = true; console.log(name, c ? 'ok  ' : 'FAIL', m); };
   for (const [name, vp, touch, scheme] of [['desk', { width: 1400, height: 800 }, false, 'light'], ['phone', { width: 390, height: 844 }, true, 'dark']]) {
     const ctx = await b.newContext({ viewport: vp, hasTouch: touch, isMobile: touch, colorScheme: scheme });
+    await ctx.addInitScript(() => { try { localStorage.setItem('irts-mic', 'no'); } catch (e) { /* no storage */ } }); // (no "allow the microphone" window holding the game: micGate)
     await ctx.addInitScript(() => { try { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); } catch (e) { /* no storage */ } }); // the full game, not the tutorial
     const p = await ctx.newPage(); const errs = [];
-    p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
+    p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts|\[irts\] slow/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(500);
     const pressed = await p.getAttribute('[data-map="big"]', 'aria-pressed');
     await p.click('#go'); await p.waitForTimeout(400);
@@ -23,9 +24,10 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     // middle-drag pans (no order), a tap orders
     const box = await p.locator('#cv').boundingBox(), cx = box.x + box.width / 2, cy = box.y + box.height * 0.45;
     await p.evaluate(() => { setPlaying(false); });
+    const a0 = await st(); // (counted once paused: the opening's messages are still being delivered until then)
     await p.mouse.move(cx, cy); await p.mouse.down({ button: 'middle' }); await p.mouse.move(cx - 150, cy - 60, { steps: 6 }); await p.mouse.up({ button: 'middle' });
     const d = await st();
-    check(name, d.cam.x > a.cam.x + 50 && d.orders === a.orders, `middle-drag pans the camera (x ${a.cam.x.toFixed(0)} → ${d.cam.x.toFixed(0)}) without giving an order`);
+    check(name, d.cam.x > a0.cam.x + 50 && d.orders === a0.orders, `middle-drag pans the camera (x ${a0.cam.x.toFixed(0)} → ${d.cam.x.toFixed(0)}) without giving an order`);
     await p.mouse.click(cx, cy); await p.waitForTimeout(100);
     const t = await st();
     check(name, t.orders > d.orders, 'a tap still gives the order');

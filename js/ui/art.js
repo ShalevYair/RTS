@@ -417,7 +417,7 @@ const SPRITE_ACROSS = { commando: 1.9, inf: 1.9, at: 1.9, aa: 1.9, med: 1.9 };
 // a building's picture: art/b_<kind> (the fake HQ looks just like the real one; the armed jeeps' workshops, the jeeps')
 // (and the gunship's helipad, the attack helicopters' one, unless it has its own)
 // (the posts: until their own pictures are in — b_supply, b_hospital, b_motorpool… — a building that looks the part)
-const PIC_LIKE = { tankerbase: 'airfield', fuelst: 'fuel', waterst: 'supply', supply: 'depot', hospital: 'clinic', motorpool: 'garage', jeepaa: 'jeepshop', jeepat: 'jeepshop', heligun: 'heliatk', helilift: 'heliatk', ssmshop: 'tankshop', arrowsite: 'aapost', domesite: 'aapost', commandopost: 'tent' };
+const PIC_LIKE = { howshop: 'tankshop', mlrsshop: 'tankshop', tankerbase: 'airfield', fuelst: 'fuel', waterst: 'supply', supply: 'depot', hospital: 'clinic', motorpool: 'garage', jeepaa: 'jeepshop', jeepat: 'jeepshop', heligun: 'heliatk', helilift: 'heliatk', ssmshop: 'tankshop', arrowsite: 'aapost', domesite: 'aapost', commandopost: 'tent' };
 const BUILDING_PIC = new Proxy({}, { get: (_, kind) => { const k = kind === 'decoy' ? 'hq' : kind; return sprite.img['b_' + k] || !PIC_LIKE[k] ? 'b_' + k : 'b_' + PIC_LIKE[k]; } });
 const hasSprite = type => type === 'tank' ? !!(sprite.img.tank_hull && sprite.img.tank_turret) : !!(SPRITE_LEN[type] && sprite.img[type]);
 const hasBuildingPic = kind => !!(BUILDING_PIC[kind] && sprite.img[BUILDING_PIC[kind]]);
