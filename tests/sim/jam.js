@@ -42,4 +42,16 @@ for (const seed of [3, 8]) {
   const m = moved(s, qs, 10);
   ok(qs.length >= 8 && m < 40 * qs.length, `seed ${seed}, ${qs.length} at the front: still moving ${m} in 10 s`);
 }
+{
+  // a mixed group sent far together marches at the soldiers' pace: every one keeps going with its place, and all get
+  // there (a place creeping on slower than 0.5 a tick never counted as moved: units stood 'arrived' on the way and went
+  // on one by one, and the group stopped short)
+  const s = Sim.create(5, 1600, 'normal', Sim.H, { singles: true }); s.bots = []; s.fog = false; s.night = false;
+  s.units = []; s.squads = []; s.nodes = s.nodes.filter(n => n.kind === 'hq');
+  const qs = []; for (let i = 0; i < 12; i++) qs.push(mk(s, ['tank', 'jeep', 'inf'][i % 3], 150 + (i % 4) * 30, 220 + Math.floor(i / 4) * 40));
+  Sim.formation(s, qs.map(q => q.id), 'attack', 1000, 320, true);
+  let halfway = 0; step(s, 40, () => {}); for (const q of qs) if (unitOf(s, q).x > 350) halfway++; // (the soldiers' row is at the back of the march)
+  step(s, 60); const r = report(s, qs);
+  ok(halfway === qs.length && r.far === 0, `12 tanks, jeeps and soldiers sent far together: all on the way at 40 s (${halfway}/12), all there at 100 s (${r.far} not, worst ${r.worst})`);
+}
 if (bad) process.exitCode = 1;
