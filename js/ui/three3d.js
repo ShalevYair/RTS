@@ -126,28 +126,34 @@ function v3Pic(type, side) {
     const N = 128, G = 40; img = document.createElement('canvas'); img.width = img.height = N;
     glyph(img.getContext('2d'), type, N / 2, N / 2, G, col, colors.outline, 0, 0); w = h = N / G * k;
   }
+  return v3Sheet(key, img, w, h, ox, oy);
+}
+// a picture as a flat piece facing up (its right = the front, its top = the world's north), all of its kind in one
+// InstancedMesh: { mesh, w, h, ox, oy, n }
+function v3Sheet(key, img, w, h, ox = 0, oy = 0) {
   const tex = new THREE.CanvasTexture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-  // (a flat piece facing up; its picture's right = the unit's front, its top = the world's north)
   const geo = new THREE.PlaneGeometry(1, 1); geo.rotateX(-Math.PI / 2);
   const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.45 }), 64);
   mesh.castShadow = true; mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
   V3.scene.add(mesh);
-  P = { mesh, w, h, ox, oy, n: 0 }; V3.pics.set(key, P); return P;
+  const P = { mesh, w, h, ox, oy, n: 0 }; V3.pics.set(key, P); return P;
 }
-// one more of a picture: grown (a new, bigger mesh) when full
-function v3Put(P, m) {
+// one more of a picture (col: a tint over it — a building being put up, or remembered — else none): the mesh grown
+// (a new, bigger one) when full
+function v3Put(P, m, col) {
   if (P.n >= P.mesh.instanceMatrix.count) {
     const old = P.mesh, big = new THREE.InstancedMesh(old.geometry, old.material, old.instanceMatrix.count * 2);
-    big.castShadow = big.receiveShadow = true; big.instanceMatrix.setUsage(THREE.DynamicDrawUsage); big.frustumCulled = false;
-    for (let i = 0; i < P.n; i++) { old.getMatrixAt(i, v3Tmp.g); big.setMatrixAt(i, v3Tmp.g); }
+    big.castShadow = true; big.receiveShadow = !P.flat; big.instanceMatrix.setUsage(THREE.DynamicDrawUsage); big.frustumCulled = false;
+    for (let i = 0; i < P.n; i++) { old.getMatrixAt(i, v3Tmp.g); big.setMatrixAt(i, v3Tmp.g); if (old.instanceColor) { old.getColorAt(i, v3Tmp.c); big.setColorAt(i, v3Tmp.c); } }
     V3.scene.remove(old); old.dispose(); V3.scene.add(big); P.mesh = big;
   }
+  if (col || P.mesh.instanceColor) P.mesh.setColorAt(P.n, col || v3Tmp.white);
   P.mesh.setMatrixAt(P.n++, m);
 }
 let v3Tmp = {};
 // where a ground unit lies: on the slope there (the ground's normal), turned to its heading
 function v3Lay(x, y, hd, lift, w, h, ox, oy, out) {
-  if (!v3Tmp.n) Object.assign(v3Tmp, { n: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), q: new THREE.Quaternion(), yaw: new THREE.Quaternion(), p: new THREE.Vector3(), sc: new THREE.Vector3(), off: new THREE.Vector3(), g: new THREE.Matrix4() });
+  if (!v3Tmp.n) Object.assign(v3Tmp, { c: new THREE.Color(), white: new THREE.Color(1, 1, 1), n: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), q: new THREE.Quaternion(), yaw: new THREE.Quaternion(), p: new THREE.Vector3(), sc: new THREE.Vector3(), off: new THREE.Vector3(), g: new THREE.Matrix4() });
   const e = 4, hx = (Sim.elevAt(s, { x: x + e, y }) - Sim.elevAt(s, { x: x - e, y })) * V3_LV / (2 * e), hz = (Sim.elevAt(s, { x, y: y + e }) - Sim.elevAt(s, { x, y: y - e })) * V3_LV / (2 * e);
   const t = v3Tmp; t.n.set(-hx, 1, -hz).normalize();
   t.yaw.setFromAxisAngle(t.up, -hd); t.q.setFromUnitVectors(t.up, lift ? t.up : t.n).multiply(t.yaw);
@@ -156,7 +162,6 @@ function v3Lay(x, y, hd, lift, w, h, ox, oy, out) {
   return out.compose(t.p, t.q, t.sc.set(w, 1, h));
 }
 function v3Units() {
-  for (const P of V3.pics.values()) P.n = 0;
   const m = v3Tmp.m || (v3Tmp.m = new THREE.Matrix4()), rings = [];
   // (what the player sees, as the flat map: ours where the picture is exact, theirs where seen)
   const whole = s.fog ? new Set(s.squads.filter(q => q.side === 'blue' && sqShown(q)).map(q => q.id)) : null;
@@ -170,40 +175,65 @@ function v3Units() {
       const cx = u.x + Math.cos(hd) * px - Math.sin(hd) * py, cy = u.y + Math.sin(hd) * px + Math.cos(hd) * py;
       v3Put(R, v3Lay(cx + Math.cos(aim) * R.ox - Math.sin(aim) * R.oy, cy + Math.sin(aim) * R.ox + Math.cos(aim) * R.oy, aim, 0.4, R.w, R.h, 0, 0, m));
     }
-    if (u.side === 'blue' && isSel(u.squad) && u.type !== 'dozer') rings.push(u);
+    if (u.side === 'blue' && isSel(u.squad) && u.type !== 'dozer') rings.push({ x: u.x, y: u.y, air: T.air, r: (SIZE[u.type] || 8) * (CAR.has(u.type) || T.air ? 0.75 : V3_FOOT * 0.9) });
   }
-  for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; }
-  // (picked: a thin light ring round each, on the ground)
+  return rings;
+}
+// (picked: a thin light ring round each, on the ground)
+function v3Rings(rings) {
   if (!V3.rings) {
     const g = new THREE.RingGeometry(0.86, 1, 40); g.rotateX(-Math.PI / 2);
     V3.rings = new THREE.InstancedMesh(g, new THREE.MeshBasicMaterial({ color: '#e8fff0', transparent: true, opacity: 0.85, depthWrite: false, depthTest: false }), 4000);
-    V3.rings.frustumCulled = false; V3.rings.renderOrder = 10; // (over the units' pictures: on the ground they cut through it) V3.scene.add(V3.rings);
+    V3.rings.frustumCulled = false; V3.rings.renderOrder = 10; V3.scene.add(V3.rings); // (over the pictures: on the ground they cut through them)
   }
   let n = 0; const o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D());
-  for (const u of rings) {
+  for (const g of rings) {
     if (n >= 4000) break;
-    const r = (SIZE[u.type] || 8) * (CAR.has(u.type) || Sim.TYPES[u.type].air ? 0.75 : V3_FOOT * 0.9);
-    o.position.set(u.x, Sim.elevAt(s, u) * V3_LV + 1 + (Sim.TYPES[u.type].air ? V3_AIR : 0), u.y); o.scale.set(r, 1, r); o.updateMatrix(); V3.rings.setMatrixAt(n++, o.matrix);
+    o.position.set(g.x, Sim.elevAt(s, g) * V3_LV + 1 + (g.air ? V3_AIR : 0), g.y); o.scale.set(g.r, 1, g.r); o.updateMatrix(); V3.rings.setMatrixAt(n++, o.matrix);
   }
   V3.rings.count = n; V3.rings.instanceMatrix.needsUpdate = true;
 }
-// ---- the buildings: boxes in the side's colour (instanced: one draw for them all) ----
-function v3Nodes() {
-  if (!V3.nodes) { V3.nodes = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), 600); V3.nodes.castShadow = V3.nodes.receiveShadow = true; V3.nodes.frustumCulled = false; V3.scene.add(V3.nodes); }
-  const o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), col = v3Tmp.c || (v3Tmp.c = new THREE.Color()), C = { blue: colors.blue, red: colors.red, none: '#9a9a9a' };
-  let n = 0;
-  const box = (x, y, r, side, rise) => {
-    o.position.set(x, Sim.elevAt(s, { x, y }) * V3_LV, y); o.rotation.set(0, 0, 0); o.scale.set(r * 1.7, r * 0.7 * rise, r * 1.7);
-    o.position.y += o.scale.y / 2; o.updateMatrix(); V3.nodes.setMatrixAt(n, o.matrix); V3.nodes.setColorAt(n, col.set(C[side] || C.none)); n++;
-  };
-  for (const nd of s.nodes) {
-    if (n >= 590 || nd.kind === 'drone' || nd.hp <= 0) continue;
-    if (nd.side !== 'blue' && s.fog && !(s.memNodes.blue[nd.id])) continue;
-    const r = (Sim.STRUCTS[nd.kind] && Sim.STRUCTS[nd.kind].r) || 24, rise = nd.need ? Math.max(0.15, nd.work / nd.need) : 1;
-    box(nd.x, nd.y, r, nd.side, rise);
+// ---- the buildings: the flat map's picture of each (buildingPic, in the holder's colour) lying on the ground; going
+// up — dark, lighter as the work is done; remembered (the enemy's, out of sight) — dim. Under each, an unseen block
+// of about its size that throws the sun's shadow (so a flat picture still stands). Drones: their picture up in the air,
+// turning slowly. ----
+const V3_BLOCK = { hq: 0.9, fhq: 0.6, decoy: 0.9, tower: 3.2, antenna: 2.4, radar: 1.4, power: 1.1 }, V3_SITE = 0.3, V3_MEM = 0.55;
+function v3Building(kind, col, px) {
+  const own = BUILDING_PIC[kind], bare = !!(own && sprite.img[own]), key = 'b:' + kind + col + px;
+  const P = V3.pics.get(key); if (P) return P;
+  const pic = buildingPic(kind, col, px, bare);
+  // (not darkened by its own block's shadow, which falls on it too)
+  const S = v3Sheet(key, pic, pic.width / ART_RES, pic.height / ART_RES); S.mesh.receiveShadow = false; S.flat = true; return S;
+}
+function v3Nodes(rings) {
+  if (!V3.blocks) {
+    V3.blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }), 800);
+    V3.blocks.castShadow = true; V3.blocks.frustumCulled = false; V3.scene.add(V3.blocks);
   }
-  if (s.posts) for (const p of s.posts) if (n < 600) box(p.x, p.y, Sim.POSTS[p.kind].r, p.side || 'none', 1);
-  V3.nodes.count = n; V3.nodes.instanceMatrix.needsUpdate = true; if (V3.nodes.instanceColor) V3.nodes.instanceColor.needsUpdate = true;
+  const m = v3Tmp.m, o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), tint = v3Tmp.tint || (v3Tmp.tint = new THREE.Color());
+  let nb = 0;
+  const put = (kind, col, x, y, R, px, k) => {
+    const P = v3Building(kind, col, px);
+    v3Put(P, v3Lay(x, y, 0, 0, P.w, P.h, 0, 0, m), k < 1 ? tint.setScalar(k) : null);
+    if (nb < 800) { const hgt = R * (V3_BLOCK[kind] || 0.75) * Math.min(1, k); o.position.set(x, Sim.elevAt(s, { x, y }) * V3_LV + hgt / 2, y); o.scale.set(R * 1.3, hgt, R * 1.3); o.updateMatrix(); V3.blocks.setMatrixAt(nb++, o.matrix); }
+  };
+  for (const n of s.nodes) {
+    if (n.hp <= 0 || !nodeShown(n)) continue;
+    const col = colors[n.side];
+    if (n.kind === 'drone') { // (up in the air, turning slowly)
+      if (!sprite.img.drone) continue;
+      let P = V3.pics.get('drone:' + n.side);
+      if (!P) { const D = SPRITES.drone, sc = DRONE_PX / Math.max(D.w, D.h); P = v3Sheet('drone:' + n.side, spritePic('drone', col), D.w * sc, D.h * sc); }
+      v3Put(P, v3Lay(n.x, n.y, s.t * 0.35 + n.id, V3_AIR * 1.4, P.w, P.h, 0, 0, m)); continue;
+    }
+    const S = Sim.STRUCTS[n.kind], on = s.t >= n.ready, site = Number.isFinite(n.work) && !on;
+    const grow = on || (n.kind === 'hq' && !site) ? 1 : site ? Math.min(1, n.work / Math.max(0.01, n.need)) : Math.max(0, Math.min(1, (s.t - n.t0) / Math.max(0.01, n.ready - n.t0)));
+    put(n.kind, col, n.x, n.y, S.r, pxOf(n.kind), on ? 1 : V3_SITE + (1 - V3_SITE) * grow);
+    if (selNode === n.id) rings.push({ x: n.x, y: n.y, r: S.r + 10 });
+  }
+  if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { const g = s.memNodes.blue[id]; put(g.kind, colors.red, g.x, g.y, Sim.STRUCTS[g.kind].r, pxOf(g.kind), V3_MEM); }
+  if (s.posts) for (const p of s.posts) { const R = Sim.POSTS[p.kind].r; put(p.kind, postCol(p), p.x, p.y, R, Math.round(R * 2.4), s.fog && !postSeen(p) ? V3_MEM : 1); if (selPost === p) rings.push({ x: p.x, y: p.y, r: R + 10 }); }
+  V3.blocks.count = nb; V3.blocks.instanceMatrix.needsUpdate = true;
 }
 // every frame, instead of the flat map
 function v3Draw() {
@@ -220,6 +250,8 @@ function v3Draw() {
   const sun = V3.sun, half = Math.max(400, vw * 0.9), sc = sun.shadow.camera;
   sun.target.position.set(cam.x, ty, cam.y - vw * 0.15); sun.position.set(cam.x - 1500, ty + 2100, cam.y - vw * 0.15 - 1500);
   if (sc.right !== half) { sc.left = sc.bottom = -half; sc.right = sc.top = half; sc.near = 10; sc.far = 6000; sc.updateProjectionMatrix(); }
-  v3Units(); v3Nodes();
+  for (const P of V3.pics.values()) P.n = 0;
+  const rings = v3Units(); v3Nodes(rings); v3Rings(rings);
+  for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; if (P.mesh.instanceColor) P.mesh.instanceColor.needsUpdate = true; }
   r.render(V3.scene, V3.cam);
 }
