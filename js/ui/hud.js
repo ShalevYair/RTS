@@ -482,7 +482,7 @@ function toggleBuild() {
 }
 $('bld').addEventListener('click', toggleBuild);
 // a world point on the screen (stage pixels)
-const onScreen = (x, y) => ({ x: view.cox + x * view.css, y: view.coy + y * view.css });
+const onScreen = (x, y) => worldToScr(x, y);
 // (with Shift: another of the same right after, while there's room for one)
 function placeBuilding(x, y, again) {
   nag.built = s.t; // (laid one: no reminder for a minute)

@@ -30,7 +30,7 @@ html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);background:var(
 body{margin:0;height:100%;overflow:hidden;background:var(--c-ground);color:var(--ink);font:16px/1.4 Rubik,"Segoe UI",Arial,sans-serif}
 .stage{position:relative;width:100%;height:100%;overflow:hidden}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:default}
-#gl[hidden]{display:none}
+#gl{pointer-events:none}#gl[hidden]{display:none}
 .glass{background:color-mix(in srgb,var(--panel) 88%,transparent);border:1px solid var(--border);box-shadow:0 2px 12px rgb(0 0 0 / .18)}
 .score{position:absolute;top:8px;padding:3px 12px;border-radius:999px;font:24px/1.2 Rubik,Rubik,sans-serif;font-variant-numeric:tabular-nums}
 .res{display:inline-block;margin-inline-start:8px;padding-inline-start:8px;border-inline-start:1px solid var(--border)}
