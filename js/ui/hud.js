@@ -549,11 +549,10 @@ function startGame(level) {
 function renderLevels() {
   const box = $('levels'); box.textContent = ''; box.setAttribute('aria-label', tr('level', ''));
   for (let n = 1; n <= Sim.LEVELS + 1; n++) {
-    if (n > Sim.LEVELS) break; // (the tutorial's levels only: the full game is "start")
-    const k = n, b = document.createElement('button');
+    const k = n > Sim.LEVELS ? 0 : n, b = document.createElement('button'); // (and last, ∞: the full game)
     b.textContent = k ? String(k) : '∞'; b.setAttribute('aria-label', k ? tr('level', k) : tr('full'));
     b.setAttribute('aria-pressed', String(k === lvl)); b.classList.toggle('won', !!k && k <= done);
-    b.disabled = !!k && k > done + 1; // a level opens when the one before it is won; the full game is always open
+    // (every level open, for now: any one can be played, in any order)
     b.addEventListener('click', () => startGame(k));
     box.appendChild(b);
   }
