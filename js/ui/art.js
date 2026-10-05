@@ -153,6 +153,18 @@ function puff(x, y, dark, big = 1) {
 }
 // every frame (from draw): new puffs for the time that passed in the game, then the smoke drawn
 function drawSmoke(c) {
+  smokeTick();
+  const v = viewRect();
+  for (const p of smoke) {
+    const a = (s.t - p.t) / p.life, x = p.x + WIND.x * (s.t - p.t), y = p.y + (WIND.y - 9) * (s.t - p.t);
+    if (v && (x < v.x - 40 || x > v.x + v.w + 40 || y < v.y - 40 || y > v.y + v.h + 40)) continue;
+    c.globalAlpha = (p.dark ? 0.5 : 0.34) * (1 - a) * Math.min(1, a * 6);
+    c.fillStyle = p.dark ? '#3d3a36' : '#bdbab2'; ring(x, y, p.r * (1 + a * 2.4)); c.fill();
+  }
+  c.globalAlpha = 1;
+}
+// (new puffs for the time that passed, the old ones gone — the 3D view draws the same smoke: three3d.js)
+function smokeTick() {
   const dt = artT === null || s.t < artT ? 0 : Math.min(0.1, s.t - artT); artT = s.t;
   if (dt > 0) {
     const vis = u => !s.fog || ((u.side === 'blue' || s.vis.blue.has(u.id)) && shownAt(u)), v0 = viewRect();
@@ -180,28 +192,24 @@ function drawSmoke(c) {
       const k = SIZE[u.type] * 0.8; puff(u.x - Math.cos(u.hd) * k, u.y - Math.sin(u.hd) * k, false, 0.45);
     }
   }
-  const v = viewRect();
   for (let i = smoke.length - 1; i >= 0; i--) if (s.t - smoke[i].t > smoke[i].life || s.t < smoke[i].t) smoke.splice(i, 1);
-  for (const p of smoke) {
-    const a = (s.t - p.t) / p.life, x = p.x + WIND.x * (s.t - p.t), y = p.y + (WIND.y - 9) * (s.t - p.t);
-    if (v && (x < v.x - 40 || x > v.x + v.w + 40 || y < v.y - 40 || y > v.y + v.h + 40)) continue;
-    c.globalAlpha = (p.dark ? 0.5 : 0.34) * (1 - a) * Math.min(1, a * 6);
-    c.fillStyle = p.dark ? '#3d3a36' : '#bdbab2'; ring(x, y, p.r * (1 + a * 2.4)); c.fill();
-  }
-  c.globalAlpha = 1;
 }
 // ---- scorch marks: where shells and blasts landed, dark earth that fades over SCORCH_T s ----
 const scorch = [], SCORCH_T = 120, SCORCH_MAX = 300;
 function drawScorch(c) {
-  for (const f of s.fx) if (!f.scorched && !(f.wait > 0)) { f.scorched = true; if (f.size >= 14) { if (scorch.length >= SCORCH_MAX) scorch.shift(); scorch.push({ x: f.x, y: f.y, r: f.size * (f.size >= 26 ? 1.1 : 0.7), t: s.t, a: Math.random() * 3 }); } }
+  scorchTick();
   const v = viewRect();
-  for (let i = scorch.length - 1; i >= 0; i--) if (s.t - scorch[i].t > SCORCH_T || s.t < scorch[i].t) scorch.splice(i, 1);
   for (const p of scorch) {
     if (v && (p.x < v.x - 40 || p.x > v.x + v.w + 40 || p.y < v.y - 40 || p.y > v.y + v.h + 40)) continue;
     const k = 1 - (s.t - p.t) / SCORCH_T, g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
     g.addColorStop(0, `rgba(30,24,18,${0.55 * k})`); g.addColorStop(0.6, `rgba(45,36,26,${0.3 * k})`); g.addColorStop(1, 'rgba(45,36,26,0)');
     c.fillStyle = g; c.beginPath(); c.ellipse(p.x, p.y, p.r, p.r * 0.8, p.a, 0, Math.PI * 2); c.fill();
   }
+}
+// (new marks where blasts landed, the old ones gone — the 3D view draws them too)
+function scorchTick() {
+  for (const f of s.fx) if (!f.scorched && !(f.wait > 0)) { f.scorched = true; if (f.size >= 14) { if (scorch.length >= SCORCH_MAX) scorch.shift(); scorch.push({ x: f.x, y: f.y, r: f.size * (f.size >= 26 ? 1.1 : 0.7), t: s.t, a: Math.random() * 3 }); } }
+  for (let i = scorch.length - 1; i >= 0; i--) if (s.t - scorch[i].t > SCORCH_T || s.t < scorch[i].t) scorch.splice(i, 1);
 }
 // ---- a muzzle flash where a shot leaves (the first moments of its flight), and a glow round big blasts ----
 function drawFlashes(c) {
