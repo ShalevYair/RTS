@@ -1,5 +1,5 @@
 // Surface-to-surface missiles: a truck stands, sets up and launches at a building its side knows; the missile flies a
-// while and brings a building down in one hit, the HQ in four; the launch shows the enemy the truck. Arrow takes the
+// while and brings a building down in one hit (never at the HQ, and never on its own); the launch shows the enemy the truck. Arrow takes the
 // missile on halfway; Iron Dome stops the short missiles (aircraft, attack helicopters, anti-tank); Trophy on tanks.
 const Sim = require('../load-sim.js')();
 let bad = false;
@@ -22,8 +22,9 @@ ok(S.ssmshop.build === 180 && S.ssmshop.every === 120 && S.ssmshop.size === 1 &&
   step(s, Sim.SSM_SETUP - 1); ok(!s.missiles.length, 'nothing before it has set up');
   step(s, 2); ok(s.missiles.length === 1 && s.mem.red[t.id] && s.mem.red[t.id].type === 'ssm', 'launched — and the enemy saw where from');
   step(s, Sim.SSM_FLIGHT + 1); ok(!s.nodes.includes(tent), 'the tent is gone in one hit');
-  Sim.launch(s, [t.id], hq.x, hq.y); step(s, Sim.SSM_RELOAD + Sim.SSM_FLIGHT + 2);
-  ok(hq.hp > 0 && hq.hp < S.hq.hp * 0.8, `the HQ takes a quarter (${Math.round(hq.hp)} of ${S.hq.hp})`);
+  ok(!Sim.launch(s, [t.id], hq.x, hq.y), 'no launch at the HQ');
+  const camp = s.nodes.find(n => n.side === 'red' && n.kind !== 'hq'); step(s, Sim.SSM_RELOAD + Sim.SSM_FLIGHT + 2);
+  ok(!s.missiles.some(m => !m.gone) && hq.hp === S.hq.hp && (!camp || s.nodes.includes(camp)), 'loaded again, it does not launch on its own');
 }
 {
   // Arrow: an enemy missile over its area is taken on halfway (most of the time)
@@ -61,20 +62,19 @@ ok(S.ssmshop.build === 180 && S.ssmshop.every === 120 && S.ssmshop.size === 1 &&
   ok(s.trophy.blue && tks.length && tks.every(u => u.trophy === Sim.TROPHY_MAX), `then tanks with Trophy (${tks.length})`);
 }
 {
-  // the AI's missile style (the full game): few squads, kept home; missile works; drones find the HQ; the trucks fire
-  // at it. Shot down AI_MISSILE_MISS times (Arrow) — it turns steady
+  // the AI's missile style (the full game): few squads, kept home; missile works; the trucks fire at buildings, never
+  // the HQ. Shot down AI_MISSILE_MISS times (Arrow) — it turns steady
   let s = Sim.create(311, 2200, 'normal', Sim.H * 2); Sim.extras(s); s = Sim.openField(s); s.fog = true; s.bots = ['blue', 'red']; s.style.red = 'missile';
-  let far = 0, n = 0, works = 0, low = Sim.STRUCTS.hq.hp; // (low: the enemy HQ's lowest — the bulldozer mends it between hits)
+  let far = 0, n = 0, works = 0; const shots = new Set();
   while (!s.over && s.t < 900) {
     Sim.step(s, 1 / 30);
     if (Math.abs(s.t % 30) < 1 / 30) { const hq = s.nodes.find(k => k.side === 'red' && k.kind === 'hq'); if (hq) for (const u of s.units) if (u.side === 'red' && !Sim.TYPES[u.type].care && !Sim.TYPES[u.type].air) { n++; if (Math.abs(u.x - hq.x) > 450) far++; } }
     works = Math.max(works, s.nodes.filter(k => k.side === 'red' && k.kind === 'ssmshop').length);
-    const bh = s.nodes.find(k => k.side === 'blue' && k.kind === 'hq'); if (bh) low = Math.min(low, bh.hp);
+    for (const u of s.units) if (u.side === 'red' && u.type === 'ssm' && u.launchedAt != null) shots.add(u.id + ':' + u.launchedAt);
   }
-  const blueHq = s.nodes.find(k => k.side === 'blue' && k.kind === 'hq');
   ok(works >= 2, `it builds missile works (${works})`);
   ok(far / Math.max(1, n) < 0.15, `its squads keep home (${(far / Math.max(1, n) * 100).toFixed(0)}% far out)`);
-  ok(s.hqDown === 'blue' || low < Sim.STRUCTS.hq.hp * 0.75, `its missiles hit the enemy HQ hard (${s.hqDown ? 'down at ' + Math.round(s.t / 60) + ' min' : 'down to ' + Math.round(low) + ' hp'})`);
+  ok(shots.size >= 2, `its trucks launch (${shots.size})`);
   const s2 = Sim.create(3, 1400, 'normal'); s2.style.red = 'missile'; s2.downed = { blue: 0, red: Sim.AI_MISSILE_MISS }; Sim.think(s2, 'red', 'normal');
   ok(s2.style.red === 'steady', 'shot down too often: it plays steady');
 }

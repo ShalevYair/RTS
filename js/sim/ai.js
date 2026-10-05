@@ -230,18 +230,13 @@ function radioStation(s, sq, mine, k, B = AI_RADIO_BACK) {
   return threatAt(s, sq.side, p, AI_NEAR) ? careStation(s, sq, mine) : p;
 }
 
-// missiles: each truck not yet launching goes for the best building we know — the HQ (or what passes for it) first,
-// else the nearest; and Trophy on the tanks, a few minutes in
+// missiles: each truck not yet launching goes for the nearest building we know (never the HQ — knownFoeNode); and
+// Trophy on the tanks, a few minutes in
 function aiSpecial(s, side, own = () => true) {
-  const foe = foeOf(side), known = s.nodes.filter(n => n.side === foe && n.hp > 0 && n.kind !== 'drone' && (!s.fog || s.visNodes[side].has(n.id) || s.memNodes[side][n.id]));
   for (const q of s.squads) {
-    if (q.side !== side || q.dead || q.type !== 'ssm' || !known.length || !own(q)) continue;
-    const kindOf = n => s.fog && s.memNodes[side][n.id] && !s.visNodes[side].has(n.id) ? s.memNodes[side][n.id].kind : n.kind;
-    const hq = known.find(n => kindOf(n) === 'hq');
-    if (q.fire && !(hq && q.fire.id !== hq.id && AI_STYLES[s.style[side]] && AI_STYLES[s.style[side]].missiles)) continue; // (missiles: the HQ found — at it, now)
-    const t = hq || known.slice().sort((a, b) => Math.hypot(a.x - q.cx, a.y - q.cy) - Math.hypot(b.x - q.cx, b.y - q.cy))[0];
-    const p = s.fog && !s.visNodes[side].has(t.id) && s.memNodes[side][t.id] ? s.memNodes[side][t.id] : t;
-    launch(s, [q.id], p.x, p.y);
+    if (q.side !== side || q.dead || q.type !== 'ssm' || q.fire || !own(q)) continue;
+    const t = knownFoeNode(s, side, q.cx, q.cy, Infinity);
+    if (t) launch(s, [q.id], t.x, t.y);
   }
   if (s.t > 360 && !(s.trophy && s.trophy[side]) && own({ side, type: 'tank' })) for (const n of s.nodes) if (n.side === side && n.kind === 'tankshop' && s.t >= n.ready && !n.upg) { upgrade(s, side, n.id); break; }
 }
@@ -284,8 +279,10 @@ function think(s, side, level, who) {
   const toPost = stayHome ? new Set() : aiPosts(s, side, mine, setOrder); // (staying home: no soldiers off to the posts)
   const raid = (D.traits || St.raids) && can.build ? aiLift(s, side, mine, structs) : new Set(); // (commando raids by helicopter)
   let nth = 0, radios = 0, arty = 0; const trucks = {};
+  const asked = askBusy(s, side); // (arms: sent to answer a partner's ask — on it for a while — asks.js)
+  if (who === 'mate') mateAsks(s, side, mine, foes);
   for (const sq of mine) {
-    if (toPost.has(sq.id)) continue;
+    if (toPost.has(sq.id) || asked.has(sq.id)) continue;
     if (sq.type === 'ssm' && sq.fire) continue; // (setting up to launch: it stays put)
     if (raid.has(sq.id) || sq.boarding || sq.aboard) continue; // (a raid: the helicopter and its commandos — aiLift)
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
@@ -354,12 +351,7 @@ function think(s, side, level, who) {
   const hand = D.smart && can.drone && s.fog && s.drones[side].stock > 0 && own({ side, type: 'drone' });
   const free = (x, y) => !s.nodes.some(n => n.side === side && n.kind === 'drone' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0 * 1.5);
   const blur = hand && foes.find(o => o.k.lvl < 2 && s.t - o.k.t < 5 && free(o.k.x, o.k.y));
-  const hqKnown = structs.some(n => n.kind === 'hq' && n.id !== 'hq?');
-  if (hand && St.missiles && !hqKnown) {
-    // (missiles: the enemy HQ first — along its strip, top to bottom)
-    const [a, b] = hqBand(s, foe), x = Math.round((a + b) / 2);
-    for (const f of [0.5, 0.2, 0.8, 0.35, 0.65]) { const y = Math.round(s.H * f); if (free(x, y)) { drone(s, side, x, y); break; } }
-  } else if (blur) drone(s, side, blur.k.x, blur.k.y);
+  if (blur) drone(s, side, blur.k.x, blur.k.y);
   else if (hand) {
     const x = s.bases[foe].x + (s.bases[side].x - s.bases[foe].x) * (0.2 + 0.4 * s.rand()), y = 60 + s.rand() * (s.H - 120);
     if (free(x, y) && !structs.some(n => n.id !== 'hq?' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0)) drone(s, side, x, y);

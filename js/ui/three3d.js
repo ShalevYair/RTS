@@ -548,7 +548,7 @@ function v3Deco() {
   if (s.fog) { if (Sim.friction(s)) drawQuality(g); drawEnemyIntel(g); drawMarks(g); }
   drawDozerJobs(g); drawBuildArea(g);
   for (const q of s.squads) if (q.side === 'blue' && !q.dead && !sqShown(q)) drawGuess(g, q, guessAt(q), isSel(q.id));
-  drawFront(g); drawPicked(g); drawPings(g);
+  drawFront(g); drawPicked(g); drawAsks(g); drawPings(g);
   V3U.v3DecoBox.value.set(B.x, B.y, B.w, B.h); D.t.needsUpdate = true;
 }
 // every frame, instead of the flat map

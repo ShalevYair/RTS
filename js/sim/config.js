@@ -342,8 +342,8 @@ const AI_STYLES = {
   air:      { name: 'מפקד חיל האוויר', icon: '✈️', plan: ['tankshop', 'aapost', 'airfield', 'tankerbase', 'atpost', 'heliatk', 'airfield', 'heligun', 'jeepaa', 'airfield', 'tankshop', 'domesite'], ready: AI_READY }, // (a core on the ground first: alone in the air, it was overrun)
   // the commandos: bases, transport helicopters that set them down behind the lines (aiLift), a few to hold home
   commando: { name: 'מפקד הקומנדו', icon: '🗡️', plan: ['tankshop', 'aapost', 'commandopost', 'helilift', 'atpost', 'commandopost', 'tankshop', 'helilift', 'commandopost', 'jeepat', 'domesite'], ready: AI_READY, raids: true }, // (a core on the ground first: with commandos only, it fell in 10 minutes)
-  // missiles: a few squads keep home; the missile works first, drones look for the enemy HQ along its strip, and the
-  // trucks fire at it. AI_MISSILE_MISS of its missiles shot down (Arrow) — it turns 'steady'
+  // missiles: a few squads keep home; the missile works first, and the trucks fire at the enemy's buildings (never its
+  // HQ). AI_MISSILE_MISS of its missiles shot down (Arrow) — it turns 'steady'
   missile:  { name: 'מפקד הטילים', icon: '🚀', plan: ['aapost', 'ssmshop', 'domesite', 'ssmshop', 'tankshop', 'ssmshop', 'atpost', 'arrowsite', 'aapost', 'tankshop'], ready: 0.7, home: true, missiles: true },
 };
 // hard, regular: every ability together — missiles, armour, the air force with its tankers, commando raids by
@@ -444,14 +444,15 @@ const COVER = ['inf', 'at', 'aa', 'med', 'commando', 'jeep', 'ajeep', 'tjeep'], 
 // gets where it was sent, within DROP_R round it
 const BOARD_R = 26, LAND_T = 1.5, DROP_R = 30;
 // missiles: a truck stands SSM_SETUP s still, then launches at a building its side knows; the missile flies SSM_FLIGHT s
-// (the launch shows the enemy where the truck is); a building goes down in one hit, the HQ in SSM_HQ_HITS; soldiers
+// (the launch shows the enemy where the truck is); a building goes down in one hit — never at the HQ, nor at a fake one (what passes for
+// it: firing or not would tell which), and only when ordered (no launching on their own); soldiers
 // and vehicles within SSM_SPLASH take SSM_SPLASH_DMG. The truck launches again after SSM_RELOAD s.
 // Arrow: a truck takes on an enemy missile halfway, anywhere within ARROW_R_K of the map's height of it, ARROW_P of
 // the time; ARROW_RELOAD s to load the next. Iron Dome: the short missiles (MISSILE_SHOTS: aircraft, attack
 // helicopters, anti-tank) at anything of its side within DOME_R_K of the map's height; DOME_RELOAD s between.
 // Trophy (the tank workshop's upgrade, TROPHY_BUILD s with no tanks): every tank out after it (or back by a workshop)
 // stops TROPHY_MAX of those missiles, one more every TROPHY_EVERY s; never shells or bullets.
-const SSM_SETUP = 10, SSM_FLIGHT = 10, SSM_RELOAD = 120, SSM_HQ_HITS = 4, SSM_SPLASH = 40, SSM_SPLASH_DMG = 60;
+const SSM_SETUP = 10, SSM_FLIGHT = 10, SSM_RELOAD = 120, SSM_SPLASH = 40, SSM_SPLASH_DMG = 60;
 const ARROW_R_K = 1, ARROW_P = 0.9, ARROW_RELOAD = 60, DOME_R_K = 0.5, DOME_RELOAD = 60;
 const MISSILE_SHOTS = ['air', 'heli', 'at', 'tjeep'], TROPHY_MAX = 3, TROPHY_EVERY = 30, TROPHY_BUILD = 180;
 // the commando: seen by the enemy only within STEALTH_EYE of its drone or signals truck, STEALTH_NEAR of its units or
