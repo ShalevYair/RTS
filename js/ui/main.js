@@ -114,7 +114,7 @@ function frameBody(now) {
     replayAt = now; const sc = $('scrub'), i = (+sc.value + 1) % (+sc.max + 1); sc.value = i; drawReplay(i);
   }
   if (outro) outroTick(now, dt); else { edgeScroll(dt); tickCursor(); syncUpgrade(); }
-  draw(); if (outro) drawOutro(now); drawBox(); drawMini();
+  if (V3.on) v3Draw(); else draw(); if (outro) drawOutro(now); drawBox(); drawMini(); // (V3: the 3D view, three3d.js)
   if (now - hudAt > 200) { hudAt = now; updateHud(); }
 }
 // ---- the light mode (lite, core.js): on by itself while the frames are slow — under LITE_ON fps over two LITE_WIN s
