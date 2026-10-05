@@ -28,18 +28,20 @@ function knownStructs(s, side) {
 }
 
 // put a building of the next planned kind near the most forward control node, toward the enemy
-function aiBuild(s, side, D) {
-  if (D.mass && !s.level && s.fog && alive(s, side, ['decoy']).length < 2) { // (hard: deception — a fake HQ or two by the forward HQs)
+function aiBuild(s, side, D, who) {
+  const may = k => !who || armSide(s, side, k) === who; // (arms: only this player's buildings)
+  const pk = who ? side + who : side; // (arms: each player its own place in the plan)
+  if (D.mass && !s.level && s.fog && may('decoy') && alive(s, side, ['decoy']).length < 2) { // (hard: deception — a fake HQ or two by the forward HQs)
     const f = alive(s, side, ['fhq']).find(n => s.t >= n.ready), foe = s.bases[foeOf(side)];
     if (f) for (let i = 0; i < 8; i++) { const a = Math.atan2(foe.y - f.y, foe.x - f.x) + (s.rand() - 0.5) * 2, r = STRUCTS[f.kind].r + STRUCTS.decoy.r + BUILD_GAP + 5 + s.rand() * 50; if (build(s, side, 'decoy', f.x + Math.cos(a) * r, f.y + Math.sin(a) * r)) break; }
   }
-  if (s.logi) aiSupply(s, side);
-  if (buildCount(s, side) >= buildLimit(s, side)) return;
-  if (!D.smart && s.t - (s.lastBuild[side] || -99) < 30) return; // easy builds slowly
+  if (s.logi && may('depot')) aiSupply(s, side);
+  if (buildCount(s, side, who) >= buildLimit(s, side)) return;
+  if (!D.smart && s.t - (s.lastBuild[pk] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
-  let kind = D.smart && !s.noCounter && s.style[side] === 'steady' ? aiCounter(s, side) : null, counter = !!kind; // (what it has seen of the enemy first: an answer to it — the regular commander, who mixes; the others keep to their arm)
-  const plan = D.traits && s.style[side] === 'steady' && !s.level ? AI_PLAN_HARD : AI_STYLES[s.style[side]].plan; // (hard, regular: everything)
-  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[(s.plan[side] + i) % plan.length]; if (buildable(s, k)) { kind = k; s.plan[side] += i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
+  let kind = D.smart && !s.noCounter && s.style[side] === 'steady' ? aiCounter(s, side, may) : null, counter = !!kind; // (what it has seen of the enemy first: an answer to it — the regular commander, who mixes; the others keep to their arm)
+  const plan = who ? AI_PLAN_HARD.filter(may) : D.traits && s.style[side] === 'steady' && !s.level ? AI_PLAN_HARD : AI_STYLES[s.style[side]].plan; // (hard, regular: everything; arms: what of it is this player's)
+  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[((s.plan[pk] || 0) + i) % plan.length]; if (buildable(s, k)) { kind = k; s.plan[pk] = (s.plan[pk] || 0) + i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
   const anchors = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq').sort((a, b) => dist(a, goal) - dist(b, goal));
@@ -47,13 +49,13 @@ function aiBuild(s, side, D) {
     // (toward the enemy first; then all round it, a little farther — a crowded front left no room, and it stood stuck)
     const wide = i >= 12, ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * (wide ? 2 * Math.PI : 2.4), r = STRUCTS[a.kind].r + STRUCTS[kind].r + BUILD_GAP + 5 + s.rand() * (wide ? 180 : 110);
     const x = a.x + Math.cos(ang) * r, y = a.y + Math.sin(ang) * r;
-    if (build(s, side, kind, x, y)) { if (counter) { s.aiCounter[side] = { kind, t: s.t }; (s.aiCounterLog = s.aiCounterLog || []).push({ side, kind, t: Math.round(s.t) }); } else s.plan[side]++; s.lastBuild[side] = s.t; (s.planMiss = s.planMiss || {})[side] = 0; return; }
+    if (build(s, side, kind, x, y)) { if (counter) { s.aiCounter[side] = { kind, t: s.t }; (s.aiCounterLog = s.aiCounterLog || []).push({ side, kind, t: Math.round(s.t) }); } else s.plan[pk] = (s.plan[pk] || 0) + 1; s.lastBuild[pk] = s.t; (s.planMiss = s.planMiss || {})[side] = 0; return; }
   }
   // (no room for it — a big one, a crowded base: after a few tries the next one; it stood stuck on an airfield)
   if (!anchors.length) return; // (nowhere to build from yet: not a miss)
   if (counter) { s.aiCounter[side] = { kind, t: s.t }; return; } // (no room for the answer: the plan, and try it again later)
-  s.planMiss = s.planMiss || {}; s.planMiss[side] = (s.planMiss[side] || 0) + 1;
-  if (s.planMiss[side] >= 3) { s.planMiss[side] = 0; s.plan[side]++; }
+  s.planMiss = s.planMiss || {}; s.planMiss[pk] = (s.planMiss[pk] || 0) + 1;
+  if (s.planMiss[pk] >= 3) { s.planMiss[pk] = 0; s.plan[pk] = (s.plan[pk] || 0) + 1; }
 }
 
 // what this game lets a side build of kind (tutorial levels: only some; fuel only where there's fuel; s.logi: the supply
@@ -63,7 +65,7 @@ const buildable = (s, k) => (!s.builds || s.builds.includes(k)) && (k !== 'fuels
 // AI_SEEN_T s): for each kind of enemy force (AI_THREATS) how many it has seen against how many of ours answer it; the
 // worst gap past AI_COUNTER_MIN units, and our answer under AI_COUNTER_K of theirs — one of its answering buildings
 // (in turn), at most every AI_COUNTER_EVERY s; between them, the plan
-function aiCounter(s, side) {
+function aiCounter(s, side, may = () => true) {
   s.aiCounter = s.aiCounter || {}; s.aiSeen = s.aiSeen || {};
   const seen = s.aiSeen[side] = s.aiSeen[side] || {}, last = s.aiCounter[side];
   for (const q of s.squads) if (q.side !== side && !q.dead) { const k = intel(s, side, q); if (k && k.lvl === 2 && k.type) seen[q.id] = { type: k.type, n: k.n || 1, t: s.t }; }
@@ -74,7 +76,7 @@ function aiCounter(s, side) {
   let worst = null, gap = 0;
   for (const c in theirs) { const g = theirs[c] - (ours[c] || 0) / AI_COUNTER_K; if (theirs[c] >= AI_COUNTER_MIN && g > gap) { gap = g; worst = c; } }
   if (!worst) return null;
-  const opts = AI_THREATS[worst].build.filter(k => buildable(s, k) && (!STRUCTS[k].max || alive(s, side, [k]).length < STRUCTS[k].max));
+  const opts = AI_THREATS[worst].build.filter(k => may(k) && buildable(s, k) && (!STRUCTS[k].max || alive(s, side, [k]).length < STRUCTS[k].max));
   if (!opts.length) return null;
   const n = (s.aiCounterN = s.aiCounterN || {})[side + worst] = ((s.aiCounterN[side + worst] || 0) + 1);
   return opts[n % opts.length];
@@ -230,10 +232,10 @@ function radioStation(s, sq, mine, k, B = AI_RADIO_BACK) {
 
 // missiles: each truck not yet launching goes for the best building we know — the HQ (or what passes for it) first,
 // else the nearest; and Trophy on the tanks, a few minutes in
-function aiSpecial(s, side) {
+function aiSpecial(s, side, own = () => true) {
   const foe = foeOf(side), known = s.nodes.filter(n => n.side === foe && n.hp > 0 && n.kind !== 'drone' && (!s.fog || s.visNodes[side].has(n.id) || s.memNodes[side][n.id]));
   for (const q of s.squads) {
-    if (q.side !== side || q.dead || q.type !== 'ssm' || !known.length) continue;
+    if (q.side !== side || q.dead || q.type !== 'ssm' || !known.length || !own(q)) continue;
     const kindOf = n => s.fog && s.memNodes[side][n.id] && !s.visNodes[side].has(n.id) ? s.memNodes[side][n.id].kind : n.kind;
     const hq = known.find(n => kindOf(n) === 'hq');
     if (q.fire && !(hq && q.fire.id !== hq.id && AI_STYLES[s.style[side]] && AI_STYLES[s.style[side]].missiles)) continue; // (missiles: the HQ found — at it, now)
@@ -241,17 +243,20 @@ function aiSpecial(s, side) {
     const p = s.fog && !s.visNodes[side].has(t.id) && s.memNodes[side][t.id] ? s.memNodes[side][t.id] : t;
     launch(s, [q.id], p.x, p.y);
   }
-  if (s.t > 360 && !(s.trophy && s.trophy[side])) for (const n of s.nodes) if (n.side === side && n.kind === 'tankshop' && s.t >= n.ready && !n.upg) { upgrade(s, side, n.id); break; }
+  if (s.t > 360 && !(s.trophy && s.trophy[side]) && own({ side, type: 'tank' })) for (const n of s.nodes) if (n.side === side && n.kind === 'tankshop' && s.t >= n.ready && !n.upg) { upgrade(s, side, n.id); break; }
 }
-function think(s, side, level) {
+// who (arms, s.arms — DESIGN.md): 'mate' — the computer partner, only the arms the player hasn't; 'me' — only the
+// player's (a bot in their place, tests); none — the whole side
+function think(s, side, level, who) {
   const D = DIFFS[level] || DIFFS.normal, foe = foeOf(side), taken = new Map();
+  const own = q => !who || (q.cmd ? who === 'me' : (armSide(s, side, q.type) || 'me') === who);
   // open field: first the HQ — a spot in our strip (away from the middle of it now and then), the command tanks go
   const cmd = s.hqPending && s.hqPending[side] && cmdSquad(s, side);
-  if (cmd && !s.squads.some(q => q.side === side && q.hqAt) && !s.nodes.some(n => n.side === side && n.kind === 'hq')) {
+  if (cmd && who !== 'mate' && !s.squads.some(q => q.side === side && q.hqAt) && !s.nodes.some(n => n.side === side && n.kind === 'hq')) {
     const [a, b] = hqBand(s, side);
     for (let i = 0; i < 30; i++) if (planHq(s, side, a + s.rand() * (b - a), 60 + s.rand() * (s.H - 120))) break;
   }
-  const mine = s.squads.filter(q => q.side === side && !q.dead && !q.retreating && !(q.cmd && s.hqPending && s.hqPending[side]));
+  const mine = s.squads.filter(q => q.side === side && !q.dead && !q.retreating && !(q.cmd && s.hqPending && s.hqPending[side]) && own(q));
   const setOrder = (sq, type, x, y) => {
     // compare with what was asked, not where the commander understood it (that would resend every time)
     const p = pending(s, sq.id, 'order'), cur = p || sq.order, w = cur.want || cur, k = sq.aiAsk;
@@ -263,7 +268,7 @@ function think(s, side, level) {
   };
   // what the AI may do: tutorial levels hold the enemy (red) back; the full game allows everything
   const can = s.aiCan && side === 'red' ? s.aiCan : { build: true, drone: true, fhq: true };
-  if (can.build) aiBuild(s, side, D);
+  if (can.build) aiBuild(s, side, D, who);
   if (D.smart && can.fhq) aiForward(s, side, mine, setOrder);
   const structs = knownStructs(s, side);
   const foes = s.squads.filter(q => q.side === foe).map(q => ({ q, k: intel(s, side, q) })).filter(o => o.k);
@@ -273,7 +278,7 @@ function think(s, side, level) {
   const St = AI_STYLES[s.style[side]] || AI_STYLES.steady, home = hqOf(s, side) || s.bases[side];
   const fighters = mine.filter(q => !TYPES[q.type].care);
   const stayHome = !!St.home; // (missiles: a few squads keep home)
-  if (can.build) aiSpecial(s, side);
+  if (can.build) aiSpecial(s, side, own);
   const push = D.smart && !s.noAiPush && aiPush(s, side, fighters, structs, St); // (ahead: all together, one blow — not on easy)
   // posts: a squad of soldiers to each one we don't hold (they go on their own; the rest of think leaves them be)
   const toPost = stayHome ? new Set() : aiPosts(s, side, mine, setOrder); // (staying home: no soldiers off to the posts)
@@ -342,11 +347,11 @@ function think(s, side, level) {
   // posture (hard): press when losing, play safe when winning
   if (D.traits) {
     const sh = share(s, side), tr = sh < 0.4 ? 'aggressive' : sh > 0.6 ? 'cautious' : 'balanced';
-    for (const sq of s.squads) if (sq.side === side && sq.trait !== tr) setTrait(s, sq.id, tr, true);
+    for (const sq of s.squads) if (sq.side === side && sq.trait !== tr && own(sq)) setTrait(s, sq.id, tr, true);
   }
   // drones: first on a fresh track we can't make out, else where we know least — an unexplored spot on the enemy's side
   // (one drone per think, never where one of ours already looks)
-  const hand = D.smart && can.drone && s.fog && s.drones[side].stock > 0;
+  const hand = D.smart && can.drone && s.fog && s.drones[side].stock > 0 && own({ side, type: 'drone' });
   const free = (x, y) => !s.nodes.some(n => n.side === side && n.kind === 'drone' && Math.hypot(n.x - x, n.y - y) < NODES.drone.r0 * 1.5);
   const blur = hand && foes.find(o => o.k.lvl < 2 && s.t - o.k.t < 5 && free(o.k.x, o.k.y));
   const hqKnown = structs.some(n => n.kind === 'hq' && n.id !== 'hq?');

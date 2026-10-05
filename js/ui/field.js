@@ -242,7 +242,7 @@ function parseOrder(raw) {
     // ("missile trucks" / "signals trucks": not the plain trucks as well)
     if (types.has('ssm') || types.has('radio')) types.delete('truck');
     if (types.size) {
-      ids = s.squads.filter(q => q.side === 'blue' && !q.dead && types.has(q.type)).map(q => q.id);
+      ids = s.squads.filter(q => q.side === 'blue' && !q.dead && types.has(q.type) && Sim.ownSquad(s, q)).map(q => q.id);
       whoTxt = [...types].filter(k => s.squads.some(q => q.side === 'blue' && !q.dead && q.type === k)).map(tn).join(', ') || tn([...types][0]);
       if (!ids.length) return { why: tr('vNone', tn([...types][0])) };
     }

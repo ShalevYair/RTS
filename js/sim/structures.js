@@ -14,8 +14,17 @@ const hqOf = (s, side) => s.nodes.find(n => n.side === side && n.kind === 'hq' &
 // how many production buildings a side may have: BUILD_BASE + BUILD_PER_NODE per working HQ / forward HQ
 // (× s.scale: the big map 2×, the huge one 4×)
 // (a bigger map: a bigger base allowance, but each HQ / forward HQ still adds the same)
-const buildLimit = (s, side) => BUILD_BASE * (s.scale || 1) + BUILD_PER_NODE * alive(s, side, ['hq', 'fhq']).filter(n => s.t >= n.ready).length;
-const buildCount = (s, side) => alive(s, side, PRODUCERS.filter(k => !specOf(s, k).free)).length; // (free: the supply buildings, past the allowance)
+// (arms: each player its own allowance — and red, the computer alone for all four arms, twice it)
+const buildLimit = (s, side) => (s.arms && side === 'red' ? 2 : 1) * (BUILD_BASE * (s.scale || 1) + BUILD_PER_NODE * alive(s, side, ['hq', 'fhq']).filter(n => s.t >= n.ready).length);
+// (who: a building kind, or 'me' / 'mate' — with arms, only that player's buildings count)
+const buildCount = (s, side, who) => { const w = !s.arms || side !== 'blue' || !who ? null : who === 'me' || who === 'mate' ? who : armSide(s, side, who); return alive(s, side, PRODUCERS.filter(k => !specOf(s, k).free)).filter(n => !w || armSide(s, side, n.kind) === w).length; }; // (free: the supply buildings, past the allowance)
+// arms: whose a building kind / unit type on this side is — 'me' (the player's arms), 'mate' (the computer partner's);
+// null — both's (no arms this game, red, the HQ, forward HQs)
+const armSide = (s, side, k) => !s.arms || side !== 'blue' || !ARM_OF[k] ? null : s.arms.includes(ARM_OF[k]) ? 'me' : 'mate';
+// the player gives this squad orders (with arms: not the partner's; the command tanks are both's — the player's)
+const ownSquad = (s, q) => !!q.cmd || armSide(s, q.side, q.type) !== 'mate';
+// arms for this game: the player's (some of ARMS); the computer partner plays the rest of blue (think 'mate')
+function setArms(s, arms) { const a = (arms || []).filter(k => ARMS[k]); s.arms = a.length && a.length < Object.keys(ARMS).length ? a : null; s.mate = !!s.arms; }
 // why a building can't go at (x, y): '' when it can; 'q' poor control, 'limit' no free slot, 'gap' too close, 'bad' bad input
 // (kind 'decoy': no slot, but at most DECOY_MAX of them)
 function buildCheck(s, side, x, y, kind) {
@@ -23,7 +32,7 @@ function buildCheck(s, side, x, y, kind) {
   if (s.hqPending && s.hqPending[side]) return 'nohq'; // (open field: the HQ first)
   if (STRUCTS[kind] && STRUCTS[kind].fuel && !s.fuel) return 'bad'; // (the tanker base: only where there's fuel)
   if (STRUCTS[kind] && specOf(s, kind).max && alive(s, side, [kind]).length >= specOf(s, kind).max) return 'max'; // (a missile factory: 3 a side)
-  if (kind === 'decoy' ? alive(s, side, ['decoy']).length >= DECOY_MAX : !(STRUCTS[kind] && specOf(s, kind).free) && buildCount(s, side) >= buildLimit(s, side)) return 'limit';
+  if (kind === 'decoy' ? alive(s, side, ['decoy']).length >= DECOY_MAX : !(STRUCTS[kind] && specOf(s, kind).free) && buildCount(s, side, kind) >= buildLimit(s, side)) return 'limit';
   if (quality(s, side, { x, y }, true) < BUILD_MIN_Q) return 'q'; // drones don't count
   if (lakeAt(s, { x, y }, LAKE_PAD) || groundBad(s, x, y, STRUCTS[kind] ? STRUCTS[kind].r : 20)) return 'bad';
   if (crowded(s, kind, x, y)) return 'gap';

@@ -8,10 +8,10 @@ function toWorld(e) {
 const tapR = r => Math.max(r, 14 / view.css);
 // a squad is picked by its units where they're drawn, else by its badge (over where it probably is)
 function hitSquad(x, y) {
-  for (const q of s.squads) { const p = q.side === 'blue' && !q.dead && !sqShown(q) && guessAt(q); if (p && Math.hypot(p.x - x, p.y - y) < tapR(24)) return q.id; }
+  for (const q of s.squads) { const p = q.side === 'blue' && !q.dead && Sim.ownSquad(s, q) && !sqShown(q) && guessAt(q); if (p && Math.hypot(p.x - x, p.y - y) < tapR(24)) return q.id; }
   const tol = Math.max(12, 22 / view.css); let best = null, bd = tol;
   // (a long vehicle — a truck, a tank — is hit anywhere on its picture, not only near its middle)
-  for (const u of s.units) { if (u.side !== 'blue' || (Sim.friction(s) && !sqShown(s.squads.find(q => q.id === u.squad) || {}))) continue; const d = Math.hypot(u.x - x, u.y - y) - Math.max(0, (SIZE[u.type] || 0) * 0.9 - tol * 0.5); if (d < bd) { bd = d; best = u.squad; } }
+  for (const u of s.units) { if (u.side !== 'blue' || Sim.armSide(s, 'blue', u.type) === 'mate' || (Sim.friction(s) && !sqShown(s.squads.find(q => q.id === u.squad) || {}))) continue; const d = Math.hypot(u.x - x, u.y - y) - Math.max(0, (SIZE[u.type] || 0) * 0.9 - tol * 0.5); if (d < bd) { bd = d; best = u.squad; } }
   return best;
 }
 // the enemy under a spot, as blue knows it: a unit or building in sight, a remembered building, a sighting under fog
@@ -82,7 +82,7 @@ function squadInfo(q) {
   const us = s.units.filter(u => u.squad === q.id), T = Sim.TYPES[q.type], n = Math.max(1, us.length);
   const hp = us.reduce((a, u) => a + u.hp, 0) / (n * T.hp);
   const am = T.ammo ? us.reduce((a, u) => a + u.ammo / T.ammo, 0) / n : s.supply && Sim.SUPPLY[q.type] ? us.reduce((a, u) => a + (u.sup ?? 1), 0) / n : null;
-  const out = [(q.side === 'blue' ? '' : tr('foe') + ' · ') + tn(q.type) + (us.length > 1 ? ' ×' + us.length : ''), tr('ti_hp', Math.round(hp * 100))];
+  const out = [(q.side === 'blue' ? (Sim.ownSquad(s, q) ? '' : tr('mate') + ' · ') : tr('foe') + ' · ') + tn(q.type) + (us.length > 1 ? ' ×' + us.length : ''), tr('ti_hp', Math.round(hp * 100))];
   if (am !== null && q.side === 'blue') out.push(tr('ti_ammo', Math.round(am * 100)));
   // (fuel: the full game's vehicles and aircraft — fuel.js; a truck: the barrels it carries)
   const fu = us.filter(u => u.fuel !== undefined); if (fu.length && q.side === 'blue') out.push(tr('ti_fuel', Math.round(fu.reduce((a, u) => a + u.fuel, 0) / fu.length * 100)));
@@ -138,9 +138,10 @@ function tap(e) {
   if (dz && Sim.isSite(home) && s.t < home.ready && Sim.assignSite(s, s.squads.find(q => q.id === dz), home, true)) { pings.push({ x: home.x, y: home.y, t: performance.now() }); return; }
   if (home) {
     // (its units — each its own squad now — all picked)
-    const mine = s.squads.filter(q => !q.dead && (q.home === home.id || q.id === home.squad)).map(q => q.id);
+    // (arms: the partner's building — only what it is; its squads and where they go are the partner's)
+    const theirs = Sim.armSide(s, 'blue', home.kind) === 'mate', mine = theirs ? [] : s.squads.filter(q => !q.dead && (q.home === home.id || q.id === home.squad)).map(q => q.id);
     if (mine.length > 1) pickIds(mine); else if (mine.length) pickSquad(mine[0]); else select(null);
-    selNode = home.id; const r = cv.getBoundingClientRect();
+    selNode = theirs ? null : home.id; const r = cv.getBoundingClientRect();
     const p = worldToScr(home.x, home.y - 26); toast(nodeInfo(home), p.x + r.left, p.y + r.top, 2600);
     return;
   }
@@ -407,7 +408,7 @@ function toHq() {
 }
 // T: a bulldozer with nothing to do picked (else one — the next each time); T again on the one picked: the camera to it
 function keyDozer() {
-  const l = s.squads.filter(q => q.side === 'blue' && q.type === 'dozer' && !q.dead); if (!l.length) return;
+  const l = s.squads.filter(q => q.side === 'blue' && q.type === 'dozer' && !q.dead && Sim.ownSquad(s, q)); if (!l.length) return;
   const cur = oneSel(), at = cur && l.find(q => q.id === cur);
   if (at) { const u = s.units.find(k => k.squad === at.id); lookAt(u ? u.x : at.cx, u ? u.y : at.cy); return; }
   const free = l.filter(q => !Sim.jobOf(s, q) && !q.hqAt && !q.fhqAt && !q.fixHq), pool = free.length ? free : l;

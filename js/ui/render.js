@@ -1069,7 +1069,7 @@ function drawUnits(c, show) {
     // (a fuel truck: a yellow tank on its back)
     if (u.type === 'fueltruck' || u.type === 'watertruck') { c.save(); c.translate(u.x, u.y); c.rotate(u.hd); c.fillStyle = u.type === 'watertruck' ? '#3d8fd6' : '#d9a91f'; c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 0.8 / view.css; c.beginPath(); c.ellipse(-k * 0.18, 0, k * 0.32, k * 0.2, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore(); }
     // (no ammunition or care marks, no health bar: a hurt unit of ours has its dot, see healthDot)
-    if (u.side === 'blue' && isSel(u.squad) && !(sel === 'all' && NOT_ALL.includes(u.type))) { // (all picked: every one but the bulldozers)
+    if (u.side === 'blue' && isSel(u.squad) && !(sel === 'all' && (NOT_ALL.includes(u.type) || Sim.armSide(s, 'blue', u.type) === 'mate'))) { // (all picked: every one but the bulldozers)
       // picked: a faint light ring close round the unit
       c.globalAlpha = 0.4; c.strokeStyle = colors.halo; c.lineWidth = 1; ring(u.x, u.y, k * (u.type === 'tank' ? 0.95 : 1) + 2.5); c.stroke(); c.globalAlpha = 1;
     }

@@ -21,7 +21,7 @@ function hint() {
   // the open field: the HQ first
   if (hqToPlace() && !hqPlanned()) { noteBy('hqb', tr('h_hq')); return; }
   // room to build, and hardly anything built: the building kinds
-  if (uiHas('build') && !buildFull() && Sim.buildCount(s, 'blue') < 2 && !$('bcats').hidden) { const b = $('bcats'); b.classList.remove('hint'); void b.offsetWidth; b.classList.add('hint'); noteBy('bcats', tr('h_build')); return; }
+  if (uiHas('build') && !buildFull() && Sim.buildCount(s, 'blue', 'me') < 2 && !$('bcats').hidden) { const b = $('bcats'); b.classList.remove('hint'); void b.offsetWidth; b.classList.add('hint'); noteBy('bcats', tr('h_build')); return; }
   // else: at the enemy — the nearest of theirs we can see (or remember), red arrows there
   const ours = s.units.filter(u => u.side === 'blue'); if (!ours.length) return;
   const c = { x: ours.reduce((a, u) => a + u.x, 0) / ours.length, y: ours.reduce((a, u) => a + u.y, 0) / ours.length };

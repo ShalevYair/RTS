@@ -14,6 +14,7 @@ function newGame(skipIntro) {
     if (!fixed) Sim.openField(s);
     // (the enemy's commander: picked in the main menu, or the seed's — on hard, random is the regular one: every ability)
     s.rolledStyle = diff === 'hard' ? 'steady' : s.style.red; s.style.red = foeStyle !== 'random' ? foeStyle : s.rolledStyle;
+    Sim.setArms(s, myArms); // (arms: the computer partner plays the rest of blue)
   }
   // the low graphics: no day and night, no rain or morning fog in this game at all (both sides alike)
   if (gfxLow) { s.night = false; s.wxPlan = []; lite = Math.max(lite, 1); }
@@ -104,7 +105,7 @@ function frameBody(now) {
     if (s.t - nag.at >= NAG_T) {
       nag.at = s.t;
       const hqUp = !(s.hqPending && s.hqPending.blue) && s.nodes.some(n => n.side === 'blue' && n.kind === 'hq' && n.hp > 0 && s.t >= n.ready);
-      const room = uiHas('build') && hqUp && Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue') > 0;
+      const room = uiHas('build') && hqUp && Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue', 'me') > 0;
       if (room && s.t - nag.built >= NAG_T) { Radio.hear({ kind: 'canBuild' }); feedAdd({ kind: 'canBuild', t: s.t }); }
       else if (fc && s.t - nag.fhq >= NAG_T) { Radio.hear({ kind: 'fhqCan' }); noteBy('fhq', tr('fhqCan')); }
     }
