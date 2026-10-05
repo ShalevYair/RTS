@@ -9,6 +9,9 @@ try { fog = localStorage.getItem('irts-fog') !== '0'; } catch (e) { /* storage u
 try { const d = localStorage.getItem('irts-diff'); if (d in Sim.DIFFS) diff = d; } catch (e) { /* storage unavailable */ }
 // the enemy's style in the full game (the main menu): 'random' = a different one each game (Sim.AI_STYLES)
 let foeStyle = 'random';
+// arms (2 on 2, DESIGN.md): the ones the player commands — the computer partner the rest; none (or all four) = the whole side
+let myArms = [];
+try { myArms = (localStorage.getItem('irts-arms') || '').split(',').filter(k => k in Sim.ARMS); } catch (e) { /* storage unavailable */ }
 try { const f = localStorage.getItem('irts-foe'); if (f && (f === 'random' || f in Sim.AI_STYLES)) foeStyle = f; } catch (e) { /* storage unavailable */ }
 // tutorial: `done` = the highest level won; `lvl` = the level being played (0 = the full game, with its settings)
 let done = 0;
@@ -53,7 +56,7 @@ try { const m = localStorage.getItem('irts-map'); bigMap = m !== 'small'; hugeMa
 // LITE_RES of the pixels too. Better plainer and a little dumber than a game that hardly moves.
 // (everyone — the right click's pick, the ★, "everyone" said: not the bulldozers, which would leave their sites, nor
 // the missile trucks, which fire from far behind)
-const NOT_ALL = ['dozer', 'ssm'], inAll = q => !NOT_ALL.includes(q.type);
+const NOT_ALL = ['dozer', 'ssm'], inAll = q => !NOT_ALL.includes(q.type) && Sim.ownSquad(s, q); // (arms: not the partner's)
 let lite = 0; const LITE_RES = 0.7;
 // gfxLow: the low graphics, picked in the settings (irts-gfx) — no shadows at all, no day and night, no rain or
 // morning fog (they're not in the game at all then: s.night, s.wxPlan), the ground plain and at half the pixels (no
@@ -124,7 +127,7 @@ function placeFloating() {
 const pos = q => Sim.friction(s) ? s.rep[q.id] : { x: q.cx, y: q.cy, strength: q.strength, t: s.t, prev: null };
 
 // blue squads in button / hotkey order (oldest first)
-const blueSquads = () => s.squads.filter(q => q.side === 'blue');
+const blueSquads = () => s.squads.filter(q => q.side === 'blue' && Sim.ownSquad(s, q)); // (the ones we may pick — arms: not the partner's)
 const fmtTime = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
 
 // order symbols, the same on the buttons (SVG) and on the map (Path2D): a shield (hold), a sword (attack), a U-turn

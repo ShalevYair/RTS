@@ -202,6 +202,16 @@ const STRUCTS = {
 const PRODUCERS = Object.keys(STRUCTS).filter(k => STRUCTS[k].unit);
 // what the player can build: the producers and the fake HQ (at most DECOY_MAX standing, outside the slots; full game only)
 const BUILDABLE = [...PRODUCERS, 'decoy'], DECOY_MAX = 2;
+// arms (DESIGN.md, "זרועות"): each player commands some of the four, the computer partner the rest (Sim.setArms);
+// which arm each building, and the unit it makes, is of. Not in it — the HQ, the forward HQs, the command tanks — both's
+const ARMS = {
+  armor:    { name: 'שריון', icon: '🛡️', builds: ['tankshop', 'jeepshop', 'jeepat', 'jeepaa', 'garage'] },
+  infantry: { name: 'חיל רגלים', icon: '🪖', builds: ['tent', 'atpost', 'aapost', 'commandopost', 'clinic'] },
+  air:      { name: 'חיל האוויר', icon: '✈️', builds: ['airfield', 'tankerbase', 'heliatk', 'heligun', 'helilift', 'domesite', 'arrowsite'] },
+  guns:     { name: 'תותחנים והנדסה', icon: '💥', builds: ['howshop', 'mlrsshop', 'ssmshop', 'depot', 'fuelst', 'waterst', 'decoy'], also: ['dozer', 'radio', 'drone'] }, // (also: the bulldozers and signals trucks the HQ sends, the drones, the roads)
+};
+const ARM_OF = {};
+for (const a in ARMS) for (const k of [...ARMS[a].builds, ...(ARMS[a].also || [])]) { ARM_OF[k] = a; if (STRUCTS[k] && STRUCTS[k].unit) ARM_OF[STRUCTS[k].unit] = a; }
 // repairs: a damaged building is mended by its side's ground units within REPAIR_R that have nothing to do (arrived,
 // no shot for REPAIR_QUIET s, not off for care or ammunition): REPAIR_RATE hp/s each (a mechanic REPAIR_MECH times
 // that), counting up to REPAIR_MAX of them

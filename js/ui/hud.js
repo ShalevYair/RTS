@@ -53,6 +53,7 @@ function syncButtons() {
   $('gOrd').hidden = !uiHas('orders') || !selIds().length;
   document.querySelectorAll('[data-diff]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.diff === diff)));
   document.querySelectorAll('[data-foe]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.foe === foeStyle)));
+  document.querySelectorAll('[data-arm]').forEach(b => b.setAttribute('aria-pressed', String(myArms.includes(b.dataset.arm))));
   // the one order button shows the order a tap on the map gives (attack: a sword, hold: a shield)
   const ob = $('ordMode'); if (ob.dataset.m !== mode) { ob.dataset.m = mode; ob.innerHTML = orderSvg(mode); } ob.setAttribute('aria-label', tr(mode));
   // radio silence for the picked squads (where orders travel as messages): 📻 on the air, 🤫 silent
@@ -63,11 +64,11 @@ function syncButtons() {
   $('fs').setAttribute('aria-pressed', String(fsOn()));
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
   document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.map === (hugeMap ? 'huge' : bigMap ? 'big' : 'small'))));
-  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye'); $('fhq').hidden = !uiHas('fhq'); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); syncMic(); $('front').classList.toggle('set', !!(s.front && s.front.blue));
+  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye') || Sim.armSide(s, 'blue', 'drone') === 'mate'; $('fhq').hidden = !uiHas('fhq'); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); syncMic(); $('front').classList.toggle('set', !!(s.front && s.front.blue));
   $('fsRow').hidden = !fsCan() && !fsOn();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
   if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed) roadArmed = false; // (another thing armed: the road's off — roadui.js)
-  $('road').hidden = !s.dozers || !!(s.hqPending && s.hqPending.blue); $('road').setAttribute('aria-pressed', String(roadArmed));
+  $('road').hidden = !s.dozers || !!(s.hqPending && s.hqPending.blue) || Sim.armSide(s, 'blue', 'dozer') === 'mate'; $('road').setAttribute('aria-pressed', String(roadArmed));
   if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed || roadArmed) cv.style.cursor = eyeArmed ? DRONE_CUR : 'copy'; // (else the hover sets it)
   $('hqb').hidden = !hqToPlace(); $('hqb').setAttribute('aria-pressed', String(hqArmed));
   bar.classList.toggle('empty', ![...bar.children].some(c => !c.hidden)); // (the early levels have none of its buttons)
@@ -144,7 +145,7 @@ function updateHud() {
   // power share: the truth without fog; under fog the enemy side is only what we know of it
   const b = Math.round(100 * (s.fog ? believedShare() : Sim.share(s, 'blue')));
   $('pwB').style.width = b + '%'; $('power').classList.toggle('est', !!s.fog); $('power').style.setProperty('--lose', pctLose() + '%');
-  $('slotN').textContent = Sim.buildCount(s, 'blue') + '/' + Sim.buildLimit(s, 'blue'); syncCats();
+  $('slotN').textContent = Sim.buildCount(s, 'blue', 'me') + '/' + Sim.buildLimit(s, 'blue'); syncCats();
   $('bld').setAttribute('aria-disabled', String(buildFull() && !buildArmed));
   // while there's room for another building, 🏗️ pulses: build more
   $('bld').classList.toggle('nudge', !!s.t && !buildFull() && !buildArmed && $('buildm').hidden && !s.over && playing && !(s.hqPending && s.hqPending.blue));
@@ -220,8 +221,8 @@ $('all').addEventListener('click', () => select('all'));
 const TYPE_KEYS = ['tank', 'inf', 'at', 'jeep', 'tjeep', 'ajeep', 'aa', 'air', 'tanker', 'heli', 'gunship', 'lift', 'how', 'mlrs', 'ssm', 'arrow', 'dome', 'commando', 'med', 'mech', 'truck', 'fueltruck', 'watertruck', 'dozer', 'radio'];
 let groups = [], nextGroup = 1;
 const groupOf = id => groups.find(g => g.ids.includes(id));
-const aliveBlue = () => new Set(s.squads.filter(q => q.side === 'blue' && !q.dead).map(q => q.id));
-const typeIds = ty => s.squads.filter(q => q.side === 'blue' && !q.dead && q.type === ty && !groupOf(q.id)).map(q => q.id);
+const aliveBlue = () => new Set(s.squads.filter(q => q.side === 'blue' && !q.dead && Sim.ownSquad(s, q)).map(q => q.id));
+const typeIds = ty => s.squads.filter(q => q.side === 'blue' && !q.dead && q.type === ty && !groupOf(q.id) && Sim.ownSquad(s, q)).map(q => q.id);
 const btnIds = b => b.dataset.ty ? typeIds(b.dataset.ty) : (groups.find(g => g.id === +b.dataset.gr) || { ids: [] }).ids;
 // the picked squads are exactly one group
 const selGroup = () => { if (sel === 'all') return null; const l = selIds(); return groups.find(g => g.ids.length === l.length && g.ids.every(isSel)) || null; };
@@ -389,7 +390,7 @@ function initBuildMenu() {
   for (const g of BUILD_CATS) {
     const b = document.createElement('button');
     b.dataset.cat = g; b.dataset.tip = 'bcat'; b.innerHTML = '<canvas width="96" height="96"></canvas><span></span>';
-    b.tipText = () => tr('bp_' + g) + ' · ' + tr('bpn_' + g) + ' · ' + tr('slotsLeft', g === 'supply' && freePage() ? supplyLeft() : Math.max(0, Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue')));
+    b.tipText = () => tr('bp_' + g) + ' · ' + tr('bpn_' + g) + ' · ' + tr('slotsLeft', g === 'supply' && freePage() ? supplyLeft() : Math.max(0, Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue', 'me')));
     b.addEventListener('click', () => pickCat(g, b));
     cats.appendChild(b);
   }
@@ -443,7 +444,7 @@ function nameBuildMenu() {
   }
 }
 // what this game allows on a page (buildings, and sub-pages with anything allowed in them)
-const buildOk = k => !(k === 'decoy' ? !!s.level : !!s.builds && !s.builds.includes(k)) && !(Sim.STRUCTS[k] && Sim.STRUCTS[k].fuel && !s.fuel); // (the tanker base: only where there's fuel)
+const buildOk = k => Sim.armSide(s, 'blue', k) !== 'mate' && !(k === 'decoy' ? !!s.level : !!s.builds && !s.builds.includes(k)) && !(Sim.STRUCTS[k] && Sim.STRUCTS[k].fuel && !s.fuel); // (the tanker base: only where there's fuel)
 const pageItems = g => BUILD_PAGES[g].filter(e => e.startsWith('page:') ? pageItems(e.slice(5)).length > 0 : buildOk(e));
 // open a page (one with a single sub-page in it opens that one instead)
 function showBuildPage(g) {
@@ -465,7 +466,7 @@ function syncBuildMenu(fresh) {
   for (const b of document.querySelectorAll('[data-page]')) b.classList.toggle('new', has(b.dataset.page));
   for (const b of document.querySelectorAll('[data-cat]')) b.classList.toggle('new', has(b.dataset.cat));
 }
-const buildFull = () => Sim.buildCount(s, 'blue') >= Sim.buildLimit(s, 'blue');
+const buildFull = () => Sim.buildCount(s, 'blue', 'me') >= Sim.buildLimit(s, 'blue');
 // the supply buildings (the full game): past the allowance, up to their own max of each — how many more we may lay
 const freePage = () => BUILD_PAGES.supply.some(k => Sim.specOf(s, k).free);
 const supplyLeft = () => BUILD_PAGES.supply.filter(buildOk).reduce((a, k) => { const sp = Sim.specOf(s, k); return a + (sp.free ? Math.max(0, (sp.max || 2) - s.nodes.filter(n => n.side === 'blue' && n.kind === k && n.hp > 0).length) : 0); }, 0);
@@ -488,10 +489,17 @@ function placeBuilding(x, y, again) {
   nag.built = s.t; // (laid one: no reminder for a minute)
   const why = Sim.buildCheck(s, 'blue', x, y, buildArmed);
   if (why) { const p = onScreen(x, y); toast(tr('why')[why], p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y, pickedDozer());
-  const room = buildArmed === 'decoy' ? s.nodes.filter(n => n.side === 'blue' && n.kind === 'decoy' && n.hp > 0).length < Sim.DECOY_MAX : Sim.buildCount(s, 'blue') < Sim.buildLimit(s, 'blue');
+  const room = buildArmed === 'decoy' ? s.nodes.filter(n => n.side === 'blue' && n.kind === 'decoy' && n.hp > 0).length < Sim.DECOY_MAX : Sim.buildCount(s, 'blue', 'me') < Sim.buildLimit(s, 'blue');
   if (!why && !(again && room)) buildArmed = null;
   syncButtons(); updateHud();
 }
+// arms: a click adds or takes off one of ours (at most three — the partner keeps one at least)
+document.querySelectorAll('[data-arm]').forEach(b => b.addEventListener('click', () => {
+  const k = b.dataset.arm; myArms = myArms.includes(k) ? myArms.filter(x => x !== k) : [...myArms, k].slice(-3);
+  try { localStorage.setItem('irts-arms', myArms.join(',')); } catch (e) { /* ignore */ }
+  if (!lvl && s) Sim.setArms(s, myArms); // (the intro's game: not started yet)
+  syncButtons();
+}));
 document.querySelectorAll('[data-foe]').forEach(b => b.addEventListener('click', () => {
   foeStyle = b.dataset.foe; try { localStorage.setItem('irts-foe', foeStyle); } catch (e) { /* ignore */ }
   if (!lvl && s) { if (foeStyle !== 'random') s.style.red = foeStyle; else s.style.red = s.rolledStyle || s.style.red; } // (the intro's game: not started yet)
@@ -678,7 +686,7 @@ function placeHq(x, y) {
 }
 // the bulldozer picked (one squad of them), if any: it's the one that goes to build
 const pickedDozer = () => { const id = oneSel(); const q = id && s.squads.find(q => q.id === id); return q && q.type === 'dozer' ? q.id : undefined; };
-const fhqCrews = () => s.squads.filter(q => q.side === 'blue' && Sim.canBuildFhq(s, q));
+const fhqCrews = () => s.squads.filter(q => q.side === 'blue' && Sim.ownSquad(s, q) && Sim.canBuildFhq(s, q));
 function buildHere() {
   if (fhqArmed) { fhqArmed = false; syncButtons(); return; }
   if (s.cd.blue.fhq > 0 || Sim.fhqCount(s, 'blue') >= Sim.fhqMax(s)) return;
