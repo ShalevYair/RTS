@@ -17,10 +17,9 @@ const V3_FALL = 12, V3_LV = 18, V3_PITCH = 50 * Math.PI / 180, V3_FOV = 40, V3_T
 function v3Toggle() {
   if (V3.on) { v3Show(false); return; }
   if (window.THREE) { v3Show(true); return; }
-  const sc = document.createElement('script'); sc.src = 'js/lib/three.min.js';
-  sc.onload = () => v3Show(true);
-  sc.onerror = () => toast('3D ✖', innerWidth / 2, 80, 3000);
-  document.head.appendChild(sc);
+  // (the library, then the models — tools/models.py; without them, the pictures)
+  const load = (src, next) => { const sc = document.createElement('script'); sc.src = src; sc.onload = next; sc.onerror = src.includes('models') ? next : () => toast('3D ✖', innerWidth / 2, 80, 3000); document.head.appendChild(sc); };
+  load('js/lib/three.min.js', () => load('js/ui/models.js', () => v3Show(true)));
 }
 function v3Show(on) {
   if (on && !V3.r) v3Init();
@@ -153,14 +152,59 @@ function v3Put(P, m, col) {
 }
 let v3Tmp = {};
 // where a ground unit lies: on the slope there (the ground's normal), turned to its heading
-function v3Lay(x, y, hd, lift, w, h, ox, oy, out) {
+function v3Lay(x, y, hd, lift, w, h, ox, oy, out, sy = 1) {
   if (!v3Tmp.n) Object.assign(v3Tmp, { c: new THREE.Color(), white: new THREE.Color(1, 1, 1), n: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), q: new THREE.Quaternion(), yaw: new THREE.Quaternion(), p: new THREE.Vector3(), sc: new THREE.Vector3(), off: new THREE.Vector3(), g: new THREE.Matrix4() });
   const e = 4, hx = (Sim.elevAt(s, { x: x + e, y }) - Sim.elevAt(s, { x: x - e, y })) * V3_LV / (2 * e), hz = (Sim.elevAt(s, { x, y: y + e }) - Sim.elevAt(s, { x, y: y - e })) * V3_LV / (2 * e);
   const t = v3Tmp; t.n.set(-hx, 1, -hz).normalize();
   t.yaw.setFromAxisAngle(t.up, -hd); t.q.setFromUnitVectors(t.up, lift ? t.up : t.n).multiply(t.yaw);
   t.off.set(ox, 0, oy).applyQuaternion(t.q);
   t.p.set(x + t.off.x, Sim.elevAt(s, { x, y }) * V3_LV + 0.6 + lift + t.off.y, y + t.off.z);
-  return out.compose(t.p, t.q, t.sc.set(w, 1, h));
+  return out.compose(t.p, t.q, t.sc.set(w, sy, h));
+}
+// ---- 3D models (art/models/*.glb → MODELS, tools/models.py): a kind's hull and turret, each two meshes — its main
+// paint tinted with the side's colour (V3_TEAM of it), the rest as it is. Front +X, length 1, so scaled by V3_LEN ×
+// its size. A tank's turret turns on its pivot to where it fires; a wreck: dark. ----
+const V3_LEN = { tank: 1.75 }, V3_TEAM = 0.38;
+const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
+function v3Model(type, part, side) {
+  const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
+  const M = MODELS[type].parts[part], geo = [], sc = new THREE.Color(colors[side] || '#888888'); // (in the linear colours the light uses)
+  for (const k of ['team', 'rest']) {
+    if (!M[k]) continue;
+    const b = atob(M[k]), u8 = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i);
+    const f = new Float32Array(u8.buffer), n = f.length / 9, pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) {
+      pos[i * 3 + j] = f[i * 9 + j]; nrm[i * 3 + j] = f[i * 9 + 3 + j];
+      const c = f[i * 9 + 6 + j], s2 = j === 0 ? sc.r : j === 1 ? sc.g : sc.b;
+      col[i * 3 + j] = k === 'team' && side !== 'wreck' ? c * (1 - V3_TEAM) + s2 * V3_TEAM * 0.55 : c;
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.push(g);
+  }
+  const all = geo.length > 1 ? v3Merge(geo) : geo[0];
+  const mesh = new THREE.InstancedMesh(all, new THREE.MeshLambertMaterial({ vertexColors: true }), 64);
+  mesh.castShadow = mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
+  mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3);
+  V3.scene.add(mesh); P = { mesh, w: 1, h: 1, ox: 0, oy: 0, n: 0 }; V3.pics.set(key, P); return P;
+}
+// (two geometries of the same attributes, one after the other)
+function v3Merge(gs) {
+  const g = new THREE.BufferGeometry();
+  for (const a of ['position', 'normal', 'color']) {
+    const parts = gs.map(x => x.getAttribute(a).array), out = new Float32Array(parts.reduce((s2, x) => s2 + x.length, 0)); let o = 0;
+    for (const x of parts) { out.set(x, o); o += x.length; } g.setAttribute(a, new THREE.BufferAttribute(out, 3));
+  }
+  return g;
+}
+// a model on the ground at (x, y), its hull to hd, its turret (if any) to aim; tint: a wreck's darkness
+function v3PutModel(type, side, x, y, hd, aim, m, tint) {
+  const L = (SIZE[type] || 10) * (V3_LEN[type] || 1.6), H = v3Model(type, 'hull', side);
+  v3Put(H, v3Lay(x, y, hd, 0, L, L, 0, 0, m, L), tint);
+  const D = MODELS[type]; if (!D.parts.turret) return;
+  const t = v3Tmp, T = v3Model(type, 'turret', side), pv = D.pivot || [0, 0];
+  t.off.set(pv[0] * L, 0, pv[1] * L).applyQuaternion(t.q); t.p.set(t.p.x + t.off.x, t.p.y + t.off.y, t.p.z + t.off.z);
+  t.yaw.setFromAxisAngle(t.up, -aim); t.q.setFromUnitVectors(t.up, t.n).multiply(t.yaw);
+  v3Put(T, m.compose(t.p, t.q, t.sc.set(L, L, L)), tint);
 }
 function v3Units() {
   const m = v3Tmp.m || (v3Tmp.m = new THREE.Matrix4()), rings = [];
@@ -169,8 +213,9 @@ function v3Units() {
   for (const u of s.units) {
     if (s.fog && !((u.side === 'blue' ? whole.has(u.squad) : s.vis.blue.has(u.id)) && shownAt(u))) continue;
     const T = Sim.TYPES[u.type], lift = T.air ? V3_AIR : 0, hd = u.hd || 0;
-    const P = v3Pic(u.type, u.side); v3Put(P, v3Lay(u.x, u.y, hd, lift, P.w, P.h, 0, 0, m));
-    if (u.type === 'tank' && hasSprite('tank')) { // (the turret, turned to where it fires)
+    if (v3HasModel(u.type) && !T.air) v3PutModel(u.type, u.side, u.x, u.y, hd, s.t - u.lastFire < 3 ? u.aim : hd, m);
+    else { const P = v3Pic(u.type, u.side); v3Put(P, v3Lay(u.x, u.y, hd, lift, P.w, P.h, 0, 0, m)); }
+    if (u.type === 'tank' && hasSprite('tank') && !v3HasModel('tank')) { // (the turret, turned to where it fires)
       const R = v3Pic('turret', u.side), H = SPRITES.tank_hull, k = SIZE.tank, sc = SPRITE_LEN.tank * k / H.w;
       const aim = s.t - u.lastFire < 3 ? u.aim : hd, px = (H.px - H.w / 2) * sc, py = (H.py - H.h / 2) * sc;
       const cx = u.x + Math.cos(hd) * px - Math.sin(hd) * py, cy = u.y + Math.sin(hd) * px + Math.cos(hd) * py;
@@ -182,7 +227,9 @@ function v3Units() {
   const tint = v3Tmp.ft || (v3Tmp.ft = new THREE.Color());
   for (const f of s.fallen) {
     const age = s.t - f.t, T = Sim.TYPES[f.type]; if (age > V3_FALL || T.air || (s.fog && !shownAt(f))) continue;
-    const car = CAR.has(f.type), P = v3Pic(f.type, car ? 'wreck' : f.side), dim = tint.setScalar(car ? 0.9 - 0.4 * age / V3_FALL : 0.45);
+    const car = CAR.has(f.type), dim = tint.setScalar(car ? 0.9 - 0.4 * age / V3_FALL : 0.45);
+    if (car && v3HasModel(f.type)) { v3PutModel(f.type, 'wreck', f.x, f.y, f.hd + 0.3, f.hd + 1.2, m, tint.setScalar(0.35 - 0.15 * age / V3_FALL)); continue; }
+    const P = v3Pic(f.type, car ? 'wreck' : f.side);
     v3Put(P, v3Lay(f.x, f.y, f.hd + 0.3, 0, P.w, P.h, 0, 0, m), dim);
     if (f.type === 'tank' && hasSprite('tank')) { const R = v3Pic('turret', 'wreck'), a = f.hd + 1.2; v3Put(R, v3Lay(f.x + Math.cos(a) * R.ox, f.y + Math.sin(a) * R.ox, a, 0.4, R.w, R.h, 0, 0, m), dim); }
   }
