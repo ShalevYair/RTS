@@ -92,7 +92,7 @@ function applyView() {
   view = { scale: sc * fit.dpr, ox: cox * fit.dpr, oy: coy * fit.dpr, css: sc, cox, coy };
 }
 // the part of the world on screen (for the minimap)
-const viewRect = () => fit ? { x: (0 - view.cox) / view.css, y: (fit.top - view.coy) / view.css, w: fit.w / view.css, h: fit.h / view.css } : null;
+const viewRect = () => V3.on && V3.box ? V3.box : fit ? { x: (0 - view.cox) / view.css, y: (fit.top - view.coy) / view.css, w: fit.w / view.css, h: fit.h / view.css } : null;
 // zoom by f keeping the world point under screen point (px, py) in place
 function zoomAt(px, py, f) {
   if (V3.on) { px = fit.w / 2; py = fit.top + fit.h / 2; }

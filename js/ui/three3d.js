@@ -36,7 +36,7 @@ function v3Init() {
   V3.cam = new THREE.PerspectiveCamera(V3_FOV, 1, 2, 30000);
   // (the light: the sky all round, and the sun from the north-west, about 45° up — flat ground lit about as the flat
   // map's picture; in Three's physical units, hence the π)
-  scene.add(new THREE.HemisphereLight('#e8f0ff', '#5a6048', 0.5 * Math.PI));
+  scene.add(V3.sky = new THREE.HemisphereLight('#e8f0ff', '#5a6048', 0.5 * Math.PI));
   const sun = V3.sun = new THREE.DirectionalLight('#fff4e0', 0.72 * Math.PI);
   sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 1.5;
   scene.add(sun, sun.target);
@@ -78,12 +78,12 @@ function v3Ground() {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(new THREE.BufferAttribute(idx, 1));
   g.computeVertexNormals();
   const tex = new THREE.CanvasTexture(v3Paint()); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = V3.r.capabilities.getMaxAnisotropy();
-  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: tex }));
+  const m = new THREE.Mesh(g, v3Shaded(new THREE.MeshLambertMaterial({ map: tex }), true));
   m.castShadow = m.receiveShadow = true;
   V3.scene.add(m); V3.ground = m; V3.of = decor;
   // (round the map: plain grass to the horizon)
   if (!V3.skirt) {
-    V3.skirt = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshLambertMaterial({ color: '#5d6e45' }));
+    V3.skirt = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), v3Shaded(new THREE.MeshLambertMaterial({ color: '#5d6e45' })));
     V3.skirt.rotation.x = -Math.PI / 2; V3.skirt.position.y = -2; V3.skirt.receiveShadow = true; V3.scene.add(V3.skirt);
   }
   V3.skirt.scale.set(s.W * 8, s.H * 8, 1); V3.skirt.position.x = s.W / 2; V3.skirt.position.z = s.H / 2;
@@ -97,13 +97,13 @@ function v3Paint() {
   if (R.shadeOf !== s.elev) ovPaint(); // (its shading worked out — drawTerrain would put it back otherwise)
   const keep = [bg.x0, bg.y0, bg.w, bg.h, bg.quick], shade0 = R.shade, cont0 = R.contours, none = document.createElement('canvas');
   none.width = none.height = 0;
-  bg.x0 = 0; bg.y0 = 0; bg.w = s.W; bg.h = s.H; bg.quick = false; R.shade = { dark: none, lite: none }; R.contours = { cells: new Map(), n: 0 };
+  bg.x0 = 0; bg.y0 = 0; bg.w = s.W; bg.h = s.H; bg.quick = false; bg.noScen = v3HasScen(); R.shade = { dark: none, lite: none }; R.contours = { cells: new Map(), n: 0 };
   try {
     g.fillStyle = colors.ground; g.fillRect(0, 0, w, h); g.setTransform(k, 0, 0, k, 0, 0);
     const grass = tilePat(g, 'grass1');
     if (grass) { g.fillStyle = grass; g.fillRect(0, 0, s.W, s.H); g.globalAlpha = GROUND_TINT; g.fillStyle = colors.ground; g.fillRect(0, 0, s.W, s.H); g.globalAlpha = 1; }
     drawTerrain(g, s.W, s.H, s.W / 2);
-  } finally { [bg.x0, bg.y0, bg.w, bg.h, bg.quick] = keep; R.shade = shade0; R.contours = cont0; }
+  } finally { [bg.x0, bg.y0, bg.w, bg.h, bg.quick] = keep; bg.noScen = false; R.shade = shade0; R.contours = cont0; }
   return out;
 }
 // ---- the units ----
@@ -168,6 +168,14 @@ const V3_LEN = { tank: 1.75 }, V3_TEAM = 0.38;
 const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
   const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
+  const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), V3.vcol || (V3.vcol = new THREE.MeshLambertMaterial({ vertexColors: true })), 64);
+  mesh.castShadow = mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
+  mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3);
+  V3.scene.add(mesh); P = { mesh, w: 1, h: 1, ox: 0, oy: 0, n: 0 }; V3.pics.set(key, P); return P;
+}
+// a model's part as one geometry (its main paint mixed with the side's colour), made once
+function v3Geo(type, part, side) {
+  const key = type + ':' + part + ':' + side, G = V3.geo || (V3.geo = new Map()); if (G.has(key)) return G.get(key);
   const M = MODELS[type].parts[part], geo = [], sc = new THREE.Color(colors[side] || '#888888'); // (in the linear colours the light uses)
   for (const k of ['team', 'rest']) {
     if (!M[k]) continue;
@@ -181,11 +189,7 @@ function v3Model(type, part, side) {
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     geo.push(g);
   }
-  const all = geo.length > 1 ? v3Merge(geo) : geo[0];
-  const mesh = new THREE.InstancedMesh(all, new THREE.MeshLambertMaterial({ vertexColors: true }), 64);
-  mesh.castShadow = mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
-  mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3);
-  V3.scene.add(mesh); P = { mesh, w: 1, h: 1, ox: 0, oy: 0, n: 0 }; V3.pics.set(key, P); return P;
+  const all = geo.length > 1 ? v3Merge(geo) : geo[0]; G.set(key, all); return all;
 }
 // (two geometries of the same attributes, one after the other)
 function v3Merge(gs) {
@@ -381,6 +385,154 @@ function v3Fx() {
   }
   for (const B of Object.values(F)) { B.m.count = B.n; B.m.instanceMatrix.needsUpdate = true; B.col.needsUpdate = true; }
 }
+// ---- the scenery: the flat map's trees, bushes and stones (decor.rocks.items) and the woods' trees (ground.js), each
+// a model (Kenney's Nature Kit, CC0: art/models/tree_*, bush_*, rock_*) standing where the flat map draws it, turned
+// at random, its width the picture's (V3_SCEN_K of it); not painted on the ground then (bg.noScen). In squares of
+// V3_CHUNK, a mesh for each model in each (so what's off screen, or out of the sun's shadow box, isn't drawn), made
+// again only when something in it is cleared, run over or cut. ----
+const V3_SCEN = {
+  tree: ['tree_oak', 'tree_default', 'tree_detailed', 'tree_fat', 'tree_pineRoundB'],
+  bush: ['bush_a', 'bush_b'], rock: ['rock_smallC', 'rock_largeA'], rockHi: ['rock_largeA', 'rock_tallB', 'rock_smallC'],
+};
+const V3_SCEN_K = { tree: 0.8, bush: 1.1, rock: 0.9 }, V3_TREE_H = 0.75, V3_CHUNK = 512;
+const v3HasScen = () => typeof MODELS === 'object' && V3_SCEN.tree.every(k => MODELS[k]);
+// (what stands in a square: [model, x, y, turn, width])
+function v3ScenList(ci, cj) {
+  const out = [], x0 = ci * V3_CHUNK, y0 = cj * V3_CHUNK, x1 = x0 + V3_CHUNK, y1 = y0 + V3_CHUNK;
+  const pick = (L, v) => L[v % L.length];
+  for (const it of V3.sc.cells.get(ci + ',' + cj) || []) {
+    if (it.gone) continue;
+    const L = it.t === 'rock' ? (it.hi && it.s >= 10 / WORLD_K ? V3_SCEN.rockHi : V3_SCEN.rock) : V3_SCEN[it.t];
+    out.push([pick(L, it.v), it.x, it.y, (it.v % 628) / 100, it.s * V3_SCEN_K[it.t]]);
+  }
+  const G = s.ground; if (!G) return out;
+  const C = G.C, n = gfxLow ? 1 : GRD_TREES;
+  for (let j = Math.floor(y0 / C); j < Math.min(G.h, Math.ceil(y1 / C)); j++) for (let i = Math.floor(x0 / C); i < Math.min(G.w, Math.ceil(x1 / C)); i++) {
+    const k = j * G.w + i; if (G.k[k] !== Sim.GR_WOOD) continue;
+    for (let q = 0; q < n; q++) {
+      const x = i * C + grdRand(k, 4 + q) * C, y = j * C + grdRand(k, 8 + q) * C, w = GRD_TREE[0] + grdRand(k, 12 + q) * (GRD_TREE[1] - GRD_TREE[0]);
+      out.push([V3_SCEN.tree[Math.floor(grdRand(k, 16 + q) * V3_SCEN.tree.length)], x, y, grdRand(k, 20 + q) * 6.28, w * V3_SCEN_K.tree]);
+    }
+  }
+  return out;
+}
+function v3ScenChunk(key) {
+  const sc = V3.sc, old = sc.chunks.get(key); if (old) for (const m of old) { V3.scene.remove(m); m.dispose(); }
+  const [ci, cj] = key.split(',').map(Number), by = new Map(), o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), list = [], tint = v3Tmp.tint || (v3Tmp.tint = new THREE.Color());
+  for (const e of v3ScenList(ci, cj)) { let l = by.get(e[0]); if (!l) by.set(e[0], l = []); l.push(e); }
+  for (const [model, l] of by) {
+    const mesh = new THREE.InstancedMesh(v3Geo(model, 'hull', 'scen'), V3.scenMat || (V3.scenMat = v3Shaded(new THREE.MeshLambertMaterial({ vertexColors: true }))), l.length);
+    l.forEach(([, x, y, a, w], i) => {
+      const tall = model.startsWith('tree') ? V3_TREE_H : 1;
+      o.position.set(x, v3Gnd(x, y) - w * 0.03, y); o.rotation.set(0, a, 0); o.scale.set(w, w * tall, w); o.updateMatrix(); mesh.setMatrixAt(i, o.matrix);
+      mesh.setColorAt(i, tint.setScalar(0.82 + (Math.abs(Math.round(x * 7.1 + y * 13.7)) % 31) / 30 * 0.3)); // (each a little lighter or darker)
+    });
+    mesh.castShadow = mesh.receiveShadow = true; mesh.computeBoundingSphere(); V3.scene.add(mesh); list.push(mesh);
+  }
+  sc.chunks.set(key, list);
+}
+function v3Scenery() {
+  if (!v3HasScen()) return;
+  let sc = V3.sc;
+  if (!sc || sc.of !== decor || sc.low !== gfxLow) { // (a new map: all of it, its squares made a few a frame)
+    if (sc) for (const l of sc.chunks.values()) for (const m of l) { V3.scene.remove(m); m.dispose(); }
+    const cells = new Map();
+    for (const it of decor.rocks.items) { const k = Math.floor(it.x / V3_CHUNK) + ',' + Math.floor(it.y / V3_CHUNK); let l = cells.get(k); if (!l) cells.set(k, l = []); l.push(it); }
+    sc = V3.sc = { of: decor, low: gfxLow, cells, chunks: new Map(), todo: new Set(), dead: scen.of === decor && scen.dead ? scen.dead.length : 0, cut: s.ground ? s.ground.cut.length : 0 };
+    for (let i = 0; i * V3_CHUNK < s.W; i++) for (let j = 0; j * V3_CHUNK < s.H; j++) sc.todo.add(i + ',' + j);
+  }
+  // (cleared or run over since: scenKill; woods cut: s.ground.cut — their squares made again)
+  const sq = (x, y) => Math.floor(x / V3_CHUNK) + ',' + Math.floor(y / V3_CHUNK);
+  if (scen.dead && scen.of === decor) for (; sc.dead < scen.dead.length; sc.dead++) { const it = scen.dead[sc.dead]; sc.todo.add(sq(it.x, it.y)); }
+  const G = s.ground; if (G) for (; sc.cut < G.cut.length; sc.cut++) { const k = G.cut[sc.cut]; sc.todo.add(sq((k % G.w + 0.5) * G.C, (Math.floor(k / G.w) + 0.5) * G.C)); }
+  // (the ones nearest the camera first; at most a few ms a frame)
+  if (!sc.todo.size) return;
+  const t0 = performance.now(), near = [...sc.todo].map(k => { const [i, j] = k.split(',').map(Number); return [k, Math.hypot((i + 0.5) * V3_CHUNK - cam.x, (j + 0.5) * V3_CHUNK - cam.y)]; }).sort((a, b) => a[1] - b[1]);
+  for (const [k] of near) { v3ScenChunk(k); sc.todo.delete(k); if (performance.now() - t0 > 6) break; }
+}
+// ---- fog of war and night, as the flat map's: two pictures of the whole map (V3_SHADE world units a pixel) — where
+// the fog lies (fogHoles cut out of it) and where it's dark (nightLights cut out) — laid over the ground and the
+// scenery in their shader (v3Shaded: the colour mixed toward the fog's and the night's blue, a warm glow where lit).
+// Units and buildings over it, as on the flat map. Made again every V3_SHADE_MS. The sun and the sky dim at night. ----
+const V3_SHADE = 8, V3_SHADE_MS = 60, V3_GLOW = 0.18;
+const V3U = { v3Fog: { value: null }, v3Dark: { value: null }, v3Size: { value: null }, v3FogCol: { value: null }, v3Night: { value: 0 }, v3Lit: { value: 0 }, v3Deco: { value: null }, v3DecoBox: { value: null } };
+function v3Shaded(mat, deco) {
+  if (deco) mat.defines = { V3_DECO: 1 }; // (the ground: what's drawn on it too, v3Deco)
+  mat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, V3U);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vV3;').replace('#include <project_vertex>', `#include <project_vertex>
+      vec4 v3w = vec4(transformed, 1.0);
+      #ifdef USE_INSTANCING
+        v3w = instanceMatrix * v3w;
+      #endif
+      vV3 = (modelMatrix * v3w).xz;`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      varying vec2 vV3; uniform sampler2D v3Fog; uniform sampler2D v3Dark; uniform vec2 v3Size; uniform vec4 v3FogCol; uniform float v3Night; uniform float v3Lit; uniform sampler2D v3Deco; uniform vec4 v3DecoBox;`)
+      .replace('#include <fog_fragment>', `vec2 v3uv = vec2(vV3.x / v3Size.x, 1.0 - vV3.y / v3Size.y);
+      if (v3Night > 0.0) { float d = texture2D(v3Dark, v3uv).a; gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.031, 0.055, 0.157), d * v3Night) + vec3(1.0, 0.67, 0.31) * (1.0 - d) * v3Lit; }
+      if (v3FogCol.w > 0.0) gl_FragColor.rgb = mix(gl_FragColor.rgb, v3FogCol.rgb, texture2D(v3Fog, v3uv).a * v3FogCol.w);
+      #ifdef V3_DECO
+        vec2 v3du = (vV3 - v3DecoBox.xy) / v3DecoBox.zw;
+        if (v3du.x > 0.0 && v3du.x < 1.0 && v3du.y > 0.0 && v3du.y < 1.0) { vec4 dc = texture2D(v3Deco, vec2(v3du.x, 1.0 - v3du.y)); gl_FragColor.rgb = mix(gl_FragColor.rgb, dc.rgb, dc.a); }
+      #endif
+      #include <fog_fragment>`);
+  };
+  mat.customProgramCacheKey = () => 'v3shade' + (deco ? 'd' : ''); return mat;
+}
+function v3ShadeInit() {
+  const mk = () => { const c = document.createElement('canvas'), t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; return { c, g: c.getContext('2d'), t }; };
+  V3.fogP = mk(); V3.darkP = mk(); V3U.v3Fog.value = V3.fogP.t; V3U.v3Dark.value = V3.darkP.t;
+  V3U.v3Size.value = new THREE.Vector2(1, 1); V3U.v3FogCol.value = new THREE.Vector4(0, 0, 0, 0);
+}
+// (a picture the map's size, cleared to full and cut where f says)
+function v3ShadePic(P, f) {
+  const w = Math.ceil(s.W / V3_SHADE), h = Math.ceil(s.H / V3_SHADE);
+  if (P.c.width !== w || P.c.height !== h) { P.c.width = w; P.c.height = h; P.t.dispose(); P.t.image = P.c; }
+  const g = P.g; g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+  g.setTransform(1 / V3_SHADE, 0, 0, 1 / V3_SHADE, 0, 0); g.globalCompositeOperation = 'destination-out'; f(g);
+  P.t.needsUpdate = true;
+}
+function v3Shade() {
+  if (!V3.fogP) v3ShadeInit();
+  const k = Sim.nightAt(s) || 0, now = performance.now();
+  // (the night: the dark NIGHT_DARK of it, the sun and the sky down with it)
+  V3U.v3Night.value = NIGHT_DARK * k; V3U.v3Lit.value = V3_GLOW * k * 0.5;
+  V3.sun.intensity = 0.72 * Math.PI * (1 - 0.7 * k); V3.sky.intensity = 0.5 * Math.PI * (1 - 0.45 * k);
+  // (the fog: its colour and how thick, fading in at the start as on the flat map)
+  const fc = V3U.v3FogCol.value;
+  if (s.fog) { const m = colors.fog.match(/[\d.]+/g) || [0, 0, 0, 0.5]; fc.set(m[0] / 255, m[1] / 255, m[2] / 255, (m[3] !== undefined ? +m[3] : 1) * (s.fogAt ? Math.min(1, (s.t - s.fogAt) / 3) : 1)); }
+  else fc.w = 0;
+  V3U.v3Size.value.set(s.W, s.H);
+  if (now - (V3.shadeAt || 0) < V3_SHADE_MS) return; V3.shadeAt = now;
+  if (s.fog) v3ShadePic(V3.fogP, fogHoles);
+  if (k) v3ShadePic(V3.darkP, g => { for (const [x, y, r, a] of nightLights()) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); } });
+}
+// ---- what the flat map draws on the ground — where we may build and the building at the cursor, the control map,
+// the enemy as we know it, the bulldozers' jobs, the roads being laid, the squads out of the exact picture, the front,
+// what's picked (its rally line), the pings — drawn by the same functions onto a picture of what's on screen (V3.box:
+// the world under the screen's corners), laid on the ground in its shader over the fog and the night (V3_DECO). ----
+const V3_DECO = 1536;
+function v3DecoBox() {
+  const w = V3.w || 1, h = V3.h || 1, P = [[0, 0], [w, 0], [0, h], [w, h], [w / 2, 0]].map(([x, y]) => v3World(x, y));
+  const M = 60, x0 = Math.max(-M, Math.min(...P.map(p => p.x)) - M), x1 = Math.min(s.W + M, Math.max(...P.map(p => p.x)) + M);
+  const y0 = Math.max(-M, Math.min(...P.map(p => p.y)) - M), y1 = Math.min(s.H + M, Math.max(...P.map(p => p.y)) + M);
+  return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+}
+function v3Deco() {
+  if (!V3.deco) {
+    const c = document.createElement('canvas'); c.width = c.height = V3_DECO;
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
+    V3.deco = { c, g: c.getContext('2d'), t }; V3U.v3Deco.value = t; V3U.v3DecoBox.value = new THREE.Vector4(0, 0, 1, 1);
+  }
+  const D = V3.deco, g = D.g, B = V3.box = v3DecoBox(), kx = V3_DECO / B.w, ky = V3_DECO / B.h;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, V3_DECO, V3_DECO);
+  g.setTransform(kx, 0, 0, ky, -B.x * kx, -B.y * ky);
+  if (s.fog) { if (Sim.friction(s)) drawQuality(g); drawEnemyIntel(g); drawMarks(g); }
+  drawDozerJobs(g); drawBuildArea(g);
+  for (const q of s.squads) if (q.side === 'blue' && !q.dead && !sqShown(q)) drawGuess(g, q, guessAt(q), isSel(q.id));
+  drawFront(g); drawPicked(g); drawPings(g);
+  V3U.v3DecoBox.value.set(B.x, B.y, B.w, B.h); D.t.needsUpdate = true;
+}
 // every frame, instead of the flat map
 function v3Draw() {
   if (V3.of !== decor) { v3Ground(); for (const P of V3.pics.values()) { V3.scene.remove(P.mesh); P.mesh.dispose(); } V3.pics.clear(); }
@@ -396,8 +548,9 @@ function v3Draw() {
   const sun = V3.sun, half = Math.max(400, vw * 0.9), sc = sun.shadow.camera;
   sun.target.position.set(cam.x, ty, cam.y - vw * 0.15); sun.position.set(cam.x - 1500, ty + 2100, cam.y - vw * 0.15 - 1500);
   if (sc.right !== half) { sc.left = sc.bottom = -half; sc.right = sc.top = half; sc.near = 10; sc.far = 6000; sc.updateProjectionMatrix(); }
+  sceneryTick(); groundTick(); // (as the flat map's frame: what's cleared, run over, cut)
   for (const P of V3.pics.values()) P.n = 0;
-  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx();
+  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Shade(); v3Deco();
   for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; P.mesh.instanceColor.needsUpdate = true; }
   r.render(V3.scene, V3.cam);
 }
