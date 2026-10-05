@@ -883,10 +883,10 @@ function drawBuildArea(c) {
   if (hqArmed) {
     const [a, b] = Sim.hqBand(s, 'blue'); c.fillStyle = 'rgba(80,200,90,.16)'; c.fillRect(a, 30, b - a, s.H - 60);
     c.strokeStyle = 'rgba(60,170,70,.7)'; c.lineWidth = 1.5; c.setLineDash([6, 5]); c.strokeRect(a, 30, b - a, s.H - 60); c.setLineDash([]);
-    if (mouseAt) { const r = cv.getBoundingClientRect(), w = { x: (mouseAt.x - r.left - view.cox) / view.css, y: (mouseAt.y - r.top - view.coy) / view.css }; c.globalAlpha = Sim.hqCheck(s, 'blue', w.x, w.y) ? 0.25 : 0.7; drawBuilding(c, 'hq', colors.blue, w.x, w.y, HQ_PX); c.globalAlpha = 1; }
+    if (mouseAt) { const r = cv.getBoundingClientRect(), w = scrToWorld(mouseAt.x - r.left, mouseAt.y - r.top); c.globalAlpha = Sim.hqCheck(s, 'blue', w.x, w.y) ? 0.25 : 0.7; drawBuilding(c, 'hq', colors.blue, w.x, w.y, HQ_PX); c.globalAlpha = 1; }
   }
   if (fhqArmed && mouseAt) {
-    const r = cv.getBoundingClientRect(), w = { x: (mouseAt.x - r.left - view.cox) / view.css, y: (mouseAt.y - r.top - view.coy) / view.css };
+    const r = cv.getBoundingClientRect(), w = scrToWorld(mouseAt.x - r.left, mouseAt.y - r.top);
     c.fillStyle = 'rgba(80,200,90,.16)'; c.strokeStyle = 'rgba(60,170,70,.7)'; c.lineWidth = 1.5; c.setLineDash([6, 5]);
     ring(w.x, w.y, FHQ_BUILD_R); c.fill(); c.stroke(); c.setLineDash([]);
     c.globalAlpha = Sim.fhqCheck(s, w.x, w.y) ? 0.25 : 0.7; drawBuilding(c, 'fhq', colors.blue, w.x, w.y, pxOf('fhq')); c.globalAlpha = 1;
@@ -895,7 +895,7 @@ function drawBuildArea(c) {
   if (!buildArmed) return;
   drawBuildZone(c);
   // (the building at the pointer, in its size: faint where it can't go)
-  if (mouseAt) { const r = cv.getBoundingClientRect(), w = { x: (mouseAt.x - r.left - view.cox) / view.css, y: (mouseAt.y - r.top - view.coy) / view.css }; c.globalAlpha = Sim.buildCheck(s, 'blue', w.x, w.y, buildArmed) ? 0.25 : 0.7; drawBuilding(c, buildArmed, colors.blue, w.x, w.y, pxOf(buildArmed)); c.globalAlpha = 1; }
+  if (mouseAt) { const r = cv.getBoundingClientRect(), w = scrToWorld(mouseAt.x - r.left, mouseAt.y - r.top); c.globalAlpha = Sim.buildCheck(s, 'blue', w.x, w.y, buildArmed) ? 0.25 : 0.7; drawBuilding(c, buildArmed, colors.blue, w.x, w.y, pxOf(buildArmed)); c.globalAlpha = 1; }
 }
 // where the armed building may go: a soft green wash. The screen's part of the map in BZ_CELLS cells across (finer
 // than before: zoomed in on a phone, 20-unit squares were big blocks), one pixel each, drawn scaled up smoothly — soft
@@ -904,7 +904,7 @@ const BZ_CELLS = 90, BZ_EVERY = 3, bz = { cv: document.createElement('canvas'), 
 function drawBuildZone(c) {
   // (the whole canvas, not only viewRect: on a phone held upright the map shows above and below that part too)
   const cw = cv.width / (fit ? fit.dpr : 1), ch = cv.height / (fit ? fit.dpr : 1);
-  const v = fit ? { x: -view.cox / view.css, y: -view.coy / view.css, w: cw / view.css, h: ch / view.css } : { x: 0, y: 0, w: s.W, h: s.H }, G = Math.max(6, Math.ceil(v.w / BZ_CELLS));
+  const v = V3.on && V3.box ? V3.box : fit ? { x: -view.cox / view.css, y: -view.coy / view.css, w: cw / view.css, h: ch / view.css } : { x: 0, y: 0, w: s.W, h: s.H }, G = Math.max(6, Math.ceil(v.w / BZ_CELLS));
   const x0 = Math.max(0, Math.floor(v.x / G) - 1), y0 = Math.max(0, Math.floor(v.y / G) - 1);
   const x1 = Math.min(Math.ceil(s.W / G), Math.ceil((v.x + v.w) / G) + 1), y1 = Math.min(Math.ceil(s.H / G), Math.ceil((v.y + v.h) / G) + 1);
   const w = Math.max(1, x1 - x0), h = Math.max(1, y1 - y0);

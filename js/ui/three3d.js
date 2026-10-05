@@ -78,7 +78,7 @@ function v3Ground() {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(new THREE.BufferAttribute(idx, 1));
   g.computeVertexNormals();
   const tex = new THREE.CanvasTexture(v3Paint()); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = V3.r.capabilities.getMaxAnisotropy();
-  const m = new THREE.Mesh(g, v3Shaded(new THREE.MeshLambertMaterial({ map: tex })));
+  const m = new THREE.Mesh(g, v3Shaded(new THREE.MeshLambertMaterial({ map: tex }), true));
   m.castShadow = m.receiveShadow = true;
   V3.scene.add(m); V3.ground = m; V3.of = decor;
   // (round the map: plain grass to the horizon)
@@ -455,8 +455,9 @@ function v3Scenery() {
 // scenery in their shader (v3Shaded: the colour mixed toward the fog's and the night's blue, a warm glow where lit).
 // Units and buildings over it, as on the flat map. Made again every V3_SHADE_MS. The sun and the sky dim at night. ----
 const V3_SHADE = 8, V3_SHADE_MS = 60, V3_GLOW = 0.18;
-const V3U = { v3Fog: { value: null }, v3Dark: { value: null }, v3Size: { value: null }, v3FogCol: { value: null }, v3Night: { value: 0 }, v3Lit: { value: 0 } };
-function v3Shaded(mat) {
+const V3U = { v3Fog: { value: null }, v3Dark: { value: null }, v3Size: { value: null }, v3FogCol: { value: null }, v3Night: { value: 0 }, v3Lit: { value: 0 }, v3Deco: { value: null }, v3DecoBox: { value: null } };
+function v3Shaded(mat, deco) {
+  if (deco) mat.defines = { V3_DECO: 1 }; // (the ground: what's drawn on it too, v3Deco)
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, V3U);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vV3;').replace('#include <project_vertex>', `#include <project_vertex>
@@ -466,13 +467,17 @@ function v3Shaded(mat) {
       #endif
       vV3 = (modelMatrix * v3w).xz;`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      varying vec2 vV3; uniform sampler2D v3Fog; uniform sampler2D v3Dark; uniform vec2 v3Size; uniform vec4 v3FogCol; uniform float v3Night; uniform float v3Lit;`)
+      varying vec2 vV3; uniform sampler2D v3Fog; uniform sampler2D v3Dark; uniform vec2 v3Size; uniform vec4 v3FogCol; uniform float v3Night; uniform float v3Lit; uniform sampler2D v3Deco; uniform vec4 v3DecoBox;`)
       .replace('#include <fog_fragment>', `vec2 v3uv = vec2(vV3.x / v3Size.x, 1.0 - vV3.y / v3Size.y);
       if (v3Night > 0.0) { float d = texture2D(v3Dark, v3uv).a; gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.031, 0.055, 0.157), d * v3Night) + vec3(1.0, 0.67, 0.31) * (1.0 - d) * v3Lit; }
       if (v3FogCol.w > 0.0) gl_FragColor.rgb = mix(gl_FragColor.rgb, v3FogCol.rgb, texture2D(v3Fog, v3uv).a * v3FogCol.w);
+      #ifdef V3_DECO
+        vec2 v3du = (vV3 - v3DecoBox.xy) / v3DecoBox.zw;
+        if (v3du.x > 0.0 && v3du.x < 1.0 && v3du.y > 0.0 && v3du.y < 1.0) { vec4 dc = texture2D(v3Deco, vec2(v3du.x, 1.0 - v3du.y)); gl_FragColor.rgb = mix(gl_FragColor.rgb, dc.rgb, dc.a); }
+      #endif
       #include <fog_fragment>`);
   };
-  mat.customProgramCacheKey = () => 'v3shade'; return mat;
+  mat.customProgramCacheKey = () => 'v3shade' + (deco ? 'd' : ''); return mat;
 }
 function v3ShadeInit() {
   const mk = () => { const c = document.createElement('canvas'), t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; return { c, g: c.getContext('2d'), t }; };
@@ -502,6 +507,32 @@ function v3Shade() {
   if (s.fog) v3ShadePic(V3.fogP, fogHoles);
   if (k) v3ShadePic(V3.darkP, g => { for (const [x, y, r, a] of nightLights()) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); } });
 }
+// ---- what the flat map draws on the ground — where we may build and the building at the cursor, the control map,
+// the enemy as we know it, the bulldozers' jobs, the roads being laid, the squads out of the exact picture, the front,
+// what's picked (its rally line), the pings — drawn by the same functions onto a picture of what's on screen (V3.box:
+// the world under the screen's corners), laid on the ground in its shader over the fog and the night (V3_DECO). ----
+const V3_DECO = 1536;
+function v3DecoBox() {
+  const w = V3.w || 1, h = V3.h || 1, P = [[0, 0], [w, 0], [0, h], [w, h], [w / 2, 0]].map(([x, y]) => v3World(x, y));
+  const M = 60, x0 = Math.max(-M, Math.min(...P.map(p => p.x)) - M), x1 = Math.min(s.W + M, Math.max(...P.map(p => p.x)) + M);
+  const y0 = Math.max(-M, Math.min(...P.map(p => p.y)) - M), y1 = Math.min(s.H + M, Math.max(...P.map(p => p.y)) + M);
+  return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+}
+function v3Deco() {
+  if (!V3.deco) {
+    const c = document.createElement('canvas'); c.width = c.height = V3_DECO;
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
+    V3.deco = { c, g: c.getContext('2d'), t }; V3U.v3Deco.value = t; V3U.v3DecoBox.value = new THREE.Vector4(0, 0, 1, 1);
+  }
+  const D = V3.deco, g = D.g, B = V3.box = v3DecoBox(), kx = V3_DECO / B.w, ky = V3_DECO / B.h;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, V3_DECO, V3_DECO);
+  g.setTransform(kx, 0, 0, ky, -B.x * kx, -B.y * ky);
+  if (s.fog) { if (Sim.friction(s)) drawQuality(g); drawEnemyIntel(g); drawMarks(g); }
+  drawDozerJobs(g); drawBuildArea(g);
+  for (const q of s.squads) if (q.side === 'blue' && !q.dead && !sqShown(q)) drawGuess(g, q, guessAt(q), isSel(q.id));
+  drawFront(g); drawPicked(g); drawPings(g);
+  V3U.v3DecoBox.value.set(B.x, B.y, B.w, B.h); D.t.needsUpdate = true;
+}
 // every frame, instead of the flat map
 function v3Draw() {
   if (V3.of !== decor) { v3Ground(); for (const P of V3.pics.values()) { V3.scene.remove(P.mesh); P.mesh.dispose(); } V3.pics.clear(); }
@@ -519,7 +550,7 @@ function v3Draw() {
   if (sc.right !== half) { sc.left = sc.bottom = -half; sc.right = sc.top = half; sc.near = 10; sc.far = 6000; sc.updateProjectionMatrix(); }
   sceneryTick(); groundTick(); // (as the flat map's frame: what's cleared, run over, cut)
   for (const P of V3.pics.values()) P.n = 0;
-  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Shade();
+  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Shade(); v3Deco();
   for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; P.mesh.instanceColor.needsUpdate = true; }
   r.render(V3.scene, V3.cam);
 }

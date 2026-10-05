@@ -34,7 +34,7 @@ function drawRoadPlans(c) {
     c.globalAlpha = 1;
   }
   if (!roadArmed || !mouseAt) return;
-  const rc = cv.getBoundingClientRect(), w = { x: (mouseAt.x - rc.left - view.cox) / view.css, y: (mouseAt.y - rc.top - view.coy) / view.css };
+  const rc = cv.getBoundingClientRect(), w = scrToWorld(mouseAt.x - rc.left, mouseAt.y - rc.top);
   if (!roadFrom) { c.globalAlpha = 0.7; c.fillStyle = 'rgba(60,170,70,.8)'; c.beginPath(); c.arc(w.x, w.y, 5, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; return; }
   const ok = !Sim.roadCheck(s, 'blue', roadFrom, w);
   c.globalAlpha = 0.75; c.strokeStyle = ok ? 'rgba(60,170,70,.9)' : 'rgba(210,60,50,.9)'; c.lineWidth = Math.max(3, (G ? G.C : 16) * 0.8);
