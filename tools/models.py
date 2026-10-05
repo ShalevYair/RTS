@@ -21,6 +21,12 @@ SRC, OUT = os.path.join(ROOT, 'art', 'models'), os.path.join(ROOT, 'js', 'ui', '
 FRONT = {}
 TEAM = ('main', 'main_light', 'body', 'paint')  # materials painted in the side's colour
 TURRET = ('turret', 'gun', 'barrel', 'cannon')
+# materials painted again (sRGB): the Nature Kit's teal leaves and orange bark, in the map's own greens and browns
+RECOLOR = {'leafsgreen': '#5a8a32', 'leafsdark': '#3f6a2c', 'grass': '#6c8c3a', 'woodbark': '#6e4c30', 'woodbarkdark': '#4f3a26',
+           'dirt': '#8c8476', 'stone': '#8e8b85'}
+def linear(h):
+    c = np.array([int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)])
+    return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
 
 COMP = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
 NCOMP = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}
@@ -73,6 +79,7 @@ def bake(path):
                 idx = accessor(J, B, p['indices']).astype(int).ravel() if 'indices' in p else np.arange(len(pos))
                 m = mats[p['material']] if 'material' in p else {}
                 base = np.array((m.get('pbrMetallicRoughness') or {}).get('baseColorFactor', [0.6, 0.6, 0.6, 1])[:3])
+                if (m.get('name') or '').lower() in RECOLOR: base = linear(RECOLOR[m['name'].lower()])
                 col = np.tile(base, (len(pos), 1))
                 if 'COLOR_0' in at: col = col * accessor(J, B, at['COLOR_0'])[:, :3]
                 P4 = np.c_[pos, np.ones(len(pos))] @ M.T; N = nrm @ np.linalg.inv(M[:3, :3]).T

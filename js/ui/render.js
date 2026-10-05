@@ -656,6 +656,11 @@ function drawFog() {
   f.setTransform(view.scale * FOG_RES, 0, 0, view.scale * FOG_RES, view.ox * FOG_RES, view.oy * FOG_RES);
   f.fillStyle = colors.fog; f.fillRect(0, 0, s.W, s.H);
   f.globalCompositeOperation = 'destination-out'; f.fillStyle = '#000';
+  fogHoles(f);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = s.fogAt ? Math.min(1, (s.t - s.fogAt) / 3) : 1; ctx.drawImage(fogCv, 0, 0, cv.width, cv.height); ctx.restore();
+}
+// (what we see, cut out of the fog on f — in world units: the flat map's layer and the 3D view's, three3d.js)
+function fogHoles(f) {
   const hole = (x, y, r) => {
     const g = f.createRadialGradient(x, y, r * 0.75, x, y, r);
     g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -668,7 +673,6 @@ function drawFog() {
   for (const n of s.nodes) if (n.side === 'blue' && s.t >= n.ready) hole(n.x, n.y, (n.kind === 'drone' ? Sim.DRONE_SIGHT + 15 : n.kind === 'fhq' ? Sim.NODES.fhq.sight : n.kind === 'hq' ? Sim.STRUCTS.hq.sight + 20 : 170) * sk);
   // (and our posts: an observation tower far)
   for (const p of s.posts || []) if (p.side === 'blue') hole(p.x, p.y, (p.kind === 'tower' ? Sim.TOWER_SIGHT : Sim.POST_SIGHT) * sk);
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = s.fogAt ? Math.min(1, (s.t - s.fogAt) / 3) : 1; ctx.drawImage(fogCv, 0, 0, cv.width, cv.height); ctx.restore();
 }
 
 // enemy as blobs of uncertainty: tight when just seen, spreading and fading with the age of the sighting

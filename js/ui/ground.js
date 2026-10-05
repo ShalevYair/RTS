@@ -83,7 +83,7 @@ function drawGroundHard(c) {
   for (const k of near) {
     const v = G.k[k], x0 = (k % G.w) * C, y0 = Math.floor(k / G.w) * C;
     if (v === Sim.GR_CUT) { c.fillStyle = '#4a3a26'; for (let i = 0; i < 2; i++) { c.beginPath(); c.arc(x0 + grdRand(k, 20 + i) * C, y0 + grdRand(k, 30 + i) * C, 1.4, 0, Math.PI * 2); c.fill(); } continue; }
-    if (v !== Sim.GR_WOOD) continue;
+    if (v !== Sim.GR_WOOD || bg.noScen) continue; // (the 3D view: its own trees there)
     for (let i = 0; i < n; i++) {
       const x = x0 + grdRand(k, 4 + i) * C, y = y0 + grdRand(k, 8 + i) * C, w = GRD_TREE[0] + grdRand(k, 12 + i) * (GRD_TREE[1] - GRD_TREE[0]);
       const im = trees.length ? trees[Math.floor(grdRand(k, 16 + i) * trees.length)] : null;

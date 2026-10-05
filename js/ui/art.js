@@ -281,6 +281,16 @@ function drawNightLit(c) {
   g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, nightCv.width, nightCv.height);
   g.fillStyle = `rgba(8,14,40,${(NIGHT_DARK * k).toFixed(3)})`; g.fillRect(0, 0, nightCv.width, nightCv.height);
   g.setTransform(view.scale * NIGHT_RES, 0, 0, view.scale * NIGHT_RES, view.ox * NIGHT_RES, view.oy * NIGHT_RES); g.globalCompositeOperation = 'destination-out';
+  const lights = nightLights();
+  for (const [x, y, r, a] of lights) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(nightCv, 0, 0, cv.width, cv.height); c.restore();
+  // and a warm glow over the lit spots
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (const [x, y, r, a] of lights) { const gr = c.createRadialGradient(x, y, 0, x, y, r * 0.6); gr.addColorStop(0, `rgba(255,170,80,${0.18 * a * k})`); gr.addColorStop(1, 'rgba(255,150,60,0)'); c.fillStyle = gr; ring(x, y, r * 0.6); c.fill(); }
+  c.restore();
+}
+// (what's lit at night: [x, y, r, how much] — the flat map's and the 3D view's, three3d.js)
+function nightLights() {
   const lights = [];
   for (const n of s.nodes) if (n.kind !== 'drone' && nodeShown(n) && s.t >= n.ready) lights.push([n.x, n.y, Sim.STRUCTS[n.kind].r * 2.5 + 20, 0.8]);
   // (a blast lights its surroundings softly — no flash of the whole screen)
@@ -288,12 +298,7 @@ function drawNightLit(c) {
   // (our own units carry a little light: vehicles more than soldiers)
   for (const u of s.units) if (u.side === 'blue' && !Sim.TYPES[u.type].air && (!s.fog || shownAt(u))) lights.push([u.x, u.y, CAR.has(u.type) ? 28 : 16, 0.5]);
   for (const f of s.fallen) if (CAR.has(f.type) && s.t - f.t < 10 && (!s.fog || shownAt(f))) lights.push([f.x, f.y, 34, 0.7 * (1 - (s.t - f.t) / 10)]);
-  for (const [x, y, r, a] of lights) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
-  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(nightCv, 0, 0, cv.width, cv.height); c.restore();
-  // and a warm glow over the lit spots
-  c.save(); c.globalCompositeOperation = 'lighter';
-  for (const [x, y, r, a] of lights) { const gr = c.createRadialGradient(x, y, 0, x, y, r * 0.6); gr.addColorStop(0, `rgba(255,170,80,${0.18 * a * k})`); gr.addColorStop(1, 'rgba(255,150,60,0)'); c.fillStyle = gr; ring(x, y, r * 0.6); c.fill(); }
-  c.restore();
+  return lights;
 }
 
 // ---- water: slow ripples moving over each lake on screen, and foam along its shore ----
@@ -498,6 +503,7 @@ function scenCells() {
   scenBig.of = decor; scenBig.cells = G; scenBig.maxS = maxS; return scenBig;
 }
 function drawScenery(c) {
+  if (bg.noScen) return true; // (the 3D view's ground: the models stand there instead)
   // (a picture's weight, 4 unless SCENERY_WEIGHT says)
   const pics = t => Object.keys(sprite.img).filter(k => k.startsWith('d_' + t)).sort().flatMap(k => Array(SCENERY_WEIGHT[k] ?? 4).fill(sprite.img[k]));
   const P = { tree: pics('tree'), bush: pics('bush'), rock: pics('rock') };
@@ -583,7 +589,7 @@ function scenGrid() {
   if (scen.of === decor) return scen.grid;
   const G = new Map();
   for (const it of decor.rocks.items) { const k = Math.floor(it.x / SCEN_CELL) + ',' + Math.floor(it.y / SCEN_CELL); let l = G.get(k); if (!l) G.set(k, l = []); l.push(it); }
-  scen.grid = G; scen.of = decor; scen.gone = []; scen.redo = []; scen.seen = new Set(); return G;
+  scen.grid = G; scen.of = decor; scen.dead = []; scen.gone = []; scen.redo = []; scen.seen = new Set(); return G;
 }
 function scenNear(x, y, r, f) {
   const G = scenGrid();
@@ -591,7 +597,8 @@ function scenNear(x, y, r, f) {
     const l = G.get(i + ',' + j); if (l) for (const it of l) if (!it.gone && Math.hypot(it.x - x, it.y - y) < r) f(it);
   }
 }
-function scenKill(it) { it.gone = performance.now(); if (it.im) scen.gone.push(it); scen.redo.push(it); }
+// (dead: every one so far, for the 3D view)
+function scenKill(it) { it.gone = performance.now(); scen.dead.push(it); if (it.im) scen.gone.push(it); scen.redo.push(it); }
 // every few frames: new buildings clear their ground; tanks crush what they drive over (only with the pictures in)
 function sceneryTick() {
   if (!decor || !sprite.img.d_tree1) return;
