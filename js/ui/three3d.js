@@ -177,6 +177,10 @@ function v3Model(type, part, side) {
 function v3Geo(type, part, side) {
   const key = type + ':' + part + ':' + side, G = V3.geo || (V3.geo = new Map()); if (G.has(key)) return G.get(key);
   const M = MODELS[type].parts[part], geo = [], sc = new THREE.Color(colors[side] || '#888888'); // (in the linear colours the light uses)
+  if (M.pos) { // (a track's later pose: only its points — the first pose's normals and colours)
+    const b = atob(M.pos), u8 = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i);
+    const g = v3Geo(type, part.replace(/\d+$/, '0'), side).clone(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(u8.buffer), 3)); G.set(key, g); return g;
+  }
   for (const k of ['team', 'rest']) {
     if (!M[k]) continue;
     const b = atob(M[k]), u8 = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i);
@@ -201,10 +205,23 @@ function v3Merge(gs) {
   return g;
 }
 // a model on the ground at (x, y), its hull to hd, its turret (if any) to aim; tint: a wreck's darkness
-function v3PutModel(type, side, x, y, hd, aim, m, tint) {
-  const L = (SIZE[type] || 10) * (V3_LEN[type] || 1.6), H = v3Model(type, 'hull', side);
+// how far a unit's tracks have gone since it was first seen: [left, right] — forward along its heading, and a turn
+// moves each side by its distance from the middle (MODELS[type].track: zl, zr)
+function v3Run(u, hd) {
+  const K = MODELS[u.type].track; if (!K) return null;
+  const R = V3.run || (V3.run = new Map()), L = (SIZE[u.type] || 10) * (V3_LEN[u.type] || 1.6); let r = R.get(u.id);
+  if (!r) R.set(u.id, r = { x: u.x, y: u.y, hd, l: 0, r: 0 });
+  const d = (u.x - r.x) * Math.cos(hd) + (u.y - r.y) * Math.sin(hd), da = Math.atan2(Math.sin(hd - r.hd), Math.cos(hd - r.hd));
+  if (Math.abs(d) < 40 && Math.abs(da) < 1) { r.l += d - K.zl * L * da; r.r += d - K.zr * L * da; } // (not a jump: a unit just shown again, turned round at once)
+  r.x = u.x; r.y = u.y; r.hd = hd; r.seen = s.t; return [r.l, r.r];
+}
+// (run: how far each track has gone, world units — [left, right]; the pose shown for it, so they run)
+function v3PutModel(type, side, x, y, hd, aim, m, tint, run) {
+  const L = (SIZE[type] || 10) * (V3_LEN[type] || 1.6), H = v3Model(type, 'hull', side), D = MODELS[type];
   v3Put(H, v3Lay(x, y, hd, 0, L, L, 0, 0, m, L), tint);
-  const D = MODELS[type]; if (!D.parts.turret) return;
+  const K = D.track;
+  if (K) ['L', 'R'].forEach((k, i) => { const r = run ? run[i] / (K.cycle * L) : 0, f = Math.floor((r - Math.floor(r)) * K.frames) % K.frames; v3Put(v3Model(type, 'track' + k + f, 'track'), m, tint); });
+  if (!D.parts.turret) return;
   const t = v3Tmp, T = v3Model(type, 'turret', side), pv = D.pivot || [0, 0];
   t.off.set(pv[0] * L, 0, pv[1] * L).applyQuaternion(t.q); t.p.set(t.p.x + t.off.x, t.p.y + t.off.y, t.p.z + t.off.z);
   t.yaw.setFromAxisAngle(t.up, -aim); t.q.setFromUnitVectors(t.up, t.n).multiply(t.yaw);
@@ -217,7 +234,7 @@ function v3Units() {
   for (const u of s.units) {
     if (s.fog && !((u.side === 'blue' ? whole.has(u.squad) : s.vis.blue.has(u.id)) && shownAt(u))) continue;
     const T = Sim.TYPES[u.type], lift = T.air ? V3_AIR : 0, hd = u.hd || 0;
-    if (v3HasModel(u.type) && !T.air) v3PutModel(u.type, u.side, u.x, u.y, hd, s.t - u.lastFire < 3 ? u.aim : hd, m);
+    if (v3HasModel(u.type) && !T.air) v3PutModel(u.type, u.side, u.x, u.y, hd, s.t - u.lastFire < 3 ? u.aim : hd, m, null, v3Run(u, hd));
     else { const P = v3Pic(u.type, u.side); v3Put(P, v3Lay(u.x, u.y, hd, lift, P.w, P.h, 0, 0, m)); }
     if (u.type === 'tank' && hasSprite('tank') && !v3HasModel('tank')) { // (the turret, turned to where it fires)
       const R = v3Pic('turret', u.side), H = SPRITES.tank_hull, k = SIZE.tank, sc = SPRITE_LEN.tank * k / H.w;

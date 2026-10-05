@@ -10,6 +10,10 @@ Each part is two lists of triangles: `team` (the main paint — Main, Main_Light
 game) and `rest` (dark details, wheels, tracks: as they are), each vertex x y z nx ny nz r g b, as base64 Float32.
 
   python tools/models.py            every art/models/*.glb
+Tracks: a skinned mesh named *Track* (left/right by .L/.R) with an animation named *Forward* is baked into TRACK_F
+poses over one turn of that clip (`trackL0`…, `trackR0`…, not in the hull); `track` = {frames, cycle: how far the
+links move in one turn, zl / zr: each track's distance from the middle, across} — the game shows the pose for how far each track has
+gone, so they run with no skinning in the game.
 Front: the model's gun (or its longest side) is taken as the front; FRONT below turns one that comes out the other way.
 """
 import base64, json, os, struct, sys
@@ -21,6 +25,7 @@ SRC, OUT = os.path.join(ROOT, 'art', 'models'), os.path.join(ROOT, 'js', 'ui', '
 FRONT = {}
 TEAM = ('main', 'main_light', 'body', 'paint')  # materials painted in the side's colour
 TURRET = ('turret', 'gun', 'barrel', 'cannon')
+TRACK_F = 8  # poses of a running track
 # materials painted again (sRGB): the Nature Kit's teal leaves and orange bark, in the map's own greens and browns
 RECOLOR = {'leafsgreen': '#5a8a32', 'leafsdark': '#3f6a2c', 'grass': '#6c8c3a', 'woodbark': '#6e4c30', 'woodbarkdark': '#4f3a26',
            'dirt': '#8c8476', 'stone': '#8e8b85'}
@@ -64,13 +69,49 @@ def node_matrix(n):
     M = np.eye(4); M[:3, :3] = R * np.array(s); M[:3, 3] = t; return M
 
 
+def trs_matrix(T, R, S): return node_matrix({'translation': T, 'rotation': R, 'scale': S})
+
+
+def pose(J, B, anim, t):
+    """every node's world matrix with `anim` at time t (None: the rest pose)"""
+    N = J['nodes']; parent = {c: i for i, n in enumerate(N) for c in n.get('children', [])}
+    loc = {i: [list(n.get('translation', [0, 0, 0])), list(n.get('rotation', [0, 0, 0, 1])), list(n.get('scale', [1, 1, 1]))] for i, n in enumerate(N)}
+    if anim is not None:
+        for ch in anim['channels']:
+            s = anim['samplers'][ch['sampler']]; ti = accessor(J, B, s['input'])[:, 0]; v = accessor(J, B, s['output'])
+            k = min(max(np.searchsorted(ti, t, side='right') - 1, 0), len(ti) - 2); f = np.clip((t - ti[k]) / (ti[k + 1] - ti[k]), 0, 1)
+            val = v[k] * (1 - f) + v[k + 1] * f
+            if ch['target']['path'] == 'rotation': val = val / np.linalg.norm(val)
+            loc[ch['target']['node']][{'translation': 0, 'rotation': 1, 'scale': 2}[ch['target']['path']]] = list(val)
+    G = {}
+    def g(i):
+        if i not in G: m = trs_matrix(*loc[i]); G[i] = g(parent[i]) @ m if i in parent else m
+        return G[i]
+    for i in range(len(N)): g(i)
+    return G
+
+
+def skinned(J, B, n, G):
+    """a skinned mesh's (first primitive's) points in the pose G"""
+    sk = J['skins'][n['skin']]; ibm = accessor(J, B, sk['inverseBindMatrices']).reshape(-1, 4, 4).transpose(0, 2, 1)
+    JM = np.array([G[j] @ ibm[k] for k, j in enumerate(sk['joints'])])
+    at = J['meshes'][n['mesh']]['primitives'][0]['attributes']
+    pos = accessor(J, B, at['POSITION']); jo = accessor(J, B, at['JOINTS_0']).astype(int); w = accessor(J, B, at['WEIGHTS_0'])
+    P4 = np.c_[pos, np.ones(len(pos))]; out = np.zeros((len(pos), 4))
+    for c in range(4): out += w[:, c:c + 1] * np.einsum('nij,nj->ni', JM[jo[:, c]], P4)
+    return out[:, :3]
+
+
 def bake(path):
     J, B = read_glb(path)
     mats = J.get('materials', [])
+    fwd = next((a for a in J.get('animations', []) if 'forward' in (a.get('name') or '').lower()), None)
+    tracks = {}  # 'L'/'R' -> (node, its primitive's normals and colours from the rest walk)
     parts = {}  # (part, team) -> list of (pos, nrm, col)
     def walk(i, P, turret):
         n = J['nodes'][i]; M = P @ node_matrix(n); name = (n.get('name') or '').lower()
         turret = turret or any(k in name for k in TURRET)
+        track = fwd is not None and 'skin' in n and 'track' in name and 'mesh' in n
         if 'mesh' in n:
             for p in J['meshes'][n['mesh']]['primitives']:
                 if p.get('mode', 4) != 4: continue
@@ -85,11 +126,23 @@ def bake(path):
                 P4 = np.c_[pos, np.ones(len(pos))] @ M.T; N = nrm @ np.linalg.inv(M[:3, :3]).T
                 N /= np.maximum(1e-9, np.linalg.norm(N, axis=1))[:, None]
                 team = any(k == (m.get('name') or '').lower() for k in TEAM)
+                if track: tracks['L' if name.endswith('.l') else 'R'] = (n, idx, N, col); continue
                 parts.setdefault(('turret' if turret else 'hull', team), []).append((P4[idx, :3], N[idx], col[idx]))
         for c in n.get('children', []): walk(c, M, turret)
     for r in J['scenes'][J.get('scene', 0)]['nodes']: walk(r, np.eye(4), False)
     cat = {k: tuple(np.concatenate([v[j] for v in l]) for j in range(3)) for k, l in parts.items()}
-    hull = np.concatenate([v[0] for k, v in cat.items() if k[0] == 'hull'])
+    # (the tracks: TRACK_F poses over the clip; the first in the hull's size)
+    frames = {}
+    if tracks:
+        T = max(accessor(J, B, s['input'])[:, 0].max() for s in fwd['samplers'])
+        for side, (n, idx, N, col) in tracks.items():
+            frames[side] = [skinned(J, B, n, pose(J, B, fwd, T * f / TRACK_F))[idx] for f in range(TRACK_F)]
+            frames[side + 'n'], frames[side + 'c'] = N[idx], col[idx]
+        # (how far a link goes in one turn: the bottom run's points, along the length)
+        p0, p1 = skinned(J, B, tracks['L'][0], pose(J, B, fwd, 0)), skinned(J, B, tracks['L'][0], pose(J, B, fwd, T * 0.999))
+        low = p0[:, 1] < p0[:, 1].min() + 0.15 * np.ptp(p0[:, 1])
+        dx = np.abs(np.median((p1 - p0)[low], axis=0)); cycle = float(dx.max())
+    hull = np.concatenate([v[0] for k, v in cat.items() if k[0] == 'hull'] + [frames[s][0] for s in ('L', 'R') if s in frames])
     gun = np.concatenate([v[0] for k, v in cat.items() if k[0] == 'turret']) if any(k[0] == 'turret' for k in cat) else None
     # the front: toward the gun's far end (on the long side), else +X — turned to +X
     name = os.path.splitext(os.path.basename(path))[0]
@@ -118,9 +171,19 @@ def bake(path):
         n_ = turn(nr)
         v = np.c_[q, n_, np.clip(col, 0, 1)].astype(np.float32)
         out['parts'].setdefault(part, {})['team' if team else 'rest'] = base64.b64encode(v.tobytes()).decode()
+    if frames:
+        for side in ('L', 'R'):
+            if side not in frames: continue
+            for f, p in enumerate(frames[side]):  # (the first whole; the rest only where the points are — the same normals and colours)
+                q = (turn(p - mid) - ctr) / L
+                v = np.c_[q, turn(frames[side + 'n']), np.clip(frames[side + 'c'], 0, 1)] if f == 0 else q
+                out['parts']['track' + side + str(f)] = {('rest' if f == 0 else 'pos'): base64.b64encode(v.astype(np.float32).tobytes()).decode()}
+        zl, zr = [((turn(frames[s][0] - mid) - ctr) / L)[:, 2].mean() for s in ('L', 'R')]
+        out['track'] = {'frames': TRACK_F, 'cycle': round(float(cycle / L), 5), 'zl': round(float(zl), 4), 'zr': round(float(zr), 4)}
     out['size'] = [1.0, round(float((hi[1] - lo[1]) / L), 4), round(float((hi[2] - lo[2]) / L), 4)]
     tri = sum(len(v[0]) for v in cat.values()) // 3
-    print(f'{name}: {tri} triangles, front turned {np.degrees(ang):.0f}°, size {out["size"]}, pivot {out.get("pivot")}')
+    if frames: tri += sum(len(frames[s][0]) for s in ('L', 'R') if s in frames) // 3
+    print(f'{name}: {tri} triangles, front turned {np.degrees(ang):.0f}°, size {out["size"]}, pivot {out.get("pivot")}' + (f', tracks {out["track"]}' if 'track' in out else ''))
     return name, out
 
 
