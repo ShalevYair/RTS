@@ -164,7 +164,7 @@ function v3Lay(x, y, hd, lift, w, h, ox, oy, out, sy = 1) {
 // ---- 3D models (art/models/*.glb → MODELS, tools/models.py): a kind's hull and turret, each two meshes — its main
 // paint tinted with the side's colour (V3_TEAM of it), the rest as it is. Front +X, length 1, so scaled by V3_LEN ×
 // its size. A tank's turret turns on its pivot to where it fires; a wreck: dark. ----
-const V3_LEN = { tank: 1.75 }, V3_TEAM = 0.38;
+const V3_LEN = { tank: 1.75, jeep: 1.25 }, V3_TEAM = 0.38;
 const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
   const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
@@ -181,6 +181,7 @@ function v3Geo(type, part, side) {
     const b = atob(M.pos), u8 = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i);
     const g = v3Geo(type, part.replace(/\d+$/, '0'), side).clone(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(u8.buffer), 3)); G.set(key, g); return g;
   }
+  const TK = MODELS[type].teamK ?? V3_TEAM; // (how much of the side's colour in its paint)
   for (const k of ['team', 'rest']) {
     if (!M[k]) continue;
     const b = atob(M[k]), u8 = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i);
@@ -188,7 +189,7 @@ function v3Geo(type, part, side) {
     for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) {
       pos[i * 3 + j] = f[i * 9 + j]; nrm[i * 3 + j] = f[i * 9 + 3 + j];
       const c = f[i * 9 + 6 + j], s2 = j === 0 ? sc.r : j === 1 ? sc.g : sc.b;
-      col[i * 3 + j] = k === 'team' && side !== 'wreck' ? c * (1 - V3_TEAM) + s2 * V3_TEAM * 0.55 : c;
+      col[i * 3 + j] = k === 'team' && side !== 'wreck' ? c * (1 - TK) + s2 * TK * 0.55 : c;
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     geo.push(g);
