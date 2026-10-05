@@ -13,7 +13,7 @@ const V3 = { on: false, cv: null, r: null, scene: null, cam: null, sun: null, gr
 // look down (radians from level); V3_FOV: its upright field of view; V3_TEX: the ground picture's longer side, at most;
 // V3_AIR: how high the aircraft fly; V3_FOOT: soldiers drawn this much bigger (as small as on the flat map they're
 // lost on the slanting ground)
-const V3_LV = 18, V3_PITCH = 50 * Math.PI / 180, V3_FOV = 40, V3_TEX = 4096, V3_AIR = 70, V3_FOOT = 1.6;
+const V3_FALL = 12, V3_LV = 18, V3_PITCH = 50 * Math.PI / 180, V3_FOV = 40, V3_TEX = 4096, V3_AIR = 70, V3_FOOT = 1.6;
 function v3Toggle() {
   if (V3.on) { v3Show(false); return; }
   if (window.THREE) { v3Show(true); return; }
@@ -113,7 +113,7 @@ function v3Paint() {
 // picture (spritePic; the tank: hull and turret apart), or, without one, its glyph drawn once.
 function v3Pic(type, side) {
   const key = type + ':' + side; let P = V3.pics.get(key); if (P) return P;
-  const base = type === 'turret' ? 'tank' : type, T0 = Sim.TYPES[base] || {}, col = colors[side] || '#9a9a9a', k = (SIZE[base] || 8) * (CAR.has(base) || T0.air ? 1 : V3_FOOT);
+  const base = type === 'turret' ? 'tank' : type, T0 = Sim.TYPES[base] || {}, col = side === 'wreck' ? 'wreck' : colors[side] || '#9a9a9a', k = (SIZE[base] || 8) * (CAR.has(base) || T0.air ? 1 : V3_FOOT);
   let img, w, h, ox = 0, oy = 0;
   if (type === 'tank' || type === 'turret') {
     const H = SPRITES.tank_hull, T = SPRITES.tank_turret, sc = SPRITE_LEN.tank * k / H.w;
@@ -124,7 +124,7 @@ function v3Pic(type, side) {
     img = spritePic(type, col); w = S.w * sc; h = S.h * sc;
   } else {
     const N = 128, G = 40; img = document.createElement('canvas'); img.width = img.height = N;
-    glyph(img.getContext('2d'), type, N / 2, N / 2, G, col, colors.outline, 0, 0); w = h = N / G * k;
+    glyph(img.getContext('2d'), type, N / 2, N / 2, G, col === 'wreck' ? '#3b3833' : col, colors.outline, 0, 0); w = h = N / G * k;
   }
   return v3Sheet(key, img, w, h, ox, oy);
 }
@@ -135,6 +135,7 @@ function v3Sheet(key, img, w, h, ox = 0, oy = 0) {
   const geo = new THREE.PlaneGeometry(1, 1); geo.rotateX(-Math.PI / 2);
   const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.45 }), 64);
   mesh.castShadow = true; mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
+  mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3); // (a tint each: white = none)
   V3.scene.add(mesh);
   const P = { mesh, w, h, ox, oy, n: 0 }; V3.pics.set(key, P); return P;
 }
@@ -144,10 +145,10 @@ function v3Put(P, m, col) {
   if (P.n >= P.mesh.instanceMatrix.count) {
     const old = P.mesh, big = new THREE.InstancedMesh(old.geometry, old.material, old.instanceMatrix.count * 2);
     big.castShadow = true; big.receiveShadow = !P.flat; big.instanceMatrix.setUsage(THREE.DynamicDrawUsage); big.frustumCulled = false;
-    for (let i = 0; i < P.n; i++) { old.getMatrixAt(i, v3Tmp.g); big.setMatrixAt(i, v3Tmp.g); if (old.instanceColor) { old.getColorAt(i, v3Tmp.c); big.setColorAt(i, v3Tmp.c); } }
+    for (let i = 0; i < P.n; i++) { old.getMatrixAt(i, v3Tmp.g); big.setMatrixAt(i, v3Tmp.g); old.getColorAt(i, v3Tmp.c); big.setColorAt(i, v3Tmp.c); }
     V3.scene.remove(old); old.dispose(); V3.scene.add(big); P.mesh = big;
   }
-  if (col || P.mesh.instanceColor) P.mesh.setColorAt(P.n, col || v3Tmp.white);
+  P.mesh.setColorAt(P.n, col || v3Tmp.white);
   P.mesh.setMatrixAt(P.n++, m);
 }
 let v3Tmp = {};
@@ -176,6 +177,14 @@ function v3Units() {
       v3Put(R, v3Lay(cx + Math.cos(aim) * R.ox - Math.sin(aim) * R.oy, cy + Math.sin(aim) * R.ox + Math.cos(aim) * R.oy, aim, 0.4, R.w, R.h, 0, 0, m));
     }
     if (u.side === 'blue' && isSel(u.squad) && u.type !== 'dozer') rings.push({ x: u.x, y: u.y, air: T.air, r: (SIZE[u.type] || 8) * (CAR.has(u.type) || T.air ? 0.75 : V3_FOOT * 0.9) });
+  }
+  // (the fallen, V3_FALL s: a vehicle's burnt-out wreck, its turret knocked askew; a soldier, dark — as the flat map)
+  const tint = v3Tmp.ft || (v3Tmp.ft = new THREE.Color());
+  for (const f of s.fallen) {
+    const age = s.t - f.t, T = Sim.TYPES[f.type]; if (age > V3_FALL || T.air || (s.fog && !shownAt(f))) continue;
+    const car = CAR.has(f.type), P = v3Pic(f.type, car ? 'wreck' : f.side), dim = tint.setScalar(car ? 0.9 - 0.4 * age / V3_FALL : 0.45);
+    v3Put(P, v3Lay(f.x, f.y, f.hd + 0.3, 0, P.w, P.h, 0, 0, m), dim);
+    if (f.type === 'tank' && hasSprite('tank')) { const R = v3Pic('turret', 'wreck'), a = f.hd + 1.2; v3Put(R, v3Lay(f.x + Math.cos(a) * R.ox, f.y + Math.sin(a) * R.ox, a, 0.4, R.w, R.h, 0, 0, m), dim); }
   }
   return rings;
 }
@@ -235,6 +244,96 @@ function v3Nodes(rings) {
   if (s.posts) for (const p of s.posts) { const R = Sim.POSTS[p.kind].r; put(p.kind, postCol(p), p.x, p.y, R, Math.round(R * 2.4), s.fog && !postSeen(p) ? V3_MEM : 1); if (selPost === p) rings.push({ x: p.x, y: p.y, r: R + 10 }); }
   V3.blocks.count = nb; V3.blocks.instanceMatrix.needsUpdate = true;
 }
+// ---- fire and smoke: bits of light and smoke, each a soft round picture facing the camera (or, a scorch mark, lying
+// on the ground), all of a kind in one InstancedMesh with its own colour and see-through-ness (aCol) — the light ones
+// added (they glow), the smoke laid over. The same things as the flat map: shots in flight (a bright head and a
+// fading tail; a missile's white trail; the artillery's shells in an arc), muzzle flashes, blasts (a fireball, a
+// glow round the big ones), the smoke (smokeTick: hurt vehicles, wrecks, chimneys, after a blast — rising and
+// drifting with the wind), scorch marks where blasts landed (scorchTick), the long-range missiles' arc. ----
+const V3_FX_MAX = 6000;
+function v3SoftPic(stops) {
+  const N = 64, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), r = g.createRadialGradient(N / 2, N / 2, 0, N / 2, N / 2, N / 2);
+  for (const [k, col] of stops) r.addColorStop(k, col);
+  g.fillStyle = r; g.fillRect(0, 0, N, N); const t = new THREE.CanvasTexture(c); return t;
+}
+function v3Bill(add, flat, tex) {
+  const geo = new THREE.PlaneGeometry(1, 1), col = new THREE.InstancedBufferAttribute(new Float32Array(V3_FX_MAX * 4), 4);
+  col.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('aCol', col);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { map: { value: tex } }, transparent: true, depthWrite: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending,
+    vertexShader: `attribute vec4 aCol; varying vec4 vCol; varying vec2 vUv;
+      void main() { vCol = aCol; vUv = uv; vec3 c = instanceMatrix[3].xyz; float k = length(instanceMatrix[0].xyz);
+        ${flat ? 'gl_Position = projectionMatrix * modelViewMatrix * vec4(c + vec3(position.x, 0.0, -position.y) * k, 1.0);'
+               : 'vec4 mv = modelViewMatrix * vec4(c, 1.0); mv.xy += position.xy * k; gl_Position = projectionMatrix * mv;'} }`,
+    fragmentShader: `uniform sampler2D map; varying vec4 vCol; varying vec2 vUv;
+      void main() { vec4 t = texture2D(map, vUv); gl_FragColor = vec4(vCol.rgb * t.rgb, vCol.a * t.a); }`,
+  });
+  const m = new THREE.InstancedMesh(geo, mat, V3_FX_MAX); m.frustumCulled = false; m.renderOrder = add ? 6 : 5; m.count = 0;
+  V3.scene.add(m); return { m, col, n: 0 };
+}
+function v3FxInit() {
+  const light = v3SoftPic([[0, 'rgba(255,255,255,1)'], [0.25, 'rgba(255,255,255,.75)'], [1, 'rgba(255,255,255,0)']]);
+  const puffT = v3SoftPic([[0, 'rgba(255,255,255,.9)'], [0.55, 'rgba(255,255,255,.5)'], [1, 'rgba(255,255,255,0)']]);
+  V3.fx = { glow: v3Bill(true, false, light), smoke: v3Bill(false, false, puffT), mark: v3Bill(false, true, puffT) };
+}
+// one more: at (x, h, y) world, d across, colour [r, g, b] (0–1), a
+function v3Dot(B, x, h, y, d, r, g, b, a) {
+  if (B.n >= V3_FX_MAX || a <= 0.004) return;
+  const o = v3Tmp.fm || (v3Tmp.fm = new THREE.Matrix4());
+  o.makeScale(d, d, d); o.setPosition(x, h, y); B.m.setMatrixAt(B.n, o);
+  const k = B.n * 4, A = B.col.array; A[k] = r; A[k + 1] = g; A[k + 2] = b; A[k + 3] = a; B.n++;
+}
+const v3Gnd = (x, y) => Sim.elevAt(s, { x, y }) * V3_LV;
+// weapons that fire at aircraft (their shot ends up in the air) / from aircraft
+const V3_UP = new Set(['aa', 'ajeep', 'arrow', 'dome']), V3_FROM_AIR = new Set(['air', 'heli', 'gunship']);
+function v3Fx() {
+  if (!V3.fx) v3FxInit();
+  const F = V3.fx; for (const B of Object.values(F)) B.n = 0;
+  smokeTick(); scorchTick();
+  // shots in flight
+  for (const sh of s.shots) {
+    const age = sh.dur + 0.12 - sh.life, k = Math.min(1, age / sh.dur);
+    const h1 = v3Gnd(sh.x1, sh.y1) + (V3_FROM_AIR.has(sh.kind) ? V3_AIR : 4), h2 = v3Gnd(sh.x2, sh.y2) + (V3_UP.has(sh.kind) ? V3_AIR : 3);
+    const L = Math.hypot(sh.x2 - sh.x1, sh.y2 - sh.y1), arc = sh.kind === 'how' || sh.kind === 'mlrs' ? L * 0.25 : 0;
+    const at = f => { f = Math.max(0, Math.min(1, f)); return [sh.x1 + (sh.x2 - sh.x1) * f, h1 + (h2 - h1) * f + Math.sin(Math.PI * f) * arc, sh.y1 + (sh.y2 - sh.y1) * f]; };
+    if (age < 0.07) { const r = sh.kind === 'tank' || sh.kind === 'how' ? 16 : sh.kind === 'inf' || sh.kind === 'jeep' ? 6 : 10; v3Dot(F.glow, sh.x1, h1, sh.y1, r, 1, 0.85, 0.5, 0.9); } // (the muzzle flash)
+    if (k >= 1) continue;
+    const missile = sh.kind === 'air' || sh.kind === 'heli' || sh.kind === 'arrow' || sh.kind === 'dome' || sh.kind === 'aa' || sh.kind === 'at' || sh.kind === 'ajeep' || sh.kind === 'tjeep';
+    const big = sh.kind === 'tank' || sh.kind === 'how' || sh.kind === 'mlrs', len = Math.min(1, (big ? 22 : 12) / Math.max(1, L));
+    if (missile) { // (a white trail behind, a hot head)
+      for (let i = 1; i <= 6; i++) { const p = at(k - len * 2.5 * i / 6); v3Dot(F.smoke, p[0], p[1], p[2], 3 + i * 0.8, 0.85, 0.85, 0.82, 0.35 * (1 - i / 7)); }
+      const p = at(k); v3Dot(F.glow, p[0], p[1], p[2], 7, 1, 0.7, 0.3, 1);
+    } else { // (a tracer: a bright head, a fading tail)
+      for (let i = 0; i <= 4; i++) { const p = at(k - len * i / 4); v3Dot(F.glow, p[0], p[1], p[2], (big ? 6 : 3.5) * (1 - i * 0.12), 1, big ? 0.65 : 0.85, big ? 0.3 : 0.45, (1 - i / 5) * 0.9); }
+    }
+  }
+  // blasts: a fireball (white → orange), a wide glow round the big ones; a little smoke left behind (as the flat map)
+  for (const f of s.fx) {
+    if (f.wait > 0) continue;
+    const t = 1 - f.life / f.max, a = 1 - t, R = f.size, r = R * (0.35 + 0.65 * Math.sqrt(t)), h = v3Gnd(f.x, f.y);
+    if (!f.smoked && R >= 8) { f.smoked = true; const n = R >= 26 ? 3 : R >= 18 ? 2 : 1; for (let i = 0; i < n; i++) puff(f.x + (Math.random() - 0.5) * R * 0.6, f.y, R >= 18, 0.7 + R / 30); }
+    v3Dot(F.glow, f.x, h + r * 0.6, f.y, r * 2.2, 1, 0.75 + 0.25 * a, 0.35 * a + 0.1, a);
+    v3Dot(F.glow, f.x, h + r * 0.4, f.y, r * 1.2, 1, 1, 0.85, a * a);
+    if (R >= 14) v3Dot(F.glow, f.x, h + 4, f.y, R * 4.4, 1, 0.55, 0.2, 0.3 * a);
+  }
+  // the smoke: rising, drifting with the wind, growing, fading (as the flat map's)
+  for (const p of smoke) {
+    const age = s.t - p.t, a = age / p.life, x = p.x + WIND.x * age, y = p.y + WIND.y * age;
+    const g = p.dark ? 0.24 : 0.74, al = (p.dark ? 0.6 : 0.42) * (1 - a) * Math.min(1, a * 6);
+    v3Dot(F.smoke, x, v3Gnd(p.x, p.y) + 4 + 9 * age * 1.6, y, p.r * (1 + a * 2.4) * 2.2, g, g * 0.97, g * 0.92, al);
+  }
+  // scorch marks: dark earth, lying on the ground
+  for (const p of scorch) v3Dot(F.mark, p.x, v3Gnd(p.x, p.y) + 0.8, p.y, p.r * 2.2, 0.12, 0.09, 0.06, 0.7 * (1 - (s.t - p.t) / SCORCH_T));
+  // the long-range missiles: high arcs with a white trail (seen by both sides)
+  for (const mi of s.missiles || []) {
+    const T = Sim.SSM_FLIGHT, L = Math.hypot(mi.x - mi.x0, mi.y - mi.y0), h0 = v3Gnd(mi.x0, mi.y0), h1 = v3Gnd(mi.x, mi.y);
+    const at = f => { f = Math.min(1, Math.max(0, f)); return [mi.x0 + (mi.x - mi.x0) * f, h0 + (h1 - h0) * f + Math.sin(Math.PI * f) * L * MISSILE_ARC, mi.y0 + (mi.y - mi.y0) * f]; };
+    const f = (s.t - mi.t0) / T;
+    for (let i = 1; i <= 14; i++) { const p = at(f - 0.12 * i / 14); v3Dot(F.smoke, p[0], p[1], p[2], 6 + i, 0.88, 0.88, 0.85, 0.5 * (1 - i / 15)); }
+    const p = at(f); v3Dot(F.glow, p[0], p[1], p[2], 14, 1, 0.7, 0.3, 1);
+  }
+  for (const B of Object.values(F)) { B.m.count = B.n; B.m.instanceMatrix.needsUpdate = true; B.col.needsUpdate = true; }
+}
 // every frame, instead of the flat map
 function v3Draw() {
   if (V3.of !== decor) { v3Ground(); for (const P of V3.pics.values()) { V3.scene.remove(P.mesh); P.mesh.dispose(); } V3.pics.clear(); }
@@ -251,7 +350,7 @@ function v3Draw() {
   sun.target.position.set(cam.x, ty, cam.y - vw * 0.15); sun.position.set(cam.x - 1500, ty + 2100, cam.y - vw * 0.15 - 1500);
   if (sc.right !== half) { sc.left = sc.bottom = -half; sc.right = sc.top = half; sc.near = 10; sc.far = 6000; sc.updateProjectionMatrix(); }
   for (const P of V3.pics.values()) P.n = 0;
-  const rings = v3Units(); v3Nodes(rings); v3Rings(rings);
-  for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; if (P.mesh.instanceColor) P.mesh.instanceColor.needsUpdate = true; }
+  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx();
+  for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; P.mesh.instanceColor.needsUpdate = true; }
   r.render(V3.scene, V3.cam);
 }
