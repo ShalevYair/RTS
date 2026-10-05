@@ -10,6 +10,15 @@ Each part is two lists of triangles: `team` (the main paint — Main, Main_Light
 game) and `rest` (dark details, wheels, tracks: as they are), each vertex x y z nx ny nz r g b, as base64 Float32.
 
   python tools/models.py            every art/models/*.glb
+  python tools/models.py --slim <big.glb> <kind>
+                                    a heavy model (an AI-made one: hundreds of thousands of triangles, 4K textures)
+                                    made light first: its texture's colours baked into its points, cut down to
+                                    SLIM_TRI triangles (pymeshlab), written as art/models/<kind>.glb (the big one
+                                    stays out of git: GLB/); then everything is baked as usual
+Tracks: a skinned mesh named *Track* (left/right by .L/.R) with an animation named *Forward* is baked into TRACK_F
+poses over one turn of that clip (`trackL0`…, `trackR0`…, not in the hull); `track` = {frames, cycle: how far the
+links move in one turn, zl / zr: each track's distance from the middle, across} — the game shows the pose for how far each track has
+gone, so they run with no skinning in the game.
 Front: the model's gun (or its longest side) is taken as the front; FRONT below turns one that comes out the other way.
 """
 import base64, json, os, struct, sys
@@ -18,9 +27,11 @@ import numpy as np
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 SRC, OUT = os.path.join(ROOT, 'art', 'models'), os.path.join(ROOT, 'js', 'ui', 'models.js')
 # (the turn round the up axis that brings each model's front to +X, degrees; a model not here: its gun's way)
-FRONT = {}
-TEAM = ('main', 'main_light', 'body', 'paint')  # materials painted in the side's colour
+FRONT = {'jeep': 180}  # (the AI-made jeep: its bonnet at -X)
+TEAM = ('main', 'main_light', 'body', 'paint', 'slim')  # materials painted in the side's colour (slim: a slimmed model, all of it)
 TURRET = ('turret', 'gun', 'barrel', 'cannon')
+TRACK_F = 8  # poses of a running track
+SLIM_TRI = 5000  # a slimmed model's triangles
 # materials painted again (sRGB): the Nature Kit's teal leaves and orange bark, in the map's own greens and browns
 RECOLOR = {'leafsgreen': '#5a8a32', 'leafsdark': '#3f6a2c', 'grass': '#6c8c3a', 'woodbark': '#6e4c30', 'woodbarkdark': '#4f3a26',
            'dirt': '#8c8476', 'stone': '#8e8b85'}
@@ -64,13 +75,49 @@ def node_matrix(n):
     M = np.eye(4); M[:3, :3] = R * np.array(s); M[:3, 3] = t; return M
 
 
+def trs_matrix(T, R, S): return node_matrix({'translation': T, 'rotation': R, 'scale': S})
+
+
+def pose(J, B, anim, t):
+    """every node's world matrix with `anim` at time t (None: the rest pose)"""
+    N = J['nodes']; parent = {c: i for i, n in enumerate(N) for c in n.get('children', [])}
+    loc = {i: [list(n.get('translation', [0, 0, 0])), list(n.get('rotation', [0, 0, 0, 1])), list(n.get('scale', [1, 1, 1]))] for i, n in enumerate(N)}
+    if anim is not None:
+        for ch in anim['channels']:
+            s = anim['samplers'][ch['sampler']]; ti = accessor(J, B, s['input'])[:, 0]; v = accessor(J, B, s['output'])
+            k = min(max(np.searchsorted(ti, t, side='right') - 1, 0), len(ti) - 2); f = np.clip((t - ti[k]) / (ti[k + 1] - ti[k]), 0, 1)
+            val = v[k] * (1 - f) + v[k + 1] * f
+            if ch['target']['path'] == 'rotation': val = val / np.linalg.norm(val)
+            loc[ch['target']['node']][{'translation': 0, 'rotation': 1, 'scale': 2}[ch['target']['path']]] = list(val)
+    G = {}
+    def g(i):
+        if i not in G: m = trs_matrix(*loc[i]); G[i] = g(parent[i]) @ m if i in parent else m
+        return G[i]
+    for i in range(len(N)): g(i)
+    return G
+
+
+def skinned(J, B, n, G):
+    """a skinned mesh's (first primitive's) points in the pose G"""
+    sk = J['skins'][n['skin']]; ibm = accessor(J, B, sk['inverseBindMatrices']).reshape(-1, 4, 4).transpose(0, 2, 1)
+    JM = np.array([G[j] @ ibm[k] for k, j in enumerate(sk['joints'])])
+    at = J['meshes'][n['mesh']]['primitives'][0]['attributes']
+    pos = accessor(J, B, at['POSITION']); jo = accessor(J, B, at['JOINTS_0']).astype(int); w = accessor(J, B, at['WEIGHTS_0'])
+    P4 = np.c_[pos, np.ones(len(pos))]; out = np.zeros((len(pos), 4))
+    for c in range(4): out += w[:, c:c + 1] * np.einsum('nij,nj->ni', JM[jo[:, c]], P4)
+    return out[:, :3]
+
+
 def bake(path):
     J, B = read_glb(path)
     mats = J.get('materials', [])
+    fwd = next((a for a in J.get('animations', []) if 'forward' in (a.get('name') or '').lower()), None)
+    tracks = {}  # 'L'/'R' -> (node, its primitive's normals and colours from the rest walk)
     parts = {}  # (part, team) -> list of (pos, nrm, col)
     def walk(i, P, turret):
         n = J['nodes'][i]; M = P @ node_matrix(n); name = (n.get('name') or '').lower()
         turret = turret or any(k in name for k in TURRET)
+        track = fwd is not None and 'skin' in n and 'track' in name and 'mesh' in n
         if 'mesh' in n:
             for p in J['meshes'][n['mesh']]['primitives']:
                 if p.get('mode', 4) != 4: continue
@@ -85,11 +132,23 @@ def bake(path):
                 P4 = np.c_[pos, np.ones(len(pos))] @ M.T; N = nrm @ np.linalg.inv(M[:3, :3]).T
                 N /= np.maximum(1e-9, np.linalg.norm(N, axis=1))[:, None]
                 team = any(k == (m.get('name') or '').lower() for k in TEAM)
+                if track: tracks['L' if name.endswith('.l') else 'R'] = (n, idx, N, col); continue
                 parts.setdefault(('turret' if turret else 'hull', team), []).append((P4[idx, :3], N[idx], col[idx]))
         for c in n.get('children', []): walk(c, M, turret)
     for r in J['scenes'][J.get('scene', 0)]['nodes']: walk(r, np.eye(4), False)
     cat = {k: tuple(np.concatenate([v[j] for v in l]) for j in range(3)) for k, l in parts.items()}
-    hull = np.concatenate([v[0] for k, v in cat.items() if k[0] == 'hull'])
+    # (the tracks: TRACK_F poses over the clip; the first in the hull's size)
+    frames = {}
+    if tracks:
+        T = max(accessor(J, B, s['input'])[:, 0].max() for s in fwd['samplers'])
+        for side, (n, idx, N, col) in tracks.items():
+            frames[side] = [skinned(J, B, n, pose(J, B, fwd, T * f / TRACK_F))[idx] for f in range(TRACK_F)]
+            frames[side + 'n'], frames[side + 'c'] = N[idx], col[idx]
+        # (how far a link goes in one turn: the bottom run's points, along the length)
+        p0, p1 = skinned(J, B, tracks['L'][0], pose(J, B, fwd, 0)), skinned(J, B, tracks['L'][0], pose(J, B, fwd, T * 0.999))
+        low = p0[:, 1] < p0[:, 1].min() + 0.15 * np.ptp(p0[:, 1])
+        dx = np.abs(np.median((p1 - p0)[low], axis=0)); cycle = float(dx.max())
+    hull = np.concatenate([v[0] for k, v in cat.items() if k[0] == 'hull'] + [frames[s][0] for s in ('L', 'R') if s in frames])
     gun = np.concatenate([v[0] for k, v in cat.items() if k[0] == 'turret']) if any(k[0] == 'turret' for k in cat) else None
     # the front: toward the gun's far end (on the long side), else +X — turned to +X
     name = os.path.splitext(os.path.basename(path))[0]
@@ -118,13 +177,78 @@ def bake(path):
         n_ = turn(nr)
         v = np.c_[q, n_, np.clip(col, 0, 1)].astype(np.float32)
         out['parts'].setdefault(part, {})['team' if team else 'rest'] = base64.b64encode(v.tobytes()).decode()
+    if frames:
+        for side in ('L', 'R'):
+            if side not in frames: continue
+            for f, p in enumerate(frames[side]):  # (the first whole; the rest only where the points are — the same normals and colours)
+                q = (turn(p - mid) - ctr) / L
+                v = np.c_[q, turn(frames[side + 'n']), np.clip(frames[side + 'c'], 0, 1)] if f == 0 else q
+                out['parts']['track' + side + str(f)] = {('rest' if f == 0 else 'pos'): base64.b64encode(v.astype(np.float32).tobytes()).decode()}
+        zl, zr = [((turn(frames[s][0] - mid) - ctr) / L)[:, 2].mean() for s in ('L', 'R')]
+        out['track'] = {'frames': TRACK_F, 'cycle': round(float(cycle / L), 5), 'zl': round(float(zl), 4), 'zr': round(float(zr), 4)}
+    if any(k[1] for k in cat) and all((m.get('name') or '').lower() in ('slim',) for m in mats): out['teamK'] = 0.18  # (a slimmed model: all of it its paint — only a touch of the side's colour)
     out['size'] = [1.0, round(float((hi[1] - lo[1]) / L), 4), round(float((hi[2] - lo[2]) / L), 4)]
     tri = sum(len(v[0]) for v in cat.values()) // 3
-    print(f'{name}: {tri} triangles, front turned {np.degrees(ang):.0f}°, size {out["size"]}, pivot {out.get("pivot")}')
+    if frames: tri += sum(len(frames[s][0]) for s in ('L', 'R') if s in frames) // 3
+    print(f'{name}: {tri} triangles, front turned {np.degrees(ang):.0f}°, size {out["size"]}, pivot {out.get("pivot")}' + (f', tracks {out["track"]}' if 'track' in out else ''))
     return name, out
 
 
+def srgb_linear(c): return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+
+
+def slim(src, kind):
+    """a heavy model → art/models/<kind>.glb: every mesh in its rest pose, the colour of its texture at each point
+    (linear, as glTF's COLOR_0), cut down to SLIM_TRI triangles"""
+    import io, pymeshlab
+    from PIL import Image
+    J, B = read_glb(src); P, F, C = [], [], []; n0 = 0
+    def tex(i):
+        im = J['images'][J['textures'][i]['source']]; bv = J['bufferViews'][im['bufferView']]; o = bv.get('byteOffset', 0)
+        return np.asarray(Image.open(io.BytesIO(B[o:o + bv['byteLength']])).convert('RGB')).astype(np.float32) / 255
+    def walk(i, M):
+        nonlocal n0
+        n = J['nodes'][i]; M = M @ node_matrix(n)
+        for p in (J['meshes'][n['mesh']]['primitives'] if 'mesh' in n else []):
+            at = p['attributes']; pos = accessor(J, B, at['POSITION'])
+            idx = accessor(J, B, p['indices']).astype(np.int64).reshape(-1, 3) if 'indices' in p else np.arange(len(pos)).reshape(-1, 3)
+            pb = (J['materials'][p['material']] if 'material' in p else {}).get('pbrMetallicRoughness', {})
+            col = np.tile(np.array(pb.get('baseColorFactor', [1, 1, 1, 1])[:3]), (len(pos), 1))
+            if 'baseColorTexture' in pb and 'TEXCOORD_0' in at:
+                img = tex(pb['baseColorTexture']['index']); h, w = img.shape[:2]; uv = accessor(J, B, at['TEXCOORD_0'])
+                col = col * srgb_linear(img[np.clip(((uv[:, 1] % 1) * h).astype(int), 0, h - 1), np.clip(((uv[:, 0] % 1) * w).astype(int), 0, w - 1)])
+            P.append((np.c_[pos, np.ones(len(pos))] @ M.T)[:, :3]); F.append(idx + n0); C.append(col); n0 += len(pos)
+        for c in n.get('children', []): walk(c, M)
+    for r in J['scenes'][J.get('scene', 0)]['nodes']: walk(r, np.eye(4))
+    P, F, C = np.concatenate(P), np.concatenate(F), np.concatenate(C)
+    ms = pymeshlab.MeshSet(); ms.add_mesh(pymeshlab.Mesh(vertex_matrix=P, face_matrix=F, v_color_matrix=np.c_[C, np.ones(len(C))]))
+    ms.meshing_merge_close_vertices()
+    ms.meshing_decimation_quadric_edge_collapse(targetfacenum=SLIM_TRI, preservenormal=True, optimalplacement=True, planarquadric=True)
+    ms.compute_normal_per_vertex()
+    m = ms.current_mesh(); v, f, c, nr = m.vertex_matrix(), m.face_matrix(), m.vertex_color_matrix()[:, :3], m.vertex_normal_matrix()
+    print(f'{os.path.basename(src)}: {len(F)} -> {len(f)} triangles')
+    write_glb(os.path.join(SRC, kind + '.glb'), v, nr, c, f)
+
+
+def write_glb(path, v, nr, c, f):
+    """one mesh: points, normals, colours (COLOR_0, linear), triangles"""
+    arrs = [v.astype(np.float32), nr.astype(np.float32), c.astype(np.float32), f.astype(np.uint32).ravel()]
+    blob, views, acc = b'', [], []
+    for k, a in enumerate(arrs):
+        b = a.tobytes(); views.append({'buffer': 0, 'byteOffset': len(blob), 'byteLength': len(b)}); blob += b + b'\x00' * (-len(b) % 4)
+        if k < 3: acc.append({'bufferView': k, 'componentType': 5126, 'count': len(a), 'type': 'VEC3', **({'min': a.min(0).tolist(), 'max': a.max(0).tolist()} if k == 0 else {})})
+        else: acc.append({'bufferView': k, 'componentType': 5125, 'count': len(a), 'type': 'SCALAR'})
+    J = {'asset': {'version': '2.0', 'generator': 'tools/models.py --slim'}, 'scene': 0, 'scenes': [{'nodes': [0]}], 'nodes': [{'name': 'body', 'mesh': 0}],
+         'meshes': [{'primitives': [{'attributes': {'POSITION': 0, 'NORMAL': 1, 'COLOR_0': 2}, 'indices': 3, 'material': 0}]}],
+         'materials': [{'name': 'slim', 'pbrMetallicRoughness': {'baseColorFactor': [1, 1, 1, 1]}}],
+         'buffers': [{'byteLength': len(blob)}], 'bufferViews': views, 'accessors': acc}
+    js = json.dumps(J).encode(); js += b' ' * (-len(js) % 4)
+    out = struct.pack('<III', 0x46546C67, 2, 12 + 8 + len(js) + 8 + len(blob)) + struct.pack('<II', len(js), 0x4E4F534A) + js + struct.pack('<II', len(blob), 0x004E4942) + blob
+    open(path, 'wb').write(out); print('wrote', path, len(out) // 1024, 'KB')
+
+
 def main():
+    if len(sys.argv) >= 4 and sys.argv[1] == '--slim': slim(sys.argv[2], sys.argv[3])
     files = sorted(f for f in os.listdir(SRC) if f.endswith('.glb')) if os.path.isdir(SRC) else []
     models = dict(bake(os.path.join(SRC, f)) for f in files)
     with open(OUT, 'w', encoding='utf-8') as f:
