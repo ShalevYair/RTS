@@ -95,11 +95,16 @@ function applyView() {
 const viewRect = () => fit ? { x: (0 - view.cox) / view.css, y: (fit.top - view.coy) / view.css, w: fit.w / view.css, h: fit.h / view.css } : null;
 // zoom by f keeping the world point under screen point (px, py) in place
 function zoomAt(px, py, f) {
+  if (V3.on) { px = fit.w / 2; py = fit.top + fit.h / 2; }
   const wx = (px - view.cox) / view.css, wy = (py - view.coy) / view.css;
   cam.z *= f; applyView();
   cam.x += wx - (px - view.cox) / view.css; cam.y += wy - (py - view.coy) / view.css; applyView();
 }
-const panBy = (dx, dy) => { cam.x -= dx / view.css; cam.y -= dy / view.css; applyView(); };
+// (the 3D view: zoom on the middle of the screen, and a pan up / down goes farther — the ground is seen slanting)
+const panBy = (dx, dy) => { if (V3.on) dy /= Math.sin(V3_PITCH); cam.x -= dx / view.css; cam.y -= dy / view.css; applyView(); };
+// a point of the stage (px from its corner) ↔ the world (the 3D view has its own: three3d.js)
+const scrToWorld = (px, py) => V3.on ? v3World(px, py) : { x: (px - view.cox) / view.css, y: (py - view.coy) / view.css };
+const worldToScr = (x, y) => V3.on ? v3Screen(x, y) : { x: view.cox + x * view.css, y: view.coy + y * view.css };
 const lookAt = (x, y) => { cam.x = x; cam.y = y; applyView(); };
 new ResizeObserver(resize).observe(stage);
 new ResizeObserver(resize).observe(document.querySelector('.hudl')); // the types can wrap to a second line

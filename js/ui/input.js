@@ -1,7 +1,7 @@
 // UI: pointer and keyboard input
 function toWorld(e) {
   const r = cv.getBoundingClientRect();
-  return { x: (e.clientX - r.left - view.cox) / view.css, y: (e.clientY - r.top - view.coy) / view.css };
+  return scrToWorld(e.clientX - r.left, e.clientY - r.top);
 }
 
 // tap targets stay finger-sized when zoomed out
@@ -141,7 +141,7 @@ function tap(e) {
     const mine = s.squads.filter(q => !q.dead && (q.home === home.id || q.id === home.squad)).map(q => q.id);
     if (mine.length > 1) pickIds(mine); else if (mine.length) pickSquad(mine[0]); else select(null);
     selNode = home.id; const r = cv.getBoundingClientRect();
-    toast(nodeInfo(home), home.x * view.css + view.cox + r.left, (home.y - 26) * view.css + view.coy + r.top, 2600);
+    const p = worldToScr(home.x, home.y - 26); toast(nodeInfo(home), p.x + r.left, p.y + r.top, 2600);
     return;
   }
   // a building of ours picked: where its squads go once out (and its squad now, if it's out), "on our way"
@@ -224,7 +224,7 @@ function hover(e) {
     if (hoverNode !== key || tour || tipFor === 'toast') return;
     const r = cv.getBoundingClientRect(), sq = q && s.squads.find(k => k.id === q), at = sq ? guessAt(sq) || { x: sq.cx, y: sq.cy } : n || pt;
     if (!at) return;
-    showTip(sq ? squadInfo(sq) : n ? nodeInfo(n) : postInfo(pt), { left: at.x * view.css + view.cox + r.left, top: (at.y - 26) * view.css + view.coy + r.top, width: 0, height: 0 }); tipFor = 'node';
+    const p = worldToScr(at.x, at.y - 26); showTip(sq ? squadInfo(sq) : n ? nodeInfo(n) : postInfo(pt), { left: p.x + r.left, top: p.y + r.top, width: 0, height: 0 }); tipFor = 'node';
   }, 400);
 }
 cv.addEventListener('pointermove', hover);
@@ -276,9 +276,8 @@ cv.addEventListener('pointermove', e => {
 });
 // the squads inside the rectangle (by their badge or their body): one becomes the selection, several a group
 function pickBox(b, shift) {
-  const w0 = { x: (Math.min(b.x0, b.x1) - view.cox) / view.css, y: (Math.min(b.y0, b.y1) - view.coy) / view.css };
-  const w1 = { x: (Math.max(b.x0, b.x1) - view.cox) / view.css, y: (Math.max(b.y0, b.y1) - view.coy) / view.css };
-  const inside = (x, y) => x >= w0.x && x <= w1.x && y >= w0.y && y <= w1.y;
+  // (on the screen: in the 3D view the rectangle isn't one on the ground)
+  const inside = (x, y) => { const p = worldToScr(x, y); return p.x >= Math.min(b.x0, b.x1) && p.x <= Math.max(b.x0, b.x1) && p.y >= Math.min(b.y0, b.y1) && p.y <= Math.max(b.y0, b.y1); };
   const ids = blueSquads().filter(q => { if (q.dead) return false; const p = guessAt(q); return p && (inside(p.x, p.y) || inside(p.x, p.y - 26)); }).map(q => q.id);
   // a squad in a group brings its whole group along
   for (const id of ids.slice()) { const g = groupOf(id); if (g) for (const x of g.ids) if (!ids.includes(x)) ids.push(x); }
@@ -292,7 +291,7 @@ cv.addEventListener('pointerup', e => {
   if (d && d.face) {
     if (!menu.hidden || s.over) return;
     if (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) < DRAG_PX * 2) { if (d.right) unpick(); else tap(e); return; } // a plain right click: clear the pick; a hold: the order
-    const w = p => ({ x: (p.x - view.cox) / view.css, y: (p.y - view.coy) / view.css }), a = w({ x: f.x0, y: f.y0 }), z = w({ x: f.x1, y: f.y1 });
+    const w = p => scrToWorld(p.x, p.y), a = w({ x: f.x0, y: f.y0 }), z = w({ x: f.x1, y: f.y1 });
     // (the forces between the arrow's tail — the last row — and its head — the first, facing on that way): short = close
     // together, long = spread deep
     const L = Math.hypot(z.x - a.x, z.y - a.y), fa = Math.atan2(z.y - a.y, z.x - a.x);
