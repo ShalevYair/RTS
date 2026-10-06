@@ -293,19 +293,21 @@ function v3Nodes(rings) {
     V3.blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }), 800);
     V3.blocks.castShadow = true; V3.blocks.frustumCulled = false; V3.scene.add(V3.blocks);
   }
-  if (!V3.plinth) { // (under a building's model on a slope: concrete down to the ground)
-    V3.plinth = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0x8f887a }), 400);
+  if (!V3.plinth) { // (under a building's model on a slope: a mound of earth down to the ground, wider at the foot — a
+    // straight concrete block looked like a pillar on a steep hill)
+    const g = new THREE.CylinderGeometry(Math.SQRT1_2, Math.SQRT1_2 * 1.6, 1, 4, 1); g.rotateY(Math.PI / 4);
+    V3.plinth = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({ color: 0x8a7c5c, flatShading: true }), 400);
     V3.plinth.receiveShadow = V3.plinth.castShadow = true; V3.plinth.frustumCulled = false; V3.scene.add(V3.plinth);
   }
   const m = v3Tmp.m, o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), tint = v3Tmp.tint || (v3Tmp.tint = new THREE.Color());
   let nb = 0, np = 0;
   const put = (kind, col, x, y, R, px, k, side, grow = 1) => {
     // (a model of it, if there is one — art/models/b_<kind>.glb: facing the enemy, going up as it's built)
-    // (level, at the middle height of its corners — partly into the slope above — on a plinth down to the lowest:
+    // (level, between the middle height of its corners and the highest — a little into the slope above — on a plinth down to the lowest:
     // tilted with the ground it leaned, and at the highest corner it stood on a tower)
     if (v3HasModel('b_' + kind)) {
       const L = px * V3_BLD_K, W = MODELS['b_' + kind].size[2] * L, g = (dx, dy) => Sim.elevAt(s, { x: x + dx, y: y + dy }) * V3_LV;
-      const hs = [g(-L / 2, -W / 2), g(L / 2, -W / 2), g(-L / 2, W / 2), g(L / 2, W / 2), g(0, 0)], top = hs.reduce((a, b) => a + b) / hs.length, low = Math.min(...hs);
+      const hs = [g(-L / 2, -W / 2), g(L / 2, -W / 2), g(-L / 2, W / 2), g(L / 2, W / 2), g(0, 0)], avg = hs.reduce((a, b) => a + b) / hs.length, top = avg + 0.6 * (Math.max(...hs) - avg), low = Math.min(...hs);
       v3PutModel('b_' + kind, side || 'none', x, y, side === 'red' ? Math.PI : 0, 0, m, k < 1 ? tint.setScalar(Math.max(0.35, k)) : null, null, top - hs[4] + 0.01, L, Math.max(0.12, grow));
       if (top - low > 0.5 && np < 400) { o.position.set(x, (top + low) / 2 - 0.5, y); o.rotation.set(0, 0, 0); o.scale.set(L * 0.97, top - low + 1.6, W * 0.97); o.updateMatrix(); V3.plinth.setMatrixAt(np++, o.matrix); }
       return;
