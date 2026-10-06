@@ -513,3 +513,9 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 #tipT{white-space:pre-line}
 .micSure{top:42%;max-width:min(560px,92vw);flex-wrap:wrap;justify-content:center;text-align:center}.micSure>span:first-child{font-size:26px}
 .micSure #micYes{background:rgb(70 180 110 / .85)}
+
+/* arms: the ask wheel (Alt + click, askui.js) */
+#askWheel{position:absolute;z-index:40;width:0;height:0;pointer-events:none}
+#askWheel button{pointer-events:auto;position:absolute;left:-19px;top:-19px;width:38px;height:38px;border:0;border-radius:50%;background:var(--frost,rgb(20 24 30 / .78));backdrop-filter:blur(6px);color:#fff;font-size:20px;line-height:38px;padding:0;cursor:pointer;box-shadow:0 2px 8px rgb(0 0 0 / .4);animation:askIn .14s ease-out both}
+#askWheel button:hover{filter:brightness(1.35);scale:1.12}
+@keyframes askIn{from{opacity:0;scale:.4}}

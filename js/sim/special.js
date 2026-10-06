@@ -64,7 +64,7 @@ function liftTick(s, dt) {
 function knownFoeNode(s, side, x, y, R = 70) {
   let best = null, bd = R;
   for (const n of s.nodes) {
-    if (n.side === side || n.hp <= 0 || n.kind === 'drone') continue;
+    if (n.side === side || n.hp <= 0 || n.kind === 'drone' || n.kind === 'hq' || n.kind === 'decoy') continue; // (not at the HQ — nor a fake one: that would tell them apart)
     if (s.fog && !s.visNodes[side].has(n.id) && !s.memNodes[side][n.id]) continue;
     const p = s.fog && !s.visNodes[side].has(n.id) ? s.memNodes[side][n.id] : n, d = Math.hypot(p.x - x, p.y - y) - nodeR(n);
     if (d < bd) { bd = d; best = { id: n.id, x: p.x, y: p.y }; }
@@ -89,8 +89,6 @@ function missileTick(s, dt) {
   for (const u of s.units) {
     if (u.type !== 'ssm') continue;
     const q = s.squads.find(k => k.id === u.squad), still = u.at && Math.hypot(u.x - u.at.x, u.y - u.at.y) < 0.5; u.at = { x: u.x, y: u.y };
-    // (none picked for it: loaded, it takes the nearest enemy building it knows of)
-    if (q && !q.fire && !(u.reload > 0)) { const tg = knownFoeNode(s, u.side, u.x, u.y, Infinity); if (tg) q.fire = tg; }
     if (!q || !q.fire) { u.setup = 0; continue; }
     if (!s.nodes.some(n => n.id === q.fire.id && n.hp > 0)) { q.fire = null; u.setup = 0; continue; } // (gone: done)
     u.setup = still ? (u.setup || 0) + dt : 0;
@@ -121,7 +119,7 @@ function missileTick(s, dt) {
     if (m.gone || f < 1) continue;
     m.gone = true;
     const n = s.nodes.find(k => k.id === m.node && k.hp > 0 && Math.hypot(k.x - m.x, k.y - m.y) <= nodeR(k) + 20);
-    if (n) { n.hp = n.kind === 'hq' ? n.hp - (STRUCTS.hq.hp / SSM_HQ_HITS + 1) : 0; n.by = m.by; }
+    if (n && n.kind !== 'hq') { n.hp = 0; n.by = m.by; }
     for (const u of s.units) if (!TYPES[u.type].air && Math.hypot(u.x - m.x, u.y - m.y) <= SSM_SPLASH) { u.hp -= SSM_SPLASH_DMG; u.by = m.by; }
     blastPiles(s, m.x, m.y, SSM_SPLASH); // (fuel barrels there: up they go — fuel.js)
     s.fx.push({ x: m.x, y: m.y, life: 1.2, max: 1.2, size: 60 });

@@ -765,13 +765,14 @@ const FEED_KINDS = new Set(['hqHit', 'fhqHit', 'baseHit', 'contact', 'hit', 'los
 const FEED_T = 20, FEED_FADE = 8, FEED_MAX = 5, FEED_SAME_R = 300, FEED_SAME_T = 10;
 let feedSeen = [];
 function feedAdd(k) {
-  if (!FEED_KINDS.has(k.kind) || !Number.isFinite(k.x)) return;
+  if (!(k.text || FEED_KINDS.has(k.kind)) || !Number.isFinite(k.x)) return; // (k.text: a line of its own — the partners' asks)
   if (k.kind === 'intercept' && k.side !== 'blue') return;
-  const text = Radio.textOf(k); if (!text) return;
+  const text = k.text || Radio.textOf(k); if (!text) return;
   const now = performance.now();
   feedSeen = feedSeen.filter(f => now - f.at < FEED_SAME_T * 1000);
-  if (feedSeen.some(f => f.kind === k.kind && Math.hypot(f.x - k.x, f.y - k.y) < FEED_SAME_R)) return;
-  feedSeen.push({ kind: k.kind, x: k.x, y: k.y, at: now });
+  const key = k.text || k.kind; // (a line of its own: the same line)
+  if (feedSeen.some(f => f.kind === key && Math.hypot(f.x - k.x, f.y - k.y) < FEED_SAME_R)) return;
+  feedSeen.push({ kind: key, x: k.x, y: k.y, at: now });
   const box = $('feed'), b = document.createElement('button');
   b.className = 'feedItem' + (/Hit|lost|Lost|missile|ff|hit/.test(k.kind) ? ' bad' : ''); b.textContent = text;
   b.style.setProperty('--life', FEED_T + 's'); b.style.setProperty('--fade', FEED_FADE + 's');

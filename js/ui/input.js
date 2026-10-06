@@ -106,6 +106,7 @@ function tap(e) {
   if (hqArmed) { placeHq(x, y); return; }
   if (roadArmed) { placeRoad(x, y, e.shiftKey); return; } // (roadui.js)
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
+  if (e.altKey && s.arms) { openAskWheel(e, x, y); return; } // (arms: Alt + click — ask the partner for something here, askui.js)
   selPost = hitPost(x, y); // (a post clicked: the ring of where it works, until the next click — field.js)
   const hit = hitSquad(x, y);
   // a transport helicopter of ours clicked with soldiers picked: they go to it and get on
@@ -159,6 +160,9 @@ function tap(e) {
     const rest = selIds().filter(id => !ssm.includes(id)); if (rest.length) { const keep = sel; sel = rest.length === 1 ? rest[0] : rest; issue('attack', x, y, undefined, true); sel = keep; }
     return;
   }
+  // (only missile trucks picked, on the enemy HQ — or what passes for it: not at it, said where clicked)
+  const hn = ssm.length && ssm.length === selIds().length && hitNode(x, y, 'red');
+  if (hn && (hn.kind === 'hq' || hn.kind === 'decoy')) { const p = worldToScr(x, y), r = cv.getBoundingClientRect(); toast(tr('noSsmHq'), p.x + r.left, p.y + r.top); return; }
   // a post not ours, with soldiers picked: in to take it (yellow arrows)
   if (sendCapture(hitPost(x, y))) return;
   // at an enemy: an attack on it, whatever the order button says
