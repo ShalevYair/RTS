@@ -7,7 +7,8 @@ front is +X and up is +Y, its length along X scaled to 1, standing on y = 0, cen
   turret  the nodes named *Turret* / *Gun* (a tank), around its own pivot (the turret's middle) — `pivot` is where
           that sits on the hull
 Each part is two lists of triangles: `team` (the main paint — Main, Main_Light…: tinted with the side's colour in the
-game) and `rest` (dark details, wheels, tracks: as they are), each vertex x y z nx ny nz r g b, as base64 Float32.
+game) and `rest` (dark details, wheels, tracks: as they are), each vertex x y z nx ny nz r g b, packed in 12 bytes (`pack`: the place as Int16 ×POS_Q, the normal Int8, the
+colour Uint8 — a third of Float32: the buildings made models.js 12 MB), as base64.
 
   python tools/models.py            every art/models/*.glb
   python tools/models.py --slim <big.glb> <kind>
@@ -108,6 +109,16 @@ def skinned(J, B, n, G):
     return out[:, :3]
 
 
+POS_Q = 16000  # (a place's Int16 = x × POS_Q: ±2 lengths, to 1/16000 of one)
+def pack(v):
+    """vertices (n × 9: x y z, nx ny nz, r g b) -> 12 bytes each, as base64"""
+    v = np.asarray(v, np.float64); n = len(v); b = np.zeros((n, 12), np.uint8)
+    b[:, :6] = np.clip(np.round(v[:, :3] * POS_Q), -32767, 32767).astype('<i2').view(np.uint8).reshape(n, 6)
+    b[:, 6:9] = np.clip(np.round(v[:, 3:6] * 127), -127, 127).astype(np.int8).view(np.uint8)
+    b[:, 9:12] = np.clip(np.round(v[:, 6:9] * 255), 0, 255).astype(np.uint8)
+    return base64.b64encode(b.tobytes()).decode()
+
+
 def bake(path):
     J, B = read_glb(path)
     mats = J.get('materials', [])
@@ -154,7 +165,7 @@ def bake(path):
     name = os.path.splitext(os.path.basename(path))[0]
     lo, hi = hull.min(0), hull.max(0); mid = (lo + hi) / 2
     if name in FRONT: ang = np.radians(FRONT[name])
-    elif 'build_models' in J.get('asset', {}).get('generator', ''): ang = 0.0
+    elif J.get('asset', {}).get('generator', '').startswith('tools/build_'): ang = 0.0  # (built in code: +X already)
     elif gun is not None:
         d = gun - mid; far = d[np.argmax(d[:, 0] ** 2 + d[:, 2] ** 2)]; ang = np.arctan2(-far[2], far[0])
         ang = round(ang / (np.pi / 2)) * (np.pi / 2)  # (to the nearest right angle)
@@ -176,18 +187,17 @@ def bake(path):
         q = (turn(p - mid) - ctr) / L
         if part == 'turret': q = q - piv
         n_ = turn(nr)
-        v = np.c_[q, n_, np.clip(col, 0, 1)].astype(np.float32)
-        out['parts'].setdefault(part, {})['team' if team else 'rest'] = base64.b64encode(v.tobytes()).decode()
+        out['parts'].setdefault(part, {})['team' if team else 'rest'] = pack(np.c_[q, n_, np.clip(col, 0, 1)])
     if frames:
         for side in ('L', 'R'):
             if side not in frames: continue
             for f, p in enumerate(frames[side]):  # (the first whole; the rest only where the points are — the same normals and colours)
                 q = (turn(p - mid) - ctr) / L
-                v = np.c_[q, turn(frames[side + 'n']), np.clip(frames[side + 'c'], 0, 1)] if f == 0 else q
-                out['parts']['track' + side + str(f)] = {('rest' if f == 0 else 'pos'): base64.b64encode(v.astype(np.float32).tobytes()).decode()}
+                out['parts']['track' + side + str(f)] = {'rest': pack(np.c_[q, turn(frames[side + 'n']), np.clip(frames[side + 'c'], 0, 1)])} if f == 0 else                     {'pos': base64.b64encode(q.astype(np.float32).tobytes()).decode()}
         zl, zr = [((turn(frames[s][0] - mid) - ctr) / L)[:, 2].mean() for s in ('L', 'R')]
         out['track'] = {'frames': TRACK_F, 'cycle': round(float(cycle / L), 5), 'zl': round(float(zl), 4), 'zr': round(float(zr), 4)}
     if any(k[1] for k in cat) and all((m.get('name') or '').lower() in ('slim',) for m in mats): out['teamK'] = 0.18  # (a slimmed model: all of it its paint — only a touch of the side's colour)
+    if name.startswith('b_'): out['teamK'] = 0.8  # (a building: its roofs in the side's colour, as in its picture)
     out['size'] = [1.0, round(float((hi[1] - lo[1]) / L), 4), round(float((hi[2] - lo[2]) / L), 4)]
     tri = sum(len(v[0]) for v in cat.values()) // 3
     if frames: tri += sum(len(frames[s][0]) for s in ('L', 'R') if s in frames) // 3

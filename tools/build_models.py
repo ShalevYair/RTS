@@ -13,20 +13,44 @@ import numpy as np
 
 OUT = os.path.join(os.path.dirname(__file__), '..', 'art', 'models')
 MATS = {'body': [0.40, 0.40, 0.31], 'dark': [0.09, 0.09, 0.085], 'metal': [0.42, 0.43, 0.44], 'glass': [0.16, 0.22, 0.28],
-        'tank': [0.62, 0.62, 0.58], 'water': [0.24, 0.38, 0.62], 'warn': [0.75, 0.62, 0.15], 'white': [0.86, 0.86, 0.84]}
+        'tank': [0.62, 0.62, 0.58], 'water': [0.24, 0.38, 0.62], 'warn': [0.75, 0.62, 0.15], 'white': [0.86, 0.86, 0.84],
+        # (buildings)
+        'concrete': [0.64, 0.62, 0.57], 'sand': [0.70, 0.61, 0.45], 'canvas': [0.43, 0.43, 0.30], 'wood': [0.47, 0.35, 0.23],
+        'olive': [0.33, 0.36, 0.24], 'asphalt': [0.22, 0.22, 0.21], 'red': [0.72, 0.12, 0.10], 'net': [0.30, 0.34, 0.21]}
 
 
 class Mesh:
-    """triangles by material, flat-shaded"""
-    def __init__(self): self.tri = {}
+    """triangles by material, flat-shaded; each with a shade (a colour factor, `self.k`, ~1: so that sandbags, crates
+    and panels of one material aren't all the very same colour)"""
+    def __init__(self): self.tri = {}; self.k = 1.0
 
     def add(self, mat, pts, faces):
         P = np.asarray(pts, float)
         for f in faces:
             for k in range(1, len(f) - 1):
                 a, b, c = P[f[0]], P[f[k]], P[f[k + 1]]
-                self.tri.setdefault(mat, []).append((a, b, c))
+                self.tri.setdefault(mat, []).append((a, b, c, self.k))
         return self
+
+    def hull(self, mat, pts):
+        """the convex shape round these points (a sloped roof, a wedge, a bevelled block…), its faces outward"""
+        from scipy.spatial import ConvexHull
+        P = np.asarray(pts, float); H = ConvexHull(P); mid = P.mean(0)
+        for f in H.simplices:
+            a, b, c = P[f]
+            if np.dot(np.cross(b - a, c - a), a - mid) < 0: b, c = c, b
+            self.tri.setdefault(mat, []).append((a, b, c, self.k))
+        return self
+
+    def block(self, mat, c, s, bev=0.08, rot=0.0):
+        """a box with its edges bevelled (bev: how much, of the smallest side) — catches the light on its edges"""
+        x, y, z = np.asarray(s, float) / 2; b = bev * min(x, y, z) * 2
+        p = []
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                for sz in (-1, 1):
+                    p += [(sx * x, sy * (y - b), sz * (z - b)), (sx * (x - b), sy * y, sz * (z - b)), (sx * (x - b), sy * (y - b), sz * z)]
+        return self.hull(mat, np.asarray(p) @ ry(rot).T + c)
 
     def box(self, mat, c, s, rot=0.0, tilt=0.0):
         """box centred at c, size s (x y z); turned `rot` round Y and tilted `tilt` round Z (nose up), both radians"""
@@ -81,11 +105,11 @@ def ry(a): c, s = np.cos(a), np.sin(a); return np.array([[c, 0, s], [0, 1, 0], [
 def rz(a): c, s = np.cos(a), np.sin(a); return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
 
 
-def write(kind, parts):
+def write(kind, parts, gen='tools/build_models.py'):
     """parts: [(name, Mesh, parent index or None)] -> art/models/<kind>.glb (each part a node; a mesh per part, a
     primitive per material)"""
     mats = sorted({m for _, M, _ in parts for m in M.tri})
-    J = {'asset': {'version': '2.0', 'generator': 'tools/build_models.py'}, 'scene': 0, 'scenes': [{'nodes': []}],
+    J = {'asset': {'version': '2.0', 'generator': gen}, 'scene': 0, 'scenes': [{'nodes': []}],
          'nodes': [], 'meshes': [], 'accessors': [], 'bufferViews': [], 'buffers': [],
          'materials': [{'name': m, 'pbrMetallicRoughness': {'baseColorFactor': MATS[m] + [1], 'metallicFactor': 0.1, 'roughnessFactor': 0.8}} for m in mats]}
     blob = bytearray()
@@ -96,14 +120,17 @@ def write(kind, parts):
     for name, M, parent in parts:
         prims = []
         for m, T in M.tri.items():
-            T = np.asarray(T, np.float32)  # (n, 3, 3)
+            K = np.repeat(np.asarray([t[3] for t in T], np.float32), 3)
+            T = np.asarray([t[:3] for t in T], np.float32)  # (n, 3, 3)
             nr = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0]); nr /= np.maximum(1e-9, np.linalg.norm(nr, axis=1))[:, None]
             pos = T.reshape(-1, 3); nrm = np.repeat(nr, 3, axis=0).astype(np.float32); idx = np.arange(len(pos), dtype=np.uint32)
+            col = np.repeat(np.clip(K, 0, 2)[:, None], 3, axis=1).astype(np.float32)
             a0 = len(J['accessors'])
             J['accessors'] += [{'bufferView': view(pos, 34962), 'componentType': 5126, 'count': len(pos), 'type': 'VEC3', 'min': pos.min(0).tolist(), 'max': pos.max(0).tolist()},
                                {'bufferView': view(nrm, 34962), 'componentType': 5126, 'count': len(nrm), 'type': 'VEC3'},
-                               {'bufferView': view(idx, 34963), 'componentType': 5125, 'count': len(idx), 'type': 'SCALAR'}]
-            prims.append({'attributes': {'POSITION': a0, 'NORMAL': a0 + 1}, 'indices': a0 + 2, 'material': mats.index(m)})
+                               {'bufferView': view(idx, 34963), 'componentType': 5125, 'count': len(idx), 'type': 'SCALAR'},
+                               {'bufferView': view(col, 34962), 'componentType': 5126, 'count': len(col), 'type': 'VEC3'}]
+            prims.append({'attributes': {'POSITION': a0, 'NORMAL': a0 + 1, 'COLOR_0': a0 + 3}, 'indices': a0 + 2, 'material': mats.index(m)})
         J['meshes'].append({'name': name, 'primitives': prims})
         J['nodes'].append({'name': name, 'mesh': len(J['meshes']) - 1})
         i = len(J['nodes']) - 1
