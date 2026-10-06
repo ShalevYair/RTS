@@ -164,7 +164,7 @@ function v3Lay(x, y, hd, lift, w, h, ox, oy, out, sy = 1) {
 // ---- 3D models (art/models/*.glb → MODELS, tools/models.py): a kind's hull and turret, each two meshes — its main
 // paint tinted with the side's colour (V3_TEAM of it), the rest as it is. Front +X, length 1, so scaled by V3_LEN ×
 // its size. A tank's turret turns on its pivot to where it fires; a wreck: dark. ----
-const V3_ROTOR = 14; // (a helicopter's rotor, radians a second)
+const V3_ROTOR = 14, V3_POS_Q = 16000; // (a helicopter's rotor, radians a second)
 const V3_LEN = { tank: 1.75, jeep: 1.25, ajeep: 1.25, tjeep: 1.25, air: 1.3, tanker: 1.3, heli: 1.2, gunship: 1.2, lift: 1.3, how: 2.2, mlrs: 2.4, ssm: 2.6, arrow: 2.6, dome: 2.6, truck: 2.0, fueltruck: 2.0, watertruck: 2.0, radio: 1.9, mech: 2.0, dozer: 1.7 }, V3_TEAM = 0.38;
 const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
@@ -185,11 +185,12 @@ function v3Geo(type, part, side) {
   const TK = MODELS[type].teamK ?? V3_TEAM; // (how much of the side's colour in its paint)
   for (const k of ['team', 'rest']) {
     if (!M[k]) continue;
+    // (12 bytes a point, tools/models.py `pack`: the place Int16 / V3_POS_Q, the normal Int8, the colour Uint8)
     const b = atob(M[k]), u8 = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i);
-    const f = new Float32Array(u8.buffer), n = f.length / 9, pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3);
+    const dv = new DataView(u8.buffer), n = u8.length / 12, pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) {
-      pos[i * 3 + j] = f[i * 9 + j]; nrm[i * 3 + j] = f[i * 9 + 3 + j];
-      const c = f[i * 9 + 6 + j], s2 = j === 0 ? sc.r : j === 1 ? sc.g : sc.b;
+      pos[i * 3 + j] = dv.getInt16(i * 12 + j * 2, true) / V3_POS_Q; nrm[i * 3 + j] = dv.getInt8(i * 12 + 6 + j) / 127;
+      const c = u8[i * 12 + 9 + j] / 255, s2 = j === 0 ? sc.r : j === 1 ? sc.g : sc.b;
       col[i * 3 + j] = k === 'team' && side !== 'wreck' ? c * (1 - TK) + s2 * TK * 0.55 : c;
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -219,9 +220,10 @@ function v3Run(u, hd) {
 }
 // (run: how far each track has gone, world units — [left, right]; the pose shown for it, so they run)
 // (lift: in the air, level — aircraft; a helicopter's rotor is its turret, `aim` turning it round)
-function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0) {
-  const L = (SIZE[type] || 10) * (V3_LEN[type] || 1.6), H = v3Model(type, 'hull', side), D = MODELS[type];
-  v3Put(H, v3Lay(x, y, hd, lift, L, L, 0, 0, m, L), tint);
+// (len: its length, if not by its kind's size — a building; rise: of its height — a building going up)
+function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, rise = 1) {
+  const L = len || (SIZE[type] || 10) * (V3_LEN[type] || 1.6), H = v3Model(type, 'hull', side), D = MODELS[type];
+  v3Put(H, v3Lay(x, y, hd, lift, L, L, 0, 0, m, L * rise), tint);
   const K = D.track;
   if (K) ['L', 'R'].forEach((k, i) => { const r = run ? run[i] / (K.cycle * L) : 0, f = Math.floor((r - Math.floor(r)) * K.frames) % K.frames; v3Put(v3Model(type, 'track' + k + f, 'track'), m, tint); });
   if (!D.parts.turret) return;
@@ -277,6 +279,7 @@ function v3Rings(rings) {
 // up — dark, lighter as the work is done; remembered (the enemy's, out of sight) — dim. Under each, an unseen block
 // of about its size that throws the sun's shadow (so a flat picture still stands). Drones: their picture up in the air,
 // turning slowly. ----
+const V3_BLD_K = 1.0; // (a building's model: its length, of its picture's)
 const V3_BLOCK = { hq: 0.9, fhq: 0.6, decoy: 0.9, tower: 3.2, antenna: 2.4, radar: 1.4, power: 1.1 }, V3_SITE = 0.3, V3_MEM = 0.55;
 function v3Building(kind, col, px) {
   const own = BUILDING_PIC[kind], bare = !!(own && sprite.img[own]), key = 'b:' + kind + col + px;
@@ -290,9 +293,23 @@ function v3Nodes(rings) {
     V3.blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }), 800);
     V3.blocks.castShadow = true; V3.blocks.frustumCulled = false; V3.scene.add(V3.blocks);
   }
+  if (!V3.plinth) { // (under a building's model on a slope: concrete down to the ground)
+    V3.plinth = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0x8f887a }), 400);
+    V3.plinth.receiveShadow = V3.plinth.castShadow = true; V3.plinth.frustumCulled = false; V3.scene.add(V3.plinth);
+  }
   const m = v3Tmp.m, o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), tint = v3Tmp.tint || (v3Tmp.tint = new THREE.Color());
-  let nb = 0;
-  const put = (kind, col, x, y, R, px, k) => {
+  let nb = 0, np = 0;
+  const put = (kind, col, x, y, R, px, k, side, grow = 1) => {
+    // (a model of it, if there is one — art/models/b_<kind>.glb: facing the enemy, going up as it's built)
+    // (level, at the middle height of its corners — partly into the slope above — on a plinth down to the lowest:
+    // tilted with the ground it leaned, and at the highest corner it stood on a tower)
+    if (v3HasModel('b_' + kind)) {
+      const L = px * V3_BLD_K, W = MODELS['b_' + kind].size[2] * L, g = (dx, dy) => Sim.elevAt(s, { x: x + dx, y: y + dy }) * V3_LV;
+      const hs = [g(-L / 2, -W / 2), g(L / 2, -W / 2), g(-L / 2, W / 2), g(L / 2, W / 2), g(0, 0)], top = hs.reduce((a, b) => a + b) / hs.length, low = Math.min(...hs);
+      v3PutModel('b_' + kind, side || 'none', x, y, side === 'red' ? Math.PI : 0, 0, m, k < 1 ? tint.setScalar(Math.max(0.35, k)) : null, null, top - hs[4] + 0.01, L, Math.max(0.12, grow));
+      if (top - low > 0.5 && np < 400) { o.position.set(x, (top + low) / 2 - 0.5, y); o.rotation.set(0, 0, 0); o.scale.set(L * 0.97, top - low + 1.6, W * 0.97); o.updateMatrix(); V3.plinth.setMatrixAt(np++, o.matrix); }
+      return;
+    }
     const P = v3Building(kind, col, px);
     v3Put(P, v3Lay(x, y, 0, 0, P.w, P.h, 0, 0, m), k < 1 ? tint.setScalar(k) : null);
     if (nb < 800) { const hgt = R * (V3_BLOCK[kind] || 0.75) * Math.min(1, k); o.position.set(x, Sim.elevAt(s, { x, y }) * V3_LV + hgt / 2, y); o.scale.set(R * 1.3, hgt, R * 1.3); o.updateMatrix(); V3.blocks.setMatrixAt(nb++, o.matrix); }
@@ -308,12 +325,12 @@ function v3Nodes(rings) {
     }
     const S = Sim.STRUCTS[n.kind], on = s.t >= n.ready, site = Number.isFinite(n.work) && !on;
     const grow = on || (n.kind === 'hq' && !site) ? 1 : site ? Math.min(1, n.work / Math.max(0.01, n.need)) : Math.max(0, Math.min(1, (s.t - n.t0) / Math.max(0.01, n.ready - n.t0)));
-    put(n.kind, col, n.x, n.y, S.r, pxOf(n.kind), on ? 1 : V3_SITE + (1 - V3_SITE) * grow);
+    put(n.kind, col, n.x, n.y, S.r, pxOf(n.kind), on ? 1 : V3_SITE + (1 - V3_SITE) * grow, n.side, grow);
     if (selNode === n.id) rings.push({ x: n.x, y: n.y, r: S.r + 10 });
   }
-  if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { const g = s.memNodes.blue[id]; put(g.kind, colors.red, g.x, g.y, Sim.STRUCTS[g.kind].r, pxOf(g.kind), V3_MEM); }
-  if (s.posts) for (const p of s.posts) { const R = Sim.POSTS[p.kind].r; put(p.kind, postCol(p), p.x, p.y, R, Math.round(R * 2.4), s.fog && !postSeen(p) ? V3_MEM : 1); if (selPost === p) rings.push({ x: p.x, y: p.y, r: R + 10 }); }
-  V3.blocks.count = nb; V3.blocks.instanceMatrix.needsUpdate = true;
+  if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { const g = s.memNodes.blue[id]; put(g.kind, colors.red, g.x, g.y, Sim.STRUCTS[g.kind].r, pxOf(g.kind), V3_MEM, 'red'); }
+  if (s.posts) for (const p of s.posts) { const R = Sim.POSTS[p.kind].r; put(p.kind, postCol(p), p.x, p.y, R, Math.round(R * 2.4), s.fog && !postSeen(p) ? V3_MEM : 1, p.side); if (selPost === p) rings.push({ x: p.x, y: p.y, r: R + 10 }); }
+  V3.blocks.count = nb; V3.blocks.instanceMatrix.needsUpdate = true; V3.plinth.count = np; V3.plinth.instanceMatrix.needsUpdate = true;
 }
 // ---- fire and smoke: bits of light and smoke, each a soft round picture facing the camera (or, a scorch mark, lying
 // on the ground), all of a kind in one InstancedMesh with its own colour and see-through-ness (aCol) — the light ones
