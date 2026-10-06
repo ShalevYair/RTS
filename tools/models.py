@@ -125,9 +125,10 @@ def bake(path):
     fwd = next((a for a in J.get('animations', []) if 'forward' in (a.get('name') or '').lower()), None)
     tracks = {}  # 'L'/'R' -> (node, its primitive's normals and colours from the rest walk)
     parts = {}  # (part, team) -> list of (pos, nrm, col)
-    def walk(i, P, turret):
+    def walk(i, P, turret, pose=None):
         n = J['nodes'][i]; M = P @ node_matrix(n); name = (n.get('name') or '').lower()
         turret = turret or any(k in name for k in TURRET)
+        pose = pose or (name if name.startswith('pose') else None)  # (a soldier's walking poses: parts of their own)
         track = fwd is not None and 'skin' in n and 'track' in name and 'mesh' in n
         if 'mesh' in n:
             for p in J['meshes'][n['mesh']]['primitives']:
@@ -144,8 +145,8 @@ def bake(path):
                 N /= np.maximum(1e-9, np.linalg.norm(N, axis=1))[:, None]
                 team = any(k == (m.get('name') or '').lower() for k in TEAM)
                 if track: tracks['L' if name.endswith('.l') else 'R'] = (n, idx, N, col); continue
-                parts.setdefault(('turret' if turret else 'hull', team), []).append((P4[idx, :3], N[idx], col[idx]))
-        for c in n.get('children', []): walk(c, M, turret)
+                parts.setdefault((pose or ('turret' if turret else 'hull'), team), []).append((P4[idx, :3], N[idx], col[idx]))
+        for c in n.get('children', []): walk(c, M, turret, pose)
     for r in J['scenes'][J.get('scene', 0)]['nodes']: walk(r, np.eye(4), False)
     cat = {k: tuple(np.concatenate([v[j] for v in l]) for j in range(3)) for k, l in parts.items()}
     # (the tracks: TRACK_F poses over the clip; the first in the hull's size)
@@ -198,6 +199,7 @@ def bake(path):
         out['track'] = {'frames': TRACK_F, 'cycle': round(float(cycle / L), 5), 'zl': round(float(zl), 4), 'zr': round(float(zr), 4)}
     if any(k[1] for k in cat) and all((m.get('name') or '').lower() in ('slim',) for m in mats): out['teamK'] = 0.18  # (a slimmed model: all of it its paint — only a touch of the side's colour)
     if name.startswith('b_'): out['teamK'] = 0.8  # (a building: its roofs in the side's colour, as in its picture)
+    if any(k[0].startswith('pose') for k in cat): out['teamK'] = 0.6; out['poses'] = sum(1 for k in cat if k[0].startswith('pose') and not k[1])  # (a soldier: tiny — its uniform well in the side's colour)
     out['size'] = [1.0, round(float((hi[1] - lo[1]) / L), 4), round(float((hi[2] - lo[2]) / L), 4)]
     tri = sum(len(v[0]) for v in cat.values()) // 3
     if frames: tri += sum(len(frames[s][0]) for s in ('L', 'R') if s in frames) // 3

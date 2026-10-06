@@ -547,7 +547,79 @@ def k_tjeep():  # anti-tank: a TOW launcher on a mount, its sight
     T.k = 0.6; T.box('dark', (-0.45, 2.80, -0.36), (0.45, 0.25, 0.22)); T.k = 1.0; T.box('glass', (-0.22, 2.80, -0.36), (0.02, 0.15, 0.14))
     return [('hull', M, None), ('turret', T, 0)]
 
-KINDS = {'air': k_air, 'tanker': k_tanker, 'heli': k_heli, 'gunship': k_gunship, 'lift': k_lift, 'ajeep': k_ajeep, 'tjeep': k_tjeep,
+# ---- soldiers: a body from joints — hips, knees, feet, shoulders, elbows, hands — a limb a tapered bar between two;
+# the uniform `body` (the side's colour), boots, webbing and the helmet darker, the face skin. A pose standing (`hull`)
+# and POSES walking (`pose0`…: the legs swinging, the body bobbing — the game shows the one for how far it has gone) ----
+POSES = 4
+SKIN = 'wood'  # (a face, hands: the warm brown of wood, lighter)
+
+def limb(M, mat, p0, p1, w0, w1, n=6):
+    p0, p1 = np.asarray(p0, float), np.asarray(p1, float); d = p1 - p0; u = d / max(1e-9, np.linalg.norm(d))
+    a = np.cross(u, (0, 0, 1) if abs(u[2]) < 0.9 else (1, 0, 0)); a /= np.linalg.norm(a); b = np.cross(u, a)
+    t = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    M.hull(mat, [p0 + (a * np.cos(q) + b * np.sin(q)) * w0 for q in t] + [p1 + (a * np.cos(q) + b * np.sin(q)) * w1 for q in t])
+
+def ball(M, mat, c, r, sy=1.0, n=8):
+    t = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    M.hull(mat, [(c[0] + r * np.cos(a) * np.cos(e), c[1] + r * sy * np.sin(e), c[2] + r * np.sin(a) * np.cos(e)) for a in t for e in (-1.2, -0.6, 0, 0.6, 1.2)])
+
+def soldier(kind, phase=None):
+    """one soldier, standing (phase None) or at that point of a stride (0…2π); facing +X"""
+    M = Mesh()
+    swing = 0.0 if phase is None else 0.38 * np.sin(phase); bob = 0.0 if phase is None else 0.04 * abs(np.cos(phase))
+    hip_y = 0.95 - bob
+    for side, s_ in ((1, 1), (-1, -1)):  # (legs: left swings forward while the right goes back)
+        a = swing * s_; knee_bend = 0.0 if phase is None else max(0.0, -np.sin(phase) * s_) * 0.55 + 0.15 * abs(np.cos(phase))
+        hip = np.array((0.0, hip_y, side * 0.12))
+        knee = hip + np.array((np.sin(a) * 0.46, -np.cos(a) * 0.46, 0))
+        b = a - knee_bend
+        foot = knee + np.array((np.sin(b) * 0.45, -np.cos(b) * 0.45, 0)); foot[1] = max(foot[1], 0.06)
+        M.k = 1.0; limb(M, 'body', hip, knee, 0.085, 0.07); limb(M, 'body', knee, foot + (0, 0.05, 0), 0.07, 0.055)
+        M.k = 0.6; M.hull('dark', [tuple(foot + d) for d in ((-0.08, -0.06, -0.05), (-0.08, -0.06, 0.05), (0.17, -0.06, -0.05), (0.17, -0.06, 0.05), (-0.08, 0.06, -0.05), (-0.08, 0.06, 0.05), (0.1, 0.04, -0.05), (0.1, 0.04, 0.05))])  # boot
+    # (the torso, a vest over it, the belt; the head, the helmet)
+    ch = hip_y + 0.55
+    M.k = 1.0; M.hull('body', [(x, y, z) for x in (-0.1, 0.1) for y in (hip_y - 0.05,) for z in (-0.17, 0.17)] + [(x, ch, z) for x in (-0.12, 0.12) for z in (-0.21, 0.21)])
+    M.k = 0.75 if kind != 'med' else 1.0; M.hull('olive' if kind != 'med' else 'white', [(x, y, z) for x in (-0.13, 0.14) for y in (hip_y + 0.12, ch - 0.05) for z in (-0.2, 0.2)])  # vest
+    M.k = 0.55; M.box('dark', (0, hip_y + 0.03, 0), (0.24, 0.07, 0.36))
+    M.k = 0.7; M.hull('olive', [(x, y, z) for x in (-0.3, -0.12) for y in (hip_y + 0.15, ch - 0.02) for z in (-0.15, 0.15)])  # backpack
+    M.k = 1.0; limb(M, SKIN, (0, ch, 0), (0, ch + 0.08, 0), 0.05, 0.05)
+    head = np.array((0.02, ch + 0.2, 0)); M.k = 1.15; ball(M, SKIN, head, 0.11, 1.1)
+    if kind == 'commando':  # (a balaclava, a soft cap)
+        M.k = 0.5; ball(M, 'dark', head + (-0.01, 0.01, 0), 0.115, 1.12); M.k = 1.0; M.box('glass', tuple(head + (0.1, 0.02, 0)), (0.02, 0.04, 0.14))
+    else:
+        M.k = 0.8; M.hull('olive', [tuple(head + (0.13 * np.cos(a), y, 0.13 * np.sin(a))) for a in np.linspace(0, 2 * np.pi, 10, endpoint=False) for y in (0.02,)] + [tuple(head + (0.1 * np.cos(a), 0.11, 0.1 * np.sin(a))) for a in np.linspace(0, 2 * np.pi, 10, endpoint=False)] + [tuple(head + (0, 0.14, 0))])  # helmet
+    # (arms: holding what they carry)
+    sh = [np.array((0.0, ch - 0.04, z)) for z in (0.22, -0.22)]
+    if kind in ('at', 'aa'):  # (a tube on the right shoulder, the hands on it)
+        tube = (0.0, ch + 0.06, -0.16); L = 1.1 if kind == 'at' else 1.5
+        M.k = 1.0; M.cyl('olive' if kind == 'at' else 'dark', (tube[0] + (0.15 if kind == 'at' else 0.05), tube[1], tube[2]), 0.06 if kind == 'at' else 0.055, L, 'x', 8)
+        if kind == 'at': M.k = 0.9; M.cyl('olive', (tube[0] + 0.15 + L / 2 + 0.12, tube[1], tube[2]), 0.11, 0.3, 'x', 8, r2=0.03)  # the warhead
+        else: M.k = 0.8; M.box('dark', (tube[0] + 0.2, tube[1] - 0.12, tube[2] + 0.02), (0.18, 0.12, 0.08))
+        hands = [np.array((0.32, ch - 0.02, -0.12)), np.array((0.1, ch - 0.05, -0.1))]
+    elif kind == 'med':  # (a medical bag in one hand, the other free)
+        hands = [np.array((0.05, hip_y - 0.05, 0.3)), np.array((0.08, hip_y + 0.05, -0.28))]
+        M.k = 1.0; M.block('white', (0.05, hip_y - 0.2, 0.32), (0.3, 0.22, 0.14), 0.15); M.box('red', (0.05, hip_y - 0.2, 0.395), (0.18, 0.05, 0.01)); M.box('red', (0.05, hip_y - 0.2, 0.396), (0.05, 0.18, 0.01))
+        for z in (0.2, -0.2): M.k = 1.0; M.box('white', (0.0, ch - 0.12, z * 1.07), (0.12, 0.1, 0.02)); M.box('red', (0.0, ch - 0.12, z * 1.08), (0.06, 0.02, 0.01))  # armbands
+    else:  # (a rifle held across, at the ready)
+        r0, r1 = np.array((-0.05, ch - 0.15, -0.05)), np.array((0.62, ch - 0.02, 0.02))
+        M.k = 0.5; limb(M, 'dark', r0, r1, 0.03, 0.025, 4); M.box('dark', tuple(r0 + (0.18, -0.08, 0.02)), (0.05, 0.14, 0.03))  # mag
+        if kind == 'commando': M.k = 0.45; limb(M, 'dark', r1, r1 + (0.2, 0.004, 0), 0.035, 0.035, 6)  # suppressor
+        hands = [r0 + (0.4, 0.03, 0.03), r0 + (0.12, -0.02, 0.03)]
+    for shp, hand in zip(sh, hands):
+        elbow = (shp + hand) / 2 + np.array((-0.05, -0.12, 0.05 * np.sign(shp[2])))
+        M.k = 1.0; limb(M, 'body', shp, elbow, 0.06, 0.05); limb(M, 'body', elbow, hand, 0.05, 0.045)
+        M.k = 1.15; ball(M, SKIN, hand, 0.045, 1.0, 6)
+    return M
+
+def k_soldier(kind):
+    def make():
+        parts = [('hull', soldier(kind), None)]
+        for i in range(POSES): parts.append((f'pose{i}', soldier(kind, 2 * np.pi * i / POSES), None))
+        return parts
+    return make
+
+KINDS = {'inf': k_soldier('inf'), 'at': k_soldier('at'), 'aa': k_soldier('aa'), 'med': k_soldier('med'), 'commando': k_soldier('commando'),
+         'air': k_air, 'tanker': k_tanker, 'heli': k_heli, 'gunship': k_gunship, 'lift': k_lift, 'ajeep': k_ajeep, 'tjeep': k_tjeep,
          'truck': k_truck, 'fueltruck': lambda: k_tanktruck('tank'), 'watertruck': lambda: k_tanktruck('water'),
          'radio': k_radio, 'mech': k_mech, 'ssm': k_ssm, 'arrow': k_launcher(2, 2, 0.75), 'dome': k_launcher(3, 4, 0.6),
          'mlrs': k_mlrs, 'dozer': k_dozer}
