@@ -381,9 +381,348 @@ def b_depot(seed=13):
     M.car(9.0, 6.5, 0.0, 6.0, 2.4).barrels(-2.0, 7.5, 6)
     return [('hull', M, None)]
 
+# ---- more pieces: a ring and a letter painted on the ground, a hut, a fuel tank on a berm, a jet parked ----
+def ring(M, cx, cz, r0, r1, y=0.13, mat='white', n=32):
+    for i in range(n):
+        a0, a1 = 2 * np.pi * i / n, 2 * np.pi * (i + 1) / n
+        q = [(cx + r * np.cos(a), y, cz + r * np.sin(a)) for r, a in ((r0, a0), (r1, a0), (r1, a1), (r0, a1))]
+        M.k = 1.0; M.add(mat, q, [(3, 2, 1, 0), (0, 1, 2, 3)])
+
+def flat(M, cx, cz, L, W, y=0.13, mat='white', rot=0.0):
+    M.k = 1.0; M.box(mat, (cx, y, cz), (L, 0.02, W), rot=rot)
+
+def helipad(M, cx, cz, r):
+    M.k = 0.95; M.cyl('concrete', (cx, 0.13, cz), r, 0.12, 'y', 28)
+    ring(M, cx, cz, r * 0.78, r * 0.86, 0.2, 'body')
+    flat(M, cx - r * 0.28, cz, r * 0.13, r * 0.9, 0.2, 'body'); flat(M, cx + r * 0.28, cz, r * 0.13, r * 0.9, 0.2, 'body')
+    flat(M, cx, cz, r * 0.56, r * 0.13, 0.2, 'body')  # (the H: two legs, the bar between)
+    for a in np.linspace(0, 2 * np.pi, 8, endpoint=False): M.k = 1.0; M.cyl('warn', (cx + np.cos(a) * r, 0.25, cz + np.sin(a) * r), 0.15, 0.25, 'y', 6)  # edge lights
+
+def hut(M, cx, cz, L, W, h, along='x'):
+    M.block('concrete', (cx, h / 2, cz), (L, h, W), 0.04)
+    M.roof(cx, cz, L, W, h, 0.5 + 0.08 * min(L, W), 0.3, 'body', 0.7, along)
+    M.k = 0.45; M.box('dark', (cx + L / 2 + 0.03, 1.05, cz), (0.06, 2.0, 0.9)); M.k = 1.0
+    M.windows(cx - L / 4, cx + L / 4, h * 0.6, cz + W / 2, max(1, int(L / 3)), 0.8, 0.6, 1)
+
+def fuel_tank(M, cx, cz, L=6.0, r=1.4, mat='olive', berm=True):
+    if berm:
+        a = np.linspace(0, 2 * np.pi, 20, endpoint=False)
+        M.k = 0.75; M.hull('sand', [(cx + (L / 2 + 1.2) * np.cos(t), 0.0, cz + (r + 1.2) * np.sin(t)) for t in a] + [(cx + (L / 2 + 0.4) * np.cos(t), 0.6, cz + (r + 0.4) * np.sin(t)) for t in a])
+    M.k = 1.0; M.cyl(mat, (cx, r + 0.7, cz), r, L, 'x', 18)
+    M.k = 0.9; M.cyl(mat, (cx + L / 2 + 0.12, r + 0.7, cz), r * 0.9, 0.25, 'x', 18, r2=r * 0.6); M.cyl(mat, (cx - L / 2 - 0.12, r + 0.7, cz), r * 0.6, 0.25, 'x', 18, r2=r * 0.9)  # (domed ends)
+    for u in (-L / 3, L / 3): M.k = 0.6; M.box('dark', (cx + u, 0.55, cz), (0.4, 1.1, r * 1.6))   # saddles
+    M.k = 1.0; M.cyl('metal', (cx, 2 * r + 0.8, cz), 0.3, 0.3, 'y', 8)
+    M.strut('metal', np.array((cx - L / 2, r + 0.3, cz + r * 0.6)), np.array((cx - L / 2 - 2.5, 0.4, cz + r * 0.6)), 0.12)  # a pipe
+
+def jet(M, cx, cz, s=1.0, rot=0.0, mat='metal'):
+    R = ry(rot)
+    def P(p): return tuple(np.asarray(p, float) * s @ R.T + (cx, 0, cz))
+    M.k = 1.0; M.hull(mat, [P((u, 1.2 + e, v)) for u in (-4.5, 3.5) for v in (-0.5, 0.5) for e in (0, 0.9)] + [P((5.2, 1.6, 0))])
+    M.hull(mat, [P(p) for p in ((2.0, 1.55, 0.4), (-2.6, 1.5, 4.4), (-3.6, 1.5, 4.4), (-3.4, 1.55, 0.4), (2.0, 1.65, 0.4), (-3.4, 1.65, 0.4))])
+    M.hull(mat, [P(p) for p in ((2.0, 1.55, -0.4), (-2.6, 1.5, -4.4), (-3.6, 1.5, -4.4), (-3.4, 1.55, -0.4), (2.0, 1.65, -0.4), (-3.4, 1.65, -0.4))])
+    M.hull(mat, [P(p) for p in ((-2.6, 2.0, 0.05), (-4.5, 4.4, 0.05), (-4.9, 4.4, 0.05), (-4.6, 2.0, 0.05), (-2.6, 2.0, -0.05), (-4.6, 2.0, -0.05), (-4.9, 4.4, -0.05))])
+    M.k = 1.0; M.hull('glass', [P((u, 2.1 + e, v)) for u in (1.6, 3.0) for v in (-0.3, 0.3) for e in (0, 0.35)])
+    for u, v in ((2.8, 0), (-1.2, 1.2), (-1.2, -1.2)): M.k = 1.0; M.cyl('dark', P((u, 0.35, v)), 0.32, 0.25, 'z', 8, rot=rot)
+
+def runway(M, x0, x1, cz, W):
+    M.k = 0.8; M.box('asphalt', ((x0 + x1) / 2, 0.1, cz), (x1 - x0, 0.08, W))
+    for x in np.arange(x0 + 2, x1 - 2, 5.0): flat(M, x + 1.25, cz, 2.5, 0.35, 0.15)
+    for sv in (-1, 1): flat(M, (x0 + x1) / 2, cz + sv * (W / 2 - 0.4), x1 - x0, 0.2, 0.15)
+
+def control_tower(M, cx, cz):
+    M.block('concrete', (cx, 3.0, cz), (3.0, 6.0, 3.0), 0.04)
+    M.k = 1.0; M.hull('glass', [(cx + u, y, cz + v) for u in (-2.0, 2.0) for v in (-2.0, 2.0) for y in (6.0, 7.6)] + [(cx + u, 6.0, cz + v) for u in (-1.6, 1.6) for v in (-1.6, 1.6)])
+    for u, v in ((-2.0, -2.0), (2.0, -2.0), (-2.0, 2.0), (2.0, 2.0)): M.strut('concrete', np.array((cx + u, 6.0, cz + v)), np.array((cx + u, 7.6, cz + v)), 0.1)
+    M.k = 1.0; M.box('body', (cx, 7.8, cz), (4.6, 0.35, 4.6)); M.ac(cx - 0.8, 8.0, cz)
+    M.strut('metal', np.array((cx + 1.2, 8.0, cz + 1.2)), np.array((cx + 1.2, 10.5, cz + 1.2)), 0.04)
+    M.windows(cx - 0.6, cx + 0.6, 3.5, cz + 1.5, 1, 0.7, 0.8, 1)
+
+def b_airfield(seed=14):
+    M = B(seed); L, W = 40, 30
+    M.pad(L, W)
+    runway(M, -L / 2, L / 2, W / 2 - 4.5, 7.0)
+    M.hangar(-6.0, -4.5, 18.0, 14.0, 6.5, 3.0, 0.75, lambda M: jet(M, -6.0, -4.5, 0.9, 0.0, 'olive'))
+    control_tower(M, 10.0, -9.0)
+    jet(M, 9.0, 3.0, 0.9, 0.3, 'metal')
+    M.car(14.5, -2.0, 1.4, 5.0, 2.2).barrels(16.5, -12.5, 5).crates(3.5, -12.5, 2, 1, 2, 0.9)
+    M.barrier((-L / 2 + 0.6, -W / 2 + 0.6), (L / 2 - 0.6, -W / 2 + 0.6), 1.2, 1.0)
+    return [('hull', M, None)]
+
+def b_tankerbase(seed=15):
+    M = B(seed); L, W = 44, 32
+    M.pad(L, W)
+    runway(M, -L / 2, L / 2, W / 2 - 4.5, 7.0)
+    M.hangar(-7.0, -5.0, 20.0, 15.0, 7.5, 3.2, 0.8)
+    s = 1.6  # (a tanker parked: a big body, swept wings, four engines)
+    M.k = 1.0; M.cyl('metal', (10.0, 2.6, 0.5), 1.2 * s / 1.6, 18.0, 'x', 14); M.cyl('metal', (19.5, 2.6, 0.5), 1.2 * s / 1.6, 1.5, 'x', 14, r2=0.2)
+    for sv in (-1, 1):
+        M.hull('metal', [(12.0, 2.2, 0.5 + sv * 1.0), (6.0, 2.0, 0.5 + sv * 12.5), (4.5, 2.0, 0.5 + sv * 12.5), (7.5, 2.2, 0.5 + sv * 1.0), (12.0, 2.4, 0.5 + sv * 1.0), (7.5, 2.4, 0.5 + sv * 1.0)])
+        for z in (5.0, 9.0): M.cyl('dark', (9.3 - z * 0.3, 1.6, 0.5 + sv * z), 0.55, 2.4, 'x', 10)
+    M.hull('metal', [(2.0, 3.2, 0.55), (-0.5, 7.2, 0.55), (-1.6, 7.2, 0.55), (0.5, 3.2, 0.55), (2.0, 3.2, 0.45), (0.5, 3.2, 0.45), (-1.6, 7.2, 0.45)])
+    fuel_tank(M, -14.0, 10.5, 6.0, 1.3, 'tank'); M.car(-6.0, 11.0, 0.0, 6.0, 2.4, 'tank')
+    control_tower(M, 14.0, -11.0)
+    return [('hull', M, None)]
+
+def heli_base(seed, extra, two=False):
+    M = B(seed); L, W = (30, 18) if two else (20, 18)
+    M.pad(L, W, 'sand', 0.08)
+    M.barrier((-L / 2 + 0.6, -W / 2 + 0.6), (-L / 2 + 0.6, W / 2 - 0.6), 1.3, 1.0).barrier((-L / 2 + 1.6, -W / 2 + 0.6), (L / 2 - 0.6, -W / 2 + 0.6), 1.3, 1.0)
+    for cx in ((-3.5, 7.5) if two else (2.5,)): helipad(M, cx, 1.5, 6.0)
+    hut(M, -6.5 if not two else -11.5, -4.5, 4.0, 3.5, 2.6)
+    fuel_tank(M, -6.0 if not two else -11.0, 5.5, 3.5, 0.9, 'olive', False)
+    extra(M); return [('hull', M, None)]
+
+def b_heliatk(seed=16):
+    def x(M):
+        for i in range(2): M.k = 1.0; M.cyl('white', (8.0, 0.5 + i * 0.4, -6.5), 0.12, 1.8, 'x', 8)   # missiles on a rack
+        M.box('metal', (8.0, 0.25, -6.5), (2.2, 0.5, 0.8)); M.crates(5.0, -7.0, 2, 1, 1, 0.8)
+    return heli_base(seed, x)
+
+def b_heligun(seed=17):
+    def x(M): M.crates(6.0, -7.0, 3, 1, 2, 0.8, 'olive').barrels(9.0, -4.5, 3)
+    return heli_base(seed, x)
+
+def b_helilift(seed=18):
+    def x(M): M.crates(10.0, -7.0, 2, 1, 2, 0.9, 'wood').net(-11.0, 5.0, 4.5, 3.5, 2.2)
+    return heli_base(seed, x, True)
+
+def canopy(M, cx, cz, L, W, h):
+    for su in (-1, 1):
+        for sv in (-1, 1): M.strut('concrete', np.array((cx + su * (L / 2 - 0.4), 0, cz + sv * (W / 2 - 0.4))), np.array((cx + su * (L / 2 - 0.4), h, cz + sv * (W / 2 - 0.4))), 0.18)
+    M.k = 1.0; M.box('body', (cx, h + 0.2, cz), (L, 0.4, W))
+    for i in range(int(L)): M.k = 1.12; M.box('body', (cx - L / 2 + i + 0.5, h + 0.42, cz), (0.1, 0.05, W))
+
+def pumps(M, cx, cz, n, mat='body'):
+    for i in range(n):
+        z = cz + (i - (n - 1) / 2) * 2.2
+        M.k = 0.8; M.box('concrete', (cx, 0.2, z), (1.4, 0.3, 1.0))
+        M.k = 1.0; M.block(mat, (cx, 1.2, z), (0.7, 1.7, 0.6), 0.1); M.k = 0.5; M.box('glass', (cx + 0.36, 1.5, z), (0.03, 0.4, 0.4))
+        M.k = 1.0; M.strut('dark', np.array((cx + 0.3, 1.2, z + 0.25)), np.array((cx + 0.9, 0.6, z + 0.5)), 0.04)
+
+def b_fuelst(seed=19):
+    M = B(seed); L, W = 22, 16
+    M.pad(L, W, 'asphalt', 0.08)
+    fuel_tank(M, -5.5, -2.5, 8.0, 1.8, 'olive')
+    canopy(M, 5.0, 1.0, 7.0, 7.5, 4.0); pumps(M, 5.0, 1.0, 2)
+    M.crates(-8.0, 5.5, 3, 1, 2, 0.6, 'olive').barrels(9.0, -6.0, 5)
+    return [('hull', M, None)]
+
+def b_waterst(seed=20):
+    M = B(seed); L, W = 20, 16
+    M.pad(L, W, 'concrete', 0.08)
+    M.k = 1.0; M.cyl('water', (-4.0, 3.2, -1.5), 2.6, 4.6, 'y', 20); M.cyl('water', (-4.0, 5.7, -1.5), 2.7, 0.3, 'y', 20, r2=1.2)  # a water tank
+    for a in np.linspace(0, 2 * np.pi, 6, endpoint=False): M.strut('metal', np.array((-4.0 + 2.2 * np.cos(a), 0, -1.5 + 2.2 * np.sin(a))), np.array((-4.0 + 2.2 * np.cos(a), 1.0, -1.5 + 2.2 * np.sin(a))), 0.12)
+    M.k = 0.9; M.cyl('water', (-4.0, 0.9, -1.5), 2.65, 0.2, 'y', 20)
+    M.strut('metal', np.array((-1.4, 0.5, -1.5)), np.array((4.0, 0.5, -1.5)), 0.18); M.strut('metal', np.array((4.0, 0.5, -1.5)), np.array((4.0, 0.5, 2.0)), 0.18)
+    canopy(M, 5.0, 2.0, 5.0, 6.0, 3.4); pumps(M, 5.0, 2.0, 2, 'water')
+    for i in range(6): M.var(0.9, 1.1).cyl('water', (-7.5 + (i % 3) * 0.7, 0.35 + (i // 3) * 0.7, 5.5), 0.3, 0.7, 'y', 8)  # jerrycans
+    M.k = 1.0; return [('hull', M, None)]
+
+def b_howshop(seed=21):
+    def inside(M):  # (a gun being built: a tracked hull, a long barrel)
+        M.k = 0.55; M.block('olive', (-3.0, 1.1, 0), (6.0, 1.4, 3.2), 0.1); M.block('olive', (-4.2, 2.3, 0), (3.0, 1.2, 2.8), 0.1)
+        M.cyl('olive', (-0.2, 2.4, 0), 0.15, 6.0, 'x', 8); M.k = 1.0
+    def yard(M, L, W):
+        for i in range(4): M.k = 1.0; M.cyl('warn', (9.0, 0.35 + (i % 2) * 0.55, -7.0 + (i // 2) * 0.6), 0.25, 1.2, 'x', 10)  # shells
+        M.crates(8.0, 6.0, 2, 2, 2, 0.9).barrels(12.0, 0.0, 4)
+    return workshop(seed, 20, 15, inside, yard)
+
+def b_mlrsshop(seed=22):
+    def inside(M):
+        M.k = 0.55; M.block('olive', (-3.0, 1.1, 0), (6.0, 1.4, 3.2), 0.1); M.block('olive', (-3.5, 2.4, 0), (3.6, 1.2, 2.6), 0.1); M.k = 1.0
+    def yard(M, L, W):
+        for i in range(3): M.k = 1.0; M.block('olive', (9.0, 0.5 + i * 0.95, -6.5), (4.0, 0.9, 1.6), 0.1)   # rocket pods
+        M.crates(8.0, 6.0, 2, 2, 2, 0.9)
+    return workshop(seed, 20, 15, inside, yard)
+
+def erector(M, cx, cz, tilt=0.5, L=7.0):
+    R = lambda p: np.asarray(p) @ np.array([[np.cos(tilt), -np.sin(tilt), 0], [np.sin(tilt), np.cos(tilt), 0], [0, 0, 1]]).T
+    base = np.array((cx, 1.2, cz))
+    M.k = 1.0; M.hull('metal', [tuple(base + R((u, e, v))) for u in (-L / 2, L / 2) for v in (-0.5, 0.5) for e in (-0.15, 0.15)])
+    M.cyl('white', tuple(base + R((0.2, 0.55, 0))), 0.4, L - 0.6, 'x', 14, tilt=tilt)
+    M.cyl('white', tuple(base + R((L / 2 + 0.1, 0.55, 0))), 0.4, 0.8, 'x', 14, r2=0.02, tilt=tilt)
+    for su in (-1, 1): M.strut('dark', np.array((cx - L / 4, 0, cz + su * 0.6)), base + R((-L / 4, 0, su * 0.6)), 0.12)
+
+def b_ssmshop(seed=23):
+    M = B(seed); L, W = 28, 22
+    M.pad(L, W).wall_ring(L, W, 6.0)
+    M.block('concrete', (-4.0, 3.5, -2.0), (12.0, 7.0, 10.0), 0.03)
+    M.roof(-4.0, -2.0, 12.0, 10.0, 7.0, 2.4, 0.4, 'body', 1.0, 'z')
+    M.roller(2.0, 2.6, -2.0, 5.0, 4.8)
+    M.windows(-8.0, 0.0, 4.8, 3.0, 3, 1.2, 0.8, 1)
+    erector(M, 8.0, 5.0, 0.6, 7.5)
+    M.k = 1.0; M.box('olive', (8.0, 0.8, 5.0), (8.0, 0.6, 2.6))
+    M.crates(6.0, -8.0, 3, 1, 2, 0.9).barrels(-11.0, 7.0, 4)
+    return [('hull', M, None)]
+
+def radar_panel(M, cx, cz, w=3.2, h=4.0, tilt=0.35, rot=0.0):
+    """a phased-array radar: a big flat face, tilted back, on a trailer"""
+    M.k = 1.0; M.box('olive', (cx, 0.7, cz), (4.0, 0.6, 2.4), rot=rot)
+    c, s_ = np.cos(rot), np.sin(rot)
+    def P(u, y, v): return (cx + u * c - v * s_, y, cz + u * s_ + v * c)
+    face = [P(0.4 - np.sin(tilt) * f * h, 1.1 + np.cos(tilt) * f * h, v) for f in (0, 1) for v in (-w / 2, w / 2)]
+    M.hull('olive', face + [(p[0] - 0.3 * c, p[1], p[2] - 0.3 * s_) for p in face])
+    M.k = 0.7; M.hull('dark', [(p[0] + 0.02 * c, p[1], p[2] + 0.02 * s_) for p in [P(0.4 - np.sin(tilt) * f * h, 1.1 + np.cos(tilt) * f * h, v) for f in (0.1, 0.9) for v in (-w / 2.4, w / 2.4)]] +
+                [(p[0] + 0.06 * c, p[1], p[2] + 0.06 * s_) for p in [P(0.4 - np.sin(tilt) * f * h, 1.1 + np.cos(tilt) * f * h, v) for f in (0.1, 0.9) for v in (-w / 2.4, w / 2.4)]])
+    M.k = 1.0
+
+def launcher_box(M, cx, cz, n=2, tilt=0.8, rot=0.0):
+    c, s_ = np.cos(rot), np.sin(rot)
+    def P(u, y, v): return (cx + u * c - v * s_, y, cz + u * s_ + v * c)
+    M.k = 1.0; M.box('olive', (cx, 0.6, cz), (3.6, 0.5, 2.2), rot=rot)
+    L, Wb = 4.0, 0.9 * n
+    T = 1.4  # (its thickness, square to its length — offset straight up it was a thin plate)
+    pts = [P(-1.2 + np.cos(tilt) * f * L - np.sin(tilt) * e, 0.9 + np.sin(tilt) * f * L + np.cos(tilt) * e, v) for f in (0, 1) for v in (-Wb / 2, Wb / 2) for e in (0, T)]
+    M.hull('body', pts)
+    for f in (0.15, 0.5):  # (its stand)
+        top = P(-1.2 + np.cos(tilt) * f * L, 0.9 + np.sin(tilt) * f * L, 0)
+        M.strut('dark', np.array((top[0], 0.8, top[2])), np.array(top), 0.18)
+    M.k = 0.4
+    for i in range(n):
+        for j in range(2):
+            v = (i - (n - 1) / 2) * 0.9; e = 0.4 + j * 0.7
+            e = 0.35 + j * 0.7
+            M.cyl('dark', P(-1.2 + np.cos(tilt) * (L + 0.03) - np.sin(tilt) * e, 0.9 + np.sin(tilt) * (L + 0.03) + np.cos(tilt) * e, v), 0.18, 0.05, 'x', 8, tilt=tilt, rot=-rot)
+    M.k = 1.0
+
+def b_arrowsite(seed=24):
+    M = B(seed); L, W = 26, 22
+    M.pad(L, W, 'sand', 0.08).wall_ring(L, W, 5.0, 1.1, 1.0)
+    radar_panel(M, -5.0, -4.5, 3.6, 4.5, 0.35)
+    launcher_box(M, 4.0, -4.0, 2, 0.6); launcher_box(M, 4.0, 4.5, 2, 0.6)
+    hut(M, -6.0, 5.0, 4.5, 4.0, 3.0)
+    M.car(-1.0, 8.5, 0.0, 5.0, 2.2).crates(9.5, 0.3, 1, 2, 2, 0.8).sandbags(-10.0, -8.0, 1.2, 8)
+    return [('hull', M, None)]
+
+def b_domesite(seed=25):
+    M = B(seed); L, W = 26, 22
+    M.pad(L, W, 'sand', 0.08).wall_ring(L, W, 5.0, 1.1, 1.0)
+    radar_panel(M, -6.0, -5.0, 3.0, 3.6, 0.3, 0.3)
+    for z in (-5.5, 0.5, 6.5): launcher_box(M, 4.5, z, 3, 0.7)
+    hut(M, -6.5, 5.0, 4.0, 3.6, 2.8)
+    M.net(-1.5, 0.0, 4.0, 3.5, 2.2).crates(-1.5, 0.0, 1, 1, 2, 0.8)
+    return [('hull', M, None)]
+
+# ---- the neutral buildings (posts.js): radar, power, fuel, supply, hospital, motor pool, tower, antenna, bunker ----
+def lattice_tower(M, cx, cz, h, r0=1.4, r1=0.6):
+    legs = [(np.cos(a), np.sin(a)) for a in (np.pi / 4, 3 * np.pi / 4, 5 * np.pi / 4, 7 * np.pi / 4)]
+    for c, s_ in legs: M.strut('metal', np.array((cx + c * r0, 0, cz + s_ * r0)), np.array((cx + c * r1, h, cz + s_ * r1)), 0.09)
+    for i, y in enumerate(np.arange(1.5, h, 1.8)):
+        r = r0 + (r1 - r0) * y / h; r2 = r0 + (r1 - r0) * min(h, y + 1.8) / h
+        for k in range(4):
+            (c0, s0), (c1, s1) = legs[k], legs[(k + 1) % 4]
+            M.strut('metal', np.array((cx + c0 * r, y, cz + s0 * r)), np.array((cx + c1 * r2, min(h, y + 1.8), cz + s1 * r2)), 0.04)
+            M.strut('metal', np.array((cx + c0 * r, y, cz + s0 * r)), np.array((cx + c1 * r, y, cz + s1 * r)), 0.04)
+
+def b_radar(seed=26):
+    M = B(seed); L = 18
+    M.pad(L, L, 'concrete', 0.08); M.sandbags(0, 0, 4.2, 22, 2)
+    lattice_tower(M, 0, 0, 9.0, 1.6, 0.8)
+    M.k = 1.0; M.box('metal', (0, 9.1, 0), (2.4, 0.3, 2.4))
+    M.cyl('white', (0.3, 11.0, 0), 3.0, 0.6, 'x', 20, r2=0.6, tilt=0.15)                         # the dish
+    M.strut('metal', np.array((0, 9.2, 0)), np.array((0.3, 10.8, 0)), 0.15)
+    hut(M, -5.5, 5.0, 4.0, 3.0, 2.6)
+    return [('hull', M, None)]
+
+def b_power(seed=27):
+    M = B(seed); L, W = 24, 18
+    M.pad(L, W, 'concrete', 0.08)
+    M.block('concrete', (-3.0, 3.0, -2.0), (10.0, 6.0, 8.0), 0.03); M.roof(-3.0, -2.0, 10.0, 8.0, 6.0, 1.8, 0.4, 'body', 0.9)
+    M.windows(-7.0, 1.0, 3.5, 2.0, 4, 1.0, 1.6, 1)
+    for x in (-5.5, -1.0): M.k = 0.85; M.cyl('concrete', (x, 8.5, -4.0), 0.6, 4.0, 'y', 12); M.k = 0.4; M.cyl('dark', (x, 10.55, -4.0), 0.45, 0.1, 'y', 12)  # chimneys
+    for i in range(3):  # transformers behind a fence
+        M.k = 1.0; M.block('olive', (5.0 + i * 2.6, 1.2, 4.5), (2.0, 2.4, 1.6), 0.08)
+        for j in range(3): M.cyl('white', (4.4 + i * 2.6 + j * 0.6, 2.8, 4.5), 0.12, 0.8, 'y', 6)
+    for x in np.arange(3.5, 12.0, 1.0): M.strut('metal', np.array((x, 0, 6.8)), np.array((x, 2.2, 6.8)), 0.03)
+    M.strut('metal', np.array((3.5, 2.1, 6.8)), np.array((11.5, 2.1, 6.8)), 0.03)
+    fuel_tank(M, 6.5, -5.0, 6.0, 1.3, 'tank')
+    return [('hull', M, None)]
+
+def b_fuel(seed=28):  # (the neutral fuel station: bigger, two tanks)
+    M = B(seed); L, W = 26, 18
+    M.pad(L, W, 'asphalt', 0.08)
+    fuel_tank(M, -6.5, -4.0, 9.0, 1.9, 'olive'); fuel_tank(M, -6.5, 3.5, 9.0, 1.9, 'olive')
+    canopy(M, 6.5, 0.0, 8.0, 9.0, 4.2); pumps(M, 6.5, 0.0, 3)
+    M.barrels(11.5, -7.0, 5)
+    return [('hull', M, None)]
+
+def b_supply(seed=29):
+    M = B(seed); L, W = 22, 18
+    M.pad(L, W, 'concrete', 0.08)
+    M.hangar(-3.0, -1.0, 12.0, 9.0, 4.5, 2.0, 0.7, lambda M: M.crates(-5.0, -3.0, 3, 3, 2, 0.9))
+    M.net(6.0, 3.5, 6.0, 5.0, 2.6).crates(5.0, 2.0, 3, 2, 2, 0.9, 'wood').crates(5.0, -6.5, 3, 1, 2, 0.9)
+    return [('hull', M, None)]
+
+def b_hospital(seed=30):
+    M = B(seed); L, W = 24, 20
+    M.pad(L, W, 'concrete', 0.08)
+    M.block('concrete', (-2.0, 3.4, -1.0), (13.0, 6.8, 11.0), 0.03)
+    M.k = 1.0; M.box('concrete', (-2.0, 6.95, -1.0), (13.3, 0.3, 11.3))
+    flat(M, -2.0, -1.0, 7.0, 7.0, 7.12, 'white'); flat(M, -2.0, -1.0, 5.0, 1.6, 7.15, 'red'); flat(M, -2.0, -1.0, 1.6, 5.0, 7.15, 'red')
+    for y in (1.8, 5.0): M.windows(-7.0, 3.0, y, 4.5, 5, 1.2, 1.2, 1); M.windows(-5.0, 3.0, y, 4.5, 4, 1.2, 1.2, 1, 'z')
+    M.hull('body', [(4.5 + du, 3.0 + e, -1.0 + dv) for du, e in ((0, 0.4), (3.0, 0)) for dv in (-2.5, 2.5)] + [(4.5 + du, 3.15 + e, -1.0 + dv) for du, e in ((0, 0.4), (3.0, 0)) for dv in (-2.5, 2.5)])
+    for dv in (-2.3, 2.3): M.strut('metal', np.array((7.3, 0, -1.0 + dv)), np.array((7.3, 3.0, -1.0 + dv)), 0.08)
+    M.k = 0.45; M.box('dark', (4.53, 1.2, -1.0), (0.06, 2.4, 2.4)); M.k = 1.0
+    ring(M, 7.5, 6.5, 2.4, 2.8, 0.13, 'red'); flat(M, 7.5, 6.5, 2.4, 0.5, 0.15, 'red'); flat(M, 7.5, 6.5, 0.5, 2.4, 0.15, 'red')
+    M.car(8.5, -6.5, 0.0, 5.0, 2.2, 'white')
+    return [('hull', M, None)]
+
+def b_motorpool(seed=31):
+    M = B(seed); L, W = 22, 18
+    M.pad(L, W, 'concrete', 0.08)
+    M.block('concrete', (-4.0, 3.0, -1.0), (9.0, 6.0, 13.0), 0.03); M.roof(-4.0, -1.0, 9.0, 13.0, 6.0, 1.6, 0.4, 'body', 0.9, 'z')
+    M.roller(0.5, 2.3, -4.0, 4.0, 4.4); M.k = 0.3; M.box('dark', (0.53, 2.3, 2.5), (0.04, 4.4, 4.0)); M.k = 1.0   # one door up, one down
+    M.car(4.5, 2.5, 0.0).car(6.5, -5.5, 0.3, 6.0, 2.4)
+    for i in range(6): M.k = 1.0; M.cyl('dark', (8.0 + (i % 3) * 1.2, 0.2 + (i // 3) * 0.32, 5.5), 0.55, 0.3, 'y', 12)
+    M.barrels(-9.0, 6.5, 4)
+    return [('hull', M, None)]
+
+def b_tower(seed=32):
+    M = B(seed); L = 12
+    M.pad(L, L, 'sand', 0.06); M.sandbags(0, 0, 3.2, 18, 2)
+    M.k = 1.0
+    for u, v in ((-1.2, -1.2), (1.2, -1.2), (-1.2, 1.2), (1.2, 1.2)): M.strut('concrete', np.array((u, 0, v)), np.array((u * 0.8, 11.0, v * 0.8)), 0.3)
+    for y in (3.0, 6.0, 9.0): M.box('concrete', (0, y, 0), (2.2, 0.3, 2.2))
+    M.block('concrete', (0, 12.2, 0), (3.6, 2.4, 3.6), 0.05)
+    for f in (1, -1):
+        M.k = 0.5; M.box('glass', (f * 1.82, 12.4, 0), (0.05, 0.8, 2.6)); M.box('glass', (0, 12.4, f * 1.82), (2.6, 0.8, 0.05))
+    M.k = 1.0; M.box('body', (0, 13.55, 0), (4.4, 0.3, 4.4)); M.cyl('metal', (1.0, 14.0, 1.0), 0.35, 0.5, 'y', 8)
+    return [('hull', M, None)]
+
+def b_antenna(seed=33):
+    M = B(seed); L = 14
+    M.pad(L, L, 'concrete', 0.06)
+    lattice_tower(M, 0, 0, 16.0, 0.9, 0.35)
+    for a in (0.3, 2.4, 4.5):  # guy wires
+        M.strut('dark', np.array((0, 12.0, 0)), np.array((6.0 * np.cos(a), 0, 6.0 * np.sin(a))), 0.02)
+    for y in (12.5, 14.5): M.k = 1.0; M.cyl('white', (0.4, y, 0), 0.5, 0.15, 'x', 12, r2=0.15)
+    M.strut('metal', np.array((0, 16, 0)), np.array((0, 19.5, 0)), 0.04)
+    hut(M, -3.5, 3.5, 3.4, 2.6, 2.4)
+    return [('hull', M, None)]
+
+def b_bunker(seed=34):
+    M = B(seed); r = 4.5
+    M.pad(14, 14, 'sand', 0.06)
+    a = np.linspace(0, 2 * np.pi, 8, endpoint=False) + np.pi / 8
+    M.k = 0.95; M.hull('concrete', [(r * np.cos(t), 0, r * np.sin(t)) for t in a] + [(r * 0.85 * np.cos(t), 3.2, r * 0.85 * np.sin(t)) for t in a])
+    M.k = 0.3; M.box('dark', (r * 0.84, 2.0, 0), (0.15, 0.4, 2.0)); M.box('dark', (0, 2.0, r * 0.84), (1.6, 0.4, 0.15)); M.box('dark', (0, 2.0, -r * 0.84), (1.6, 0.4, 0.15))  # (firing slits)
+    M.k = 1.0
+    for row in range(2):
+        for i in range(14):
+            t = 2 * np.pi * (i + 0.5 * row) / 14; rr = r * 0.82
+            M.var(0.85, 1.05).block('sand', (rr * np.cos(t), 3.35 + row * 0.3, rr * np.sin(t)), (0.9, 0.3, 0.5), 0.35, rot=-t + np.pi / 2)
+    M.k = 0.45; M.box('dark', (-r - 0.2, 0.9, 0), (0.4, 1.8, 1.2)); M.k = 1.0
+    return [('hull', M, None)]
+
+
 KINDS = {'b_hq': b_hq, 'b_decoy': lambda: b_hq(1), 'b_fhq': b_fhq, 'b_tent': b_tent, 'b_atpost': b_atpost, 'b_aapost': b_aapost,
          'b_clinic': b_clinic, 'b_commandopost': b_commandopost, 'b_tankshop': b_tankshop, 'b_jeepshop': b_jeepshop,
-         'b_jeepat': b_jeepat, 'b_jeepaa': b_jeepaa, 'b_garage': b_garage, 'b_depot': b_depot}
+         'b_jeepat': b_jeepat, 'b_jeepaa': b_jeepaa, 'b_garage': b_garage, 'b_depot': b_depot,
+         'b_airfield': b_airfield, 'b_tankerbase': b_tankerbase, 'b_heliatk': b_heliatk, 'b_heligun': b_heligun, 'b_helilift': b_helilift,
+         'b_fuelst': b_fuelst, 'b_waterst': b_waterst, 'b_howshop': b_howshop, 'b_mlrsshop': b_mlrsshop, 'b_ssmshop': b_ssmshop,
+         'b_arrowsite': b_arrowsite, 'b_domesite': b_domesite,
+         'b_radar': b_radar, 'b_power': b_power, 'b_fuel': b_fuel, 'b_supply': b_supply, 'b_hospital': b_hospital,
+         'b_motorpool': b_motorpool, 'b_tower': b_tower, 'b_antenna': b_antenna, 'b_bunker': b_bunker}
 
 if __name__ == '__main__':
     for k in (['b_' + a.removeprefix('b_') for a in sys.argv[1:]] or KINDS):
