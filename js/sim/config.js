@@ -459,7 +459,7 @@ const MISSILE_SHOTS = ['air', 'heli', 'at', 'tjeep'], TROPHY_MAX = 3, TROPHY_EVE
 // buildings, or for STEALTH_FIRE s after he fires; a charge on a building takes PLANT_T s standing by it (within its
 // edge + PLANT_R), and brings it down (the HQ: a quarter — four together, at once)
 const STEALTH_EYE = 40, STEALTH_NEAR = 25, STEALTH_FIRE = 4, PLANT_T = 20, PLANT_R = 15;
-const SUPPORT_EVERY = 120, SUPPORT_CAP = 3, DOZER_R = 40, FHQ_AFTER_HQ = 60;
+const SUPPORT_EVERY = 120, SUPPORT_CAP = 3, ARMS_DOZERS = 2, DOZER_R = 40, FHQ_AFTER_HQ = 60;
 // fuel (fuel.js, the full game): FUEL_T s of moving on a full tank (planes FUEL_AIR s of flying; they turn back under
 // PLANE_BACK); under FUEL_LOW a vehicle goes to fill up, until FUEL_DONE, within FUEL_R of the fuel. A barrel fills
 // a vehicle; FUEL_BARRELS: those that take more. An HQ / forward HQ fills FUEL_HQ_RATE a second (counted FUEL_HQ_FAR

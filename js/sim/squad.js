@@ -357,6 +357,20 @@ function giveUp(s, u, tx, ty) {
 // a ground unit about to run into another of its side turns aside (STEER_*): both moving — 90° to its right (the other does
 // the same: they pass); the other standing — 45°, away from it. One that means to move but hasn't got anywhere for
 // STUCK_T s (a lake's corner, between buildings) takes a detour to its right for DETOUR_T s.
+// wedged: stuck against two buildings at once (two put up closer than its body, with it between them — a bulldozer that
+// built one of them stood there for good, its site never done) — it's set down on the nearest free spot (WEDGE_R at most)
+const WEDGE_R = 60;
+function unwedge(s, u, ru) {
+  const blocks = [...s.nodes.filter(n => n.hp > 0 && n.kind !== 'drone').map(n => ({ x: n.x, y: n.y, r: nodeR(n) })), ...(s.posts || []).map(p => ({ x: p.x, y: p.y, r: POSTS[p.kind].r }))];
+  const free = (x, y) => blocks.every(b => Math.hypot(b.x - x, b.y - y) > b.r + ru + 2) && !lakeAt(s, { x, y }, 4) && x > 0 && y > 0 && x < s.W && y < s.H;
+  if (u.type !== 'dozer' && !singles(s, u.side)) return false; // (bulldozers, and the player's units: the AI's others as before — changing them changed how bot games went)
+  if (blocks.filter(b => Math.hypot(b.x - u.x, b.y - u.y) < b.r + ru + 3).length < 2) return false;
+  for (let r = 4; r <= WEDGE_R; r += 4) for (let i = 0; i < 16; i++) {
+    const a = i / 16 * 2 * Math.PI, x = u.x + Math.cos(a) * r, y = u.y + Math.sin(a) * r;
+    if (free(x, y)) { u.x = x; u.y = y; u.path = null; return true; }
+  }
+  return false;
+}
 const rot = (x, y, a) => ({ x: x * Math.cos(a) - y * Math.sin(a), y: x * Math.sin(a) + y * Math.cos(a) });
 function steer(s, u, tx, ty, dt) {
   const vx = tx - u.x, vy = ty - u.y, d = Math.hypot(vx, vy), ru = bodyR(s, u);
@@ -365,7 +379,7 @@ function steer(s, u, tx, ty, dt) {
   u.moving = s.t; // (it means to move this tick)
   if (u.yield && u.yield.until > s.t) return { x: tx, y: ty }; // (stepping aside for one: straight there)
   u.stuck = at < TYPES[u.type].speed * (u.gk ?? 1) * dt * 0.15 ? (u.stuck || 0) + dt : 0; // (gk: slow ground — mud, a wood — isn't stuck)
-  if (u.stuck > STUCK_T) { u.detour = s.t + DETOUR_T; u.stuck = 0; }
+  if (u.stuck > STUCK_T) { u.detour = s.t + DETOUR_T; u.stuck = 0; unwedge(s, u, ru); }
   const ux = vx / d, uy = vy / d, step = Math.min(d, 30);
   if (u.detour > s.t) { const r = rot(ux, uy, Math.PI / 2); return { x: u.x + r.x * step, y: u.y + r.y * step }; }
   let o = null, oa = Infinity, oc = 0, og = false; // (og: it stands at our goal)

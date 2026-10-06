@@ -24,7 +24,10 @@ const armSide = (s, side, k) => !s.arms || side !== 'blue' || !ARM_OF[k] ? null 
 // the player gives this squad orders (with arms: not the partner's; the command tanks are both's — the player's)
 const ownSquad = (s, q) => !!q.cmd || armSide(s, q.side, q.type) !== 'mate';
 // arms for this game: the player's (some of ARMS); the computer partner plays the rest of blue (think 'mate')
-function setArms(s, arms) { const a = (arms || []).filter(k => ARMS[k]); s.arms = a.length && a.length < Object.keys(ARMS).length ? a : null; s.mate = !!s.arms; s.designate = !!s.arms; } // (designate: targets marked — asks.js)
+function setArms(s, arms) { const a = (arms || []).filter(k => ARMS[k]); s.arms = a.length && a.length < Object.keys(ARMS).length ? a : null; s.mate = !!s.arms; s.designate = !!s.arms;
+  // (each player a bulldozer of their own from the start: one more a side — the queue of two players' sites was 15 long)
+  if (s.arms && s.dozers) for (const side of ['blue', 'red']) { const l = dozers(s, side); if (l.length === 1) supportSquad(s, side, 'dozer', l[0].cx, l[0].cy + 30); }
+} // (designate: targets marked — asks.js)
 // why a building can't go at (x, y): '' when it can; 'q' poor control, 'limit' no free slot, 'gap' too close, 'bad' bad input
 // (kind 'decoy': no slot, but at most DECOY_MAX of them)
 function buildCheck(s, side, x, y, kind) {
@@ -85,13 +88,22 @@ function assignSite(s, sq, n, first) {
 }
 // where the bulldozer works from: the site's back corner, clear of the building (it can't stand on it)
 const dozerR = n => n.road ? ROAD_NEAR : STRUCTS[n.kind].r + DOZER_R;
+// (on the diagonal, just past the building and the bulldozer's own body: well inside dozerR whatever the size). Built
+// in by other buildings there (a pocket it couldn't get into — the site stood half done for good): the first free one
+// round the site, turning from there; kept while it stays free (n.dspot)
 function dozerSpot(s, n) {
   if (n.road) return { x: n.x, y: n.y }; // (a road: on the square it's paving)
-  // (on the diagonal, just past the building and the bulldozer's own body: well inside dozerR whatever the size)
-  const dir = n.side === 'blue' ? -1 : 1, d = (STRUCTS[n.kind].r + TYPES.dozer.r + 8) * Math.SQRT1_2;
-  return { x: clamp(n.x + dir * d, 10, s.W - 10), y: clamp(n.y + d, 10, s.H - 10) };
+  if (n.dspot && spotFree(s, n, n.dspot)) return n.dspot;
+  const back = n.side === 'blue' ? 3 * Math.PI / 4 : Math.PI / 4, d = STRUCTS[n.kind].r + TYPES.dozer.r + 8;
+  const at = a => ({ x: clamp(n.x + Math.cos(a) * d, 10, s.W - 10), y: clamp(n.y + Math.sin(a) * d, 10, s.H - 10) });
+  let p = at(back);
+  for (const k of [0, 1, -1, 2, -2, 3, -3, 4]) { const q = at(back + k * Math.PI / 4); if (spotFree(s, n, q)) { p = q; break; } }
+  return (n.dspot = p);
 }
-function goBuild(s, sq, n) { const p = dozerSpot(s, n); order(s, sq.id, 'hold', p.x, p.y, true); sq.jobAt = n.id; }
+// room there for the bulldozer: clear of every other building and post, and of the lakes
+const spotFree = (s, n, p) => s.nodes.every(k => k === n || k.hp <= 0 || k.kind === 'drone' || dist(k, p) > nodeR(k) + TYPES.dozer.r + 6) &&
+  (s.posts || []).every(k => dist(k, p) > POSTS[k.kind].r + TYPES.dozer.r + 6) && !lakeAt(s, p, 4);
+function goBuild(s, sq, n) { const p = dozerSpot(s, n); order(s, sq.id, 'hold', p.x, p.y, true); sq.jobAt = n.id; sq.jobSpot = p; }
 // every tick: sites go up while a bulldozer of theirs stands still by them; a bulldozer done with one goes on to its next
 function dozerWork(s, dt) {
   if (!s.dozers) return;
@@ -132,6 +144,8 @@ function dozerWork(s, dt) {
     if (sq.jobAt !== n.id) { goBuild(s, sq, n); continue; }
     // sent elsewhere by the player (another order): it stops work until given a site again, then goes on in order
     const m = pending(s, sq.id, 'order'), o = m || sq.order, w = o.want || o, p = dozerSpot(s, n);
+    // (its spot built in since it was sent: to the new one — it's still on the site, not sent away)
+    if (o.type === 'hold' && sq.jobSpot && Math.hypot(w.x - sq.jobSpot.x, w.y - sq.jobSpot.y) <= 2 && Math.hypot(p.x - sq.jobSpot.x, p.y - sq.jobSpot.y) > 2) { goBuild(s, sq, n); continue; }
     if (o.type !== 'hold' || Math.hypot(w.x - p.x, w.y - p.y) > 2) { sq.paused = true; sq.jobAt = null; continue; }
     // (there, but stopped short of the site — orders are carried out roughly in the fog: the crew sees the site). Once
     // per site: pushed back by the building or others it would "arrive" again and again, several times a second
@@ -172,6 +186,8 @@ function hqFix(s, dt) {
 }
 // a support squad of one, out of the HQ
 function supportSquad(s, side, type, x, y) { const q = makeSquad(s, side, type, null, x, y); q.size = 1; fillSquad(s, q, x, y); return q; }
+// (arms: two players building — ARMS_DOZERS more bulldozers a side, red too: it builds for both, twice the allowance)
+const supportCap = (s, type) => SUPPORT_CAP + (s.arms && type === 'dozer' ? ARMS_DOZERS : 0);
 // every SUPPORT_EVERY s a working HQ sends out a bulldozer and a signals truck (while it has fewer than SUPPORT_CAP)
 function supportSpawn(s, dt) {
   if (!s.dozers) return;
@@ -182,7 +198,7 @@ function supportSpawn(s, dt) {
     s.supNext[side] = SUPPORT_EVERY;
     const dir = side === 'blue' ? 1 : -1;
     for (const [type, dy, kind] of [['dozer', 30, 'dozerReady'], ['radio', -30, 'radioReady']]) {
-      if ((type === 'radio' && s.noRadio) || s.squads.filter(q => q.side === side && q.type === type && !q.dead).length >= SUPPORT_CAP) continue;
+      if ((type === 'radio' && s.noRadio) || s.squads.filter(q => q.side === side && q.type === type && !q.dead).length >= supportCap(s, type)) continue;
       const q = supportSquad(s, side, type, h.x + dir * 45, h.y + dy);
       const go = outSpot(s, side, h, type); if (go) order(s, q.id, 'hold', go.x + dy, go.y, true); // (the HQ's rally point, or the front — not a bulldozer; one with work goes to its site)
       if (side === 'blue') { report(s, q, type === 'dozer' ? 'טרקטור מוכן' : 'משאית קשר מוכנה'); s.marks.push({ x: q.cx, y: q.cy, kind, t: s.t, who: q.name, id: q.id }); }
