@@ -27,7 +27,7 @@ import numpy as np
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 SRC, OUT = os.path.join(ROOT, 'art', 'models'), os.path.join(ROOT, 'js', 'ui', 'models.js')
 # (the turn round the up axis that brings each model's front to +X, degrees; a model not here: its gun's way)
-FRONT = {'jeep': 180}  # (the AI-made jeep: its bonnet at -X)
+FRONT = {'jeep': 180, 'ssm': 0, 'arrow': 0, 'dome': 0, 'mlrs': 0}  # (the AI-made jeep: its bonnet at -X; the ones built in code, tools/build_models.py: already +X)
 TEAM = ('main', 'main_light', 'body', 'paint', 'slim')  # materials painted in the side's colour (slim: a slimmed model, all of it)
 TURRET = ('turret', 'gun', 'barrel', 'cannon')
 TRACK_F = 8  # poses of a running track

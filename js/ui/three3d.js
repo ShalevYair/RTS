@@ -164,7 +164,7 @@ function v3Lay(x, y, hd, lift, w, h, ox, oy, out, sy = 1) {
 // ---- 3D models (art/models/*.glb → MODELS, tools/models.py): a kind's hull and turret, each two meshes — its main
 // paint tinted with the side's colour (V3_TEAM of it), the rest as it is. Front +X, length 1, so scaled by V3_LEN ×
 // its size. A tank's turret turns on its pivot to where it fires; a wreck: dark. ----
-const V3_LEN = { tank: 1.75, jeep: 1.25 }, V3_TEAM = 0.38;
+const V3_LEN = { tank: 1.75, jeep: 1.25, how: 2.2, mlrs: 2.4, ssm: 2.6, arrow: 2.6, dome: 2.6, truck: 2.0, fueltruck: 2.0, watertruck: 2.0, radio: 1.9, mech: 2.0, dozer: 1.7 }, V3_TEAM = 0.38;
 const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
   const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
