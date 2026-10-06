@@ -115,7 +115,7 @@ class Mesh:
             for sz in (-1, 1): self.tyre((x, r if y is None else y, sz * z), r, w, sz, hub)
         return self
 
-    def tracks(self, x0, x1, z, h, w, wheels=5, skirt=None):
+    def tracks(self, x0, x1, z, h, w, wheels=5, skirt=None, links=True):
         """tracks: a belt round the wheels (rounded ends, a lighter tread on it), road wheels, a drive sprocket at the
         front, return rollers on top; `skirt`: side plates over the upper run (that material)"""
         r = h / 2; a = np.linspace(-np.pi / 2, np.pi / 2, 7)
@@ -123,7 +123,7 @@ class Mesh:
             zz = sz * z
             belt = [(x1 + r * np.cos(t), r + r * np.sin(t)) for t in a] + [(x0 - r * np.cos(t), r + r * np.sin(t)) for t in a[::-1]]
             self.k = 0.85; self.hull('dark', [(px, py, zz + dz) for px, py in belt for dz in (-w / 2, w / 2)])
-            for i, xx in enumerate(np.arange(x0, x1, 0.32)):  # (the tread's links, on the bottom)
+            for i, xx in enumerate(np.arange(x0, x1, 0.32) if links else []):  # (the tread's links, on the bottom; or running — track_frames)
                 self.k = 1.25 if i % 2 else 1.0; self.box('dark', (xx, 0.02, zz), (0.16, 0.05, w * 1.02))
             for xx in np.linspace(x0 + r * 0.3, x1 - r * 0.3, wheels):
                 self.k = 1.0; self.cyl('metal', (xx, r * 0.95, zz + sz * (w / 2 + 0.01)), r * 0.72, 0.06, 'z', 14)
@@ -140,11 +140,11 @@ def ry(a): c, s = np.cos(a), np.sin(a); return np.array([[c, 0, s], [0, 1, 0], [
 def rz(a): c, s = np.cos(a), np.sin(a); return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
 
 
-def write(kind, parts, gen='tools/build_models.py'):
+def write(kind, parts, gen='tools/build_models.py', extras=None):
     """parts: [(name, Mesh, parent index or None)] -> art/models/<kind>.glb (each part a node; a mesh per part, a
     primitive per material)"""
     mats = sorted({m for _, M, _ in parts for m in M.tri})
-    J = {'asset': {'version': '2.0', 'generator': gen}, 'scene': 0, 'scenes': [{'nodes': []}],
+    J = {'asset': {'version': '2.0', 'generator': gen, **({'extras': extras} if extras else {})}, 'scene': 0, 'scenes': [{'nodes': []}],
          'nodes': [], 'meshes': [], 'accessors': [], 'bufferViews': [], 'buffers': [],
          'materials': [{'name': m, 'pbrMetallicRoughness': {'baseColorFactor': MATS[m] + [1], 'metallicFactor': 0.1, 'roughnessFactor': 0.8}} for m in mats]}
     blob = bytearray()
@@ -547,6 +547,129 @@ def k_tjeep():  # anti-tank: a TOW launcher on a mount, its sight
     T.k = 0.6; T.box('dark', (-0.45, 2.80, -0.36), (0.45, 0.25, 0.22)); T.k = 1.0; T.box('glass', (-0.22, 2.80, -0.36), (0.02, 0.15, 0.14))
     return [('hull', M, None), ('turret', T, 0)]
 
+# ---- the tank (Merkava-like): engine at the front under a long glacis, a low wedge turret set back with a bustle and a
+# curtain of chains, a long gun with a thermal sleeve; tracks under deep skirts whose links run (track_frames) ----
+TRACK_F = 8  # (as tools/models.py: poses of a running track)
+
+def track_frames(x0, x1, z, h, w, pitch=0.34):
+    """the links all round each belt (as Mesh.tracks draws it), TRACK_F poses over one link's pitch: parts
+    trackL0…, trackR0… (the same points in the same order in each — only their places move). Returns (parts, pitch)"""
+    r = h / 2; A = x1 - x0; P = 2 * A + 2 * np.pi * r; n = int(P // pitch); pitch = P / n; e = 0.02
+    def at(s):
+        s %= P
+        if s < A: return x0 + s, h + e, 0.0                                     # (the top run, going forward)
+        s -= A
+        if s < np.pi * r: t = np.pi / 2 - s / r; return x1 + (r + e) * np.cos(t), r + (r + e) * np.sin(t), t - np.pi / 2
+        s -= np.pi * r
+        if s < A: return x1 - s, -e, np.pi                                       # (the bottom, going back)
+        s -= A; t = -np.pi / 2 - s / r; return x0 + (r + e) * np.cos(t), r + (r + e) * np.sin(t), t - np.pi / 2
+    parts = []
+    for side, sz in (('L', 1), ('R', -1)):
+        for f in range(TRACK_F):
+            M = Mesh()
+            for i in range(n):
+                x, y, a = at((i + f / TRACK_F) * pitch)
+                M.k = 1.3 if i % 2 else 1.0; M.box('dark', (x, y, sz * z), (0.18, 0.07, w * 1.05), tilt=a)
+            parts.append((f'track{side}{f}', M, None))
+    return parts, pitch
+
+def k_tank():
+    M = Mesh(); hw = 1.85; x0, x1, tz, th, tw = -3.2, 3.0, hw - 0.36, 1.05, 0.68
+    M.tracks(x0, x1, tz, th, tw, 6, 'body', links=False)
+    # (the hull: narrow between the tracks, wide above them; a long glacis to a low nose; the rear plate with a door)
+    M.k = 0.9; M.loft('body', [(-3.5, [(0.5, 1.13), (0.5, -1.13), (1.1, 1.13), (1.1, -1.13)]), (3.3, [(0.5, 1.13), (0.5, -1.13), (1.1, 1.13), (1.1, -1.13)]),
+                              (3.75, [(0.8, 1.0), (0.8, -1.0), (1.15, 1.05), (1.15, -1.05)])])
+    M.k = 1.0; M.loft('body', [(-3.72, [(1.08, hw - 0.05), (1.08, -hw + 0.05), (1.75, hw - 0.05), (1.75, -hw + 0.05)]),
+                              (-3.55, [(1.05, hw), (1.05, -hw), (1.85, hw), (1.85, -hw)]), (1.5, [(1.05, hw), (1.05, -hw), (1.85, hw), (1.85, -hw)]),
+                              (3.6, [(1.05, hw - 0.1), (1.05, -hw + 0.1), (1.25, hw - 0.1), (1.25, -hw + 0.1)])])
+    gl = -np.arctan2(0.6, 2.1); gy = lambda x: 1.85 - (x - 1.5) * 0.6 / 2.1  # (the glacis' slope, its height at x)
+    M.k = 0.45; M.box('dark', (2.55, gy(2.55) + 0.02, -0.75), (1.1, 0.04, 0.95), tilt=gl)                   # engine intake
+    for i in range(6): M.k = 0.75; M.box('dark', (2.1 + i * 0.18, gy(2.1 + i * 0.18) + 0.04, -0.75), (0.04, 0.03, 0.9), tilt=gl)
+    M.k = 0.85; M.cyl('body', (2.05, gy(2.05) + 0.06, 0.8), 0.32, 0.1, 'y', 12)                              # driver's hatch
+    for dz in (-0.18, 0, 0.18): M.k = 1.0; M.box('glass', (2.35, gy(2.35) + 0.1, 0.8 + dz), (0.05, 0.08, 0.12), tilt=gl)
+    for sz in (-1, 1):
+        M.k = 1.0; M.cyl('white', (3.55, 1.32, sz * (hw - 0.3)), 0.1, 0.08, 'x', 8)                         # headlights, guards
+        M.k = 0.6; M.strut('dark', (3.45, 1.2, sz * (hw - 0.45)), (3.62, 1.45, sz * (hw - 0.3)), 0.02); M.strut('dark', (3.45, 1.2, sz * (hw - 0.15)), (3.62, 1.45, sz * (hw - 0.3)), 0.02)
+        M.k = 0.5; M.block('dark', (3.78, 0.85, sz * 0.75), (0.2, 0.18, 0.18), 0.2)                           # tow hooks
+        M.k = 0.95; M.box('body', (-0.2, 1.62, sz * (hw + 0.06)), (5.6, 0.06, 0.04))                         # skirt's top lip
+        for x in np.linspace(-3.0, 2.6, 7): M.k = 0.7; M.cyl('metal', (x, 1.45, sz * (hw + 0.08)), 0.04, 0.03, 'z', 6)  # skirt bolts
+        M.k = 0.8; M.strut('dark', (-3.3, 1.9, sz * (hw - 0.12)), (0.9, 1.9, sz * (hw - 0.12)), 0.03)         # tow cable on the edge
+        M.k = 0.7; M.box('wood', (-1.2, 1.9, sz * (hw - 0.3)), (1.3, 0.06, 0.1))                                # a shovel's handle
+    M.k = 0.4; M.box('dark', (-1.7, 1.45, hw + 0.05), (1.0, 0.25, 0.04))                                     # exhaust louvres, left
+    M.k = 0.7; M.box('dark', (-3.74, 1.3, 0.0), (0.04, 0.6, 0.9)); M.k = 0.9; M.box('body', (-3.75, 1.3, 0.0), (0.05, 0.5, 0.8))  # rear door
+    for sz in (-1, 1):  # (rear stowage: baskets with jerrycans, tail lights)
+        for x in (-3.6, -2.9): M.k = 0.6; M.strut('dark', (x, 1.85, sz * 1.0), (x, 2.2, sz * 1.0), 0.02)
+        M.k = 0.6; M.strut('dark', (-3.6, 2.2, sz * 1.0), (-2.9, 2.2, sz * 1.0), 0.02); M.strut('dark', (-3.6, 2.2, sz * 1.75), (-2.9, 2.2, sz * 1.75), 0.02)
+        for j in range(3): M.k = 0.85 + 0.1 * j; M.block('olive', (-3.45 + j * 0.25, 2.05, sz * 1.38), (0.2, 0.36, 0.5), 0.15)
+        M.k = 1.0; M.box('red', (-3.74, 1.6, sz * 1.5), (0.03, 0.08, 0.14))
+    # the turret: a low wedge, its long sloped front to a point, a bustle at the back over a curtain of chains
+    T = Mesh(); b = 1.88
+    T.k = 0.6; T.cyl('dark', (0.0, b + 0.04, 0), 1.0, 0.08, 'y', 16)
+    T.k = 1.0; T.hull('body', [(-2.5, b + 0.27, 1.35), (-2.5, b + 0.27, -1.35), (-2.55, b + 0.72, 1.3), (-2.55, b + 0.72, -1.3),
+                               (0.2, b + 0.04, 1.55), (0.2, b + 0.04, -1.55), (0.3, b + 0.74, 1.4), (0.3, b + 0.74, -1.4),
+                               (1.5, b + 0.1, 1.0), (1.5, b + 0.1, -1.0), (1.2, b + 0.62, 0.8), (1.2, b + 0.62, -0.8),
+                               (2.45, b + 0.18, 0.28), (2.45, b + 0.18, -0.28), (2.2, b + 0.36, 0.25), (2.2, b + 0.36, -0.25)])
+    for sz in (-1, 1):  # (add-on armour modules on the sides, each a touch different)
+        for j, x in enumerate((-1.9, -1.1, -0.3)): T.k = 0.92 + 0.05 * j; T.box('body', (x, b + 0.42, sz * (1.47 - 0.02 * j)), (0.74, 0.5, 0.06))
+        for k in range(3): T.k = 0.5; T.cyl('dark', (0.55, b + 0.52 + 0.1 * k, sz * (1.3 - 0.08 * k)), 0.06, 0.28, 'x', 6, tilt=0.5)  # smoke launchers
+        T.k = 0.6; T.strut('dark', (-2.3, b + 0.72, sz * 0.9), (-2.4, b + 2.2, sz * 1.0), 0.012)                 # whip antennas
+    T.k = 0.85; T.box('canvas', (1.85, b + 0.36, 0), (0.6, 0.34, 0.42))                                            # the mantlet's cover
+    T.k = 0.55; T.cyl('dark', (4.1, b + 0.38, 0), 0.085, 4.6, 'x', 10)                                             # the gun
+    for a0, a1 in ((2.1, 3.3), (4.1, 5.4)): T.k = 0.85; T.cyl('body', ((a0 + a1) / 2, b + 0.38, 0), 0.115, a1 - a0, 'x', 10)  # thermal sleeve
+    T.k = 0.8; T.cyl('body', (3.7, b + 0.38, 0), 0.155, 0.6, 'x', 12)                                              # fume extractor
+    T.k = 0.45; T.cyl('dark', (6.35, b + 0.38, 0), 0.105, 0.12, 'x', 10)                                           # muzzle reference
+    T.k = 0.95; T.cyl('body', (-0.7, b + 0.82, -0.65), 0.42, 0.18, 'y', 14)                                        # commander's cupola
+    T.k = 0.7; T.cyl('dark', (-0.75, b + 0.94, -0.65), 0.34, 0.06, 'y', 12)
+    for a in np.linspace(0, 2 * np.pi, 7, endpoint=False): T.k = 1.0; T.box('glass', (-0.7 + 0.42 * np.cos(a), b + 0.86, -0.65 + 0.42 * np.sin(a)), (0.05, 0.07, 0.1), rot=-a)
+    T.k = 0.5; T.strut('dark', (-0.45, b + 1.05, -0.4), (0.55, b + 1.05, -0.4), 0.03); T.box('dark', (-0.55, b + 1.0, -0.4), (0.3, 0.14, 0.12))  # .50 MG
+    T.k = 0.9; T.cyl('body', (-0.4, b + 0.78, 0.65), 0.34, 0.1, 'y', 12); T.k = 0.5; T.strut('dark', (-0.3, b + 0.98, 0.65), (0.5, b + 0.98, 0.65), 0.022)  # loader's hatch, MG
+    T.k = 0.9; T.block('body', (0.75, b + 0.86, -0.85), (0.5, 0.26, 0.32), 0.2); T.k = 1.0; T.box('glass', (1.0, b + 0.86, -0.85), (0.02, 0.14, 0.22))  # gunner's sight
+    T.k = 0.8; T.cyl('body', (-0.15, b + 0.95, -0.15), 0.12, 0.3, 'y', 8); T.k = 1.0; T.box('glass', (-0.04, b + 1.0, -0.15), (0.02, 0.08, 0.12))  # panoramic sight
+    T.k = 0.6; T.cyl('dark', (-1.4, b + 0.95, 0.9), 0.07, 0.6, 'x', 8, tilt=0.6)                                   # 60 mm mortar
+    for x in (-2.6, -3.15): T.k = 0.6; T.strut('dark', (x, b + 0.3, -1.3), (x, b + 0.3, 1.3), 0.02); T.strut('dark', (x, b + 0.75, -1.3), (x, b + 0.75, 1.3), 0.02)  # bustle rack
+    for sz in (-1, 1): T.k = 0.6; T.strut('dark', (-2.55, b + 0.75, sz * 1.3), (-3.15, b + 0.75, sz * 1.3), 0.02); T.strut('dark', (-2.55, b + 0.3, sz * 1.3), (-3.15, b + 0.3, sz * 1.3), 0.02)
+    T.k = 0.8; T.block('canvas', (-2.85, b + 0.5, 0.45), (0.5, 0.4, 0.8), 0.25); T.k = 0.95; T.block('olive', (-2.85, b + 0.45, -0.5), (0.45, 0.32, 0.6), 0.15)
+    for z in np.linspace(-1.25, 1.25, 15):  # (the chains: balls on short strings under the back)
+        T.k = 0.5; T.strut('dark', (-2.52, b + 0.27, z), (-2.52, b + 0.06, z), 0.01); ball(T, 'dark', (-2.52, b + 0.05, z), 0.035, 1.0, 5)
+    tf, pitch = track_frames(x0, x1, tz, th, tw)
+    return [('hull', M, None), ('turret', T, 0)] + tf, {'cycle': pitch}
+
+def k_jeep():  # the light jeep: a Humvee with a gunner's ring — a machine gun behind a three-plate shield
+    M = jeep(); T = Mesh(); cx = -0.6
+    T.k = 0.8; T.cyl('dark', (cx, 2.03, 0), 0.58, 0.1, 'y', 14)
+    for a, w in ((0, 0.9), (0.85, 0.5), (-0.85, 0.5)):  # (the shield: a front plate and two angled wings)
+        c, s_ = np.cos(a), np.sin(a); px, pz = cx + 0.5 * c, 0.5 * s_
+        T.k = 1.0 - 0.05 * abs(a); T.hull('body', [(px - s_ * w / 2 * sg + dx, y, pz + c * w / 2 * sg + dz) for sg in (-1, 1) for y in (2.08, 2.62) for dx, dz in ((0, 0), (0.04 * c, 0.04 * s_))])
+    T.k = 1.0; T.box('glass', (cx + 0.53, 2.45, 0), (0.03, 0.12, 0.22))                                       # vision slit
+    T.k = 0.5; T.strut('dark', (cx + 0.1, 2.4, 0), (cx + 1.25, 2.42, 0), 0.03); T.box('dark', (cx + 0.05, 2.38, 0), (0.42, 0.16, 0.14))  # MG
+    T.k = 0.9; T.box('olive', (cx + 0.05, 2.32, 0.18), (0.22, 0.14, 0.12))                                    # ammo can
+    M.k = 0.9; M.block('dark', (-2.42, 1.15, 0.5), (0.1, 0.62, 0.62), 0.1)                                    # spare wheel at the back
+    M.k = 0.6; M.strut('dark', (-1.9, 1.9, -0.8), (-1.95, 3.3, -0.85), 0.012)                                  # whip antenna
+    return [('hull', M, None), ('turret', T, 0)]
+
+# ---- the drone: a quadcopter — a carbon body with a stripe in the side's colour, four arms, motors, a camera on a
+# gimbal at the front, legs; its props in four poses an eighth of a turn apart (`spin0`…: the game flicks through
+# them, so they whirl) ----
+def drone(a):
+    M = Mesh()
+    M.k = 0.9; M.loft('dark', round_secs([(-0.27, 0.06), (-0.18, 0.12), (0.1, 0.13), (0.25, 0.07)], 0.17, 0.5, 10))
+    M.k = 1.0; M.box('body', (0.0, 0.226, 0), (0.42, 0.012, 0.05))                                            # stripe
+    for sz in (-1, 1): M.k = 0.9; M.box('body', (0.04, 0.19, sz * 0.085), (0.12, 0.04, 0.012))                 # vents
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            m = np.array((sx * 0.36, 0.2, sz * 0.36))
+            M.k = 0.75; M.strut('dark', (sx * 0.1, 0.18, sz * 0.06), m, 0.02)
+            M.k = 0.6; M.cyl('dark', tuple(m + (0, 0.02, 0)), 0.04, 0.06, 'y', 10); M.k = 1.0; M.cyl('metal', tuple(m + (0, 0.055, 0)), 0.012, 0.02, 'y', 6)
+            M.k = 0.55; M.strut('dark', (sx * 0.08, 0.12, sz * 0.07), (sx * 0.1, 0.0, sz * 0.11), 0.01)          # legs
+            sp = a * sx * sz  # (neighbours turning opposite ways)
+            for b in (sp, sp + np.pi):
+                c, s_ = np.cos(b), np.sin(b); P = lambda u, v, e: (m[0] + u * c - v * s_, 0.265 + e, m[2] + u * s_ + v * c)
+                M.k = 1.15; M.hull('metal', [P(0.02, -0.022, 0), P(0.02, 0.022, 0.006), P(0.2, -0.012, 0.004), P(0.2, 0.012, 0.0), P(0.02, 0, 0.012)])
+    M.k = 0.9; ball(M, 'metal', (0.27, 0.09, 0), 0.05, 1.0, 8); M.k = 1.0; M.box('glass', (0.32, 0.09, 0), (0.02, 0.04, 0.04))  # camera
+    return M
+
+def k_drone(): return [('hull', drone(0.0), None)] + [(f'spin{i}', drone(np.pi / 4 * i), None) for i in range(4)]
+
 # ---- soldiers: a body from joints — hips, knees, feet, shoulders, elbows, hands — a limb a tapered bar between two;
 # the uniform `body` (the side's colour), boots, webbing and the helmet darker, the face skin. A pose standing (`hull`)
 # and POSES walking (`pose0`…: the legs swinging, the body bobbing — the game shows the one for how far it has gone) ----
@@ -611,9 +734,16 @@ def soldier(kind, phase=None):
         M.k = 1.15; ball(M, SKIN, hand, 0.045, 1.0, 6)
     return M
 
+def dead(kind):
+    """fallen: the standing soldier laid on its side, along +Z (the game turns it as it fell)"""
+    M = soldier(kind); R = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]], float)  # (round X: up -> +Z)
+    P = np.array([p for T in M.tri.values() for t in T for p in t[:3]]) @ R.T; t0 = np.array((0, -P[:, 1].min(), -0.9))
+    M.tri = {m: [(R @ a + t0, R @ b + t0, R @ c + t0, k) for a, b, c, k in T] for m, T in M.tri.items()}
+    return M
+
 def k_soldier(kind):
     def make():
-        parts = [('hull', soldier(kind), None)]
+        parts = [('hull', soldier(kind), None), ('dead', dead(kind), None)]
         for i in range(POSES): parts.append((f'pose{i}', soldier(kind, 2 * np.pi * i / POSES), None))
         return parts
     return make
@@ -622,8 +752,9 @@ KINDS = {'inf': k_soldier('inf'), 'at': k_soldier('at'), 'aa': k_soldier('aa'), 
          'air': k_air, 'tanker': k_tanker, 'heli': k_heli, 'gunship': k_gunship, 'lift': k_lift, 'ajeep': k_ajeep, 'tjeep': k_tjeep,
          'truck': k_truck, 'fueltruck': lambda: k_tanktruck('tank'), 'watertruck': lambda: k_tanktruck('water'),
          'radio': k_radio, 'mech': k_mech, 'ssm': k_ssm, 'arrow': k_launcher(2, 2, 0.75), 'dome': k_launcher(3, 4, 0.6),
-         'mlrs': k_mlrs, 'dozer': k_dozer}
+         'mlrs': k_mlrs, 'dozer': k_dozer, 'tank': k_tank, 'jeep': k_jeep, 'drone': k_drone}
 
 if __name__ == '__main__':
     for k in (sys.argv[1:] or KINDS):
-        write(k, KINDS[k]())
+        r = KINDS[k]()  # (parts, or (parts, extras) — the tank's track pitch)
+        write(k, r[0], extras=r[1]) if isinstance(r, tuple) else write(k, r)

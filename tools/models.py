@@ -22,13 +22,13 @@ links move in one turn, zl / zr: each track's distance from the middle, across} 
 gone, so they run with no skinning in the game.
 Front: the model's gun (or its longest side) is taken as the front; FRONT below turns one that comes out the other way.
 """
-import base64, json, os, struct, sys
+import base64, re, json, os, struct, sys
 import numpy as np
 
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 SRC, OUT = os.path.join(ROOT, 'art', 'models'), os.path.join(ROOT, 'js', 'ui', 'models.js')
 # (the turn round the up axis that brings each model's front to +X, degrees; a model not here: its gun's way)
-FRONT = {'jeep': 180}  # (the AI-made jeep: its bonnet at -X; the ones built in code — tools/build_models.py — are +X already)
+FRONT = {}  # (kind: degrees — a model whose front comes out wrong; the ones built in code — tools/build_models.py — are +X already)
 TEAM = ('main', 'main_light', 'body', 'paint', 'slim')  # materials painted in the side's colour (slim: a slimmed model, all of it)
 TURRET = ('turret', 'gun', 'barrel', 'cannon')
 TRACK_F = 8  # poses of a running track
@@ -124,11 +124,14 @@ def bake(path):
     mats = J.get('materials', [])
     fwd = next((a for a in J.get('animations', []) if 'forward' in (a.get('name') or '').lower()), None)
     tracks = {}  # 'L'/'R' -> (node, its primitive's normals and colours from the rest walk)
+    code = J.get('asset', {}).get('generator', '').startswith('tools/build_')
+    ctr_ = {}  # (built in code: a track's poses as parts of their own, trackL0… — (side, pose) -> [(pos, nrm, col)])
     parts = {}  # (part, team) -> list of (pos, nrm, col)
     def walk(i, P, turret, pose=None):
         n = J['nodes'][i]; M = P @ node_matrix(n); name = (n.get('name') or '').lower()
         turret = turret or any(k in name for k in TURRET)
-        pose = pose or (name if name.startswith('pose') else None)  # (a soldier's walking poses: parts of their own)
+        pose = pose or (name if re.match(r'(pose|spin)\d+$|dead$', name) else None)  # (a soldier's walking poses, fallen; a drone's props: parts of their own)
+        ct = code and re.match(r'track([lr])(\d+)$', name)
         track = fwd is not None and 'skin' in n and 'track' in name and 'mesh' in n
         if 'mesh' in n:
             for p in J['meshes'][n['mesh']]['primitives']:
@@ -145,13 +148,20 @@ def bake(path):
                 N /= np.maximum(1e-9, np.linalg.norm(N, axis=1))[:, None]
                 team = any(k == (m.get('name') or '').lower() for k in TEAM)
                 if track: tracks['L' if name.endswith('.l') else 'R'] = (n, idx, N, col); continue
+                if ct: ctr_.setdefault((ct[1].upper(), int(ct[2])), []).append((P4[idx, :3], N[idx], col[idx])); continue
                 parts.setdefault((pose or ('turret' if turret else 'hull'), team), []).append((P4[idx, :3], N[idx], col[idx]))
         for c in n.get('children', []): walk(c, M, turret, pose)
     for r in J['scenes'][J.get('scene', 0)]['nodes']: walk(r, np.eye(4), False)
     cat = {k: tuple(np.concatenate([v[j] for v in l]) for j in range(3)) for k, l in parts.items()}
     # (the tracks: TRACK_F poses over the clip; the first in the hull's size)
     frames = {}
-    if tracks:
+    if ctr_:  # (built in code: the poses as they are; how far a link goes in one turn — its pitch, in the file)
+        for side in ('L', 'R'):
+            fs = sorted(f for sd, f in ctr_ if sd == side)
+            frames[side] = [np.concatenate([v[0] for v in ctr_[(side, f)]]) for f in fs]
+            frames[side + 'n'], frames[side + 'c'] = (np.concatenate([v[j] for v in ctr_[(side, fs[0])]]) for j in (1, 2))
+        cycle = float(J['asset']['extras']['cycle'])
+    elif tracks:
         T = max(accessor(J, B, s['input'])[:, 0].max() for s in fwd['samplers'])
         for side, (n, idx, N, col) in tracks.items():
             frames[side] = [skinned(J, B, n, pose(J, B, fwd, T * f / TRACK_F))[idx] for f in range(TRACK_F)]
@@ -194,7 +204,7 @@ def bake(path):
             if side not in frames: continue
             for f, p in enumerate(frames[side]):  # (the first whole; the rest only where the points are — the same normals and colours)
                 q = (turn(p - mid) - ctr) / L
-                out['parts']['track' + side + str(f)] = {'rest': pack(np.c_[q, turn(frames[side + 'n']), np.clip(frames[side + 'c'], 0, 1)])} if f == 0 else                     {'pos': base64.b64encode(q.astype(np.float32).tobytes()).decode()}
+                out['parts']['track' + side + str(f)] = {'rest': pack(np.c_[q, turn(frames[side + 'n']), np.clip(frames[side + 'c'], 0, 1)])} if f == 0 else                     {'pos': base64.b64encode(np.clip(np.round(q * POS_Q), -32767, 32767).astype('<i2').tobytes()).decode()}  # (Int16 ×POS_Q, as pack)
         zl, zr = [((turn(frames[s][0] - mid) - ctr) / L)[:, 2].mean() for s in ('L', 'R')]
         out['track'] = {'frames': TRACK_F, 'cycle': round(float(cycle / L), 5), 'zl': round(float(zl), 4), 'zr': round(float(zr), 4)}
     if any(k[1] for k in cat) and all((m.get('name') or '').lower() in ('slim',) for m in mats): out['teamK'] = 0.18  # (a slimmed model: all of it its paint — only a touch of the side's colour)

@@ -164,7 +164,7 @@ function v3Lay(x, y, hd, lift, w, h, ox, oy, out, sy = 1) {
 // ---- 3D models (art/models/*.glb → MODELS, tools/models.py): a kind's hull and turret, each two meshes — its main
 // paint tinted with the side's colour (V3_TEAM of it), the rest as it is. Front +X, length 1, so scaled by V3_LEN ×
 // its size. A tank's turret turns on its pivot to where it fires; a wreck: dark. ----
-const V3_ROTOR = 14, V3_POS_Q = 16000, V3_MAN = 24, V3_STRIDE = 4; // (V3_MAN: a soldier's height, world units — taller than true to a tank, as on the flat map, or from above it was a dot; V3_STRIDE: the way it walks for each pose) // (a helicopter's rotor, radians a second)
+const V3_DRONE = 0.9, V3_DEAD = 0.7, V3_ROTOR = 14, V3_POS_Q = 16000, V3_MAN = 24, V3_STRIDE = 4; // (V3_MAN: a soldier's height, world units — taller than true to a tank, as on the flat map, or from above it was a dot; V3_STRIDE: the way it walks for each pose) // (a helicopter's rotor, radians a second)
 const V3_LEN = { tank: 1.75, jeep: 1.25, ajeep: 1.25, tjeep: 1.25, air: 1.3, tanker: 1.3, heli: 1.2, gunship: 1.2, lift: 1.3, how: 2.2, mlrs: 2.4, ssm: 2.6, arrow: 2.6, dome: 2.6, truck: 2.0, fueltruck: 2.0, watertruck: 2.0, radio: 1.9, mech: 2.0, dozer: 1.7 }, V3_TEAM = 0.38;
 const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
@@ -180,7 +180,7 @@ function v3Geo(type, part, side) {
   const M = MODELS[type].parts[part], geo = [], sc = new THREE.Color(colors[side] || '#888888'); // (in the linear colours the light uses)
   if (M.pos) { // (a track's later pose: only its points — the first pose's normals and colours)
     const b = atob(M.pos), u8 = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i);
-    const g = v3Geo(type, part.replace(/\d+$/, '0'), side).clone(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(u8.buffer), 3)); G.set(key, g); return g;
+    const g = v3Geo(type, part.replace(/\d+$/, '0'), side).clone(); const q = new Int16Array(u8.buffer), f = new Float32Array(q.length); for (let i = 0; i < q.length; i++) f[i] = q[i] / V3_POS_Q; g.setAttribute('position', new THREE.BufferAttribute(f, 3)); // (Int16 / V3_POS_Q) G.set(key, g); return g;
   }
   const TK = MODELS[type].teamK ?? V3_TEAM; // (how much of the side's colour in its paint)
   for (const k of ['team', 'rest']) {
@@ -268,6 +268,7 @@ function v3Units() {
   for (const f of s.fallen) {
     const age = s.t - f.t, T = Sim.TYPES[f.type]; if (age > V3_FALL || T.air || (s.fog && !shownAt(f))) continue;
     const car = CAR.has(f.type), dim = tint.setScalar(car ? 0.9 - 0.4 * age / V3_FALL : 0.45);
+    if (!car && v3HasModel(f.type) && MODELS[f.type].parts.dead) { v3PutModel(f.type, f.side, f.x, f.y, f.hd + 0.3, 0, m, tint.setScalar(0.7), null, 0, V3_DEAD * V3_MAN / MODELS[f.type].size[1], 1, 'dead'); continue; } // (a soldier lying on its side — smaller: seen from above, lying at full length it looked twice one standing)
     if (car && v3HasModel(f.type)) { v3PutModel(f.type, 'wreck', f.x, f.y, f.hd + 0.3, f.hd + 1.2, m, tint.setScalar(0.35 - 0.15 * age / V3_FALL)); continue; }
     const P = v3Pic(f.type, car ? 'wreck' : f.side);
     v3Put(P, v3Lay(f.x, f.y, f.hd + 0.3, 0, P.w, P.h, 0, 0, m), dim);
@@ -333,7 +334,8 @@ function v3Nodes(rings) {
   for (const n of s.nodes) {
     if (n.hp <= 0 || !nodeShown(n)) continue;
     const col = colors[n.side];
-    if (n.kind === 'drone') { // (up in the air, turning slowly)
+    if (n.kind === 'drone') { // (up in the air, turning slowly; the model's props whirl — a pose each frame)
+      if (v3HasModel('drone')) { v3PutModel('drone', n.side, n.x, n.y, s.t * 0.35 + n.id, 0, m, null, null, V3_AIR * 1.4, DRONE_PX * V3_DRONE, 1, 'spin' + ((V3.frame = (V3.frame || 0) + 1) + n.id) % 4); continue; }
       if (!sprite.img.drone) continue;
       let P = V3.pics.get('drone:' + n.side);
       if (!P) { const D = SPRITES.drone, sc = DRONE_PX / Math.max(D.w, D.h); P = v3Sheet('drone:' + n.side, spritePic('drone', col), D.w * sc, D.h * sc); }
