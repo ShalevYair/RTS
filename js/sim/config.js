@@ -175,8 +175,8 @@ const STRUCTS = {
   clinic:   { name: 'אוהל חובשים', icon: '🏥', hp: 350,  value: 3, unit: 'med',  build: 20, every: 25,  size: 2, r: 21, cat: 'tents' },
   tankshop: { name: 'סדנת טנקים',  icon: '🏭', hp: 600,  value: 6, unit: 'tank', build: 50, every: 60,  size: 3, r: 36, cat: 'shops', upgrade: 'trophy' },
   // the missile works: surface-to-surface missile trucks (3 minutes to set up, one every 2 minutes, at most 3)
-  howshop:  { name: 'סדנת תותחים 200 מ"מ', icon: '💥', hp: 550, value: 6, unit: 'how', build: 90, every: 90, size: 3, r: 32, cat: 'shops' },
-  mlrsshop: { name: 'סדנת MLRS', icon: '🎆', hp: 550, value: 6, unit: 'mlrs', build: 90, every: 90, size: 3, r: 32, cat: 'shops' },
+  howshop:  { name: 'סדנת תותחים 200 מ"מ', icon: '💥', hp: 550, value: 6, unit: 'how', build: 90, every: 90, size: 3, r: 32, cat: 'shops', max: 1 },
+  mlrsshop: { name: 'סדנת MLRS', icon: '🎆', hp: 550, value: 6, unit: 'mlrs', build: 90, every: 90, size: 3, r: 32, cat: 'shops', max: 1 },
   ssmshop:  { name: 'מפעל טילים', icon: '🚀', hp: 600, value: 6, unit: 'ssm', build: 180, every: 120, size: 1, keep: 1, max: 3, r: 32, cat: 'shops' }, // (at most max of it a side, keep trucks each)
   // the missile defences (the service menu's page): Arrow, Iron Dome
   arrowsite: { name: 'אתר חץ', icon: '🛡️', hp: 500, value: 5, unit: 'arrow', build: 120, every: 60, size: 3, r: 28, cat: 'defense' },
@@ -525,7 +525,7 @@ const AI_SEEN_T = 300, AI_COUNTER_MIN = 4, AI_COUNTER_K = 1, AI_COUNTER_EVERY = 
 // their health, a building MLRS_NODE. Firing shows the enemy where it stands. Shells fly ARTY_FLIGHT s (the damage is
 // done at the firing, as every shot). The AI keeps them ARTY_BACK behind its leading squads.
 const ARTY_R = 2 * Math.max(...Object.values(TYPES).map(T => Math.max(T.range, T.gun ? T.gun.range : 0)));
-const ARTY_SETUP = 10, HOW_CD = 15, MLRS_CD = 30, ARTY_AREA = 50, MLRS_TANK = 0.15, HOW_NODE = 120, MLRS_NODE = 40, ARTY_FLIGHT = 2.5, ARTY_BACK = 160, MLRS_ROCKETS = 8;
+const ARTY_SETUP = 10, HOW_CD = 25, MLRS_CD = 45, ARTY_AREA = 50, MLRS_TANK = 0.15, HOW_NODE = 120, MLRS_NODE = 40, ARTY_FLIGHT = 2.5, ARTY_BACK = 160, MLRS_ROCKETS = 8;
 SHOT_TIME.how = SHOT_TIME.mlrs = ARTY_FLIGHT; IMPACT.how = { size: 28, life: 0.8 }; IMPACT.mlrs = { size: 14, life: 0.5 };
 SUPPLY.how = 12; SUPPLY.mlrs = 6;
 for (const k of ['fueltruck', 'watertruck']) {
