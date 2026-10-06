@@ -40,7 +40,8 @@ function aiBuild(s, side, D, who) {
   if (!D.smart && s.t - (s.lastBuild[pk] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
   let kind = D.smart && !s.noCounter && s.style[side] === 'steady' ? aiCounter(s, side, may) : null, counter = !!kind; // (what it has seen of the enemy first: an answer to it — the regular commander, who mixes; the others keep to their arm)
-  const plan = who ? AI_PLAN_HARD.filter(may) : D.traits && s.style[side] === 'steady' && !s.level ? AI_PLAN_HARD : AI_STYLES[s.style[side]].plan; // (hard, regular: everything; arms: what of it is this player's)
+  const base = D.traits && s.style[side] === 'steady' && !s.level ? AI_PLAN_HARD : AI_STYLES[s.style[side]].plan;
+  const plan = who ? base.filter(may) : base; // (hard, regular: everything; arms: what of it is this player's — the plan of the difficulty, as one player would)
   for (let i = 0; i < plan.length && !kind; i++) { const k = plan[((s.plan[pk] || 0) + i) % plan.length]; if (buildable(s, k)) { kind = k; s.plan[pk] = (s.plan[pk] || 0) + i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
