@@ -29,7 +29,7 @@ function knownStructs(s, side) {
 
 // put a building of the next planned kind near the most forward control node, toward the enemy
 function aiBuild(s, side, D, who) {
-  const may = k => !who || armSide(s, side, k) === who; // (arms: only this player's buildings)
+  const may = k => !who || (armSide(s, side, k) || 'me') === who; // (arms: only this player's buildings; none this game — all 'me')
   const pk = who ? side + who : side; // (arms: each player its own place in the plan)
   if (D.mass && !s.level && s.fog && may('decoy') && alive(s, side, ['decoy']).length < 2) { // (hard: deception — a fake HQ or two by the forward HQs)
     const f = alive(s, side, ['fhq']).find(n => s.t >= n.ready), foe = s.bases[foeOf(side)];

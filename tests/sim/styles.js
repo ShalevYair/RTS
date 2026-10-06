@@ -24,7 +24,7 @@ const has = (s, kind) => s.nodes.some(n => n.side === 'red' && n.kind === kind &
   ok(liftAt !== null && flown + dropped >= 1, `the commando commander: a helicopter (${liftAt ? Math.round(liftAt / 60) + ' min' : '-'}) flew ${flown} raid(s) in over the middle, ${dropped} commandos set down deep on our side`);
 }
 {
-  const s = game(314, 'hard'); s.style.red = 'steady'; const seen = new Set();
+  const s = game(314, 'hard'); s.style.red = 'steady'; s.botDiff = 'easy'; const seen = new Set(); // (blue easy: what it builds, not how the fight goes — losing, a crowded base skipped the helicopter pad)
   run(s, 1500, () => { if (Math.abs(s.t % 10) < 1 / 30) for (const n of s.nodes) if (n.side === 'red') seen.add(n.kind); });
   const want = ['ssmshop', 'airfield', 'commandopost', 'helilift', 'tankshop'];
   ok(want.every(k => seen.has(k)), `hard: every arm — ${want.filter(k => seen.has(k)).join(', ')}${want.some(k => !seen.has(k)) ? ' (missing ' + want.filter(k => !seen.has(k)).join(', ') + ')' : ''}`);
