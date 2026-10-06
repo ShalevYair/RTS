@@ -164,7 +164,7 @@ function v3Lay(x, y, hd, lift, w, h, ox, oy, out, sy = 1) {
 // ---- 3D models (art/models/*.glb → MODELS, tools/models.py): a kind's hull and turret, each two meshes — its main
 // paint tinted with the side's colour (V3_TEAM of it), the rest as it is. Front +X, length 1, so scaled by V3_LEN ×
 // its size. A tank's turret turns on its pivot to where it fires; a wreck: dark. ----
-const V3_ROTOR = 14, V3_POS_Q = 16000; // (a helicopter's rotor, radians a second)
+const V3_ROTOR = 14, V3_POS_Q = 16000, V3_MAN = 24, V3_STRIDE = 4; // (V3_MAN: a soldier's height, world units — taller than true to a tank, as on the flat map, or from above it was a dot; V3_STRIDE: the way it walks for each pose) // (a helicopter's rotor, radians a second)
 const V3_LEN = { tank: 1.75, jeep: 1.25, ajeep: 1.25, tjeep: 1.25, air: 1.3, tanker: 1.3, heli: 1.2, gunship: 1.2, lift: 1.3, how: 2.2, mlrs: 2.4, ssm: 2.6, arrow: 2.6, dome: 2.6, truck: 2.0, fueltruck: 2.0, watertruck: 2.0, radio: 1.9, mech: 2.0, dozer: 1.7 }, V3_TEAM = 0.38;
 const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
@@ -210,6 +210,16 @@ function v3Merge(gs) {
 // a model on the ground at (x, y), its hull to hd, its turret (if any) to aim; tint: a wreck's darkness
 // how far a unit's tracks have gone since it was first seen: [left, right] — forward along its heading, and a turn
 // moves each side by its distance from the middle (MODELS[type].track: zl, zr)
+// a soldier walking: the pose for how far it has gone (one stride over all POSES, V3_STRIDE each), null standing
+function v3Walk(u) {
+  const D = MODELS[u.type]; if (!D.poses) return null;
+  const R = V3.walk || (V3.walk = new Map()); let r = R.get(u.id);
+  if (!r) R.set(u.id, r = { x: u.x, y: u.y, d: 0, at: -9 });
+  const d = Math.hypot(u.x - r.x, u.y - r.y);
+  if (d < 40) { r.d += d; if (d > 0.01) r.at = s.t; } // (not a jump: one just shown again)
+  r.x = u.x; r.y = u.y;
+  return s.t - r.at > 0.3 ? null : 'pose' + (Math.floor(r.d / V3_STRIDE) % D.poses);
+}
 function v3Run(u, hd) {
   const K = MODELS[u.type].track; if (!K) return null;
   const R = V3.run || (V3.run = new Map()), L = (SIZE[u.type] || 10) * (V3_LEN[u.type] || 1.6); let r = R.get(u.id);
@@ -221,8 +231,9 @@ function v3Run(u, hd) {
 // (run: how far each track has gone, world units — [left, right]; the pose shown for it, so they run)
 // (lift: in the air, level — aircraft; a helicopter's rotor is its turret, `aim` turning it round)
 // (len: its length, if not by its kind's size — a building; rise: of its height — a building going up)
-function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, rise = 1) {
-  const L = len || (SIZE[type] || 10) * (V3_LEN[type] || 1.6), H = v3Model(type, 'hull', side), D = MODELS[type];
+// (pose: a soldier's walking pose, v3Walk — its length then by V3_MAN, its height)
+function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, rise = 1, pose = null) {
+  const D = MODELS[type], L = len || (D.poses ? V3_MAN / D.size[1] : (SIZE[type] || 10) * (V3_LEN[type] || 1.6)), H = v3Model(type, pose || 'hull', side);
   v3Put(H, v3Lay(x, y, hd, lift, L, L, 0, 0, m, L * rise), tint);
   const K = D.track;
   if (K) ['L', 'R'].forEach((k, i) => { const r = run ? run[i] / (K.cycle * L) : 0, f = Math.floor((r - Math.floor(r)) * K.frames) % K.frames; v3Put(v3Model(type, 'track' + k + f, 'track'), m, tint); });
@@ -239,7 +250,10 @@ function v3Units() {
   for (const u of s.units) {
     if (s.fog && !((u.side === 'blue' ? whole.has(u.squad) : s.vis.blue.has(u.id)) && shownAt(u))) continue;
     const T = Sim.TYPES[u.type], lift = T.air ? V3_AIR : 0, hd = u.hd || 0;
-    if (v3HasModel(u.type)) v3PutModel(u.type, u.side, u.x, u.y, hd, T.hover || u.type === 'lift' ? performance.now() / 1000 * V3_ROTOR + u.id : s.t - u.lastFire < 3 ? u.aim : hd, m, null, T.air ? null : v3Run(u, hd), lift);
+    if (v3HasModel(u.type)) {
+      const man = !!MODELS[u.type].poses, pose = v3Walk(u), face = man && s.t - u.lastFire < 3 ? u.aim : hd; // (a soldier faces where it fires, and stands upright)
+      v3PutModel(u.type, u.side, u.x, u.y, face, T.hover || u.type === 'lift' ? performance.now() / 1000 * V3_ROTOR + u.id : s.t - u.lastFire < 3 ? u.aim : hd, m, null, T.air || man ? null : v3Run(u, hd), man ? 0.01 : lift, 0, 1, pose);
+    }
     else { const P = v3Pic(u.type, u.side); v3Put(P, v3Lay(u.x, u.y, hd, lift, P.w, P.h, 0, 0, m)); }
     if (u.type === 'tank' && hasSprite('tank') && !v3HasModel('tank')) { // (the turret, turned to where it fires)
       const R = v3Pic('turret', u.side), H = SPRITES.tank_hull, k = SIZE.tank, sc = SPRITE_LEN.tank * k / H.w;
