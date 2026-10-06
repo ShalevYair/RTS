@@ -4,7 +4,7 @@
 // s.asks: { id, side, from ('me' | 'mate'), kind, x, y, t, by: the squads sent, ok }. For ASK_T s the squads sent stay
 // on it (think leaves them be), then the partner takes them back.
 const ASK_KINDS = ['fuel', 'ammo', 'water', 'fire', 'lift', 'guard', 'build'];
-const ASK_T = 90, ASK_EVERY = 60, ASK_GUARD_N = 3, ASK_FIRE_N = 2, ASK_SITE_R = 90;
+const ASK_T = 90, ASK_EVERY = 60, ASK_GUARD_N = 3, ASK_FIRE_N = 2, ASK_SITE_R = 90, ASK_MARK_R = 200;
 // what answers each (the types sent); guard: any fighting squad
 const ASK_BY = { fuel: ['fueltruck'], ammo: ['truck'], water: ['watertruck'], fire: ['how', 'mlrs', 'air', 'heli', 'gunship', 'ssm'], lift: ['lift'], build: ['dozer'] };
 const askWho = (s, q) => q.cmd ? 'me' : armSide(s, q.side, q.type) || 'me';
@@ -40,6 +40,14 @@ function answerAsk(s, a) {
     const q = crews.find(q => s.units.some(u => u.squad === q.id && (u.load ?? 1) > 0.25 && !u.refill));
     if (q) go(q, 'hold', a.x, a.y);
   } else if (a.kind === 'fire') {
+    // (marking: at what's marked by the spot, if anything is — there it hits in full)
+    if (s.designate) {
+      let best = null, bd = ASK_MARK_R; const foe = foeOf(a.side);
+      for (const v of [...s.units.filter(v => v.side === foe && v.hp > 0), ...s.nodes.filter(n => n.side === foe && n.hp > 0 && n.kind !== 'drone')]) {
+        const d = Math.hypot(v.x - a.x, v.y - a.y); if (d < bd && s.marked && s.marked[a.side].has(v.kind ? 'n' + v.id : v.id)) { bd = d; best = v; }
+      }
+      if (best) { a.x = Math.round(best.x); a.y = Math.round(best.y); a.onMark = true; }
+    }
     let n = 0;
     for (const q of crews) {
       if (n >= ASK_FIRE_N) break;
@@ -87,3 +95,30 @@ function mateAsks(s, side, mine, foes) {
     if (f) put('fire', f.k.x, f.k.y);
   }
 }
+
+// ---- marking targets (arms, s.designate — DESIGN.md "סימון"): soldiers, commandos and drones mark what of the enemy
+// they see within MARK_SIGHT of their sight; it stays marked MARK_KEEP s after. Aircraft, helicopters, guns and
+// missiles hit a marked target in full, an unmarked one only MARK_HIT of the time — the air force and the guns need
+// eyes on the ground. s.marked[side]: Map id (a unit's id, 'n' + a building's) → marked until ----
+const MARK_BY = ['inf', 'at', 'aa', 'commando'], MARK_NEED = ['air', 'heli', 'gunship'];
+const MARK_SIGHT = 0.8, MARK_KEEP = 10, MARK_EVERY = 0.5, MARK_HIT = 0.6;
+function markTick(s) {
+  if (!s.designate || s.t - (s.markAt ?? -99) < MARK_EVERY) return;
+  s.markAt = s.t; s.marked = s.marked || { blue: new Map(), red: new Map() };
+  for (const side of ['blue', 'red']) {
+    const M = s.marked[side], foe = foeOf(side);
+    for (const [id, t] of M) if (t < s.t) M.delete(id);
+    const eyes = [];
+    for (const u of s.units) if (u.side === side && u.hp > 0 && MARK_BY.includes(u.type)) eyes.push({ x: u.x, y: u.y, r: TYPES[u.type].sight * MARK_SIGHT * envSight(s, u) });
+    for (const n of s.nodes) if (n.side === side && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready) eyes.push({ x: n.x, y: n.y, r: DRONE_SIGHT * MARK_SIGHT });
+    const until = s.t + MARK_KEEP;
+    for (const e of eyes) {
+      for (const v of around(s, e.x, e.y, e.r)) if (v.side === foe && v.hp > 0 && Math.hypot(v.x - e.x, v.y - e.y) <= e.r && seen(s, side, v)) M.set(v.id, until);
+      for (const n of s.nodes) if (n.side === foe && n.hp > 0 && n.kind !== 'drone' && Math.hypot(n.x - e.x, n.y - e.y) <= e.r + nodeR(n)) M.set('n' + n.id, until);
+    }
+  }
+}
+// is this enemy unit / building marked for the side (no marking this game: all of it is)
+const isMarked = (s, side, e) => !s.designate || !!(s.marked && s.marked[side].has(e.kind ? 'n' + e.id : e.id));
+// a shot that needs marking at something unmarked: does it hit? (MARK_HIT of the time)
+const markHit = (s, side, e) => isMarked(s, side, e) || s.rand() < MARK_HIT;

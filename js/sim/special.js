@@ -119,7 +119,7 @@ function missileTick(s, dt) {
     if (m.gone || f < 1) continue;
     m.gone = true;
     const n = s.nodes.find(k => k.id === m.node && k.hp > 0 && Math.hypot(k.x - m.x, k.y - m.y) <= nodeR(k) + 20);
-    if (n && n.kind !== 'hq') { n.hp = 0; n.by = m.by; }
+    if (n && n.kind !== 'hq' && markHit(s, m.side, n)) { n.hp = 0; n.by = m.by; } // (arms: unmarked, it may miss — asks.js)
     for (const u of s.units) if (!TYPES[u.type].air && Math.hypot(u.x - m.x, u.y - m.y) <= SSM_SPLASH) { u.hp -= SSM_SPLASH_DMG; u.by = m.by; }
     blastPiles(s, m.x, m.y, SSM_SPLASH); // (fuel barrels there: up they go — fuel.js)
     s.fx.push({ x: m.x, y: m.y, life: 1.2, max: 1.2, size: 60 });
@@ -150,9 +150,10 @@ function artyTick(s, dt) {
     u.acd = how ? HOW_CD : MLRS_CD; u.lastFire = s.t; u.aim = Math.atan2(tg.y - u.y, tg.x - u.x);
     if (s.supply && SUPPLY[u.type]) u.sup = Math.max(0, u.sup - 1 / SUPPLY[u.type]);
     const hitU = e => { e.by = q.id; e.shotAt = s.t; e.shotBy = u.id; };
-    if (node) node.hp -= how ? HOW_NODE : MLRS_NODE;
-    else if (how) { at.hp = 0; hitU(at); }
-    else for (const e of foes) if (Math.hypot(e.x - at.x, e.y - at.y) <= ARTY_AREA) { e.hp -= TRACKED.includes(e.type) ? MLRS_TANK * TYPES[e.type].hp : e.hp; hitU(e); }
+    // (arms: what isn't marked is hit only MARK_HIT of the time — asks.js)
+    if (node) { if (markHit(s, u.side, node)) node.hp -= how ? HOW_NODE : MLRS_NODE; }
+    else if (how) { if (markHit(s, u.side, at)) { at.hp = 0; hitU(at); } }
+    else for (const e of foes) if (Math.hypot(e.x - at.x, e.y - at.y) <= ARTY_AREA && markHit(s, u.side, e)) { e.hp -= TRACKED.includes(e.type) ? MLRS_TANK * TYPES[e.type].hp : e.hp; hitU(e); }
     // (on the map: one big shell, or a salvo of rockets scattered over the area)
     const n = how ? 1 : MLRS_ROCKETS, fx = IMPACT[u.type];
     for (let i = 0; i < n; i++) {
