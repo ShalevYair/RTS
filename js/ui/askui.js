@@ -55,3 +55,18 @@ function drawAsks(c) {
 }
 addEventListener('keydown', e => { if (e.key === 'Escape') closeAskWheel(); });
 addEventListener('pointerdown', () => closeAskWheel());
+// marking (arms): a small red triangle over each enemy unit / building marked for us — where the air force and the guns
+// hit in full (Sim.isMarked)
+function drawDesignated(c) {
+  if (!s.designate || !s.marked) return;
+  const px = 1 / view.css, k = 5 * px, v = viewRect(), M = s.marked.blue;
+  const tri = (x, y) => { c.moveTo(x - k, y - k * 1.6); c.lineTo(x + k, y - k * 1.6); c.lineTo(x, y); c.closePath(); };
+  c.save(); c.beginPath();
+  for (const u of s.units) {
+    if (u.side !== 'red' || u.hp <= 0 || !M.has(u.id) || (s.fog && !s.vis.blue.has(u.id))) continue;
+    if (v && (u.x < v.x - 40 || u.x > v.x + v.w + 40 || u.y < v.y - 40 || u.y > v.y + v.h + 40)) continue;
+    tri(u.x, u.y - (SIZE[u.type] || 10) * 0.6 - 3 * px);
+  }
+  for (const n of s.nodes) if (n.side === 'red' && n.hp > 0 && M.has('n' + n.id)) tri(n.x, n.y - Sim.STRUCTS[n.kind].r * 1.1);
+  c.fillStyle = '#ff3b30'; c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 1.2 * px; c.fill(); c.stroke(); c.restore();
+}

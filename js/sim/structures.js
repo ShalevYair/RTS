@@ -24,7 +24,7 @@ const armSide = (s, side, k) => !s.arms || side !== 'blue' || !ARM_OF[k] ? null 
 // the player gives this squad orders (with arms: not the partner's; the command tanks are both's — the player's)
 const ownSquad = (s, q) => !!q.cmd || armSide(s, q.side, q.type) !== 'mate';
 // arms for this game: the player's (some of ARMS); the computer partner plays the rest of blue (think 'mate')
-function setArms(s, arms) { const a = (arms || []).filter(k => ARMS[k]); s.arms = a.length && a.length < Object.keys(ARMS).length ? a : null; s.mate = !!s.arms; }
+function setArms(s, arms) { const a = (arms || []).filter(k => ARMS[k]); s.arms = a.length && a.length < Object.keys(ARMS).length ? a : null; s.mate = !!s.arms; s.designate = !!s.arms; } // (designate: targets marked — asks.js)
 // why a building can't go at (x, y): '' when it can; 'q' poor control, 'limit' no free slot, 'gap' too close, 'bad' bad input
 // (kind 'decoy': no slot, but at most DECOY_MAX of them)
 function buildCheck(s, side, x, y, kind) {

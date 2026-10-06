@@ -113,7 +113,7 @@ const STR = {
     t_posts: 'מבנים ניטרליים: רדאר, תחנת כוח ודלק, מחסנים, בתי חולים, מוסכים, מגדלי תצפית, אנטנות ובונקרים. חייל שנכנס כובש (ונשאר בפנים); חייל אויב מחזיר אותו לאף אחד, ושני — לאויב. עכבר מעל מבנה = מה הוא נותן.',
     t_weather: '🌧 גשם ו-🌫 ערפל בוקר (רק בשפלה) מורידים 20% מהראייה, מהטווח ומהפגיעה. על דרך רכבים מהירים יותר. חיילים שעומדים בשקט בין העצים כמעט לא נראים.',
     t_voice: '🎙 לחץ על 🎙 ודבר (נשאר פתוח עד לחיצה נוספת): "טנקים לרדאר", "כוח 2 לנקודה 4", "כולם לסגת". Alt+מספר שומר את המסך כנקודה, Shift+מספר קופץ אליה.',
-    tip_asks: 'יש לך שותף: Alt+לחיצה על המפה = לבקש ממנו דלק, תחמושת, אש, איסוף… שם. גם הוא יבקש ממך (סימן צהוב).',
+    tip_asks: 'יש לך שותף: Alt+לחיצה על המפה = לבקש ממנו דלק, תחמושת, אש, איסוף… שם. גם הוא יבקש ממך (סימן צהוב). משולש אדום = מטרה שחיילים או רחפן מסמנים: שם מטוסים, תותחים וטילים פוגעים במלוא הכוח.',
     tip_posts: 'מבנה ניטרלי: חייל שנכנס כובש אותו. עכבר מעליו = מה הוא נותן.', tip_voice: 'לחץ 🎙 ודבר: "טנקים לרדאר", "כוח 2 לנקודה 4". Alt+מספר שומר נקודה.',
   },
   en: {
@@ -214,7 +214,7 @@ const STR = {
     t_posts: "Neutral buildings: a radar, power and fuel stations, depots, hospitals, motor pools, observation towers, antennas and bunkers. A soldier who walks in takes it (and stays inside); an enemy soldier makes it no one's, a second makes it theirs. Mouse over one = what it gives.",
     t_weather: '🌧 Rain and 🌫 morning fog (only on the plain) take 20% off sight, range and hits. Vehicles go faster on roads. Soldiers standing still among trees are hard to see.',
     t_voice: '🎙 Click 🎙 and speak (it stays open until another click): "tanks to the radar", "group 2 to point 4", "everyone retreat". Alt+number saves the view as a point, Shift+number jumps there.',
-    tip_asks: 'You have a partner: Alt+click on the map = ask them for fuel, ammunition, fire, a pick-up… there. They will ask you too (a yellow mark).',
+    tip_asks: 'You have a partner: Alt+click on the map = ask them for fuel, ammunition, fire, a pick-up… there. They will ask you too (a yellow mark). A red triangle = a target soldiers or a drone mark: aircraft, guns and missiles hit it in full.',
     tip_posts: 'A neutral building: a soldier who walks in takes it. Mouse over it = what it gives.', tip_voice: 'Click 🎙 and speak: "tanks to the radar", "group 2 to point 4". Alt+number saves a point.',
   },
 };

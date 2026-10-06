@@ -1203,7 +1203,7 @@ function draw() {
     drawGuess(c, q, guessAt(q), on);
   }
   drawMissiles(c);
-  drawFront(c); drawPicked(c); drawAsks(c); drawPings(c); // (the vignette: #vig, in CSS — a full-screen layer drawn every frame was slow)
+  drawFront(c); drawPicked(c); drawDesignated(c); drawAsks(c); drawPings(c); // (the vignette: #vig, in CSS — a full-screen layer drawn every frame was slow)
 }
 // the front (🚩 set): a blue flag on a pole, a faint ring round it
 function drawFront(c) {

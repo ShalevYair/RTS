@@ -211,7 +211,7 @@ function updateUnit(s, u, sq, dt) {
     const n = s.nodes.find(n => nodeTargetable(u, n) && dist(u, n) <= (G(n) ? G(n).range * up * rk : range) + nodeR(n));
     if (n) {
       const g = G(n), as = g ? g.as : u.type;
-      u.engaged = true; u.atDrone = n.kind === 'drone'; if (!shield(s, as, n)) n.hp -= (g ? g.dmg * NODE_MULT[as] : T.dmg * NODE_MULT[u.type]) * hk; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
+      u.engaged = true; u.atDrone = n.kind === 'drone'; if (!shield(s, as, n) && (!MARK_NEED.includes(u.type) || markHit(s, u.side, n))) n.hp -= (g ? g.dmg * NODE_MULT[as] : T.dmg * NODE_MULT[u.type]) * hk; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
       u.aim = Math.atan2(n.y - u.y, n.x - u.x); u.lastFire = s.t;
       shot(s, u, n, as);
       s.fx.push({ x: n.x, y: n.y, life: IMPACT[as].life, max: IMPACT[as].life, size: IMPACT[as].size, wait: SHOT_TIME[as] });
@@ -224,7 +224,7 @@ function updateUnit(s, u, sq, dt) {
       // (a missile may be stopped: Iron Dome, Trophy; under trees, in the dark, the rain or the fog a shot may miss; a
       // soldier by his side's bunker takes BUNKER_K of it)
       const hitK = envHit(s, u);
-      if (!shield(s, as, hit) && !(inCover(s, hit) && s.rand() < COVER_MISS) && !(hitK < 1 && s.rand() > hitK)) hit.hp -= (g ? g.dmg * MULT[as][hit.type] : T.dmg * MULT[u.type][hit.type]) * hk * (s.bunkered && s.bunkered.has(hit.id) ? BUNKER_K : 1); hit.by = sq.id; hit.shotAt = s.t; hit.shotBy = u.id; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
+      if (!shield(s, as, hit) && !(inCover(s, hit) && s.rand() < COVER_MISS) && !(hitK < 1 && s.rand() > hitK) && (!MARK_NEED.includes(u.type) || markHit(s, u.side, hit))) hit.hp -= (g ? g.dmg * MULT[as][hit.type] : T.dmg * MULT[u.type][hit.type]) * hk * (s.bunkered && s.bunkered.has(hit.id) ? BUNKER_K : 1); hit.by = sq.id; hit.shotAt = s.t; hit.shotBy = u.id; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
       const fx = IMPACT[as];
       s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[as] });
       u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
