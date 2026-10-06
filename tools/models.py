@@ -27,7 +27,7 @@ import numpy as np
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 SRC, OUT = os.path.join(ROOT, 'art', 'models'), os.path.join(ROOT, 'js', 'ui', 'models.js')
 # (the turn round the up axis that brings each model's front to +X, degrees; a model not here: its gun's way)
-FRONT = {'jeep': 180, 'ssm': 0, 'arrow': 0, 'dome': 0, 'mlrs': 0}  # (the AI-made jeep: its bonnet at -X; the ones built in code, tools/build_models.py: already +X)
+FRONT = {'jeep': 180}  # (the AI-made jeep: its bonnet at -X; the ones built in code — tools/build_models.py — are +X already)
 TEAM = ('main', 'main_light', 'body', 'paint', 'slim')  # materials painted in the side's colour (slim: a slimmed model, all of it)
 TURRET = ('turret', 'gun', 'barrel', 'cannon')
 TRACK_F = 8  # poses of a running track
@@ -154,6 +154,7 @@ def bake(path):
     name = os.path.splitext(os.path.basename(path))[0]
     lo, hi = hull.min(0), hull.max(0); mid = (lo + hi) / 2
     if name in FRONT: ang = np.radians(FRONT[name])
+    elif 'build_models' in J.get('asset', {}).get('generator', ''): ang = 0.0
     elif gun is not None:
         d = gun - mid; far = d[np.argmax(d[:, 0] ** 2 + d[:, 2] ** 2)]; ang = np.arctan2(-far[2], far[0])
         ang = round(ang / (np.pi / 2)) * (np.pi / 2)  # (to the nearest right angle)

@@ -50,6 +50,16 @@ class Mesh:
         if axis == 'y': side, ends = [f[::-1] for f in side], [e[::-1] for e in ends]
         return self.add(mat, p, side + ends)
 
+    def slab(self, mat, pts, a, b, plane='xz'):
+        """a flat convex shape (pts: its outline, 2D) given thickness — in the xz plane between y = a and b (a wing),
+        or in the xy plane between z = a and b (a fin). Its faces both ways round (no matter which way the outline goes)"""
+        P = np.asarray(pts, float); n = len(P)
+        lo = np.c_[P[:, 0], np.full(n, a), P[:, 1]] if plane == 'xz' else np.c_[P[:, 0], P[:, 1], np.full(n, a)]
+        hi = lo.copy(); hi[:, 1 if plane == 'xz' else 2] = b
+        o = list(range(n))
+        faces = [tuple(n + i for i in o), tuple(o)] + [(o[i], o[(i + 1) % n], n + o[(i + 1) % n], n + o[i]) for i in range(n)]
+        return self.add(mat, np.r_[lo, hi], faces + [f[::-1] for f in faces])
+
     def wheels(self, xs, z, r, w, y=None, mat='dark', hub='metal'):
         for x in xs:
             for sz in (-1, 1):
@@ -206,7 +216,120 @@ def k_dozer():  # D9: tracks, a big blade in front, a cab, a ripper behind
     M.box('dark', (-L / 2 + 0.1, 1.0, 0), (0.25, 1.4, 0.3), tilt=0.3)        # ripper
     return [('hull', M, None)]
 
-KINDS = {'truck': k_truck, 'fueltruck': lambda: k_tanktruck('tank'), 'watertruck': lambda: k_tanktruck('water'),
+# ---- aircraft (flown level at V3_AIR in the game): a fighter, a tanker; a helicopter's rotor is its `turret`, which
+# the game turns round and round ----
+def k_air():  # a fighter: a slim body, delta wings, one fin, missiles under the wings
+    M = Mesh()
+    M.cyl('body', (0, 0, 0), 0.55, 9.0, 'x', 12)
+    M.cyl('body', (5.3, 0, 0), 0.55, 1.6, 'x', 12, r2=0.05)                   # nose
+    M.cyl('dark', (-4.7, 0, 0), 0.45, 0.5, 'x', 12, r2=0.38)                  # nozzle
+    M.cyl('glass', (2.6, 0.45, 0), 0.32, 1.6, 'x', 10, r2=0.12)               # canopy
+    for s in (1, -1):
+        M.slab('body', [(2.2, s * 0.4), (-2.6, s * 4.6), (-3.6, s * 4.6), (-3.4, s * 0.4)], -0.06, 0.06)
+        M.slab('body', [(-2.8, s * 0.3), (-4.4, s * 2.1), (-4.9, s * 2.1), (-4.8, s * 0.3)], -0.05, 0.05)
+        M.cyl('white', (-0.8, -0.2, s * 2.6), 0.13, 2.4, 'x', 8)
+    M.slab('body', [(-2.6, 0.4), (-4.6, 2.9), (-5.1, 2.9), (-4.9, 0.4)], -0.05, 0.05, 'xy')  # fin
+    return [('hull', M, None)]
+
+def k_tanker():  # a big four-engined tanker with a boom
+    M = Mesh()
+    M.cyl('body', (0, 0, 0), 1.6, 26.0, 'x', 14)
+    M.cyl('body', (14.2, 0, 0), 1.6, 2.4, 'x', 14, r2=0.3)
+    M.cyl('body', (-14.7, 0.4, 0), 1.6, 3.4, 'x', 14, r2=0.35)
+    M.box('glass', (13.9, 0.7, 0), (0.6, 0.35, 1.5))
+    for s in (1, -1):
+        M.slab('body', [(3.5, s * 1.4), (-4.5, s * 18.5), (-7.0, s * 18.5), (-2.5, s * 1.4)], -0.6, -0.3)
+        for z in (6.5, 11.5): M.cyl('metal', (0.6 - z * 0.32, -1.2, s * z), 0.75, 3.6, 'x', 10)
+        M.slab('body', [(-12.5, s * 1.0), (-15.5, s * 6.5), (-17.0, s * 6.5), (-16.5, s * 1.0)], 0.6, 0.8)
+    M.slab('body', [(-11.5, 1.2), (-15.5, 8.0), (-17.5, 8.0), (-17.0, 1.2)], -0.15, 0.15, 'xy')
+    M.cyl('dark', (-17.0, -1.6, 0), 0.15, 5.0, 'x', 6, tilt=0.35)             # the boom
+    return [('hull', M, None)]
+
+def rotor(r, y, x=0.0, blades=4):
+    T = Mesh()
+    T.cyl('metal', (x, y - 0.25, 0), 0.25, 0.6, 'y', 8)
+    for i in range(blades):
+        a = 2 * np.pi * i / blades
+        T.box('dark', (x + np.cos(a) * r / 4, y, np.sin(a) * r / 4), (r / 2, 0.06, 0.5), rot=-a)
+    return T
+
+def tail(M, x, y, h, rr):  # a tail boom's fin and tail rotor
+    M.slab('body', [(x, y), (x - 1.0, y + h), (x - 1.5, y + h), (x - 0.8, y)], -0.08, 0.08, 'xy')
+    for a in (0.6, 0.6 + np.pi / 2):  # (two thin blades, crossed)
+        M.add('dark', [(x - 1.0 - np.sin(a) * 0.12 + np.cos(a) * rr * k, y + h * 0.55 + np.cos(a) * 0.12 + np.sin(a) * rr * k, 0.22) for k in (-1, 1)] +
+              [(x - 1.0 + np.sin(a) * 0.12 + np.cos(a) * rr * k, y + h * 0.55 - np.cos(a) * 0.12 + np.sin(a) * rr * k, 0.22) for k in (1, -1)], [(0, 1, 2, 3), (3, 2, 1, 0)])
+
+def k_heli():  # an attack helicopter (Apache): a narrow body, a long canopy, stub wings with rockets
+    M = Mesh()
+    M.box('body', (0.6, 1.6, 0), (5.0, 1.8, 1.4))
+    M.cyl('body', (3.4, 1.4, 0), 0.75, 1.4, 'x', 10, r2=0.35)
+    M.box('glass', (2.4, 2.45, 0), (2.2, 0.8, 1.1), tilt=-0.15)
+    M.cyl('body', (-4.0, 1.9, 0), 0.4, 6.5, 'x', 8, r2=0.2)
+    tail(M, -6.6, 1.9, 2.1, 1.0)
+    M.box('body', (0.3, 1.3, 0), (1.2, 0.15, 4.2))                            # stub wings
+    for s in (1, -1):
+        M.cyl('dark', (0.4, 0.95, s * 1.6), 0.28, 1.6, 'x', 8)
+        M.cyl('white', (0.4, 0.95, s * 2.0), 0.1, 1.4, 'x', 6)
+        M.box('dark', (-0.4, 0.4, s * 0.9), (0.15, 0.7, 0.15))
+    M.cyl('dark', (3.0, 0.5, 0), 0.08, 1.4, 'x', 6)                           # chin gun
+    M.cyl('body', (0.4, 2.8, 0), 0.6, 0.8, 'y', 8)
+    return [('hull', M, None), ('turret', rotor(13.0, 3.3, 0.4), 0)]
+
+def k_gunship():  # a utility helicopter with door guns (Black Hawk)
+    M = Mesh()
+    M.box('body', (0.4, 1.7, 0), (5.6, 2.1, 2.2))
+    M.cyl('body', (3.6, 1.6, 0), 1.0, 1.3, 'x', 10, r2=0.45)
+    M.box('glass', (3.2, 2.2, 0), (0.9, 0.8, 2.0), tilt=-0.3)
+    for s in (1, -1):
+        M.box('dark', (0.2, 1.8, s * 1.11), (1.6, 1.2, 0.04))                 # open doors
+        M.cyl('dark', (0.9, 1.9, s * 1.4), 0.07, 1.6, 'x', 6, rot=s * 0.3)    # door guns
+        M.box('dark', (0.4, 0.3, s * 1.0), (3.0, 0.12, 0.15))                 # skids
+    M.cyl('body', (-4.3, 2.1, 0), 0.5, 6.5, 'x', 8, r2=0.25)
+    tail(M, -6.9, 2.1, 2.1, 1.1)
+    M.box('body', (-7.6, 2.2, 0), (0.8, 0.1, 2.6))
+    M.cyl('body', (0.4, 3.0, 0), 0.7, 0.7, 'y', 8)
+    return [('hull', M, None), ('turret', rotor(14.0, 3.5, 0.4), 0)]
+
+def k_lift():  # a heavy transport helicopter (CH-53): a long body, a rear ramp, sponsons, six blades
+    M = Mesh()
+    M.box('body', (0.0, 2.0, 0), (9.0, 2.6, 2.6))
+    M.cyl('body', (4.8, 1.9, 0), 1.25, 1.2, 'x', 10, r2=0.6)
+    M.box('glass', (4.6, 2.6, 0), (0.9, 0.8, 2.3), tilt=-0.3)
+    M.box('body', (-5.0, 2.4, 0), (1.6, 1.6, 2.0), tilt=0.2)                  # rear ramp
+    M.cyl('body', (-8.2, 2.9, 0), 0.6, 5.5, 'x', 8, r2=0.3)
+    tail(M, -10.2, 2.9, 2.7, 1.4)
+    for s in (1, -1):
+        M.box('body', (0.2, 1.2, s * 1.8), (3.5, 0.9, 1.0))                   # sponsons
+        M.cyl('dark', (0.2, 0.45, s * 1.8), 0.45, 0.35, 'z', 10)
+    M.cyl('dark', (3.4, 0.45, 0), 0.4, 0.3, 'z', 10)
+    M.box('body', (0.6, 3.6, 0), (3.0, 0.7, 1.6))                             # engines
+    return [('hull', M, None), ('turret', rotor(17.0, 4.3, 0.6, 6), 0)]
+
+def jeep():  # a light 4×4 (for the armed jeeps; the plain one is a made model)
+    M = Mesh(); L, W = 4.6, 2.0
+    M.box('body', (0, 1.0, 0), (L, 0.7, W))
+    M.box('body', (1.5, 1.45, 0), (1.5, 0.25, W - 0.1))                      # bonnet
+    M.box('glass', (0.6, 1.75, 0), (0.08, 0.55, W - 0.2), tilt=0.25)          # windscreen
+    M.box('dark', (L / 2 + 0.05, 0.9, 0), (0.12, 0.4, W - 0.2))
+    M.wheels([1.5, -1.4], W / 2 - 0.05, 0.45, 0.35)
+    return M
+
+def k_ajeep():  # anti-aircraft: twin guns on a turntable, raised
+    M = jeep(); T = Mesh()
+    T.cyl('dark', (-0.9, 1.5, 0), 0.5, 0.3, 'y', 10)
+    T.box('body', (-0.9, 1.9, 0), (0.7, 0.5, 0.8))
+    for s in (1, -1): T.cyl('dark', (-0.1, 2.35, s * 0.25), 0.06, 1.8, 'x', 6, tilt=0.6)
+    return [('hull', M, None), ('turret', T, 0)]
+
+def k_tjeep():  # anti-tank: a missile launcher on a post
+    M = jeep(); T = Mesh()
+    T.cyl('dark', (-0.9, 1.7, 0), 0.08, 0.6, 'y', 6)
+    T.box('body', (-0.8, 2.1, 0), (0.6, 0.4, 0.5))
+    T.cyl('warn', (-0.5, 2.25, 0), 0.16, 1.6, 'x', 8, tilt=0.1)
+    return [('hull', M, None), ('turret', T, 0)]
+
+KINDS = {'air': k_air, 'tanker': k_tanker, 'heli': k_heli, 'gunship': k_gunship, 'lift': k_lift, 'ajeep': k_ajeep, 'tjeep': k_tjeep,
+         'truck': k_truck, 'fueltruck': lambda: k_tanktruck('tank'), 'watertruck': lambda: k_tanktruck('water'),
          'radio': k_radio, 'mech': k_mech, 'ssm': k_ssm, 'arrow': k_launcher(2, 2, 0.75), 'dome': k_launcher(3, 4, 0.6),
          'mlrs': k_mlrs, 'dozer': k_dozer}
 
