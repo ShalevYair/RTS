@@ -164,7 +164,8 @@ function v3Lay(x, y, hd, lift, w, h, ox, oy, out, sy = 1) {
 // ---- 3D models (art/models/*.glb → MODELS, tools/models.py): a kind's hull and turret, each two meshes — its main
 // paint tinted with the side's colour (V3_TEAM of it), the rest as it is. Front +X, length 1, so scaled by V3_LEN ×
 // its size. A tank's turret turns on its pivot to where it fires; a wreck: dark. ----
-const V3_LEN = { tank: 1.75, jeep: 1.25, how: 2.2, mlrs: 2.4, ssm: 2.6, arrow: 2.6, dome: 2.6, truck: 2.0, fueltruck: 2.0, watertruck: 2.0, radio: 1.9, mech: 2.0, dozer: 1.7 }, V3_TEAM = 0.38;
+const V3_ROTOR = 14; // (a helicopter's rotor, radians a second)
+const V3_LEN = { tank: 1.75, jeep: 1.25, ajeep: 1.25, tjeep: 1.25, air: 1.3, tanker: 1.3, heli: 1.2, gunship: 1.2, lift: 1.3, how: 2.2, mlrs: 2.4, ssm: 2.6, arrow: 2.6, dome: 2.6, truck: 2.0, fueltruck: 2.0, watertruck: 2.0, radio: 1.9, mech: 2.0, dozer: 1.7 }, V3_TEAM = 0.38;
 const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
   const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
@@ -217,9 +218,10 @@ function v3Run(u, hd) {
   r.x = u.x; r.y = u.y; r.hd = hd; r.seen = s.t; return [r.l, r.r];
 }
 // (run: how far each track has gone, world units — [left, right]; the pose shown for it, so they run)
-function v3PutModel(type, side, x, y, hd, aim, m, tint, run) {
+// (lift: in the air, level — aircraft; a helicopter's rotor is its turret, `aim` turning it round)
+function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0) {
   const L = (SIZE[type] || 10) * (V3_LEN[type] || 1.6), H = v3Model(type, 'hull', side), D = MODELS[type];
-  v3Put(H, v3Lay(x, y, hd, 0, L, L, 0, 0, m, L), tint);
+  v3Put(H, v3Lay(x, y, hd, lift, L, L, 0, 0, m, L), tint);
   const K = D.track;
   if (K) ['L', 'R'].forEach((k, i) => { const r = run ? run[i] / (K.cycle * L) : 0, f = Math.floor((r - Math.floor(r)) * K.frames) % K.frames; v3Put(v3Model(type, 'track' + k + f, 'track'), m, tint); });
   if (!D.parts.turret) return;
@@ -235,7 +237,7 @@ function v3Units() {
   for (const u of s.units) {
     if (s.fog && !((u.side === 'blue' ? whole.has(u.squad) : s.vis.blue.has(u.id)) && shownAt(u))) continue;
     const T = Sim.TYPES[u.type], lift = T.air ? V3_AIR : 0, hd = u.hd || 0;
-    if (v3HasModel(u.type) && !T.air) v3PutModel(u.type, u.side, u.x, u.y, hd, s.t - u.lastFire < 3 ? u.aim : hd, m, null, v3Run(u, hd));
+    if (v3HasModel(u.type)) v3PutModel(u.type, u.side, u.x, u.y, hd, T.hover || u.type === 'lift' ? performance.now() / 1000 * V3_ROTOR + u.id : s.t - u.lastFire < 3 ? u.aim : hd, m, null, T.air ? null : v3Run(u, hd), lift);
     else { const P = v3Pic(u.type, u.side); v3Put(P, v3Lay(u.x, u.y, hd, lift, P.w, P.h, 0, 0, m)); }
     if (u.type === 'tank' && hasSprite('tank') && !v3HasModel('tank')) { // (the turret, turned to where it fires)
       const R = v3Pic('turret', u.side), H = SPRITES.tank_hull, k = SIZE.tank, sc = SPRITE_LEN.tank * k / H.w;
