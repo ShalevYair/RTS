@@ -225,7 +225,7 @@ function updateUnit(s, u, sq, dt) {
       // (a missile may be stopped: Iron Dome, Trophy; under trees, in the dark, the rain or the fog a shot may miss; a
       // soldier by his side's bunker takes BUNKER_K of it)
       const hitK = envHit(s, u);
-      if (!shield(s, as, hit) && !(inCover(s, hit) && s.rand() < COVER_MISS) && !(hitK < 1 && s.rand() > hitK) && (!MARK_NEED.includes(u.type) || markHit(s, u.side, hit))) hit.hp -= (g ? g.dmg * MULT[as][hit.type] : T.dmg * MULT[u.type][hit.type]) * hk * (s.bunkered && s.bunkered.has(hit.id) ? BUNKER_K : 1) * (hit.dug && !T.air ? DIG_K[hit.type] : 1); hit.by = sq.id; hit.shotAt = s.t; hit.shotBy = u.id; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
+      if (!shield(s, as, hit) && !(inCover(s, hit) && s.rand() < COVER_MISS) && !(hitK < 1 && s.rand() > hitK) && (!MARK_NEED.includes(u.type) || markHit(s, u.side, hit))) hit.hp -= (g ? g.dmg * MULT[as][hit.type] : T.dmg * MULT[u.type][hit.type]) * hk * (s.bunkered && s.bunkered.has(hit.id) ? BUNKER_K : 1) * (hit.dug && !T.air ? DIG_K[hit.type] : 1) * armsK(s, u, hit); hit.by = sq.id; hit.shotAt = s.t; hit.shotBy = u.id; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
       const fx = IMPACT[as];
       s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[as] });
       u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
