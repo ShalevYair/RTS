@@ -808,7 +808,13 @@ function drawStruct(c, n, ghost) {
     if (n.kind === 'decoy' && n.side === 'blue') { c.font = '15px sans-serif'; c.fillText(S.badge, n.x + px * 0.35, n.y - px * 0.1); }
   }
   c.globalAlpha = 1;
-  if (ghost) return;
+  if (!ghost) drawStructInfo(c, n);
+}
+// over a building of ours: its construction (% / ⏸ / seconds), 🔧 while it's fixed, a health bar when hurt, the next
+// unit coming out (both views — the 3D one over its model)
+function drawStructInfo(c, n) {
+  const S = Sim.STRUCTS[n.kind], col = colors[n.side], on = s.t >= n.ready, site = Number.isFinite(n.work) && !on;
+  const grow = on || n.kind === 'drone' ? 1 : site ? Math.min(1, n.work / Math.max(0.01, n.need)) : n.kind === 'hq' ? 1 : Math.max(0, Math.min(1, (s.t - n.t0) / Math.max(0.01, n.ready - n.t0)));
   const R = Sim.STRUCTS[n.kind].r, top = n.kind === 'drone' ? 16 : R + 14, bot = n.kind === 'drone' ? 14 : R + 8;
   // (a site: ⏸ while no bulldozer works it; else the seconds left)
   // (a site: its % while a bulldozer works it or drives to it; nothing while it waits its turn in a queue — the queue's
@@ -1060,12 +1066,7 @@ function drawUnits(c, show) {
     else glyph(c, u.type, u.x, u.y, k, colors[u.side], colors.outline, u.hd, aim, glow ? 0.9 : 1.2, T.air ? 0 : stride(u));
     glyphRecoil = 0; c.globalAlpha = ga;
     if (glow) c.shadowBlur = 0;
-    if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
-    if (u.type === 'commando' && u.plant > 0) { c.strokeStyle = '#ff7a3d'; c.lineWidth = 2; c.beginPath(); c.arc(u.x, u.y, k + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * u.plant / Sim.PLANT_T); c.stroke(); }
-    if (u.type === 'tank' && u.side === 'blue' && u.trophy !== undefined) for (let i = 0; i < Sim.TROPHY_MAX; i++) { c.fillStyle = i < u.trophy ? '#ffd54a' : 'rgba(255,255,255,.3)'; ring(u.x + (i - 1) * 4, u.y + k * 0.9, 1.4); c.fill(); }
-    // (a missile truck of ours: a ring filling while it reloads — whole = a missile ready)
-    if (u.type === 'ssm' && u.side === 'blue') { const f = 1 - (u.reload || 0) / Sim.SSM_RELOAD; c.lineWidth = 2.2 / view.css; c.strokeStyle = 'rgba(0,0,0,.35)'; ring(u.x, u.y, k * 1.15); c.stroke(); c.strokeStyle = f >= 1 ? '#ffd54a' : 'rgba(255,255,255,.8)'; c.beginPath(); c.arc(u.x, u.y, k * 1.15, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); c.stroke(); }
-    if (u.type === 'lift' && u.side === 'blue' && u.cargo && u.cargo.length) label('👥' + u.cargo.length, u.x, u.y - k - 6, colors.ink);
+    unitInfo(c, u);
     // (a fuel truck: a yellow tank on its back)
     if (u.type === 'fueltruck' || u.type === 'watertruck') { c.save(); c.translate(u.x, u.y); c.rotate(u.hd); c.fillStyle = u.type === 'watertruck' ? '#3d8fd6' : '#d9a91f'; c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 0.8 / view.css; c.beginPath(); c.ellipse(-k * 0.18, 0, k * 0.32, k * 0.2, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore(); }
     // (no ammunition or care marks, no health bar: a hurt unit of ours has its dot, see healthDot)
@@ -1078,6 +1079,17 @@ function drawUnits(c, show) {
   for (const u of hurt) fuelGauge(c, u); // (lights: fuel, water, ammunition — fuelui.js)
   // a hurt unit picked (not just "all"): a red Star of David pulsing over it — click it again to send it to be treated
   if (sel !== 'all' && sel != null) for (const u of hurt) if (isSel(u.squad) && hurtUnit(u)) starOfDavid(c, u.x, u.y - SIZE[u.type] * (Sim.TYPES[u.type].air ? 1.2 : 1.05) - 9 / view.css);
+}
+// over a unit: ⟲ rearming, a commando's charge, a tank's Trophy shots, a missile truck's reload ring, the riders on a
+// helicopter (both views — the 3D one over its model)
+function unitInfo(c, u) {
+  const k = SIZE[u.type];
+  if (u.rearm) label('⟲', u.x, u.y - k - 4, colors.ink);
+  if (u.type === 'commando' && u.plant > 0) { c.strokeStyle = '#ff7a3d'; c.lineWidth = 2; c.beginPath(); c.arc(u.x, u.y, k + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * u.plant / Sim.PLANT_T); c.stroke(); }
+  if (u.type === 'tank' && u.side === 'blue' && u.trophy !== undefined) for (let i = 0; i < Sim.TROPHY_MAX; i++) { c.fillStyle = i < u.trophy ? '#ffd54a' : 'rgba(255,255,255,.3)'; ring(u.x + (i - 1) * 4, u.y + k * 0.9, 1.4); c.fill(); }
+  // (a missile truck of ours: a ring filling while it reloads — whole = a missile ready)
+  if (u.type === 'ssm' && u.side === 'blue') { const f = 1 - (u.reload || 0) / Sim.SSM_RELOAD; c.lineWidth = 2.2 / view.css; c.strokeStyle = 'rgba(0,0,0,.35)'; ring(u.x, u.y, k * 1.15); c.stroke(); c.strokeStyle = f >= 1 ? '#ffd54a' : 'rgba(255,255,255,.8)'; c.beginPath(); c.arc(u.x, u.y, k * 1.15, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); c.stroke(); }
+  if (u.type === 'lift' && u.side === 'blue' && u.cargo && u.cargo.length) label('👥' + u.cargo.length, u.x, u.y - k - 6, colors.ink);
 }
 function starOfDavid(c, x, y) {
   const f = reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(performance.now() / 160), r = (7 + 2 * f) / view.css;
