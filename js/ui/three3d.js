@@ -42,6 +42,18 @@ function v3Init() {
   const sun = V3.sun = new THREE.DirectionalLight('#fff4e0', 0.72 * Math.PI);
   sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 1.5;
   scene.add(sun, sun.target);
+  // (a camera's colours — ACES — and a sky all round for the metal to reflect: a gradient sphere, blurred once)
+  r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = V3_EXPOSE;
+  scene.environment = v3Env(r);
+}
+const V3_EXPOSE = 1.05, V3_ENV = 0.55; // (the exposure under ACES; how much the sky shows in the paint)
+function v3Env(r) {
+  const g = new THREE.SphereGeometry(100, 32, 16), col = [], top = new THREE.Color('#cfe0f2'), hor = new THREE.Color('#e8e4da'), gnd = new THREE.Color('#5e5a46'), c = new THREE.Color();
+  const p = g.attributes.position; for (let i = 0; i < p.count; i++) { const y = p.getY(i) / 100; c.copy(hor).lerp(y > 0 ? top : gnd, Math.min(1, Math.abs(y) * (y > 0 ? 1.6 : 4))); col.push(c.r, c.g, c.b); }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const sc = new THREE.Scene(); sc.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+  const sun = new THREE.Mesh(new THREE.SphereGeometry(8, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 5.6, 4.8) })); sun.position.set(-55, 60, -55); sc.add(sun);
+  const pm = new THREE.PMREMGenerator(r), tex = pm.fromScene(sc, 0.02).texture; pm.dispose(); return tex;
 }
 // ---- the screen ↔ the world ----
 // a point of the stage → the world: along the ray from the camera to where it first goes under the hills (steps,
@@ -172,7 +184,8 @@ const V3_LEN = { tank: 1.75, jeep: 1.25, ajeep: 1.25, tjeep: 1.25, air: 1.3, tan
 const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
   const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
-  const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), V3.vcol || (V3.vcol = v3Camo(new THREE.MeshLambertMaterial({ vertexColors: true }))), 64);
+  const clean = part === 'turret' || part.startsWith('spin') || !!(Sim.TYPES[type] && Sim.TYPES[type].air); // (no mud up there)
+  const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), v3Paint3(clean), 64);
   mesh.castShadow = mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
   mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3);
   V3.scene.add(mesh); P = { mesh, w: 1, h: 1, ox: 0, oy: 0, n: 0 }; V3.pics.set(key, P); return P;
@@ -191,17 +204,25 @@ function v3CamoOf(u, c) {
   const h = (u.id * 0.6180339) % 1, p = Math.floor(h * 97) % V3_CAMO, sc = (u.side === 'red' ? V3_SCHEMES : 0) + Math.floor(((u.id * 0.7548777) % 1) * V3_SCHEMES);
   return c.setRGB(1, -(p + 0.01 + h * 0.98), sc + 0.5);
 }
+// the units' and buildings' paint: a real material — a little rough and a little metal, reflecting the sky — with dirt
+// on it (grime in blotches, the roughness varying) and mud low down (V3_MUD of the model's length; not on turrets or aircraft)
+const V3_SAT = '0.8', V3_MUD = 0.09, V3_MUD_COL = [0.16, 0.12, 0.08];
+function v3Paint3(clean) {
+  const k = clean ? 'vcolC' : 'vcol';
+  if (!V3[k]) { V3[k] = v3Camo(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.18, envMapIntensity: V3_ENV })); if (!clean) V3[k].defines = { V3_DIRTY: 1 }; }
+  return V3[k];
+}
 function v3Camo(mat) {
   mat.onBeforeCompile = sh => {
     sh.uniforms.v3Pal = { value: V3_PAL.flat().map(x => { const c = new THREE.Color(x); return new THREE.Vector3(c.r, c.g, c.b); }) }; // (linear)
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying float vTeam; varying vec3 vPat; varying float vTint;')
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;')
       .replace('#include <color_vertex>', `#include <color_vertex>
-      vP3 = position; vTeam = aTeam; vPat = vec3(-1.0); vTint = 1.0;
+      vP3 = position; vN3 = normal; vTeam = aTeam; vPat = vec3(-1.0); vTint = 1.0;
       #ifdef USE_INSTANCING_COLOR
       if (instanceColor.g < 0.0) { vPat = vec3(floor(-instanceColor.g), fract(-instanceColor.g), floor(instanceColor.b)); vColor.xyz = color.xyz * instanceColor.r; vTint = instanceColor.r; }
       #endif`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      uniform vec3 v3Pal[${V3_PAL.length * 3}]; varying vec3 vP3; varying float vTeam; varying vec3 vPat; varying float vTint;
+      uniform vec3 v3Pal[${V3_PAL.length * 3}]; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;
       float v3h(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
       float v3n(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(mix(v3h(i), v3h(i + vec3(1,0,0)), f.x), mix(v3h(i + vec3(0,1,0)), v3h(i + vec3(1,1,0)), f.x), f.y),
@@ -213,7 +234,16 @@ function v3Camo(mat) {
         else if (vPat.x > 1.5 && vPat.x < 2.5) { float w = sin((vP3.x + vP3.z * 0.35 + vP3.y * 0.6) * 22.0 + v3n(q * 5.0) * 5.0); c = w > 0.35 ? c1 : w < -0.75 ? c2 : c0; }
         else if (vPat.x > 2.5) { float n = v3h(floor(q * 20.0)) * 0.6 + v3n(q * 5.0) * 0.4; c = n < 0.38 ? c1 : n > 0.62 ? c2 : c0; }
         diffuseColor.rgb = c * vTeam * vTint;
-      }`);
+      }
+      float v3g = v3n(vP3 * 9.0 + 3.1) * 0.6 + v3n(vP3 * 31.0) * 0.4, v3m = 0.0;
+      diffuseColor.rgb = mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, ${V3_SAT}); // (paint a little faded)
+      diffuseColor.rgb *= (0.78 + 0.3 * v3g) * (0.72 + 0.28 * smoothstep(-0.6, 0.4, vN3.y)); // (grime in blotches; under-sides darker)
+      #ifdef V3_DIRTY
+      v3m = smoothstep(${V3_MUD.toFixed(3)}, 0.0, vP3.y + (v3g - 0.5) * 0.05) * 0.8;
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${V3_MUD_COL.join(', ')}) * (0.8 + 0.4 * v3g), v3m);
+      #endif`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+      roughnessFactor = clamp(roughnessFactor + (v3g - 0.5) * 0.35 + v3m * 0.3, 0.3, 1.0);`);
   };
   return mat;
 }
@@ -358,17 +388,24 @@ function v3Units() {
   }
   return rings;
 }
-// (picked: a thin light ring round each, on the ground)
+// (picked: a fine, dashed, faint light ring round each, on the ground — V3_RING: its width, dashes, see-through)
+const V3_RING = { w: 0.055, dash: 18, a: 0.5, k: 0.85 };
 function v3Rings(rings) {
   if (!V3.rings) {
-    const g = new THREE.RingGeometry(0.86, 1, 40); g.rotateX(-Math.PI / 2);
-    V3.rings = new THREE.InstancedMesh(g, new THREE.MeshBasicMaterial({ color: '#e8fff0', transparent: true, opacity: 0.85, depthWrite: false, depthTest: false }), 4000);
+    const g = new THREE.RingGeometry(1 - V3_RING.w, 1, 64); g.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({ color: '#f4fff6', transparent: true, opacity: V3_RING.a, depthWrite: false, depthTest: false });
+    mat.onBeforeCompile = sh => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vRing;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvRing = position.xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vRing;').replace('void main() {', `void main() {
+        if (fract(atan(vRing.y, vRing.x) / 6.2831853 * ${V3_RING.dash}.0) > 0.62) discard;`);
+    };
+    V3.rings = new THREE.InstancedMesh(g, mat, 4000);
     V3.rings.frustumCulled = false; V3.rings.renderOrder = 10; V3.scene.add(V3.rings); // (over the pictures: on the ground they cut through them)
   }
   let n = 0; const o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D());
   for (const g of rings) {
     if (n >= 4000) break;
-    o.position.set(g.x, Sim.elevAt(s, g) * V3_LV + 1 + (g.air ? V3_AIR : 0), g.y); o.scale.set(g.r, 1, g.r); o.updateMatrix(); V3.rings.setMatrixAt(n++, o.matrix);
+    o.position.set(g.x, Sim.elevAt(s, g) * V3_LV + 1 + (g.air ? V3_AIR : 0), g.y); o.scale.set(g.r * V3_RING.k, 1, g.r * V3_RING.k); o.updateMatrix(); V3.rings.setMatrixAt(n++, o.matrix);
   }
   V3.rings.count = n; V3.rings.instanceMatrix.needsUpdate = true;
 }
@@ -716,7 +753,13 @@ function v3Shaded(mat, deco) {
         v3w = instanceMatrix * v3w;
       #endif
       vV3 = (modelMatrix * v3w).xz;`);
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+    sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      #ifdef V3_DECO
+        float v3gr = v3gn(vV3 * 0.9) * 0.5 + v3gn(vV3 * 0.23) * 0.3 + v3gn(vV3 * 0.05) * 0.2; // (grain, clods, patches)
+        diffuseColor.rgb = mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, 0.82) * (0.84 + 0.3 * v3gr);
+      #endif`).replace('#include <common>', `#include <common>
+      float v3gh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      float v3gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(v3gh(i), v3gh(i + vec2(1, 0)), f.x), mix(v3gh(i + vec2(0, 1)), v3gh(i + vec2(1, 1)), f.x), f.y); }
       varying vec2 vV3; uniform sampler2D v3Fog; uniform sampler2D v3Dark; uniform vec2 v3Size; uniform vec4 v3FogCol; uniform float v3Night; uniform float v3Lit; uniform sampler2D v3Deco; uniform vec4 v3DecoBox;`)
       .replace('#include <fog_fragment>', `vec2 v3uv = vec2(vV3.x / v3Size.x, 1.0 - vV3.y / v3Size.y);
       if (v3Night > 0.0) { float d = texture2D(v3Dark, v3uv).a; gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.031, 0.055, 0.157), d * v3Night) + vec3(1.0, 0.67, 0.31) * (1.0 - d) * v3Lit; }
