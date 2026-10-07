@@ -1,4 +1,10 @@
 // Sim: game constants and tunables (no DOM; also loaded by the Node tests)
+// digging in: a soldier (DIG_WAIT s without moving) digs a foxhole DIG_T s; a tank, its crew a berm round it. Then
+// its range ×DIG_RANGE and direct fire from the ground (not artillery, aircraft or missiles — they're the answer; MLRS
+// even hits a dug-in tank ×DIG_MLRS) ×DIG_K of it. Moving: out of it. The hole stays (s.trenches, TRENCH_KEEP s after
+// the last one left it, at most TRENCH_MAX): one stopping in it (TRENCH_R) is dug in at once. Not in the tutorial.
+const DIG_WAIT = { inf: 10, at: 10, aa: 10, commando: 10, tank: 20 }, DIG_T = { inf: 5, at: 5, aa: 5, commando: 5, tank: 10 };
+const DIG_RANGE = 1.1, DIG_K = { inf: 0.75, at: 0.75, aa: 0.75, commando: 0.75, tank: 0.8 }, DIG_MLRS = 1.5, DIG_MOVE = 12, TRENCH_R = 8, TRENCH_KEEP = 180, TRENCH_MAX = 400;
 const RUINS_MAX = 80; // (the last buildings destroyed, kept for the picture: their ruins — s.ruins)
 const H = 640;
 // map size (DESIGN.md §5): the small map is H high; the big one 2× wide and 2× high. No hill within HILL_CLEAR of
@@ -491,7 +497,7 @@ const specOf = (s, kind) => (s.logi && LOGI_STRUCTS[kind]) || STRUCTS[kind];
 // arms games (s.arms): the air force builds faster — its buildings went up, but hardly an aircraft came out (one a
 // 120 / 90 s, and the anti-aircraft brought them down), and it did ~10% of the damage. Not in the others: there more
 // aircraft made the bot games longer (fewer finished in 50 min — tests/sim/map.js)
-const ARMS_EVERY = { airfield: 80 / 120, heliatk: 60 / 90, heligun: 60 / 90 };
+const ARMS_EVERY = { airfield: 80 / 120, heliatk: 60 / 90, heligun: 60 / 90, tankshop: 80 / 60 }; // (and the armour slower: it was the strongest arm — a tank every 80 s, not 60)
 const everyOf = (s, kind, S) => S.every * (s.arms && ARMS_EVERY[kind] || 1);
 // jams (the player's units): a moving unit pushes a standing one of ours aside (gets PUSH_THROUGH of the push, of 2);
 // one within ARRIVE_NEAR of its place, blocked (ARRIVE_STUCK s), touching one that has arrived there has arrived too, and stays so while its place

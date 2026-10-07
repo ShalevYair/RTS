@@ -179,7 +179,8 @@ function updateUnit(s, u, sq, dt) {
   const o = effOrder(s, sq), retreat = sq.retreating || o.type === 'retreat';
   const anchor = retreat ? homeOf(s, sq) : o;
   // higher ground: further; the dark and the weather nearer, a held radar further (rk: what's left of the range)
-  const up = 1 + ELEV_RANGE * (u.lvl || 0), rk = envRange(s, u), range = T.range * up * rk, sight = T.sight * (1 + ELEV_SIGHT * (u.lvl || 0)) * envSight(s, u);
+  const up = (1 + ELEV_RANGE * (u.lvl || 0)) * (u.dug ? DIG_RANGE : 1), rk = envRange(s, u), // (dug in: a little farther)
+    range = T.range * up * rk, sight = T.sight * (1 + ELEV_SIGHT * (u.lvl || 0)) * envSight(s, u);
   const leash = o.r * TRAITS[sq.trait].leash;
   // (AA soldiers at something on the ground: their rifle — gun — not their missiles)
   const gunAt = e => T.gun && !(e.kind ? false : TYPES[e.type].air) ? T.gun : null, reach = e => { const G = gunAt(e); return G ? G.range * up * rk : range; };
@@ -224,7 +225,7 @@ function updateUnit(s, u, sq, dt) {
       // (a missile may be stopped: Iron Dome, Trophy; under trees, in the dark, the rain or the fog a shot may miss; a
       // soldier by his side's bunker takes BUNKER_K of it)
       const hitK = envHit(s, u);
-      if (!shield(s, as, hit) && !(inCover(s, hit) && s.rand() < COVER_MISS) && !(hitK < 1 && s.rand() > hitK) && (!MARK_NEED.includes(u.type) || markHit(s, u.side, hit))) hit.hp -= (g ? g.dmg * MULT[as][hit.type] : T.dmg * MULT[u.type][hit.type]) * hk * (s.bunkered && s.bunkered.has(hit.id) ? BUNKER_K : 1); hit.by = sq.id; hit.shotAt = s.t; hit.shotBy = u.id; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
+      if (!shield(s, as, hit) && !(inCover(s, hit) && s.rand() < COVER_MISS) && !(hitK < 1 && s.rand() > hitK) && (!MARK_NEED.includes(u.type) || markHit(s, u.side, hit))) hit.hp -= (g ? g.dmg * MULT[as][hit.type] : T.dmg * MULT[u.type][hit.type]) * hk * (s.bunkered && s.bunkered.has(hit.id) ? BUNKER_K : 1) * (hit.dug && !T.air ? DIG_K[hit.type] : 1); hit.by = sq.id; hit.shotAt = s.t; hit.shotBy = u.id; u.cd = g ? g.cd : T.cd; if (T.ammo) u.ammo--; if (s.supply && SUPPLY[u.type]) u.sup -= supplyUse(s, u) / SUPPLY[u.type];
       const fx = IMPACT[as];
       s.fx.push({ x: hit.x + (s.rand() - 0.5) * 6, y: hit.y + (s.rand() - 0.5) * 6, life: fx.life, max: fx.life, size: fx.size, wait: SHOT_TIME[as] });
       u.aim = Math.atan2(hit.y - u.y, hit.x - u.x); u.lastFire = s.t;
@@ -328,6 +329,24 @@ function setCover(s, trees) {
   s.cover = G;
 }
 // a soldier or jeep under a tree's crown
+// digging in (DIG_WAIT, DIG_T…): each soldier / tank standing still long enough digs (u.dig 0–1), then is dug in
+// (u.dug) and leaves a hole there (s.trenches); moving, it's out. One stopping in a hole is dug in at once.
+function digTick(s, dt) {
+  if (s.level) return;
+  const T = s.trenches || (s.trenches = []);
+  for (const u of s.units) {
+    const w = DIG_WAIT[u.type]; if (!w || (s.bots || []).includes(u.side)) continue; // (the player's side only — the computer's dug in too, and bot games dragged on: none of 3 ended in 50 min)
+    // (standing: within DIG_MOVE of where it stopped — a unit holding its place still shifts a little all the time)
+    if (!u.digP || Math.abs(u.x - u.digP.x) > DIG_MOVE || Math.abs(u.y - u.digP.y) > DIG_MOVE) { u.digP = { x: u.x, y: u.y, t: s.t }; u.dig = 0; u.dug = false; u.hole = null; continue; }
+    if (s.t - u.digP.t < w) continue;
+    if (u.dug) { if (u.hole) u.hole.t = s.t; continue; }
+    const k = u.type === 'tank' ? 'tank' : 'foot', h = T.find(t => t.k === k && Math.abs(t.x - u.x) < TRENCH_R && Math.abs(t.y - u.y) < TRENCH_R);
+    if (h) { u.dig = 1; u.dug = true; u.hole = h; h.t = s.t; continue; }
+    u.dig = Math.min(1, (u.dig || 0) + dt / DIG_T[u.type]);
+    if (u.dig >= 1) { u.dug = true; T.push(u.hole = { x: u.x, y: u.y, k, a: u.hd || 0, t: s.t, side: u.side }); if (T.length > TRENCH_MAX) T.shift(); }
+  }
+  if (T.length && s.t - T[0].t > TRENCH_KEEP) s.trenches = T.filter(t => s.t - t.t <= TRENCH_KEEP);
+}
 function inCover(s, u) {
   if (!COVER.includes(u.type)) return false;
   if (groundAt(s, u.x, u.y) === GR_WOOD) return true; // (in a dense wood: cover too)

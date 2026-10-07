@@ -14,6 +14,7 @@ function step(s, dt) {
   for (const u of s.units) updateUnit(s, u, bySquad.get(u.squad), dt);
   underFire(s);
   separate(s, dt);
+  digTick(s, dt); // (standing still: soldiers and tanks dig in)
   postsTick(s); // (soldiers walking into posts)
   for (const u of s.units) if (u.hp <= 0) { const k = u.by && s.squads.find(q => q.id === u.by); if (k && k.side !== u.side) { gainXp(s, k, UNIT_VALUE[u.type]); scoreUp(s, k.side, SCORE[u.type] || SCORE_UNIT); } s.fx.push({ x: u.x, y: u.y, life: 0.7, max: 0.7, size: 26 }); s.fallen.push({ x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t }); }
   if (s.fallen.length && s.t - s.fallen[0].t > FALLEN_T) s.fallen = s.fallen.filter(f => s.t - f.t <= FALLEN_T); // for the picture

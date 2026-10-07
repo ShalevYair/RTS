@@ -153,7 +153,7 @@ function artyTick(s, dt) {
     // (arms: what isn't marked is hit only MARK_HIT of the time — asks.js)
     if (node) { if (markHit(s, u.side, node)) node.hp -= how ? HOW_NODE : MLRS_NODE; }
     else if (how) { if (markHit(s, u.side, at)) { at.hp = 0; hitU(at); } }
-    else for (const e of foes) if (Math.hypot(e.x - at.x, e.y - at.y) <= ARTY_AREA && markHit(s, u.side, e)) { e.hp -= TRACKED.includes(e.type) ? MLRS_TANK * TYPES[e.type].hp : e.hp; hitU(e); }
+    else for (const e of foes) if (Math.hypot(e.x - at.x, e.y - at.y) <= ARTY_AREA && markHit(s, u.side, e)) { e.hp -= TRACKED.includes(e.type) ? MLRS_TANK * TYPES[e.type].hp * (e.dug ? DIG_MLRS : 1) : e.hp; hitU(e); }
     // (on the map: one big shell, or a salvo of rockets scattered over the area)
     const n = how ? 1 : MLRS_ROCKETS, fx = IMPACT[u.type];
     for (let i = 0; i < n; i++) {

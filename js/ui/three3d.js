@@ -321,6 +321,7 @@ function v3Units() {
     if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); tracks.length = 0; dust.length = 0; }
     if (!T.air) stride(u); // (as the flat map: the tracks and dust it leaves)
     if (s.fog && u.side === 'red') anim.last.set(u.id, { x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t }); // (out of sight: its ghost, below)
+    if (u.type === 'tank' && u.dig > 0 && !u.dug && v3HasModel('inf')) { const p = digger(u); v3PutModel('inf', u.side, p.x, p.y, p.a, 0, m, null, null, 0.01, 0, 1, 'pose' + (Math.floor(performance.now() / 160) % MODELS.inf.poses)); } // (its crewman digging the berm)
     if (v3HasModel(u.type)) {
       const man = !!MODELS[u.type].poses, pose = v3Walk(u), face = man && s.t - u.lastFire < 3 ? u.aim : hd; // (a soldier faces where it fires, and stands upright)
       v3PutModel(u.type, u.side, u.x, u.y, face, T.hover || u.type === 'lift' ? performance.now() / 1000 * V3_ROTOR + u.id : s.t - u.lastFire < 3 ? u.aim : hd, m, v3CamoOf(u, v3Tmp.camo || (v3Tmp.camo = new THREE.Color())), T.air || man ? null : v3Run(u, hd), man ? 0.01 : lift, 0, 1, pose, u.type === 'tank' || u.type === 'how' ? Math.max(0, 1 - (s.t - u.lastFire) / 0.25) : 0);
@@ -655,6 +656,26 @@ function v3Scenery() {
   const t0 = performance.now(), near = [...sc.todo].map(k => { const [i, j] = k.split(',').map(Number); return [k, Math.hypot((i + 0.5) * V3_CHUNK - cam.x, (j + 0.5) * V3_CHUNK - cam.y)]; }).sort((a, b) => a[1] - b[1]);
   for (const [k] of near) { v3ScenChunk(k); sc.todo.delete(k); if (performance.now() - t0 > 6) break; }
 }
+// ---- dug in (Sim digTick; the flat map's drawTrenches): a ring of earth round a soldier, open at his back; a longer
+// one round a tank's front and sides — rising as it's dug, staying where it was (s.trenches), the enemy's where seen ----
+const V3_TRENCH = { foot: [V3_MAN * 0.42, 0.55], tank: [0, 0.6] }, V3_TRENCH_COL = '#7a6444';
+function v3Trenches() {
+  if (!V3.trench) {
+    const g = new THREE.TorusGeometry(1, 0.3, 5, 16, Math.PI * 1.5); g.rotateX(Math.PI / 2); g.rotateY(Math.PI * 0.75); // (lying flat, its gap at the back: −X)
+    V3.trench = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({ color: V3_TRENCH_COL, flatShading: true }), 512);
+    V3.trench.castShadow = V3.trench.receiveShadow = true; V3.trench.frustumCulled = false; V3.trench.count = 0; V3.scene.add(V3.trench);
+  }
+  const T = V3.trench, o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), c = v3Tmp.tc || (v3Tmp.tc = new THREE.Color()), box = V3.box; let n = 0;
+  const put = (x, y, a, k, f) => {
+    if (n >= T.instanceMatrix.count || (box && (x < box.x - 40 || x > box.x + box.w + 40 || y < box.y - 40 || y > box.y + box.h + 40))) return;
+    const tank = k === 'tank', R = tank ? (SIZE.tank || 30) * (V3_LEN.tank || 1.6) * 0.55 : V3_TRENCH.foot[0], h = (tank ? V3_TRENCH.tank[1] : V3_TRENCH.foot[1]) * f;
+    o.position.set(x, v3Gnd(x, y) - 0.4, y); o.rotation.set(0, -a, 0); o.scale.set(R * (tank ? 1.15 : 1), R * h * 0.5, R * (tank ? 0.75 : 1)); o.updateMatrix();
+    T.setMatrixAt(n, o.matrix); T.setColorAt(n++, c.setScalar(0.85 + ((Math.abs(Math.round(x * 3.1 + y * 7.7)) % 9) / 30)));
+  };
+  for (const t of s.trenches || []) if (t.side === 'blue' || !s.fog || shownAt(t)) put(t.x, t.y, t.a, t.k, 1);
+  for (const u of s.units) if (u.dig > 0 && !u.dug && (u.side === 'blue' || !s.fog || s.vis.blue.has(u.id))) put(u.x, u.y, u.hd || 0, u.type === 'tank' ? 'tank' : 'foot', u.dig);
+  T.count = n; T.instanceMatrix.needsUpdate = true; if (T.instanceColor) T.instanceColor.needsUpdate = true;
+}
 // ---- water that moves: over each lake (its own outline — decor.lakes' body, as a mask) a see-through surface whose
 // ripples run and glint (a small shader on the light's own; the ground's fog and night over it — v3Shaded) ----
 const V3_WATER = { col: '#3f86b0', a: 0.42, px: 256 };
@@ -781,7 +802,7 @@ function v3Draw() {
   sceneryTick(); groundTick(); // (as the flat map's frame: what's cleared, run over, cut)
   for (const P of V3.pics.values()) P.n = 0;
   V3.lamps = [];
-  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Water(); v3Shade(); v3Deco();
+  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Water(); v3Trenches(); v3Shade(); v3Deco();
   for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; P.mesh.instanceColor.needsUpdate = true; }
   r.render(V3.scene, V3.cam);
   v3Info();

@@ -963,6 +963,29 @@ function stride(u) {
   return a.ph;
 }
 // the fallen lie where they fell for a while (soldiers on their side, vehicles as dark wrecks), fading
+// dug in (Sim digTick): a soldier's foxhole — a ring of dug earth, open at its back; a tank's berm — a U of earth round
+// its front and sides. Rising as it's dug (u.dig), staying where it was (s.trenches) — the enemy's only where seen.
+// While a tank is dug in, one of its crew digs beside it (only a picture).
+const TRENCH_COL = '#6f5a3c', TRENCH_RIM = '#a08860';
+function trenchShape(c, x, y, a, k, f) {
+  c.save(); c.translate(x, y); c.rotate(a);
+  if (k === 'tank') { const L = SIZE.tank * 0.78, W = SIZE.tank * 0.52; c.lineWidth = SIZE.tank * 0.14 * f; c.beginPath(); c.moveTo(-L * 0.6, -W); c.lineTo(L * 0.7, -W); c.quadraticCurveTo(L * 1.05, 0, L * 0.7, W); c.lineTo(-L * 0.6, W); c.stroke(); }
+  else { const r = SIZE.inf * 2.3; c.lineWidth = SIZE.inf * 0.75 * f; /* (out past his glow) */ c.beginPath(); c.arc(0, 0, r, -Math.PI * 0.75, Math.PI * 0.75); c.stroke(); }
+  c.restore();
+}
+function drawTrenches(c) {
+  const v = viewRect(), on = p => !v || (p.x > v.x - 30 && p.x < v.x + v.w + 30 && p.y > v.y - 30 && p.y < v.y + v.h + 30);
+  c.save(); c.lineCap = 'round';
+  for (const pass of [0, 1]) { // (the dark earth, then a lighter rim along its top)
+    c.strokeStyle = pass ? TRENCH_RIM : TRENCH_COL; c.globalAlpha = pass ? 0.55 : 0.9;
+    for (const t of s.trenches || []) if (on(t) && (t.side === 'blue' || !s.fog || shownAt(t))) trenchShape(c, t.x, t.y, t.a, t.k, pass ? 0.35 : 1);
+    for (const u of s.units) if (u.dig > 0 && !u.dug && on(u) && (u.side === 'blue' || s.vis.blue.has(u.id) || !s.fog)) trenchShape(c, u.x, u.y, u.hd || 0, u.type === 'tank' ? 'tank' : 'foot', (pass ? 0.35 : 1) * u.dig);
+  }
+  c.restore(); c.globalAlpha = 1;
+  for (const u of s.units) if (u.type === 'tank' && u.dig > 0 && !u.dug && on(u) && (u.side === 'blue' || s.vis.blue.has(u.id) || !s.fog)) { const p = digger(u); glyph(c, 'inf', p.x, p.y, SIZE.inf, colors[u.side], colors.outline, p.a, p.a, 1, performance.now() / 120); }
+}
+// (where a tank's digging crewman stands: by its side, toward the back, going along it as the work goes)
+const digger = u => { const a = u.hd || 0, k = SIZE.tank, f = -0.5 + u.dig; return { x: u.x + Math.cos(a) * k * f * 0.8 - Math.sin(a) * k * 0.55, y: u.y + Math.sin(a) * k * f * 0.8 + Math.cos(a) * k * 0.55, a: a - Math.PI / 2 }; };
 function drawFallen(c) {
   for (const f of s.fallen) {
     const age = s.t - f.t; if (s.fog && !shownAt(f)) continue;
@@ -1161,7 +1184,7 @@ function draw() {
   c.restore(); c.globalAlpha = 1;
   // units: exact picture without fog; under fog what we see where the picture is exact (see shownAt)
   if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); tracks.length = 0; dust.length = 0; }
-  if (!lite) { drawTracks(c); drawDust(c); } drawFallen(c); // (the light mode: no tracks or dust)
+  if (!lite) { drawTracks(c); drawDust(c); } drawFallen(c); drawTrenches(c); // (the light mode: no tracks or dust)
   if (!s.fog) drawUnits(c, () => true);
   else { const whole = new Set(s.squads.filter(q => q.side === 'blue' && sqShown(q)).map(q => q.id)); drawUnits(c, u => (u.side === 'blue' ? whole.has(u.squad) : s.vis.blue.has(u.id)) && shownAt(u)); drawGhosts(c); }
   // explosions: fireball, smoke ring for medium+, sparks for big
