@@ -89,10 +89,10 @@ class B(Mesh):
         for x in np.linspace(x0, x1, n):
             if along == 'x':
                 self.k = 1.15; self.box('concrete', (x, y, z + face * 0.04), (w + 0.25, h + 0.25, 0.08))
-                self.k = self.r.uniform(0.8, 1.2); self.box('glass', (x, y, z + face * 0.09), (w, h, 0.06))
+                self.k = self.r.uniform(0.8, 1.2); self.box('glass', (x, y, z + face * 0.09), (w, h, 0.06)); self.lamp((x, y, z + face * 0.2), 'y')
             else:
                 self.k = 1.15; self.box('concrete', (z + face * 0.04, y, x), (0.08, h + 0.25, w + 0.25))
-                self.k = self.r.uniform(0.8, 1.2); self.box('glass', (z + face * 0.09, y, x), (0.06, h, w))
+                self.k = self.r.uniform(0.8, 1.2); self.box('glass', (z + face * 0.09, y, x), (0.06, h, w)); self.lamp((z + face * 0.2, y, x), 'y')
         self.k = 1.0; return self
 
     def roller(self, x, y, z, w, h, face=1):
@@ -138,7 +138,7 @@ class B(Mesh):
             a = 1.0 + i * 2.2; y = y0 + h * (0.65 + 0.15 * i)
             self.k = 1.0; self.cyl('white', (x + np.cos(a) * 0.6, y, z + np.sin(a) * 0.6), 0.55, 0.15, 'x', 14, r2=0.15, rot=-a)
         self.strut('dark', np.array((x, y0 + h, z)), np.array((x, y0 + h + 2.5, z)), 0.03)
-        self.k = 1.3; self.cyl('red', (x, y0 + h + 0.15, z), 0.18, 0.3, 'y', 8)
+        self.k = 1.3; self.cyl('red', (x, y0 + h + 0.15, z), 0.18, 0.3, 'y', 8); self.lamp((x, y0 + h + 0.3, z), 'r')
         return self
 
     def strut(self, mat, p0, p1, w):
@@ -163,7 +163,7 @@ class B(Mesh):
         self.k = 0.8; self.strut('metal', np.array((x, 0, z)), np.array((x, h, z)), 0.08)
         a = np.arctan2(at[1] - z, at[0] - x)
         self.k = 0.6; self.block('dark', (x + np.cos(a) * 0.3, h + 0.1, z + np.sin(a) * 0.3), (0.6, 0.35, 0.5), 0.15, rot=-a)
-        self.k = 1.3; self.box('white', (x + np.cos(a) * 0.62, h + 0.05, z + np.sin(a) * 0.62), (0.04, 0.25, 0.4), rot=-a)
+        self.k = 1.3; self.box('white', (x + np.cos(a) * 0.62, h + 0.05, z + np.sin(a) * 0.62), (0.04, 0.25, 0.4), rot=-a); self.lamp((x + np.cos(a) * 0.7, h, z + np.sin(a) * 0.7), 'f')
         self.k = 1.0; return self
 
     def wire(self, a, b, y, step=1.4):
@@ -277,7 +277,7 @@ class B(Mesh):
         for sv in (-1, 1):
             for i, y in enumerate(np.arange(0.25, h - 1.2, 0.5)):
                 self.k = 1.0; self.box('warn' if i % 2 == 0 else 'dark', (cx + L / 2 + 0.03, y, cz + sv * (dw / 2 + 0.12)), (0.04, 0.5, 0.24))
-            self.k = 0.6; self.box('dark', (cx + L / 2 + 0.25, h - 1.1, cz + sv * dw * 0.3), (0.5, 0.15, 0.3)); self.k = 1.3; self.box('white', (cx + L / 2 + 0.45, h - 1.2, cz + sv * dw * 0.3), (0.05, 0.08, 0.25))
+            self.k = 0.6; self.box('dark', (cx + L / 2 + 0.25, h - 1.1, cz + sv * dw * 0.3), (0.5, 0.15, 0.3)); self.k = 1.3; self.box('white', (cx + L / 2 + 0.45, h - 1.2, cz + sv * dw * 0.3), (0.05, 0.08, 0.25)); self.lamp((cx + L / 2 + 0.5, h - 1.25, cz + sv * dw * 0.3), 'w')
         if inside: inside(self)
         return self
 

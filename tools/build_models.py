@@ -22,7 +22,12 @@ MATS = {'body': [0.40, 0.40, 0.31], 'dark': [0.09, 0.09, 0.085], 'metal': [0.42,
 class Mesh:
     """triangles by material, flat-shaded; each with a shade (a colour factor, `self.k`, ~1: so that sandbags, crates
     and panels of one material aren't all the very same colour)"""
-    def __init__(self): self.tri = {}; self.k = 1.0
+    def __init__(self): self.tri = {}; self.k = 1.0; self.lights = []
+
+    def lamp(self, p, kind='w'):
+        """a light that's on at night (the game draws a glow there): w white (a headlight, a floodlight — f), y a lit
+        window, r red, g green"""
+        self.lights.append([float(v) for v in p] + [kind]); return self
 
     def add(self, mat, pts, faces):
         P = np.asarray(pts, float)
@@ -164,6 +169,8 @@ def write(kind, parts, gen='tools/build_models.py', extras=None):
     """parts: [(name, Mesh, parent index or None)] -> art/models/<kind>.glb (each part a node; a mesh per part, a
     primitive per material)"""
     mats = sorted({m for _, M, _ in parts for m in M.tri})
+    lights = [l for name, M, parent in parts if parent is None for l in getattr(M, 'lights', [])]  # (the hull's: they don't turn)
+    if lights: extras = {**(extras or {}), 'lights': lights}
     J = {'asset': {'version': '2.0', 'generator': gen, **({'extras': extras} if extras else {})}, 'scene': 0, 'scenes': [{'nodes': []}],
          'nodes': [], 'meshes': [], 'accessors': [], 'bufferViews': [], 'buffers': [],
          'materials': [{'name': m, 'pbrMetallicRoughness': {'baseColorFactor': MATS[m] + [1], 'metallicFactor': 0.1, 'roughnessFactor': 0.8}} for m in mats]}
@@ -213,7 +220,7 @@ def truck(L=7.0, W=2.5, axles=(-1.0, -2.2), cab=1.8, hood=1.3, r=0.55):
     M.k = 0.5; M.box('dark', (f - 0.02, 1.55, 0), (0.06, 0.65, W - 0.85))                  # grille
     for yy in np.arange(1.33, 1.85, 0.12): M.k = 0.9; M.box('metal', (f + 0.02, yy, 0), (0.04, 0.04, W - 0.95))
     for sz in (-1, 1):
-        M.k = 1.0; M.cyl('white', (f + 0.0, 1.62, sz * (hw - 0.32)), 0.13, 0.08, 'x', 10); M.k = 0.8; M.cyl('metal', (f - 0.03, 1.62, sz * (hw - 0.32)), 0.17, 0.06, 'x', 10)
+        M.lamp((f + 0.1, 1.62, sz * (hw - 0.32)), 'h'); M.k = 1.0; M.cyl('white', (f + 0.0, 1.62, sz * (hw - 0.32)), 0.13, 0.08, 'x', 10); M.k = 0.8; M.cyl('metal', (f - 0.03, 1.62, sz * (hw - 0.32)), 0.17, 0.06, 'x', 10)
         M.k = 1.0; M.box('warn', (f, 1.36, sz * (hw - 0.28)), (0.05, 0.1, 0.18))
     M.k = 0.7; M.block('dark', (f + 0.12, 1.08, 0), (0.25, 0.32, W * 0.95), 0.2)          # bumper
     for sz in (-0.5, 0.5): M.k = 1.0; M.cyl('warn', (f + 0.28, 1.08, sz), 0.07, 0.15, 'x', 6)   # tow hooks
@@ -447,8 +454,8 @@ def roundel(M, c, r, axis='y'):
 
 def navlights(M, left, right, tail=None, r=0.07):
     """red on the left tip, green-blue on the right (no green paint: water), white at the tail"""
-    M.k = 1.2; M.cyl('red', left, r, r * 2, 'x', 6); M.cyl('water', right, r, r * 2, 'x', 6)
-    if tail: M.cyl('white', tail, r, r * 2, 'x', 6)
+    M.k = 1.2; M.cyl('red', left, r, r * 2, 'x', 6); M.cyl('water', right, r, r * 2, 'x', 6); M.lamp(left, 'r'); M.lamp(right, 'g')
+    if tail: M.cyl('white', tail, r, r * 2, 'x', 6); M.lamp(tail, 'w')
 
 def antenna(M, c, h=0.35, w=0.18):
     """a blade antenna standing up (or down, h < 0)"""
@@ -625,7 +632,7 @@ def jeep():  # a light armoured 4×4 (Humvee-like): low and wide, a sloped bonne
     for sz in (-1, 1):
         for x in (-0.9, 0.2): M.k = 1.0; M.box('glass', (x, 1.6, sz * (hw - 0.14)), (0.6, 0.38, 0.04))
         M.k = 0.7; M.box('dark', (-0.35, 0.95, sz * (hw + 0.01)), (0.04, 0.6, 0.03))
-        M.k = 1.0; M.cyl('white', (L / 2 - 0.02, 0.95, sz * (hw - 0.3)), 0.1, 0.05, 'x', 8)
+        M.k = 1.0; M.cyl('white', (L / 2 - 0.02, 0.95, sz * (hw - 0.3)), 0.1, 0.05, 'x', 8); M.lamp((L / 2 + 0.05, 0.95, sz * (hw - 0.3)), 'h')
         M.strut('dark', (L / 2 - 1.5, 1.5, sz * hw), (L / 2 - 1.3, 1.6, sz * (hw + 0.3)), 0.03)
         M.k = 0.8; M.box('dark', (L / 2 - 1.3, 1.68, sz * (hw + 0.32)), (0.05, 0.25, 0.16))                      # mirror
     M.k = 0.5; M.box('dark', (L / 2 - 0.01, 0.8, 0), (0.05, 0.4, W - 0.9))
@@ -704,7 +711,7 @@ def k_tank():
     M.k = 0.85; M.cyl('body', (2.05, gy(2.05) + 0.06, 0.8), 0.32, 0.1, 'y', 12)                              # driver's hatch
     for dz in (-0.18, 0, 0.18): M.k = 1.0; M.box('glass', (2.35, gy(2.35) + 0.1, 0.8 + dz), (0.05, 0.08, 0.12), tilt=gl)
     for sz in (-1, 1):
-        M.k = 1.0; M.cyl('white', (3.55, 1.32, sz * (hw - 0.3)), 0.1, 0.08, 'x', 8)                         # headlights, guards
+        M.k = 1.0; M.cyl('white', (3.55, 1.32, sz * (hw - 0.3)), 0.1, 0.08, 'x', 8); M.lamp((3.62, 1.32, sz * (hw - 0.3)), 'h')  # headlights, guards
         M.k = 0.6; M.strut('dark', (3.45, 1.2, sz * (hw - 0.45)), (3.62, 1.45, sz * (hw - 0.3)), 0.02); M.strut('dark', (3.45, 1.2, sz * (hw - 0.15)), (3.62, 1.45, sz * (hw - 0.3)), 0.02)
         M.k = 0.5; M.block('dark', (3.78, 0.85, sz * 0.75), (0.2, 0.18, 0.18), 0.2)                           # tow hooks
         M.k = 0.95; M.box('body', (-0.2, 1.62, sz * (hw + 0.06)), (5.6, 0.06, 0.04))                         # skirt's top lip
