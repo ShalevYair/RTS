@@ -12,6 +12,7 @@ let foeStyle = 'random';
 // arms (2 on 2, DESIGN.md): the ones the player commands — the computer partner the rest; none (or all four) = the whole side
 let myArms = [];
 try { myArms = (localStorage.getItem('irts-arms') || '').split(',').filter(k => k in Sim.ARMS); } catch (e) { /* storage unavailable */ }
+if (myArms.length !== 2) myArms = ['armor', 'infantry']; // (always two arms: the computer partner the other two)
 try { const f = localStorage.getItem('irts-foe'); if (f && (f === 'random' || f in Sim.AI_STYLES)) foeStyle = f; } catch (e) { /* storage unavailable */ }
 // tutorial: `done` = the highest level won; `lvl` = the level being played (0 = the full game, with its settings)
 let done = 0;
