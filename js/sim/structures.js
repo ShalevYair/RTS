@@ -318,7 +318,7 @@ function produceSquad(s, n, S, dt) {
   if (!sq || s.noReinforce) return;
   const have = s.units.filter(u => u.squad === sq.id).length;
   if (have >= sq.size) { n.prog = 0; return; }
-  n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / S.every;
+  n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / everyOf(s, n.kind, S);
   if (S.first && !n.first) { n.first = true; n.prog = 1; }
   if (n.prog >= 1) {
     n.prog = 0; const k = have || sq.born ? 1 : sq.size;
@@ -406,7 +406,7 @@ function updateStructs(s, dt) {
     const have = n.squads.length;
     if (have >= (S.keep || BUILD_UNITS)) { n.prog = 0; continue; } // (a missile factory: one truck)
     if (S.first && !n.first) { n.first = true; n.prog = 1; } // (a supply building: its first truck at once)
-    n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / S.every; // (a held power station: faster)
+    n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / everyOf(s, n.kind, S); // (a held power station: faster)
     if (n.prog >= 1) {
       n.prog = 0;
       const dir = n.side === 'blue' ? 1 : -1, k = 1;

@@ -28,6 +28,9 @@ function knownStructs(s, side) {
 }
 
 // put a building of the next planned kind near the most forward control node, toward the enemy
+// a player's part of the plan, its arms in turn — one of each in its order, then the next of each: as it stood, the
+// first arm's buildings (armour, infantry — early in the plan) filled the quota, and the air force hardly got any
+const byTurns = plan => { const by = new Map(); for (const k of plan) { const a = ARM_OF[k] || '?'; if (!by.has(a)) by.set(a, []); by.get(a).push(k); } const L = [...by.values()], out = []; for (let i = 0; out.length < plan.length; i++) for (const l of L) if (i < l.length) out.push(l[i]); return out; };
 function aiBuild(s, side, D, who) {
   const may = k => !who || (armSide(s, side, k) || 'me') === who; // (arms: only this player's buildings; none this game — all 'me')
   const pk = who ? side + who : side; // (arms: each player its own place in the plan)
@@ -41,7 +44,7 @@ function aiBuild(s, side, D, who) {
   // the next planned kind this game allows (tutorial levels allow only some)
   let kind = D.smart && !s.noCounter && s.style[side] === 'steady' ? aiCounter(s, side, may) : null, counter = !!kind; // (what it has seen of the enemy first: an answer to it — the regular commander, who mixes; the others keep to their arm)
   const base = D.traits && s.style[side] === 'steady' && !s.level ? AI_PLAN_HARD : AI_STYLES[s.style[side]].plan;
-  const plan = who ? base.filter(may) : base; // (hard, regular: everything; arms: what of it is this player's — the plan of the difficulty, as one player would)
+  const plan = who ? byTurns(base.filter(may)) : base; // (hard, regular: everything; arms: what of it is this player's — the plan of the difficulty, as one player would, its arms in turn)
   for (let i = 0; i < plan.length && !kind; i++) { const k = plan[((s.plan[pk] || 0) + i) % plan.length]; if (buildable(s, k)) { kind = k; s.plan[pk] = (s.plan[pk] || 0) + i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
@@ -253,6 +256,9 @@ function think(s, side, level, who) {
     for (let i = 0; i < 30; i++) if (planHq(s, side, a + s.rand() * (b - a), 60 + s.rand() * (s.H - 120))) break;
   }
   const mine = s.squads.filter(q => q.side === side && !q.dead && !q.retreating && !(q.cmd && s.hqPending && s.hqPending[side]) && own(q));
+  // (arms: the whole side's squads — the support (signals trucks, guns, supply trucks) stands behind the partner's
+  // front too: a partner in air and artillery has no ground squads of its own, and its guns and trucks stayed home)
+  const team = who ? s.squads.filter(q => q.side === side && !q.dead && !q.retreating && !(q.cmd && s.hqPending && s.hqPending[side])) : mine;
   const setOrder = (sq, type, x, y) => {
     // compare with what was asked, not where the commander understood it (that would resend every time)
     const p = pending(s, sq.id, 'order'), cur = p || sq.order, w = cur.want || cur, k = sq.aiAsk;
@@ -288,11 +294,11 @@ function think(s, side, level, who) {
     if (raid.has(sq.id) || sq.boarding || sq.aboard) continue; // (a raid: the helicopter and its commandos — aiLift)
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
     // support: bulldozers go where their sites are (on their own); signals trucks stay a little behind the squads
-    if (TYPES[sq.type].support) { if (sq.type === 'radio') { const p = radioStation(s, sq, mine, radios++); setOrder(sq, 'hold', p.x, p.y); } continue; }
+    if (TYPES[sq.type].support) { if (sq.type === 'radio') { const p = radioStation(s, sq, team, radios++); setOrder(sq, 'hold', p.x, p.y); } continue; }
     if (sq.type === 'lift') { const h = homeOf(s, sq), off = (h.kind && STRUCTS[h.kind] ? STRUCTS[h.kind].r : 50) + 45; setOrder(sq, 'hold', Math.round(h.x), Math.round(h.y + (h.y < s.H / 2 ? off : -off))); continue; } // (a transport helicopter not on a raid: waits at home, beside its pad / the HQ, toward the middle — over it, the commandos couldn't reach it — aiLift)
     if (sq.type === 'tanker') { const p = tankerStation(s, sq, foes); setOrder(sq, 'hold', p.x, p.y); continue; }
-    if (s.logi && CARGO[sq.type] && !s.noAiSupply) { const k = trucks[sq.type] = (trucks[sq.type] || 0) + 1, p = truckStation(s, sq, mine, k - 1); setOrder(sq, 'hold', p.x, p.y); continue; }
-    if (TYPES[sq.type].arty) { const p = radioStation(s, sq, mine, arty++, ARTY_BACK); setOrder(sq, 'hold', p.x, p.y); continue; } // (artillery: behind the leading squads — it fires over them on its own, artyTick)
+    if (s.logi && CARGO[sq.type] && !s.noAiSupply) { const k = trucks[sq.type] = (trucks[sq.type] || 0) + 1, p = truckStation(s, sq, team, k - 1); setOrder(sq, 'hold', p.x, p.y); continue; }
+    if (TYPES[sq.type].arty) { const p = radioStation(s, sq, team, arty++, ARTY_BACK); setOrder(sq, 'hold', p.x, p.y); continue; } // (artillery: behind the leading squads — it fires over them on its own, artyTick)
     if (TYPES[sq.type].care) { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); continue; }
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
