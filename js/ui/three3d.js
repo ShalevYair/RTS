@@ -185,7 +185,8 @@ const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
   const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
   const clean = part === 'turret' || part.startsWith('spin') || !!(Sim.TYPES[type] && Sim.TYPES[type].air); // (no mud up there)
-  const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), v3Paint3(clean), 64);
+  const head = MODELS[type].poses ? MODELS[type].size[1] * V3_HELMET : 0; // (a soldier: the helmet in the side's colour)
+  const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), v3Paint3(clean, head), 64);
   mesh.castShadow = mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
   mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3);
   V3.scene.add(mesh); P = { mesh, w: 1, h: 1, ox: 0, oy: 0, n: 0 }; V3.pics.set(key, P); return P;
@@ -210,9 +211,13 @@ function v3CamoOf(u, c) {
 // the units' and buildings' paint: a real material — a little rough and a little metal, reflecting the sky — with dirt
 // on it (grime in blotches, the roughness varying) and mud low down (V3_MUD of the model's length; not on turrets or aircraft)
 const V3_SAT = '0.8', V3_MUD = 0.09, V3_MUD_COL = [0.16, 0.12, 0.08];
-function v3Paint3(clean) {
-  const k = clean ? 'vcolC' : 'vcol';
-  if (!V3[k]) { V3[k] = v3Camo(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.18, envMapIntensity: V3_ENV })); if (!clean) V3[k].defines = { V3_DIRTY: 1 }; }
+const V3_HELMET = 0.74; // (a soldier's helmet and shoulders: what faces up, above this of its height)
+function v3Paint3(clean, head) {
+  const k = (clean ? 'vcolC' : 'vcol') + (head ? 'H' + head.toFixed(3) : '');
+  if (!V3[k]) {
+    V3[k] = v3Camo(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.18, envMapIntensity: V3_ENV }));
+    V3[k].defines = {}; if (!clean) V3[k].defines.V3_DIRTY = 1; if (head) V3[k].defines.V3_HEAD = head.toFixed(4);
+  }
   return V3[k];
 }
 function v3Camo(mat) {
@@ -240,6 +245,9 @@ function v3Camo(mat) {
         if (vN3.y > 0.55 && abs(vP3.x) < ${V3_PANEL_W}) c = v3Panel[vPat.z < ${V3_SCHEMES}.0 ? 0 : 1] / max(vTeam, 0.5);
         diffuseColor.rgb = c * vTeam * vTint;
       }
+      #ifdef V3_HEAD
+      if (vPat.x > -0.5 && vP3.y > V3_HEAD && vN3.y > 0.6) diffuseColor.rgb = mix(diffuseColor.rgb, v3Panel[vPat.z < ${V3_SCHEMES}.0 ? 0 : 1] * 0.7 * vTint, 0.8);
+      #endif
       float v3g = v3n(vP3 * 9.0 + 3.1) * 0.6 + v3n(vP3 * 31.0) * 0.4, v3m = 0.0;
       diffuseColor.rgb = mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, ${V3_SAT}); // (paint a little faded)
       diffuseColor.rgb *= (0.78 + 0.3 * v3g) * (0.72 + 0.28 * smoothstep(-0.6, 0.4, vN3.y)); // (grime in blotches; under-sides darker)
