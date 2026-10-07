@@ -177,6 +177,7 @@ function smokeTick() {
       if (Math.random() < dt * [0.8, 2.2, 4.5][lvl]) puff(u.x, u.y - 3, lvl > 0, [0.6, 0.9, 1.25][lvl]);
     }
     for (const f of s.fallen) if (CAR.has(f.type) && s.t - f.t < 10 && (!s.fog || shownAt(f)) && Math.random() < dt * 5) puff(f.x, f.y - 2, true, 1.3);
+    for (const u of s.units) if (u.dig > 0 && !u.dug && Math.random() < dt * 3 && (!s.fog || u.side === 'blue' || s.vis.blue.has(u.id))) { const p = u.type === 'tank' ? digger(u) : u; dust.push({ x: p.x + (Math.random() - 0.5) * 6, y: p.y + (Math.random() - 0.5) * 6, t: s.t, r: 2.2, a: 0.5 }); } // (digging in: earth thrown up)
     for (const r of s.ruins || []) { const a = s.t - r.t; if (a < RUIN_SMOKE && (!s.fog || shownAt(r)) && Math.random() < dt * 4 * (1 - a / RUIN_SMOKE)) puff(r.x + (Math.random() - 0.5) * 20, r.y - 4, true, 1.6); } // (a ruin smoulders, less and less)
     for (const n of s.nodes) {
       if (n.kind === 'drone' || !nodeShown(n)) continue;

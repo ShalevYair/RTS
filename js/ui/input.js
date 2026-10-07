@@ -89,6 +89,7 @@ function squadInfo(q) {
   const wu = us.filter(u => u.water !== undefined); if (wu.length && q.side === 'blue') out.push(tr('ti_water', Math.round(wu.reduce((a, u) => a + u.water, 0) / wu.length * 100)));
   if (q.type === 'tanker' && q.side === 'blue') out.push(tr('ti_load', Math.round(us.reduce((a, u) => a + (u.load ?? Sim.TANKER_CAP) / Sim.TANKER_CAP, 0) / Math.max(1, us.length) * 100)));
   if (Sim.TRUCK_CAP[q.type] && q.side === 'blue') out.push(tr('ti_load', Math.round(us.reduce((a, u) => a + (u.load ?? Sim.TRUCK_CAP[q.type]) / Sim.TRUCK_CAP[q.type], 0) / Math.max(1, us.length) * 100)));
+  if (us.length && us.every(u => u.dug)) out.push(tr('ti_dug')); else if (us.some(u => u.dig > 0 && !u.dug)) out.push(tr('ti_digging')); // (dug in: Sim digTick)
   const role = (ROLE[lang] || ROLE.he)[q.type]; if (role) out.push(role);
   return out.join('\n');
 }
