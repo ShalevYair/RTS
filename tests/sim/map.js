@@ -54,7 +54,7 @@ ok(s.hills.length >= 16, `many hills: ${s.hills.length}`);
 }
 const s2 = Sim.create(5, 2400, 'normal', 1280), s3 = Sim.create(6, 2400, 'normal', 1280);
 ok(JSON.stringify(s2.hills) === JSON.stringify(s.hills) && JSON.stringify(s3.hills) !== JSON.stringify(s.hills), 'the same seed gives the same map, another seed another');
-ok(Sim.create(1, 99999, 'normal', 99999).W === 6000 && Sim.create(1, 99999, 'normal', 99999).H === 2800, 'size is capped (6000×2800)');
+ok(Sim.create(1, 99999, 'normal', 99999).W === 12000 && Sim.create(1, 99999, 'normal', 99999).H === 5200, 'size is capped (12000×5200)');
 { // the huge map: 4× the big one, with 4× as much going on
   const t0 = Date.now(), g = Sim.create(3, 4000, 'normal', 2560), b = Sim.create(3, 2000, 'normal', 1280), ms = Date.now() - t0;
   ok(g.W === 4000 && g.H === 2560 && g.hills.length > 2.5 * b.hills.length && g.lakes.length > b.lakes.length && ms < 3000, `huge map 4000×2560: ${g.hills.length} hills (big: ${b.hills.length}), ${g.lakes.length} lakes (big: ${b.lakes.length}), made in ${ms} ms`);

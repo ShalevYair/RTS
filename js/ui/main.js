@@ -5,10 +5,11 @@ function newGame(skipIntro) {
   // (the player's units: each its own squad — singles)
   if (lvl) s = Sim.level(lvl, seed, worldWidth(), { singles: true });
   else {
-    const k = hugeMap ? 4 : 2; // big: 2× wide and high; huge: 4×
-    s = bigMap ? Sim.create(seed, k * Math.max(1000, worldWidth()), diff, k * Sim.H, { singles: true }) : Sim.create(seed, worldWidth(), diff, Sim.H, { singles: true }); s.fog = fog;
-    // the big maps: posts to take, the weather, fast roads, ambushes (field.js; none on the small map)
-    if (bigMap) Sim.extras(s);
+    // the map, × the old small one (640 high) each way: small 2 (what was big), big 4 (what was huge), huge 8
+    const k = hugeMap ? 8 : bigMap ? 4 : 2;
+    s = Sim.create(seed, k * Math.max(1000, worldWidth()), diff, k * Sim.H, { singles: true }); s.fog = fog;
+    // posts to take, the weather, fast roads, ambushes (field.js) — every map now
+    Sim.extras(s);
     // the full game opens on an open field: each side picks where its HQ goes (tests may keep the fixed HQ)
     let fixed = false; try { fixed = localStorage.getItem('irts-fixedhq') === '1'; } catch (e) { /* storage unavailable */ }
     if (!fixed) Sim.openField(s);

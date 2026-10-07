@@ -12,7 +12,8 @@ let foeStyle = 'random';
 // arms (2 on 2, DESIGN.md): the ones the player commands — the computer partner the rest; none (or all four) = the whole side
 let myArms = [];
 try { myArms = (localStorage.getItem('irts-arms') || '').split(',').filter(k => k in Sim.ARMS); } catch (e) { /* storage unavailable */ }
-if (myArms.length !== 2) myArms = ['armor', 'infantry']; // (always two arms: the computer partner the other two)
+let allArms = false; try { allArms = localStorage.getItem('irts-arms') === 'all'; } catch (e) { /* storage unavailable */ } // ('all': the whole side, no partner — only the automated tests set it)
+if (myArms.length !== 2) myArms = allArms ? [] : ['armor', 'infantry']; // (always two arms: the computer partner the other two)
 try { const f = localStorage.getItem('irts-foe'); if (f && (f === 'random' || f in Sim.AI_STYLES)) foeStyle = f; } catch (e) { /* storage unavailable */ }
 // tutorial: `done` = the highest level won; `lvl` = the level being played (0 = the full game, with its settings)
 let done = 0;
@@ -46,7 +47,7 @@ const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck', 'fueltru
 // ---- viewport: world is sized to the screen's aspect at game start; a camera (centre + zoom) looks at it ----
 // zoom 1 = the whole map fits; zooming in stops at ZOOM_PX screen px per world unit. The big map opens on our base at
 // START_PX (about the small map's look on a desktop), whatever the screen.
-// map size: small / big (the default) / huge (2× the big one each way); hugeMap implies bigMap
+// map size: small (2× the old small one each way) / big (the default, 4×) / huge (8×); hugeMap implies bigMap
 let bigMap = true, hugeMap = false;
 try { const m = localStorage.getItem('irts-map'); bigMap = m !== 'small'; hugeMap = m === 'huge'; } catch (e) { /* storage unavailable */ }
 // the map is drawn at most MAX_DPR canvas pixels per screen pixel: on a dense screen (a laptop's 1.5–2×) every

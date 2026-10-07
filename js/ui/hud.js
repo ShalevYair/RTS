@@ -496,7 +496,7 @@ function placeBuilding(x, y, again) {
 }
 // arms: a click adds or takes off one of ours (at most three — the partner keeps one at least)
 document.querySelectorAll('[data-arm]').forEach(b => b.addEventListener('click', () => {
-  const k = b.dataset.arm; if (myArms.includes(k)) return; myArms = [myArms[1], k]; // (always two: a new one replaces the older)
+  const k = b.dataset.arm; if (myArms.includes(k)) return; myArms = myArms.length === 2 ? [myArms[1], k] : [...myArms, k].slice(-2); // (always two: a new one replaces the older)
   try { localStorage.setItem('irts-arms', myArms.join(',')); } catch (e) { /* ignore */ }
   if (!lvl && s) Sim.setArms(s, myArms); // (the intro's game: not started yet)
   syncButtons();

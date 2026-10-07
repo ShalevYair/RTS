@@ -11,7 +11,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
   for (const [name, vp, scheme] of [['desk', { width: 1400, height: 800 }, 'light'], ['dark', { width: 1400, height: 800 }, 'dark']]) {
     const ctx = await b.newContext({ viewport: vp, colorScheme: scheme });
     await ctx.addInitScript(() => { try { localStorage.setItem('irts-mic', 'no'); } catch (e) { /* no storage */ } }); // (no "allow the microphone" window holding the game: micGate)
-    await ctx.addInitScript(() => { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); });
+    await ctx.addInitScript(() => { localStorage.setItem('irts-done', '99'); localStorage.setItem('irts-tour', '99'); localStorage.setItem('irts-fixedhq', '1'); localStorage.setItem('irts-map', 'small'); localStorage.setItem('irts-arms', 'all'); }); // (small: the size these were written for — 1280 high; arms 'all': the whole side, as these were written)
     const p = await ctx.newPage(); const errs = [];
     p.on('console', m => m.type() === 'error' && !/ERR_CERT|fonts|\[irts\] slow/.test(m.text()) && errs.push(m.text())); p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(300);

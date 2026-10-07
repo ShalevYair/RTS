@@ -39,7 +39,8 @@ const inHill = (s, p) => elevAt(s, p) >= 1;
 function lakeK(l, p, pad = 0) {
   const c = Math.cos(l.a), sn = Math.sin(l.a), dx = p.x - l.x, dy = p.y - l.y;
   const u = (dx * c + dy * sn) / (l.rx + pad), v = (-dx * sn + dy * c) / (l.ry + pad);
-  return (u * u + v * v) / wobble(l.w, Math.atan2(v, u)) ** 2;
+  const d2 = u * u + v * v; if (d2 > 2.25) return d2 / 1.62; // (far out: past any rim — the outline wobbles at most ×1.27; no atan2, the 8× map's 60 lakes)
+  return d2 / wobble(l.w, Math.atan2(v, u)) ** 2;
 }
 const lakeAt = (s, p, pad = 0) => s.lakes.find(l => lakeK(l, p, pad) < 1);
 // the nearest dry spot: p pushed straight out from the lake's centre to its (padded) shore
