@@ -197,9 +197,12 @@ function v3Model(type, part, side) {
 // green < 0 = -(pattern + seed), blue = the scheme (side × 4 + which). The model's own shading of its paint (panels a
 // shade lighter or darker) kept: aTeam = its brightness against the part's mean (0 = not paint). ----
 const V3_CAMO = 4, V3_SCHEMES = 4; // (patterns: 0 plain, 1 spots, 2 stripes, 3 squares; schemes a side)
+// (army colours, not toy ones: ours olive, forest green, grey-green, sand-olive; theirs desert tan, earth brown,
+// khaki, grey — and which side, at a glance: a recognition panel across the roof in the side's colour, V3_PANEL)
 const V3_PAL = [ // (sRGB: base, dark, light — blue's four, then red's)
-  ['#3d6fb0', '#1c3157', '#8fb4e0'], ['#2b8296', '#173f4c', '#86c3cc'], ['#5864b8', '#262b5e', '#aab3ea'], ['#4f7898', '#22374a', '#b9cde0'],
-  ['#b04a32', '#4f1d14', '#e0936e'], ['#93303a', '#3f1218', '#d07a72'], ['#b8652a', '#4d2a12', '#e2a868'], ['#8f5634', '#3a2214', '#d6bf8e']];
+  ['#5c6638', '#30361c', '#868a58'], ['#43512f', '#232c18', '#6f7d4f'], ['#5d6656', '#30362c', '#8c9484'], ['#706a48', '#3c3824', '#9c9670'],
+  ['#a08a5c', '#5c4a2e', '#c8b484'], ['#7a5a3a', '#3e2c1a', '#a8865e'], ['#8c7e52', '#4e4428', '#b4a87c'], ['#6e6a62', '#3a3833', '#9a968c']];
+const V3_PANEL = ['#2d6be0', '#d8392b'], V3_PANEL_W = 0.07; // (blue, red; half its width, of the model's length)
 function v3CamoOf(u, c) {
   const h = (u.id * 0.6180339) % 1, p = Math.floor(h * 97) % V3_CAMO, sc = (u.side === 'red' ? V3_SCHEMES : 0) + Math.floor(((u.id * 0.7548777) % 1) * V3_SCHEMES);
   return c.setRGB(1, -(p + 0.01 + h * 0.98), sc + 0.5);
@@ -214,6 +217,7 @@ function v3Paint3(clean) {
 }
 function v3Camo(mat) {
   mat.onBeforeCompile = sh => {
+    sh.uniforms.v3Panel = { value: V3_PANEL.map(x => { const c = new THREE.Color(x); return new THREE.Vector3(c.r, c.g, c.b); }) };
     sh.uniforms.v3Pal = { value: V3_PAL.flat().map(x => { const c = new THREE.Color(x); return new THREE.Vector3(c.r, c.g, c.b); }) }; // (linear)
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;')
       .replace('#include <color_vertex>', `#include <color_vertex>
@@ -222,7 +226,7 @@ function v3Camo(mat) {
       if (instanceColor.g < 0.0) { vPat = vec3(floor(-instanceColor.g), fract(-instanceColor.g), floor(instanceColor.b)); vColor.xyz = color.xyz * instanceColor.r; vTint = instanceColor.r; }
       #endif`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      uniform vec3 v3Pal[${V3_PAL.length * 3}]; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;
+      uniform vec3 v3Pal[${V3_PAL.length * 3}]; uniform vec3 v3Panel[2]; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;
       float v3h(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
       float v3n(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(mix(v3h(i), v3h(i + vec3(1,0,0)), f.x), mix(v3h(i + vec3(0,1,0)), v3h(i + vec3(1,1,0)), f.x), f.y),
@@ -233,6 +237,7 @@ function v3Camo(mat) {
         if (vPat.x > 0.5 && vPat.x < 1.5) { float n = v3n(q * 6.0) * 0.65 + v3n(q * 14.0) * 0.35; c = n < 0.4 ? c1 : n > 0.6 ? c2 : c0; }
         else if (vPat.x > 1.5 && vPat.x < 2.5) { float w = sin((vP3.x + vP3.z * 0.35 + vP3.y * 0.6) * 22.0 + v3n(q * 5.0) * 5.0); c = w > 0.35 ? c1 : w < -0.75 ? c2 : c0; }
         else if (vPat.x > 2.5) { float n = v3h(floor(q * 20.0)) * 0.6 + v3n(q * 5.0) * 0.4; c = n < 0.38 ? c1 : n > 0.62 ? c2 : c0; }
+        if (vN3.y > 0.55 && abs(vP3.x) < ${V3_PANEL_W}) c = v3Panel[vPat.z < ${V3_SCHEMES}.0 ? 0 : 1] / max(vTeam, 0.5);
         diffuseColor.rgb = c * vTeam * vTint;
       }
       float v3g = v3n(vP3 * 9.0 + 3.1) * 0.6 + v3n(vP3 * 31.0) * 0.4, v3m = 0.0;
