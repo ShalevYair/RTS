@@ -180,16 +180,17 @@ function v3Geo(type, part, side) {
   const M = MODELS[type].parts[part], geo = [], sc = new THREE.Color(colors[side] || '#888888'); // (in the linear colours the light uses)
   if (M.pos) { // (a track's later pose: only its points — the first pose's normals and colours)
     const b = atob(M.pos), u8 = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i);
-    const g = v3Geo(type, part.replace(/\d+$/, '0'), side).clone(); const q = new Int16Array(u8.buffer), f = new Float32Array(q.length); for (let i = 0; i < q.length; i++) f[i] = q[i] / V3_POS_Q; g.setAttribute('position', new THREE.BufferAttribute(f, 3)); // (Int16 / V3_POS_Q) G.set(key, g); return g;
+    const Q = MODELS[type].q || V3_POS_Q, g = v3Geo(type, part.replace(/\d+$/, '0'), side).clone(); const q = new Int16Array(u8.buffer), f = new Float32Array(q.length); for (let i = 0; i < q.length; i++) f[i] = q[i] / Q; g.setAttribute('position', new THREE.BufferAttribute(f, 3)); G.set(key, g); return g; // (Int16 / its scale)
   }
   const TK = MODELS[type].teamK ?? V3_TEAM; // (how much of the side's colour in its paint)
+  const Q = MODELS[type].q || V3_POS_Q; // (Int16 per unit of place: smaller for a tall model, so it fits)
   for (const k of ['team', 'rest']) {
     if (!M[k]) continue;
     // (12 bytes a point, tools/models.py `pack`: the place Int16 / V3_POS_Q, the normal Int8, the colour Uint8)
     const b = atob(M[k]), u8 = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i);
     const dv = new DataView(u8.buffer), n = u8.length / 12, pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), col = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) {
-      pos[i * 3 + j] = dv.getInt16(i * 12 + j * 2, true) / V3_POS_Q; nrm[i * 3 + j] = dv.getInt8(i * 12 + 6 + j) / 127;
+      pos[i * 3 + j] = dv.getInt16(i * 12 + j * 2, true) / Q; nrm[i * 3 + j] = dv.getInt8(i * 12 + 6 + j) / 127;
       const c = u8[i * 12 + 9 + j] / 255, s2 = j === 0 ? sc.r : j === 1 ? sc.g : sc.b;
       col[i * 3 + j] = k === 'team' && side !== 'wreck' ? c * (1 - TK) + s2 * TK * 0.55 : c;
     }

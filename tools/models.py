@@ -110,10 +110,10 @@ def skinned(J, B, n, G):
 
 
 POS_Q = 16000  # (a place's Int16 = x × POS_Q: ±2 lengths, to 1/16000 of one)
-def pack(v):
-    """vertices (n × 9: x y z, nx ny nz, r g b) -> 12 bytes each, as base64"""
+def pack(v, Q=POS_Q):
+    """vertices (n × 9: x y z, nx ny nz, r g b) -> 12 bytes each, as base64 (Q: Int16 per unit of place)"""
     v = np.asarray(v, np.float64); n = len(v); b = np.zeros((n, 12), np.uint8)
-    b[:, :6] = np.clip(np.round(v[:, :3] * POS_Q), -32767, 32767).astype('<i2').view(np.uint8).reshape(n, 6)
+    b[:, :6] = np.clip(np.round(v[:, :3] * Q), -32767, 32767).astype('<i2').view(np.uint8).reshape(n, 6)
     b[:, 6:9] = np.clip(np.round(v[:, 3:6] * 127), -127, 127).astype(np.int8).view(np.uint8)
     b[:, 9:12] = np.clip(np.round(v[:, 6:9] * 255), 0, 255).astype(np.uint8)
     return base64.b64encode(b.tobytes()).decode()
@@ -194,17 +194,22 @@ def bake(path):
         body = tt[np.abs(tt[:, 2]) > 0.25 * np.abs(tt[:, 2]).max()]
         piv = np.array([(body[:, 0].min() + body[:, 0].max()) / 2, 0, (body[:, 2].min() + body[:, 2].max()) / 2])
         out['pivot'] = [round(float(piv[0]), 4), round(float(piv[2]), 4)]
+    # (the Int16 scale: POS_Q, or less for a model reaching past ±2 lengths — a soldier is twice as tall as long)
+    far = max(np.abs((turn(p - mid) - ctr) / L - (piv if part == 'turret' else 0)).max() for (part, _), (p, _, _) in cat.items())
+    if frames: far = max([far] + [np.abs((turn(f - mid) - ctr) / L).max() for sd in ('L', 'R') if sd in frames for f in frames[sd]])
+    Q = min(POS_Q, int(32767 / (far * 1.001)))
+    if Q != POS_Q: out['q'] = Q
     for (part, team), (p, nr, col) in cat.items():
         q = (turn(p - mid) - ctr) / L
         if part == 'turret': q = q - piv
         n_ = turn(nr)
-        out['parts'].setdefault(part, {})['team' if team else 'rest'] = pack(np.c_[q, n_, np.clip(col, 0, 1)])
+        out['parts'].setdefault(part, {})['team' if team else 'rest'] = pack(np.c_[q, n_, np.clip(col, 0, 1)], Q)
     if frames:
         for side in ('L', 'R'):
             if side not in frames: continue
             for f, p in enumerate(frames[side]):  # (the first whole; the rest only where the points are — the same normals and colours)
                 q = (turn(p - mid) - ctr) / L
-                out['parts']['track' + side + str(f)] = {'rest': pack(np.c_[q, turn(frames[side + 'n']), np.clip(frames[side + 'c'], 0, 1)])} if f == 0 else                     {'pos': base64.b64encode(np.clip(np.round(q * POS_Q), -32767, 32767).astype('<i2').tobytes()).decode()}  # (Int16 ×POS_Q, as pack)
+                out['parts']['track' + side + str(f)] = {'rest': pack(np.c_[q, turn(frames[side + 'n']), np.clip(frames[side + 'c'], 0, 1)], Q)} if f == 0 else                     {'pos': base64.b64encode(np.clip(np.round(q * Q), -32767, 32767).astype('<i2').tobytes()).decode()}  # (Int16 ×POS_Q, as pack)
         zl, zr = [((turn(frames[s][0] - mid) - ctr) / L)[:, 2].mean() for s in ('L', 'R')]
         out['track'] = {'frames': TRACK_F, 'cycle': round(float(cycle / L), 5), 'zl': round(float(zl), 4), 'zr': round(float(zr), 4)}
     if any(k[1] for k in cat) and all((m.get('name') or '').lower() in ('slim',) for m in mats): out['teamK'] = 0.18  # (a slimmed model: all of it its paint — only a touch of the side's colour)

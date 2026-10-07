@@ -822,18 +822,28 @@ def soldier(kind, phase=None):
         b = a - knee_bend
         foot = knee + np.array((np.sin(b) * 0.45, -np.cos(b) * 0.45, 0)); foot[1] = max(foot[1], 0.06)
         M.k = 1.0; limb(M, 'body', hip, knee, 0.085, 0.07); limb(M, 'body', knee, foot + (0, 0.05, 0), 0.07, 0.055)
+        M.k = 0.55; ball(M, 'olive', knee + (0.05, -0.02, 0), 0.055, 1.2, 6)                                   # knee pad
         M.k = 0.6; M.hull('dark', [tuple(foot + d) for d in ((-0.08, -0.06, -0.05), (-0.08, -0.06, 0.05), (0.17, -0.06, -0.05), (0.17, -0.06, 0.05), (-0.08, 0.06, -0.05), (-0.08, 0.06, 0.05), (0.1, 0.04, -0.05), (0.1, 0.04, 0.05))])  # boot
     # (the torso, a vest over it, the belt; the head, the helmet)
     ch = hip_y + 0.55
     M.k = 1.0; M.hull('body', [(x, y, z) for x in (-0.1, 0.1) for y in (hip_y - 0.05,) for z in (-0.17, 0.17)] + [(x, ch, z) for x in (-0.12, 0.12) for z in (-0.21, 0.21)])
     M.k = 0.75 if kind != 'med' else 1.0; M.hull('olive' if kind != 'med' else 'white', [(x, y, z) for x in (-0.13, 0.14) for y in (hip_y + 0.12, ch - 0.05) for z in (-0.2, 0.2)])  # vest
     M.k = 0.55; M.box('dark', (0, hip_y + 0.03, 0), (0.24, 0.07, 0.36))
+    if kind != 'med':
+        for z in (-0.1, 0, 0.1): M.k = 0.65; M.box('olive', (0.155, hip_y + 0.22, z), (0.05, 0.15, 0.085))     # magazine pouches
+    M.k = 0.7; M.cyl('olive', (-0.05, hip_y - 0.02, 0.2), 0.05, 0.14, 'y', 8)                                  # canteen
+    M.k = 0.6; M.box('olive', (-0.05, hip_y - 0.01, -0.2), (0.1, 0.12, 0.06))                                 # pouch
+    M.k = 0.9; M.box('body', (0, ch + 0.01, 0), (0.18, 0.05, 0.26))                                            # collar
+    if kind == 'inf': M.k = 0.5; M.strut('dark', (-0.25, ch - 0.02, -0.1), (-0.32, ch + 0.65, -0.12), 0.006)  # radio whip
     M.k = 0.7; M.hull('olive', [(x, y, z) for x in (-0.3, -0.12) for y in (hip_y + 0.15, ch - 0.02) for z in (-0.15, 0.15)])  # backpack
     M.k = 1.0; limb(M, SKIN, (0, ch, 0), (0, ch + 0.08, 0), 0.05, 0.05)
     head = np.array((0.02, ch + 0.2, 0)); M.k = 1.15; ball(M, SKIN, head, 0.11, 1.1)
     if kind == 'commando':  # (a balaclava, a soft cap)
         M.k = 0.5; ball(M, 'dark', head + (-0.01, 0.01, 0), 0.115, 1.12); M.k = 1.0; M.box('glass', tuple(head + (0.1, 0.02, 0)), (0.02, 0.04, 0.14))
     else:
+        M.k = 0.45; M.cyl('dark', tuple(head + (0, 0.05, 0)), 0.132, 0.025, 'y', 10)                          # helmet band
+        M.k = 0.5; M.box('dark', tuple(head + (0.115, 0.075, 0)), (0.03, 0.035, 0.14)); M.k = 1.1; M.box('glass', tuple(head + (0.128, 0.075, 0)), (0.01, 0.025, 0.12))  # goggles
+        M.k = 1.0; M.box(SKIN, tuple(head + (0.105, -0.01, 0)), (0.03, 0.04, 0.025)); M.k = 0.5; M.box('dark', tuple(head + (0.1, 0.02, 0)), (0.01, 0.015, 0.09))  # nose, eyes
         M.k = 0.8; M.hull('olive', [tuple(head + (0.13 * np.cos(a), y, 0.13 * np.sin(a))) for a in np.linspace(0, 2 * np.pi, 10, endpoint=False) for y in (0.02,)] + [tuple(head + (0.1 * np.cos(a), 0.11, 0.1 * np.sin(a))) for a in np.linspace(0, 2 * np.pi, 10, endpoint=False)] + [tuple(head + (0, 0.14, 0))])  # helmet
     # (arms: holding what they carry)
     sh = [np.array((0.0, ch - 0.04, z)) for z in (0.22, -0.22)]
@@ -850,12 +860,15 @@ def soldier(kind, phase=None):
     else:  # (a rifle held across, at the ready)
         r0, r1 = np.array((-0.05, ch - 0.15, -0.05)), np.array((0.62, ch - 0.02, 0.02))
         M.k = 0.5; limb(M, 'dark', r0, r1, 0.03, 0.025, 4); M.box('dark', tuple(r0 + (0.18, -0.08, 0.02)), (0.05, 0.14, 0.03))  # mag
+        M.k = 0.6; limb(M, 'dark', r0 + (0.02, 0, 0), r0 + (-0.14, -0.05, 0), 0.04, 0.05, 4)                    # stock
+        M.k = 0.4; M.box('dark', tuple(r0 + (0.3, 0.06, 0.0)), (0.1, 0.04, 0.03))                               # sight
         if kind == 'commando': M.k = 0.45; limb(M, 'dark', r1, r1 + (0.2, 0.004, 0), 0.035, 0.035, 6)  # suppressor
         hands = [r0 + (0.4, 0.03, 0.03), r0 + (0.12, -0.02, 0.03)]
     for shp, hand in zip(sh, hands):
         elbow = (shp + hand) / 2 + np.array((-0.05, -0.12, 0.05 * np.sign(shp[2])))
         M.k = 1.0; limb(M, 'body', shp, elbow, 0.06, 0.05); limb(M, 'body', elbow, hand, 0.05, 0.045)
-        M.k = 1.15; ball(M, SKIN, hand, 0.045, 1.0, 6)
+        M.k = 1.15; ball(M, SKIN, hand, 0.045, 1.0, 6); M.k = 1.1; limb(M, SKIN, hand, hand + (0.04, 0.03, 0.02 * np.sign(shp[2])), 0.015, 0.012, 4)  # a thumb
+        M.k = 0.5; M.box('dark', tuple(shp + (0.0, 0.03, 0.03 * np.sign(shp[2]))), (0.12, 0.05, 0.08))          # shoulder strap
     return M
 
 def dead(kind):
