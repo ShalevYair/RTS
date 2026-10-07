@@ -318,6 +318,9 @@ function v3Units() {
   for (const u of s.units) {
     if (s.fog && !((u.side === 'blue' ? whole.has(u.squad) : s.vis.blue.has(u.id)) && shownAt(u))) continue;
     const T = Sim.TYPES[u.type], lift = T.air ? V3_AIR : 0, hd = u.hd || 0;
+    if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); tracks.length = 0; dust.length = 0; }
+    if (!T.air) stride(u); // (as the flat map: the tracks and dust it leaves)
+    if (s.fog && u.side === 'red') anim.last.set(u.id, { x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t }); // (out of sight: its ghost, below)
     if (v3HasModel(u.type)) {
       const man = !!MODELS[u.type].poses, pose = v3Walk(u), face = man && s.t - u.lastFire < 3 ? u.aim : hd; // (a soldier faces where it fires, and stands upright)
       v3PutModel(u.type, u.side, u.x, u.y, face, T.hover || u.type === 'lift' ? performance.now() / 1000 * V3_ROTOR + u.id : s.t - u.lastFire < 3 ? u.aim : hd, m, v3CamoOf(u, v3Tmp.camo || (v3Tmp.camo = new THREE.Color())), T.air || man ? null : v3Run(u, hd), man ? 0.01 : lift, 0, 1, pose, u.type === 'tank' || u.type === 'how' ? Math.max(0, 1 - (s.t - u.lastFire) / 0.25) : 0);
@@ -330,6 +333,16 @@ function v3Units() {
       v3Put(R, v3Lay(cx + Math.cos(aim) * R.ox - Math.sin(aim) * R.oy, cy + Math.sin(aim) * R.ox + Math.cos(aim) * R.oy, aim, 0.4, R.w, R.h, 0, 0, m));
     }
     if (u.side === 'blue' && isSel(u.squad) && u.type !== 'dozer') rings.push({ x: u.x, y: u.y, air: T.air, r: (SIZE[u.type] || 8) * (CAR.has(u.type) || T.air ? 0.75 : V3_FOOT * 0.9) });
+  }
+  // (the enemy just gone out of sight: dim where last seen, GHOST_T s — the flat map's drawGhosts)
+  if (s.fog) {
+    const alive = new Set(s.units.map(u => u.id)), gt = v3Tmp.gt || (v3Tmp.gt = new THREE.Color());
+    for (const [id, g] of anim.last) {
+      const age = s.t - g.t; if (age < 0.05) continue;
+      if (age > GHOST_T || (!alive.has(id) && age < 0.3)) { anim.last.delete(id); continue; }
+      if (v3HasModel(g.type) && !MODELS[g.type].poses) v3PutModel(g.type, g.side, g.x, g.y, g.hd || 0, g.hd || 0, m, gt.setScalar(0.25 + 0.3 * (1 - age / GHOST_T)), null, Sim.TYPES[g.type].air ? V3_AIR : 0);
+      else if (v3HasModel(g.type)) v3PutModel(g.type, g.side, g.x, g.y, g.hd || 0, 0, m, gt.setScalar(0.25 + 0.3 * (1 - age / GHOST_T)), null, 0.01, 0, 1, null);
+    }
   }
   // (the fallen, V3_FALL s: a vehicle's burnt-out wreck, its turret knocked askew; a soldier, dark — as the flat map)
   const tint = v3Tmp.ft || (v3Tmp.ft = new THREE.Color());
@@ -517,6 +530,9 @@ function v3Fx() {
   if (!V3.fx) v3FxInit();
   const F = V3.fx; for (const B of Object.values(F)) B.n = 0;
   smokeTick(); scorchTick();
+  // dust kicked up behind vehicles and soldiers (stride, as the flat map's drawDust)
+  while (dust.length && s.t - dust[0].t > DUST_T) dust.shift();
+  if (!lite) for (const p of dust) { const a = (s.t - p.t) / DUST_T; if (a >= 0 && a < 1) v3Dot(F.smoke, p.x, v3Gnd(p.x, p.y) + 1.5 + a * 3, p.y, p.r * (2.2 + a * 3.5), 0.8, 0.74, 0.6, p.a * (1 - a) * 0.9); }
   // lamps lit at night (the models' — tools/build_models.py `lamp`): a glow each, by its kind; a mast's red one blinks,
   // only some windows lit (the same ones — by where they are)
   const A = V3.lamps || [], nk = V3.nightK || 0, tt = performance.now() / 1000;
@@ -639,6 +655,30 @@ function v3Scenery() {
   const t0 = performance.now(), near = [...sc.todo].map(k => { const [i, j] = k.split(',').map(Number); return [k, Math.hypot((i + 0.5) * V3_CHUNK - cam.x, (j + 0.5) * V3_CHUNK - cam.y)]; }).sort((a, b) => a[1] - b[1]);
   for (const [k] of near) { v3ScenChunk(k); sc.todo.delete(k); if (performance.now() - t0 > 6) break; }
 }
+// ---- water that moves: over each lake (its own outline — decor.lakes' body, as a mask) a see-through surface whose
+// ripples run and glint (a small shader on the light's own; the ground's fog and night over it — v3Shaded) ----
+const V3_WATER = { col: '#3f86b0', a: 0.42, px: 256 };
+function v3Water() {
+  if (V3.water && V3.water.of === decor) { V3.waterT.value = (performance.now() / 1000) % 1000; return; }
+  if (V3.water) for (const m of V3.water.meshes) { V3.scene.remove(m); m.geometry.dispose(); m.material.alphaMap.dispose(); m.material.dispose(); }
+  V3.waterT = V3.waterT || { value: 0 }; V3.water = { of: decor, meshes: [] };
+  for (const k of decor.lakes || []) {
+    const l = k.l, R = Math.max(l.rx, l.ry) * 1.3, N = V3_WATER.px, c = document.createElement('canvas'); c.width = c.height = N;
+    const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, N, N); g.setTransform(N / (2 * R), 0, 0, N / (2 * R), N / 2 - l.x * N / (2 * R), N / 2 - l.y * N / (2 * R)); g.fillStyle = '#fff'; g.fill(k.body);
+    const mask = new THREE.CanvasTexture(c), geo = new THREE.PlaneGeometry(2 * R, 2 * R, 1, 1); geo.rotateX(-Math.PI / 2);
+    const mat = v3Shaded(new THREE.MeshLambertMaterial({ color: V3_WATER.col, transparent: true, opacity: V3_WATER.a, alphaMap: mask, depthWrite: false }));
+    const base = mat.onBeforeCompile;
+    mat.onBeforeCompile = sh => {
+      base(sh); sh.uniforms.v3T = V3.waterT;
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float v3T;').replace('#include <alphamap_fragment>', `#include <alphamap_fragment>
+        float w = sin(vV3.x * 0.07 + v3T * 1.3 + sin(vV3.y * 0.05 + v3T * 0.6) * 2.0) * sin(vV3.y * 0.08 - v3T * 1.1 + sin(vV3.x * 0.04 + v3T * 0.3) * 1.5);
+        diffuseColor.rgb *= 0.88 + 0.22 * w; diffuseColor.rgb += vec3(0.9, 0.95, 1.0) * smoothstep(0.78, 0.98, w) * 0.55; diffuseColor.a *= 0.85 + 0.3 * smoothstep(0.7, 1.0, w);`);
+    };
+    mat.customProgramCacheKey = () => 'v3water';
+    const m = new THREE.Mesh(geo, mat); m.position.set(l.x, Sim.elevAt(s, l) * V3_LV + 0.5, l.y); m.renderOrder = 2;
+    V3.scene.add(m); V3.water.meshes.push(m);
+  }
+}
 // ---- fog of war and night, as the flat map's: two pictures of the whole map (V3_SHADE world units a pixel) — where
 // the fog lies (fogHoles cut out of it) and where it's dark (nightLights cut out) — laid over the ground and the
 // scenery in their shader (v3Shaded: the colour mixed toward the fog's and the night's blue, a warm glow where lit).
@@ -716,6 +756,7 @@ function v3Deco() {
   const D = V3.deco, g = D.g, B = V3.box = v3DecoBox(), kx = V3_DECO / B.w, ky = V3_DECO / B.h;
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, V3_DECO, V3_DECO);
   g.setTransform(kx, 0, 0, ky, -B.x * kx, -B.y * ky);
+  if (!lite) { drawTracks(g); drawClouds(g); } drawWeather(g); // (tracks in the ground, clouds' shadows, the morning fog; rain — over the screen)
   if (s.fog) { if (Sim.friction(s)) drawQuality(g); drawEnemyIntel(g); drawMarks(g); }
   drawDozerJobs(g); drawBuildArea(g);
   for (const q of s.squads) if (q.side === 'blue' && !q.dead && !sqShown(q)) drawGuess(g, q, guessAt(q), isSel(q.id));
@@ -740,7 +781,31 @@ function v3Draw() {
   sceneryTick(); groundTick(); // (as the flat map's frame: what's cleared, run over, cut)
   for (const P of V3.pics.values()) P.n = 0;
   V3.lamps = [];
-  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Shade(); v3Deco();
+  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Water(); v3Shade(); v3Deco();
   for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; P.mesh.instanceColor.needsUpdate = true; }
   r.render(V3.scene, V3.cam);
+  v3Info();
+}
+// what the flat map writes over buildings and our units — construction, health, the next unit; health dots, fuel /
+// water / ammunition lights, ⟲, Trophy, reload, riders, the Star of David — by its own functions (drawStructInfo,
+// unitInfo, healthDot, fuelGauge) on the 2D canvas over the 3D one, placed for each so that its spot lands on the
+// screen where its model stands (and scaled as the ground is there)
+function v3Info() {
+  const c = ctx, dpr = fit ? fit.dpr : 1, P = v3Tmp.ip || (v3Tmp.ip = new THREE.Vector3()), W = V3.w, H = V3.h;
+  const scr = (x, y, h) => { P.set(x, Sim.elevAt(s, { x, y }) * V3_LV + h, y).project(V3.cam); return [(P.x + 1) / 2 * W, (1 - P.y) / 2 * H, P.z]; };
+  const put = (x, y, h) => {
+    const a = scr(x, y, h); if (a[2] > 1 || a[0] < -60 || a[0] > W + 60 || a[1] < -60 || a[1] > H + 60) return false;
+    const b = scr(x + 10, y, h), k = Math.hypot(b[0] - a[0], b[1] - a[1]) / 10;
+    c.setTransform(k * dpr, 0, 0, k * dpr, (a[0] - x * k) * dpr, (a[1] - y * k) * dpr); return true;
+  };
+  c.save(); c.textAlign = 'center';
+  for (const n of s.nodes) if (n.kind !== 'drone' && n.hp > 0 && nodeShown(n) && put(n.x, n.y, 0)) drawStructInfo(c, n);
+  const whole = s.fog ? new Set(s.squads.filter(q => q.side === 'blue' && sqShown(q)).map(q => q.id)) : null;
+  for (const u of s.units) {
+    if (u.side !== 'blue' || (s.fog && !(whole.has(u.squad) && shownAt(u)))) continue;
+    const T = Sim.TYPES[u.type]; if (!put(u.x, u.y, T.air ? V3_AIR - SIZE[u.type] * 0.6 : SIZE[u.type] * 0.35)) continue; // (an aircraft's marks: nearer its body — they float high over a big one)
+    unitInfo(c, u); healthDot(c, u); fuelGauge(c, u);
+    if (sel !== 'all' && sel != null && isSel(u.squad) && hurtUnit(u)) starOfDavid(c, u.x, u.y - SIZE[u.type] * (T.air ? 1.2 : 1.05) - 9 / view.css);
+  }
+  c.restore(); c.setTransform(1, 0, 0, 1, 0, 0);
 }
