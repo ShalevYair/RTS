@@ -14,6 +14,8 @@ const V3 = { on: false, cv: null, r: null, scene: null, cam: null, sun: null, gr
 // V3_AIR: how high the aircraft fly; V3_FOOT: soldiers drawn this much bigger (as small as on the flat map they're
 // lost on the slanting ground)
 const V3_FALL = 12, V3_LV = 18, V3_PITCH = 50 * Math.PI / 180, V3_FOV = 40, V3_TEX = 4096, V3_AIR = 70, V3_FOOT = 1.6;
+// (the 3D view wanted: by default yes; irts-3d = '0' — the flat map; under automation — the UI tests — no, unless irts-3d = '1')
+function v3Want() { try { const v = localStorage.getItem('irts-3d'); return v === '1' || (v !== '0' && !navigator.webdriver); } catch (e) { return !navigator.webdriver; } }
 function v3Toggle() {
   if (V3.on) { v3Show(false); return; }
   if (window.THREE) { v3Show(true); return; }

@@ -365,7 +365,7 @@ document.addEventListener('keydown', e => {
   if (e.target.closest('input,textarea')) return;
   if (e.ctrlKey && e.shiftKey && e.code === 'KeyL') { e.preventDefault(); saveLog(); return; } // (the log, as a file)
   if (e.key === 'F8') { e.preventDefault(); Prof.toggle(); return; } // (the speed, live: prof.js)
-  if (e.key === 'F9') { e.preventDefault(); v3Toggle(); return; } // (the 3D view, an experiment: three3d.js)
+  if (e.key === 'F9') { e.preventDefault(); const was = V3.on; v3Toggle(); try { localStorage.setItem('irts-3d', was ? '0' : '1'); } catch (er) { /* ignore */ } return; } // (the 3D view ↔ the flat map, remembered: three3d.js)
   if (tour) { if (e.key === 'Escape') tourNext(true); else if (e.key === 'Enter' || e.key === ' ' || e.key.startsWith('Arrow')) { e.preventDefault(); tourNext(); } return; }
   if (!$('intro').hidden) { if (e.key === 'Escape') $('go').click(); return; }
   if (!$('end').hidden) return;
