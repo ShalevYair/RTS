@@ -498,6 +498,9 @@ const specOf = (s, kind) => (s.logi && LOGI_STRUCTS[kind]) || STRUCTS[kind];
 // 120 / 90 s, and the anti-aircraft brought them down), and it did ~10% of the damage. Not in the others: there more
 // aircraft made the bot games longer (fewer finished in 50 min — tests/sim/map.js)
 const ARMS_EVERY = { airfield: 80 / 120, heliatk: 60 / 90, heligun: 60 / 90, tankshop: 80 / 60 }; // (and the armour slower: it was the strongest arm — a tank every 80 s, not 60)
+// Arms games: the armour a little weaker too — a tank takes ×ARMS_TANK_HIT of direct fire and deals ×ARMS_TANK_DMG (still the strongest arm after the slower tanks).
+const ARMS_TANK_HIT = 1.1, ARMS_TANK_DMG = 0.9;
+const armsK = (s, u, hit) => s.arms ? (u.type === 'tank' ? ARMS_TANK_DMG : 1) * (hit.type === 'tank' ? ARMS_TANK_HIT : 1) : 1;
 const everyOf = (s, kind, S) => S.every * (s.arms && ARMS_EVERY[kind] || 1);
 // jams (the player's units): a moving unit pushes a standing one of ours aside (gets PUSH_THROUGH of the push, of 2);
 // one within ARRIVE_NEAR of its place, blocked (ARRIVE_STUCK s), touching one that has arrived there has arrived too, and stays so while its place
