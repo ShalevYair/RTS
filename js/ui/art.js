@@ -363,7 +363,7 @@ if (typeof SPRITES === 'object' && SPRITES.truck && !SPRITES.watertruck) SPRITES
 // (the tanker: the plane's picture, a bit bigger — art/tanker.jpg if there's one)
 if (typeof SPRITES === 'object' && SPRITES.air && !SPRITES.tanker) SPRITES.tanker = SPRITES.air;
 for (const k in (typeof SPRITES === 'object' ? SPRITES : {})) {
-  const im = new Image(); im.onload = () => { sprite.img[k] = im; sqKey = ''; artCache.clear(); if (k.startsWith('d_')) bg.key = ''; try { nameBuildMenu(); } catch (e) { /* not up yet */ } }; im.src = SPRITES[k].src;
+  const im = new Image(); im.onload = () => { sprite.img[k] = im; sqKey = ''; artCache.clear(); if (k.startsWith('d_')) bg.key = ''; try { nameBuildMenu(); } catch (e) { /* not up yet */ } try { drawArmTiles(); } catch (e) { /* not up yet */ } }; im.src = SPRITES[k].src;
 }
 function spritePic(k, col) {
   const key = k + col; let p = sprite.pic.get(key); if (p) return p;

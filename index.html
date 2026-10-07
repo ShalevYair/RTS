@@ -72,9 +72,11 @@
       <h1 id="introT" data-t="title"></h1>
       <p class="menuSub" data-t="menuSub"></p>
       <button id="go" data-al="go"><span id="goT" data-t="playGame"></span></button>
+      <div class="armTiles" role="group" data-al="armsRow"><button class="armTile" data-arm="armor" data-tip="arm_armor"><canvas width="200" height="130" aria-hidden="true"></canvas><span data-t="armN_armor"></span></button><button class="armTile" data-arm="infantry" data-tip="arm_infantry"><canvas width="200" height="130" aria-hidden="true"></canvas><span data-t="armN_infantry"></span></button><button class="armTile" data-arm="air" data-tip="arm_air"><canvas width="200" height="130" aria-hidden="true"></canvas><span data-t="armN_air"></span></button><button class="armTile" data-arm="guns" data-tip="arm_guns"><canvas width="200" height="130" aria-hidden="true"></canvas><span data-t="armN_guns"></span></button></div>
       <p class="turn" data-al="turn">📱↻</p>
     </div>
-    <aside class="menuSide" id="menuSide">
+    <button id="menuGear" class="icon" aria-expanded="false" data-al="more">⚙</button>
+    <aside class="menuSide" id="menuSide" hidden>
       <div class="sideSec" id="sideMain">
         <div class="mrow"><span data-t="language"></span><button data-lang="he">עברית</button><button data-lang="en">English</button></div>
         <div id="freeOpts">
@@ -82,7 +84,6 @@
         <div class="mrow"><span data-t="mapSize"></span><button data-map="small" data-t="small" data-tip="tipSmall"></button><button data-map="big" data-t="big" data-tip="tipBig"></button><button data-map="huge" data-t="huge" data-tip="tipHuge"></button></div>
         <div class="mrow"><span data-t="diff"></span><button data-diff="easy"></button><button data-diff="normal"></button><button data-diff="hard"></button></div>
         <div class="mrow foeRow"><span data-t="foeStyle"></span><button data-foe="random" data-tip="foe_random">🎲</button><button data-foe="steady" data-tip="foe_steady">⚖️</button><button data-foe="missile" data-tip="foe_missile">🚀</button><button data-foe="tanks" data-tip="foe_tanks">🛡️</button><button data-foe="infantry" data-tip="foe_infantry">🪖</button><button data-foe="vehicles" data-tip="foe_vehicles">🚙</button><button data-foe="air" data-tip="foe_air">✈️</button><button data-foe="commando" data-tip="foe_commando">🗡️</button></div>
-        <div class="mrow foeRow armRow"><span data-t="armsRow" data-tip="arms_tip"></span><button data-arm="armor" data-tip="arm_armor">🛡️</button><button data-arm="infantry" data-tip="arm_infantry">🪖</button><button data-arm="air" data-tip="arm_air">✈️</button><button data-arm="guns" data-tip="arm_guns">💥</button></div>
         </div>
         <div class="mrow"><span data-t="speed"></span><button data-rate="0.5" data-t="slow"></button><button data-rate="1" data-t="normalRate"></button><button data-rate="2" data-t="fast"></button></div>
         <div class="sideBtns">
