@@ -328,7 +328,7 @@ const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
 // forward HQs: a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
 const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
-const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'howshop', 'airfield', 'tankerbase', 'jeepat', 'garage', 'domesite', 'mlrsshop', 'heliatk', 'tankshop', 'heligun', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost', 'helilift'], AI_READY = 0.6;
+const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'howshop', 'airfield', 'heliatk', 'jeepat', 'garage', 'mlrsshop', 'tankerbase', 'heligun', 'domesite', 'tankshop', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost', 'helilift'], AI_READY = 0.6;
 // the AI's commander (style), picked per game for red from the seed or in the main menu (blue bots play 'steady'):
 // what it builds (plan), how worn a squad may be and still attack (ready), and how it goes about it. (The rusher, the
 // turtle and the flanker are gone: the turtle hardly ever won, and the other two weren't much of a difference.)
@@ -488,6 +488,11 @@ const TANKER_T = 600, TANKER_CAP = 8, TANKER_R = 45, TANKER_FILL = 0.25, BINGO_P
 const LOGI_SPEC = { every: 120, size: 2, keep: 2, max: 2, free: true, first: true, value: 0 }; // (value 0: not in the power — structures.js)
 const LOGI_STRUCTS = Object.fromEntries(['depot', 'fuelst', 'waterst'].map(k => [k, { ...STRUCTS[k], ...LOGI_SPEC }]));
 const specOf = (s, kind) => (s.logi && LOGI_STRUCTS[kind]) || STRUCTS[kind];
+// arms games (s.arms): the air force builds faster — its buildings went up, but hardly an aircraft came out (one a
+// 120 / 90 s, and the anti-aircraft brought them down), and it did ~10% of the damage. Not in the others: there more
+// aircraft made the bot games longer (fewer finished in 50 min — tests/sim/map.js)
+const ARMS_EVERY = { airfield: 80 / 120, heliatk: 60 / 90, heligun: 60 / 90 };
+const everyOf = (s, kind, S) => S.every * (s.arms && ARMS_EVERY[kind] || 1);
 // jams (the player's units): a moving unit pushes a standing one of ours aside (gets PUSH_THROUGH of the push, of 2);
 // one within ARRIVE_NEAR of its place, blocked (ARRIVE_STUCK s), touching one that has arrived there has arrived too, and stays so while its place
 // stays the same and it's within ARRIVE_LEAVE of it — pushed off, it walks back once none of ours has touched it for
