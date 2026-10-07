@@ -18,7 +18,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.click('#go'); await p.waitForTimeout(400);
     const st = () => p.evaluate(() => ({ W: s.W, H: s.H, hills: s.hills.length, cam: { ...cam }, px: view.css, mini: !document.getElementById('mini').hidden, orders: s.outbox.length + s.log.filter(e => /קיבלתי|כל הכוחות/.test(e.msg)).length }));
     const a = await st();
-    check(name, pressed === 'true' && a.H === 1280 && a.W >= 2000 && a.hills > 12, `big map by default: ${a.W}×${a.H}, ${a.hills} hills`);
+    check(name, pressed === 'true' && a.H === 2560 && a.W >= 4000 && a.hills > 40, `big map by default: ${a.W}×${a.H}, ${a.hills} hills`);
     check(name, Math.abs(a.px - 1.5) < 0.01 && a.cam.z > 1 && a.mini, `opens zoomed in (1.5 px per unit — WORLD_K, ×${a.cam.z.toFixed(1)}) with the minimap`);
     await p.screenshot({ path: `${OUT}/${name}-big.png` });
     // middle-drag pans (no order), a tap orders
@@ -55,19 +55,19 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const m = await st(); check(name, m.cam.x > m.W * 0.6, `minimap tap looks there (x ${m.cam.x.toFixed(0)} of ${m.W})`);
     await p.evaluate(() => { setPlaying(true); }); await p.waitForTimeout(1500);
     await p.screenshot({ path: `${OUT}/${name}-big-enemy.png` });
-    // the small map is still there, fully on screen, no minimap
+    // the small map: what was the big one (2× the old small one each way), with the minimap
     await p.evaluate(() => { setPlaying(false); newGame(); });
     await p.click('[data-map="small"]'); await p.waitForTimeout(300);
     await p.click('#go'); await p.waitForTimeout(400);
     const sm = await st();
-    check(name, sm.H === 640 && sm.cam.z === 1 && !sm.mini, `small map: ${sm.W}×${sm.H}, whole map on screen, no minimap`);
+    check(name, sm.H === 1280 && sm.W >= 2000 && sm.mini, `small map: ${sm.W}×${sm.H}, minimap`);
     await p.screenshot({ path: `${OUT}/${name}-small.png` });
-    // the huge map: 4× the big one; it still runs smoothly (frames counted over 2 s of play)
+    // the huge map: 2× the big one each way (8× the old small one); it still runs smoothly (frames counted over 2 s of play)
     await p.evaluate(() => { setPlaying(false); newGame(); });
     await p.click('[data-map="huge"]'); await p.waitForTimeout(300);
     const t0 = await p.evaluate(() => performance.now()); await p.click('#go'); await p.waitForTimeout(400);
     const hg = await p.evaluate(async () => { let n = 0; const t = performance.now(); await new Promise(r => { const f = () => { n++; if (performance.now() - t < 2000) requestAnimationFrame(f); else r(); }; requestAnimationFrame(f); }); return { W: s.W, H: s.H, fps: Math.round(n / 2), mini: !document.getElementById('mini').hidden, pressed: document.querySelector('[data-map="huge"]').getAttribute('aria-pressed') }; });
-    check(name, hg.W >= 4000 && hg.H === 2560 && hg.mini && hg.fps >= 25, `huge map: ${hg.W}×${hg.H}, ${hg.fps} fps, minimap`);
+    check(name, hg.W >= 8000 && hg.H === 5120 && hg.mini && hg.fps >= 25, `huge map: ${hg.W}×${hg.H}, ${hg.fps} fps, minimap`);
     await p.screenshot({ path: `${OUT}/${name}-huge.png` });
     await p.evaluate(() => { try { localStorage.removeItem('irts-map'); } catch (e) { /* ignore */ } });
     check(name, !errs.length, 'no errors ' + JSON.stringify(errs));

@@ -17,7 +17,7 @@ function makePosts(s) {
   const twin = p => ({ x: W - p.x, y: s.turn ? H - p.y : p.y });
   const add = (kind, p) => out.push({ id: 'p' + out.length, kind, x: Math.round(p.x), y: Math.round(p.y), side: null });
   for (const kind of Object.keys(POSTS)) {
-    const P = POSTS[kind], n = P.n[col], R = P.r;
+    const P = POSTS[kind], n = P.n[col] * (s.scale >= 8 && P.n[col] > 1 ? 2 : 1), R = P.r; // (the 8× map: twice the huge one's pairs)
     if (n === 1) {
       for (let i = 0; i < 300; i++) {
         const mid = kind === 'radar' && i < 150, p = { x: W / 2 + (r() - 0.5) * 30, y: H * (mid ? 0.35 + r() * 0.3 : 0.1 + r() * 0.8) };

@@ -10,7 +10,7 @@ const H = 640;
 // map size (DESIGN.md §5): the small map is H high; the big one 2× wide and 2× high. No hill within HILL_CLEAR of
 // either edge (the bases).
 // (the huge map: 2× the big one each way, so up to 6000×2800)
-const MAP_H_MAX = 2800, MAP_W_MAX = 6000, HILL_CLEAR = 240;
+const MAP_H_MAX = 5200, MAP_W_MAX = 12000, HILL_CLEAR = 240;
 // height, in contour lines (0 = the plain, hills up to HILL_LEVELS), on a grid every ELEV_CELL. A ground unit gets
 // ELEV_SIGHT more sight and ELEV_RANGE more range per line it stands on; climbing slows it and going down speeds it up, by
 // SLOPE_K per line climbed per unit walked, at most SLOPE_MAX. Aircraft don't care.

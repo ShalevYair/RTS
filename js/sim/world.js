@@ -39,7 +39,7 @@ function makeTerrain(s) {
   };
   // basins: a ring of ridges round a hollow, broken by passes; a lake in the middle
   // (the huge map, 4× the big one's area: 4× the basins and single ridges)
-  const huge = h > 2 * H * 1.5, nb = huge ? 8 : big ? 2 : 1, room = cx - clear;
+  const huge = h > 2 * H * 1.5, x4 = h > 4 * H * 1.5 ? 4 : 1, nb = (huge ? 8 : big ? 2 : 1) * x4, room = cx - clear; // (x4: the 8× map, 4× the huge one's area)
   for (let b = 0, tries = 0; b < nb && tries < 60 * nb; tries++) {
     const Rb = clamp(room * (big ? 0.3 : 0.5), 100, 300) * (0.85 + r() * 0.25);
     const c = { x: clear + Rb * 0.8 + r() * Math.max(1, room - Rb * 1.3), y: Rb + r() * Math.max(1, h - 2 * Rb) };
@@ -59,8 +59,8 @@ function makeTerrain(s) {
     }
   }
   // a few long single ridges and low hills elsewhere, clear of the basins
-  const singles = huge ? 24 : big ? 6 : 2 + Math.floor(r() * 2);
-  for (let i = 0, n = 0; i < 400 * (huge ? 4 : 1) && n < singles; i++) {
+  const singles = (huge ? 24 : big ? 6 : 2 + Math.floor(r() * 2)) * x4;
+  for (let i = 0, n = 0; i < 400 * (huge ? 4 : 1) * x4 && n < singles; i++) {
     const len = (big ? 90 : 60) + r() * (big ? 100 : 60), f = hill(clear + len * 0.6 + r() * Math.max(1, room - len), len * 0.5 + r() * (h - len), len, 0.35 + r() * 0.3, r() * Math.PI, 1 + Math.pow(r(), 1.5) * 7);
     if (hills.some(o => Math.hypot(o.x - f.x, o.y - f.y) < (o.r + len) * 0.75)) continue;
     if (addPair(f)) n++;
@@ -93,10 +93,10 @@ function makeElevation(s) {
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const e = hillHeight(f, i * ELEV_CELL, j * ELEV_CELL); if (e > g[j * gw + i]) g[j * gw + i] = e; }
   }
   // lakes are flat; the ground flattens out toward either edge, so the bases always stand on the plain
-  const clear = s.H > H ? HILL_CLEAR : clamp(0.2 * s.W, 140, HILL_CLEAR);
+  const clear = s.H > H ? HILL_CLEAR : clamp(0.2 * s.W, 140, HILL_CLEAR); const lakeBox = s.lakes.map(l => [l, (Math.max(l.rx, l.ry) + 4) * 1.3]);
   for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
     const k = j * gw + i, x = i * ELEV_CELL; if (!g[k]) continue;
-    if (lakeAt(s, { x, y: j * ELEV_CELL }, 4)) { g[k] = 0; continue; }
+    const y = j * ELEV_CELL; if (lakeBox.some(([l, R]) => Math.abs(x - l.x) < R && Math.abs(y - l.y) < R && lakeK(l, { x, y }, 4) < 1)) { g[k] = 0; continue; } // (only the lakes near: the 8× map has 60)
     const edge = Math.min(x, s.W - x); if (edge < clear) g[k] *= clamp((edge - clear * 0.5) / (clear * 0.5), 0, 1);
   }
   s.elev = { w: gw, h: gh, g };
@@ -154,7 +154,7 @@ function create(seed = 1, W = 1000, diff = 'normal', mapH = H, opts = {}) {
     diff: diff in DIFFS ? diff : 'normal', bots: ['red'], singles: !!opts.singles, botDiff: 'normal', aiFhq: { blue: null, red: null }, supply: true, fallen: [], night: true };
   s.log2.unclear = 0;
   // bigger maps allow more: the big one 2× the buildings and forward HQs, the huge one 4×
-  s.scale = h > 2 * H * 1.5 ? 4 : h > H ? 2 : 1;
+  s.scale = h > 4 * H * 1.5 ? 8 : h > 2 * H * 1.5 ? 4 : h > H ? 2 : 1; // (8: the huge map — 8× the small one each way)
   // the enemy's style: from the seed, on its own stream
   const st = Object.keys(AI_STYLES);
   s.style = { blue: 'steady', red: st[Math.floor(rng(seed ^ 0x2545f491)() * st.length)] };

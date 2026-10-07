@@ -675,6 +675,7 @@ function v3ScenChunk(key) {
   const [ci, cj] = key.split(',').map(Number), by = new Map(), o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), list = [], tint = v3Tmp.tint || (v3Tmp.tint = new THREE.Color());
   for (const e of v3ScenList(ci, cj)) { let l = by.get(e[0]); if (!l) by.set(e[0], l = []); l.push(e); }
   for (const [model, l] of by) {
+    l.sort((p, q) => ((p[1] * 7.31 + p[2] * 3.17) % 1) - ((q[1] * 7.31 + q[2] * 3.17) % 1)); // (a shuffle, the same every time: a far view shows the first share of them, v3ScenLod)
     const mesh = new THREE.InstancedMesh(v3Geo(model, 'hull', 'scen'), V3.scenMat || (V3.scenMat = v3Leafy(v3Shaded(new THREE.MeshLambertMaterial({ vertexColors: true })))), l.length);
     l.forEach(([, x, y, a, w], i) => {
       const tall = model.startsWith('tree') ? Math.min(V3_TREE_H, V3_TREE_MAX / MODELS[model].size[1]) : 1; // (the tall thin ones: no higher than V3_TREE_MAX × wide — they hid all round them)
@@ -682,13 +683,22 @@ function v3ScenChunk(key) {
       const h = j => { const v = Math.sin(x * 12.9898 + y * 78.233 + j * 37.72) * 43758.5453; return v - Math.floor(v); }, k = 0.82 + h(0) * 0.3; // (each a little lighter or darker,
       mesh.setColorAt(i, tint.setRGB(k * (1 + (h(1) - 0.5) * 2 * V3_SCEN_HUE), k * (1 + (h(2) - 0.5) * 2 * V3_SCEN_HUE), k * (1 + (h(3) - 0.5) * 2 * V3_SCEN_HUE))); // and each of R, G, B up to ±V3_SCEN_HUE)
     });
-    mesh.castShadow = mesh.receiveShadow = true; mesh.computeBoundingSphere(); V3.scene.add(mesh); list.push(mesh);
+    mesh.castShadow = mesh.receiveShadow = true; mesh.computeBoundingSphere(); mesh.userData = { n: l.length, tree: model.startsWith('tree') }; V3.scene.add(mesh); list.push(mesh);
   }
-  sc.chunks.set(key, list);
+  sc.chunks.set(key, list); sc.lod = -1;
+}
+// far out (the view V3_FAR wide or more — the big maps whole): no shadows from the scenery, no bushes or rocks (a pixel
+// each), and a share of the trees (the woods still woods) — the 8× map's 60,000 trees, all on the screen, halved the frame rate
+const V3_FAR = 2600, V3_FAR_MIN = 0.3;
+function v3ScenLod(sc) {
+  const w = V3.box ? V3.box.w : 0, f = w <= V3_FAR ? 1 : Math.max(V3_FAR_MIN, (V3_FAR / w) ** 1.5), k = Math.round(f * 20);
+  if (sc.lod === k) return; sc.lod = k;
+  for (const l of sc.chunks.values()) for (const m of l) { m.count = f >= 1 ? m.userData.n : m.userData.tree ? Math.ceil(m.userData.n * f) : 0; m.castShadow = f >= 1; }
 }
 function v3Scenery() {
   if (!v3HasScen()) return;
   let sc = V3.sc;
+  if (sc) v3ScenLod(sc);
   if (!sc || sc.of !== decor || sc.low !== gfxLow) { // (a new map: all of it, its squares made a few a frame)
     if (sc) for (const l of sc.chunks.values()) for (const m of l) { V3.scene.remove(m); m.dispose(); }
     const cells = new Map();

@@ -15,7 +15,7 @@ const hqOf = (s, side) => s.nodes.find(n => n.side === side && n.kind === 'hq' &
 // (× s.scale: the big map 2×, the huge one 4×)
 // (a bigger map: a bigger base allowance, but each HQ / forward HQ still adds the same)
 // (arms: each player its own allowance — and red, the computer alone for all four arms, twice it)
-const buildLimit = (s, side) => (s.arms && side === 'red' ? 2 : 1) * (BUILD_BASE * (s.scale || 1) + BUILD_PER_NODE * alive(s, side, ['hq', 'fhq']).filter(n => s.t >= n.ready).length);
+const buildLimit = (s, side) => (s.arms && side === 'red' ? 2 : 1) * (BUILD_BASE * Math.min(4, s.scale || 1) + BUILD_PER_NODE * alive(s, side, ['hq', 'fhq']).filter(n => s.t >= n.ready).length);
 // (who: a building kind, or 'me' / 'mate' — with arms, only that player's buildings count)
 const buildCount = (s, side, who) => { const w = !s.arms || side !== 'blue' || !who ? null : who === 'me' || who === 'mate' ? who : armSide(s, side, who); return alive(s, side, PRODUCERS.filter(k => !specOf(s, k).free)).filter(n => !w || armSide(s, side, n.kind) === w).length; }; // (free: the supply buildings, past the allowance)
 // arms: whose a building kind / unit type on this side is — 'me' (the player's arms), 'mate' (the computer partner's);
