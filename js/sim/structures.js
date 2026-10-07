@@ -44,7 +44,7 @@ function buildCheck(s, side, x, y, kind) {
   return '';
 }
 // a building of this kind at (x, y) would stand on another one (footprints closer than BUILD_GAP)
-const crowded = (s, kind, x, y) => s.nodes.some(n => n.kind !== 'drone' && n.hp > 0 && dist(n, { x, y }) < STRUCTS[n.kind].r + (STRUCTS[kind] || STRUCTS.tent).r + BUILD_GAP);
+const crowded = (s, kind, x, y) => s.nodes.some(n => n.kind !== 'drone' && n.hp > 0 && dist(n, { x, y }) < roomOf(s, n.kind) + roomOf(s, kind));
 // want: the bulldozer asked to build it (else the nearest free one)
 function build(s, side, kind, x, y, want) {
   if (s.over || !BUILDABLE.includes(kind) || (s.builds && !s.builds.includes(kind)) || (kind === 'decoy' && s.level) || buildCheck(s, side, x, y, kind)) return false;

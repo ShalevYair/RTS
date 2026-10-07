@@ -224,7 +224,9 @@ for (const a in ARMS) for (const k of [...ARMS[a].builds, ...(ARMS[a].also || []
 // no shot for REPAIR_QUIET s, not off for care or ammunition): REPAIR_RATE hp/s each (a mechanic REPAIR_MECH times
 // that), counting up to REPAIR_MAX of them
 const REPAIR_R = 70, REPAIR_RATE = 3, REPAIR_MECH = 3, REPAIR_MAX = 8, REPAIR_QUIET = 4;
-// BUILD_GAP: the room kept between two buildings' footprints
+// BUILD_GAP: the room kept between two buildings' footprints (the tutorial); BUILD_ROOM: in the full game, the ground
+// each building claims — a ring of BUILD_ROOM × r (its picture is 2.4r square: claimed ≈ 1.5 × the ground it covers)
+const BUILD_ROOM = 1.66, roomOf = (s, k) => (STRUCTS[k] || STRUCTS.tent).r * (s.dozers ? BUILD_ROOM : 1) + (s.dozers ? 0 : BUILD_GAP / 2);
 const BUILD_MIN_Q = 0.5, BUILD_BASE = 2, BUILD_PER_NODE = 2, BUILD_GAP = 12, STRUCT_SIGHT = 240;
 // nothing drives through a building: ground units are kept its STRUCTS r from its centre.
 // Units keep UNIT_GAP between them. A tank that runs into enemy soldiers (FOOT) crushes them, CRUSH_DPS a second.

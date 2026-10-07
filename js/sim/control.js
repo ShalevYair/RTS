@@ -109,7 +109,12 @@ function fhqTrips(s) {
 }
 // at: the spot it was sent to (else where the squad stands); queued: a bulldozer's site, after its other jobs
 function setUpFhq(s, sq, at, queued) {
-  const p = at || { x: sq.cx, y: sq.cy };
+  let p = at || { x: sq.cx, y: sq.cy };
+  if (crowded(s, 'fhq', p.x, p.y)) { // (set up where the squad stands — the computer's — on a building: the nearest free ground)
+    let best = null;
+    for (let d = 20; d <= 240 && !best; d += 20) for (let a = 0; a < 2 * Math.PI && !best; a += 0.5) { const q = { x: clamp(p.x + Math.cos(a) * d, 20, s.W - 20), y: clamp(p.y + Math.sin(a) * d, 20, s.H - 20) }; if (!crowded(s, 'fhq', q.x, q.y) && !lakeAt(s, q)) best = q; }
+    if (best) p = best;
+  }
   if (s.dozers) { const n = addStruct(s, sq.side, 'fhq', p.x, p.y); n.ready = Infinity; n.work = 0; n.need = NODES.fhq.warm; assignSite(s, sq, n, !queued); }
   else addStruct(s, sq.side, 'fhq', p.x, p.y).ready = s.t + NODES.fhq.warm;
   report(s, sq, queued ? 'פיקוד קדמי ברשימת העבודה' : 'מקימים פיקוד קדמי');
