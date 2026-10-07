@@ -164,6 +164,7 @@ function drawSmoke(c) {
   c.globalAlpha = 1;
 }
 // (new puffs for the time that passed, the old ones gone — the 3D view draws the same smoke: three3d.js)
+const RUIN_SMOKE = 60; // (a destroyed building's ruin smokes this long, s)
 function smokeTick() {
   const dt = artT === null || s.t < artT ? 0 : Math.min(0.1, s.t - artT); artT = s.t;
   if (dt > 0) {
@@ -176,6 +177,7 @@ function smokeTick() {
       if (Math.random() < dt * [0.8, 2.2, 4.5][lvl]) puff(u.x, u.y - 3, lvl > 0, [0.6, 0.9, 1.25][lvl]);
     }
     for (const f of s.fallen) if (CAR.has(f.type) && s.t - f.t < 10 && (!s.fog || shownAt(f)) && Math.random() < dt * 5) puff(f.x, f.y - 2, true, 1.3);
+    for (const r of s.ruins || []) { const a = s.t - r.t; if (a < RUIN_SMOKE && (!s.fog || shownAt(r)) && Math.random() < dt * 4 * (1 - a / RUIN_SMOKE)) puff(r.x + (Math.random() - 0.5) * 20, r.y - 4, true, 1.6); } // (a ruin smoulders, less and less)
     for (const n of s.nodes) {
       if (n.kind === 'drone' || !nodeShown(n)) continue;
       const S = Sim.STRUCTS[n.kind];
