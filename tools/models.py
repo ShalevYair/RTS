@@ -35,7 +35,7 @@ TRACK_F = 8  # poses of a running track
 SLIM_TRI = 5000  # a slimmed model's triangles
 # materials painted again (sRGB): the Nature Kit's teal leaves and orange bark, in the map's own greens and browns
 RECOLOR = {'leafsgreen': '#5a8a32', 'leafsdark': '#3f6a2c', 'grass': '#6c8c3a', 'woodbark': '#6e4c30', 'woodbarkdark': '#4f3a26',
-           'dirt': '#8c8476', 'stone': '#8e8b85'}
+           'dirt': '#8c8476', 'stone': '#8e8b85', 'leafspine': '#2f5a30', 'leafsolive': '#5f7044'}  # (and tools/build_trees.py's pine and olive)
 def linear(h):
     c = np.array([int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)])
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)

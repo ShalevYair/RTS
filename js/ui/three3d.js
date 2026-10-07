@@ -643,9 +643,8 @@ function v3Fx() {
 // V3_CHUNK, a mesh for each model in each (so what's off screen, or out of the sun's shadow box, isn't drawn), made
 // again only when something in it is cleared, run over or cut. ----
 const V3_SCEN = {
-  tree: ['tree_oak', 'tree_default', 'tree_detailed', 'tree_fat', 'tree_pineRoundB', 'tree_cone', 'tree_pineTallA', 'tree_pineRoundD', 'tree_pineSmallB',
-    'tree_plateau', 'tree_simple', 'tree_small', 'tree_tall', 'tree_thin', 'tree_blocks', 'tree_pineDefaultA', 'tree_oak_dark'],
-  bush: ['bush_a', 'bush_b', 'plant_bushLarge', 'plant_bushDetailed', 'plant_bushSmall'], rock: ['rock_smallC', 'rock_largeA', 'rock_smallF', 'stone_largeB'],
+  tree: ['tree_gen1', 'tree_gen2', 'tree_gen3', 'tree_genolive1', 'tree_genolive2', 'tree_genpine1', 'tree_genpine2', 'tree_genpoplar'], // (built in code — tools/build_trees.py)
+  bush: ['bush_gen1', 'bush_gen2', 'bush_gen3'], rock: ['rock_smallC', 'rock_largeA', 'rock_smallF', 'stone_largeB'],
   rockHi: ['rock_largeA', 'rock_tallB', 'rock_smallC', 'rock_largeC', 'rock_tallE'],
 };
 const V3_SCEN_K = { tree: 0.8, bush: 1.1, rock: 0.9 }, V3_TREE_H = 0.75, V3_TREE_MAX = 2.0, V3_CHUNK = 512;
