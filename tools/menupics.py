@@ -11,7 +11,18 @@ SRC, OUT, MAX_W = ROOT / 'art' / 'menu', ROOT / 'js' / 'ui' / 'menupics.js', 520
 LIGHT, GREY, HOLE = 196, 22, 1500  # (background: every channel above LIGHT, and channels within GREY of each other)
 
 def cut(path):
-    im = Image.open(path).convert('RGB'); a = np.asarray(im).astype(int)
+    im = Image.open(path).convert('RGB')
+    try:  # (rembg, when installed: any background — sky, ground; else only a white studio one)
+        from rembg import remove
+        out = remove(im)
+    except ImportError:
+        out = white(im)
+    box = out.getchannel('A').point(lambda v: 255 if v > 20 else 0).getbbox(); out = out.crop(box)
+    if out.width > MAX_W: out = out.resize((MAX_W, round(out.height * MAX_W / out.width)), Image.LANCZOS)
+    buf = io.BytesIO(); out.save(buf, 'WEBP', quality=88); return out, buf.getvalue()
+
+def white(im):
+    a = np.asarray(im).astype(int)
     lo, hi = a.min(2), a.max(2)
     bgish = (lo > LIGHT) & (hi - lo < GREY)
     lab, n = ndimage.label(bgish)
@@ -19,10 +30,7 @@ def cut(path):
     edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
     bg = np.isin(lab, list(edge | {i for i in range(1, n + 1) if sizes[i] > HOLE}))  # (and big closed pockets: under the barrel)
     alpha = Image.fromarray(np.where(bg, 0, 255).astype(np.uint8)).filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(1.2))
-    out = im.convert('RGBA'); out.putalpha(alpha)
-    box = out.getchannel('A').point(lambda v: 255 if v > 20 else 0).getbbox(); out = out.crop(box)
-    if out.width > MAX_W: out = out.resize((MAX_W, round(out.height * MAX_W / out.width)), Image.LANCZOS)
-    buf = io.BytesIO(); out.save(buf, 'WEBP', quality=88); return out, buf.getvalue()
+    out = im.convert('RGBA'); out.putalpha(alpha); return out
 
 def main():
     pics = {}
