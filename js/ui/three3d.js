@@ -172,10 +172,41 @@ const V3_LEN = { tank: 1.75, jeep: 1.25, ajeep: 1.25, tjeep: 1.25, air: 1.3, tan
 const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
   const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
-  const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), V3.vcol || (V3.vcol = new THREE.MeshLambertMaterial({ vertexColors: true })), 64);
+  const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), V3.vcol || (V3.vcol = v3Camo(new THREE.MeshLambertMaterial({ vertexColors: true }))), 64);
   mesh.castShadow = mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
   mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3);
   V3.scene.add(mesh); P = { mesh, w: 1, h: 1, ox: 0, oy: 0, n: 0 }; V3.pics.set(key, P); return P;
+}
+// ---- camouflage: each unit's paint (its `team` part) in a pattern of its own, worked out on the card from where on
+// the model a point is (so it stays on the unit as it moves) — none, spots, tiger stripes, or squares (digital). Which
+// one and its seed come in the instance's colour: green < 0 = -(pattern + seed), red = the tint (as without it). The
+// side's colour stays the base — the pattern only darker and lighter of it, so blue and red still tell at a glance. ----
+const V3_CAMO = 4; // (patterns: 0 plain, 1 spots, 2 stripes, 3 squares)
+function v3CamoOf(u, c) { const p = (u.id * 7 + (u.side === 'red' ? 1 : 0)) % V3_CAMO, sd = ((u.id * 0.6180339) % 1) * 0.98; return p ? c.setRGB(1, -(p + sd), 0) : null; }
+function v3Camo(mat) {
+  mat.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying float vTeam; varying vec2 vPat;')
+      .replace('#include <color_vertex>', `#include <color_vertex>
+      vP3 = position; vTeam = aTeam; vPat = vec2(0.0);
+      #ifdef USE_INSTANCING_COLOR
+      if (instanceColor.g < 0.0) { vPat = vec2(floor(-instanceColor.g), fract(-instanceColor.g)); vColor.xyz = color.xyz * instanceColor.r; }
+      #endif`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      varying vec3 vP3; varying float vTeam; varying vec2 vPat;
+      float v3h(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+      float v3n(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(v3h(i), v3h(i + vec3(1,0,0)), f.x), mix(v3h(i + vec3(0,1,0)), v3h(i + vec3(1,1,0)), f.x), f.y),
+                   mix(mix(v3h(i + vec3(0,0,1)), v3h(i + vec3(1,0,1)), f.x), mix(v3h(i + vec3(0,1,1)), v3h(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      if (vPat.x > 0.5 && vTeam > 0.5) {
+        vec3 q = vP3 + vPat.y * 17.0; float k = 1.0;
+        if (vPat.x < 1.5) { float n = v3n(q * 7.0) * 0.65 + v3n(q * 15.0) * 0.35; k = n < 0.4 ? 0.55 : n > 0.62 ? 1.3 : 1.0; }
+        else if (vPat.x < 2.5) { float w = sin((vP3.x * 1.0 + vP3.z * 0.35 + vP3.y * 0.6) * 34.0 + v3n(q * 6.0) * 5.0); k = w > 0.45 ? 0.5 : 1.08; }
+        else { float n = v3h(floor(q * 22.0)); k = n < 0.3 ? 0.58 : n > 0.75 ? 1.28 : 1.0; }
+        diffuseColor.rgb *= k;
+      }`);
+  };
+  return mat;
 }
 // a model's part as one geometry (its main paint mixed with the side's colour), made once
 function v3Geo(type, part, side) {
@@ -198,6 +229,7 @@ function v3Geo(type, part, side) {
       col[i * 3 + j] = k === 'team' && side !== 'wreck' ? c * (1 - TK) + s2 * TK * 0.55 : c;
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.setAttribute('aTeam', new THREE.BufferAttribute(new Float32Array(n).fill(k === 'team' ? 1 : 0), 1)); // (its paint: where the camouflage goes)
     geo.push(g);
   }
   const all = geo.length > 1 ? v3Merge(geo) : geo[0]; G.set(key, all); return all;
@@ -205,9 +237,9 @@ function v3Geo(type, part, side) {
 // (two geometries of the same attributes, one after the other)
 function v3Merge(gs) {
   const g = new THREE.BufferGeometry();
-  for (const a of ['position', 'normal', 'color']) {
+  for (const a of ['position', 'normal', 'color', 'aTeam']) {
     const parts = gs.map(x => x.getAttribute(a).array), out = new Float32Array(parts.reduce((s2, x) => s2 + x.length, 0)); let o = 0;
-    for (const x of parts) { out.set(x, o); o += x.length; } g.setAttribute(a, new THREE.BufferAttribute(out, 3));
+    for (const x of parts) { out.set(x, o); o += x.length; } g.setAttribute(a, new THREE.BufferAttribute(out, a === 'aTeam' ? 1 : 3));
   }
   return g;
 }
@@ -240,7 +272,7 @@ function v3Run(u, hd) {
 function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, rise = 1, pose = null, kick = 0) {
   const D = MODELS[type], L = len || (D.poses ? V3_MAN / D.size[1] : (SIZE[type] || 10) * (V3_LEN[type] || 1.6)), H = v3Model(type, pose || 'hull', side);
   v3Put(H, v3Lay(x, y, hd, lift, L, L, 0, 0, m, L * rise), tint);
-  if (D.lights && V3.nightK > 0.02 && !tint && !pose) { // (at night: its lamps lit — where they are now)
+  if (D.lights && V3.nightK > 0.02 && !(tint && tint.g >= 0) && !pose) { // (at night: its lamps lit — where they are now)
     const lv = v3Tmp.lv || (v3Tmp.lv = new THREE.Vector3()), A = V3.lamps;
     for (const l of D.lights) { lv.set(l[0], l[1], l[2]).applyMatrix4(m); A.push(lv.x, lv.y, lv.z, V3_LAMP_K.indexOf(l[3])); }
   }
@@ -252,7 +284,7 @@ function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, 
   t.yaw.setFromAxisAngle(t.up, -aim); t.q.setFromUnitVectors(t.up, t.n).multiply(t.yaw);
   if (kick) { t.off.set(-kick * V3_KICK * L, 0, 0).applyQuaternion(t.q); t.p.add(t.off); } // (the gun kicked back as it fires)
   v3Put(T, m.compose(t.p, t.q, t.sc.set(L, L, L)), tint);
-  if (lift && !tint) v3Blur(type, m, L); // (a rotor turning: a faint disc where its blades sweep)
+  if (lift && !(tint && tint.g >= 0)) v3Blur(type, m, L); // (a rotor turning: a faint disc where its blades sweep)
 }
 // a helicopter's rotor disc: the round its blades sweep (their reach and height from the rotor's own shape), faint
 function v3Blur(type, m, L) {
@@ -277,7 +309,7 @@ function v3Units() {
     const T = Sim.TYPES[u.type], lift = T.air ? V3_AIR : 0, hd = u.hd || 0;
     if (v3HasModel(u.type)) {
       const man = !!MODELS[u.type].poses, pose = v3Walk(u), face = man && s.t - u.lastFire < 3 ? u.aim : hd; // (a soldier faces where it fires, and stands upright)
-      v3PutModel(u.type, u.side, u.x, u.y, face, T.hover || u.type === 'lift' ? performance.now() / 1000 * V3_ROTOR + u.id : s.t - u.lastFire < 3 ? u.aim : hd, m, null, T.air || man ? null : v3Run(u, hd), man ? 0.01 : lift, 0, 1, pose, u.type === 'tank' || u.type === 'how' ? Math.max(0, 1 - (s.t - u.lastFire) / 0.25) : 0);
+      v3PutModel(u.type, u.side, u.x, u.y, face, T.hover || u.type === 'lift' ? performance.now() / 1000 * V3_ROTOR + u.id : s.t - u.lastFire < 3 ? u.aim : hd, m, v3CamoOf(u, v3Tmp.camo || (v3Tmp.camo = new THREE.Color())), T.air || man ? null : v3Run(u, hd), man ? 0.01 : lift, 0, 1, pose, u.type === 'tank' || u.type === 'how' ? Math.max(0, 1 - (s.t - u.lastFire) / 0.25) : 0);
     }
     else { const P = v3Pic(u.type, u.side); v3Put(P, v3Lay(u.x, u.y, hd, lift, P.w, P.h, 0, 0, m)); }
     if (u.type === 'tank' && hasSprite('tank') && !v3HasModel('tank')) { // (the turret, turned to where it fires)
@@ -558,6 +590,7 @@ function v3ScenList(ci, cj) {
   }
   return out;
 }
+const V3_SCEN_HUE = 0.05;
 function v3ScenChunk(key) {
   const sc = V3.sc, old = sc.chunks.get(key); if (old) for (const m of old) { V3.scene.remove(m); m.dispose(); }
   const [ci, cj] = key.split(',').map(Number), by = new Map(), o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), list = [], tint = v3Tmp.tint || (v3Tmp.tint = new THREE.Color());
@@ -567,7 +600,8 @@ function v3ScenChunk(key) {
     l.forEach(([, x, y, a, w], i) => {
       const tall = model.startsWith('tree') ? V3_TREE_H : 1;
       o.position.set(x, v3Gnd(x, y) - w * 0.03, y); o.rotation.set(0, a, 0); o.scale.set(w, w * tall, w); o.updateMatrix(); mesh.setMatrixAt(i, o.matrix);
-      mesh.setColorAt(i, tint.setScalar(0.82 + (Math.abs(Math.round(x * 7.1 + y * 13.7)) % 31) / 30 * 0.3)); // (each a little lighter or darker)
+      const h = j => { const v = Math.sin(x * 12.9898 + y * 78.233 + j * 37.72) * 43758.5453; return v - Math.floor(v); }, k = 0.82 + h(0) * 0.3; // (each a little lighter or darker,
+      mesh.setColorAt(i, tint.setRGB(k * (1 + (h(1) - 0.5) * 2 * V3_SCEN_HUE), k * (1 + (h(2) - 0.5) * 2 * V3_SCEN_HUE), k * (1 + (h(3) - 0.5) * 2 * V3_SCEN_HUE))); // and each of R, G, B up to ±V3_SCEN_HUE)
     });
     mesh.castShadow = mesh.receiveShadow = true; mesh.computeBoundingSphere(); V3.scene.add(mesh); list.push(mesh);
   }
