@@ -216,6 +216,8 @@ def bake(path):
     if name.startswith('b_'): out['teamK'] = 0.8  # (a building: its roofs in the side's colour, as in its picture)
     if any(k[0].startswith('pose') for k in cat): out['teamK'] = 0.6; out['poses'] = sum(1 for k in cat if k[0].startswith('pose') and not k[1])  # (a soldier: tiny — its uniform well in the side's colour)
     out['size'] = [1.0, round(float((hi[1] - lo[1]) / L), 4), round(float((hi[2] - lo[2]) / L), 4)]
+    lights = J.get('asset', {}).get('extras', {}).get('lights')  # (lamps lit at night — tools/build_models.py `lamp`: [x, y, z, kind])
+    if lights: out['lights'] = [[round(float(v), 4) for v in (turn(np.array(l[:3]) - mid) - ctr) / L] + [l[3]] for l in lights]
     tri = sum(len(v[0]) for v in cat.values()) // 3
     if frames: tri += sum(len(frames[s][0]) for s in ('L', 'R') if s in frames) // 3
     print(f'{name}: {tri} triangles, front turned {np.degrees(ang):.0f}°, size {out["size"]}, pivot {out.get("pivot")}' + (f', tracks {out["track"]}' if 'track' in out else ''))

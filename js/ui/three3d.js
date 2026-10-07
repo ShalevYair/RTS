@@ -238,6 +238,10 @@ function v3Run(u, hd) {
 function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, rise = 1, pose = null, kick = 0) {
   const D = MODELS[type], L = len || (D.poses ? V3_MAN / D.size[1] : (SIZE[type] || 10) * (V3_LEN[type] || 1.6)), H = v3Model(type, pose || 'hull', side);
   v3Put(H, v3Lay(x, y, hd, lift, L, L, 0, 0, m, L * rise), tint);
+  if (D.lights && V3.nightK > 0.02 && !tint && !pose) { // (at night: its lamps lit — where they are now)
+    const lv = v3Tmp.lv || (v3Tmp.lv = new THREE.Vector3()), A = V3.lamps;
+    for (const l of D.lights) { lv.set(l[0], l[1], l[2]).applyMatrix4(m); A.push(lv.x, lv.y, lv.z, V3_LAMP_K.indexOf(l[3])); }
+  }
   const K = D.track;
   if (K) ['L', 'R'].forEach((k, i) => { const r = run ? run[i] / (K.cycle * L) : 0, f = Math.floor((r - Math.floor(r)) * K.frames) % K.frames; v3Put(v3Model(type, 'track' + k + f, 'track'), m, tint); });
   if (!D.parts.turret) return;
@@ -426,6 +430,9 @@ function v3Flags() {
 // glow round the big ones), the smoke (smokeTick: hurt vehicles, wrecks, chimneys, after a blast — rising and
 // drifting with the wind), scorch marks where blasts landed (scorchTick), the long-range missiles' arc. ----
 const V3_FX_MAX = 6000;
+// (a lamp's glow at night: d across (world units), colour, how bright at full dark; some: of the windows, the share lit; blink: on and off)
+const V3_LAMP_K = ['h', 'w', 'f', 'y', 'r', 'g'], V3_LAMP = { h: { d: 7, c: [1, 0.95, 0.75], a: 0.9 }, w: { d: 5, c: [1, 0.95, 0.8], a: 0.8 }, f: { d: 16, c: [1, 0.96, 0.82], a: 0.85 },
+  y: { d: 4.5, c: [1, 0.72, 0.35], a: 0.75, some: 0.6 }, r: { d: 5, c: [1, 0.15, 0.1], a: 0.9, blink: true }, g: { d: 5, c: [0.2, 1, 0.45], a: 0.9 } };
 function v3SoftPic(stops) {
   const N = 64, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), r = g.createRadialGradient(N / 2, N / 2, 0, N / 2, N / 2, N / 2);
   for (const [k, col] of stops) r.addColorStop(k, col);
@@ -465,6 +472,15 @@ function v3Fx() {
   if (!V3.fx) v3FxInit();
   const F = V3.fx; for (const B of Object.values(F)) B.n = 0;
   smokeTick(); scorchTick();
+  // lamps lit at night (the models' — tools/build_models.py `lamp`): a glow each, by its kind; a mast's red one blinks,
+  // only some windows lit (the same ones — by where they are)
+  const A = V3.lamps || [], nk = V3.nightK || 0, tt = performance.now() / 1000;
+  for (let i = 0; i < A.length; i += 4) {
+    const L = V3_LAMP[V3_LAMP_K[A[i + 3]]]; if (!L) continue;
+    if (L.some) { const v = Math.sin(A[i] * 12.99 + A[i + 2] * 78.23) * 43758.5; if (v - Math.floor(v) > L.some) continue; }
+    const a = nk * L.a * (L.blink ? 0.35 + 0.65 * (Math.sin(tt * 3 + A[i] * 0.1) > 0.6 ? 1 : 0) : 1);
+    v3Dot(F.glow, A[i], A[i + 1], A[i + 2], L.d, L.c[0], L.c[1], L.c[2], a);
+  }
   // shots in flight
   for (const sh of s.shots) {
     const age = sh.dur + 0.12 - sh.life, k = Math.min(1, age / sh.dur);
@@ -618,7 +634,7 @@ function v3ShadePic(P, f) {
 }
 function v3Shade() {
   if (!V3.fogP) v3ShadeInit();
-  const k = Sim.nightAt(s) || 0, now = performance.now();
+  const k = Sim.nightAt(s) || 0, now = performance.now(); V3.nightK = k;
   // (the night: the dark NIGHT_DARK of it, the sun and the sky down with it)
   V3U.v3Night.value = NIGHT_DARK * k; V3U.v3Lit.value = V3_GLOW * k * 0.5;
   V3.sun.intensity = 0.72 * Math.PI * (1 - 0.7 * k); V3.sky.intensity = 0.5 * Math.PI * (1 - 0.45 * k);
@@ -674,6 +690,7 @@ function v3Draw() {
   if (sc.right !== half) { sc.left = sc.bottom = -half; sc.right = sc.top = half; sc.near = 10; sc.far = 6000; sc.updateProjectionMatrix(); }
   sceneryTick(); groundTick(); // (as the flat map's frame: what's cleared, run over, cut)
   for (const P of V3.pics.values()) P.n = 0;
+  V3.lamps = [];
   const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Shade(); v3Deco();
   for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; P.mesh.instanceColor.needsUpdate = true; }
   r.render(V3.scene, V3.cam);
