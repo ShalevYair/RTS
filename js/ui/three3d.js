@@ -143,7 +143,7 @@ function v3Sheet(key, img, w, h, ox = 0, oy = 0) {
 function v3Put(P, m, col) {
   if (P.n >= P.mesh.instanceMatrix.count) {
     const old = P.mesh, big = new THREE.InstancedMesh(old.geometry, old.material, old.instanceMatrix.count * 2);
-    big.castShadow = true; big.receiveShadow = !P.flat; big.instanceMatrix.setUsage(THREE.DynamicDrawUsage); big.frustumCulled = false;
+    big.castShadow = old.castShadow; big.receiveShadow = old.receiveShadow; big.instanceMatrix.setUsage(THREE.DynamicDrawUsage); big.frustumCulled = false;
     for (let i = 0; i < P.n; i++) { old.getMatrixAt(i, v3Tmp.g); big.setMatrixAt(i, v3Tmp.g); old.getColorAt(i, v3Tmp.c); big.setColorAt(i, v3Tmp.c); }
     V3.scene.remove(old); old.dispose(); V3.scene.add(big); P.mesh = big;
   }
@@ -164,6 +164,7 @@ function v3Lay(x, y, hd, lift, w, h, ox, oy, out, sy = 1) {
 // ---- 3D models (art/models/*.glb → MODELS, tools/models.py): a kind's hull and turret, each two meshes — its main
 // paint tinted with the side's colour (V3_TEAM of it), the rest as it is. Front +X, length 1, so scaled by V3_LEN ×
 // its size. A tank's turret turns on its pivot to where it fires; a wreck: dark. ----
+const V3_KICK = 0.07, V3_BLUR = 0.22; // (a gun's recoil: of the length, all the way back; a rotor disc's darkness)
 const V3_DRONE = 0.9, V3_DEAD = 0.7, V3_ROTOR = 14, V3_POS_Q = 16000, V3_MAN = 24, V3_STRIDE = 4; // (V3_MAN: a soldier's height, world units — taller than true to a tank, as on the flat map, or from above it was a dot; V3_STRIDE: the way it walks for each pose) // (a helicopter's rotor, radians a second)
 const V3_LEN = { tank: 1.75, jeep: 1.25, ajeep: 1.25, tjeep: 1.25, air: 1.3, tanker: 1.3, heli: 1.2, gunship: 1.2, lift: 1.3, how: 2.2, mlrs: 2.4, ssm: 2.6, arrow: 2.6, dome: 2.6, truck: 2.0, fueltruck: 2.0, watertruck: 2.0, radio: 1.9, mech: 2.0, dozer: 1.7 }, V3_TEAM = 0.38;
 const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
@@ -233,7 +234,8 @@ function v3Run(u, hd) {
 // (lift: in the air, level — aircraft; a helicopter's rotor is its turret, `aim` turning it round)
 // (len: its length, if not by its kind's size — a building; rise: of its height — a building going up)
 // (pose: a soldier's walking pose, v3Walk — its length then by V3_MAN, its height)
-function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, rise = 1, pose = null) {
+// (kick: 0..1, how far the gun is kicked back — just fired)
+function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, rise = 1, pose = null, kick = 0) {
   const D = MODELS[type], L = len || (D.poses ? V3_MAN / D.size[1] : (SIZE[type] || 10) * (V3_LEN[type] || 1.6)), H = v3Model(type, pose || 'hull', side);
   v3Put(H, v3Lay(x, y, hd, lift, L, L, 0, 0, m, L * rise), tint);
   const K = D.track;
@@ -242,7 +244,23 @@ function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, 
   const t = v3Tmp, T = v3Model(type, 'turret', side), pv = D.pivot || [0, 0];
   t.off.set(pv[0] * L, 0, pv[1] * L).applyQuaternion(t.q); t.p.set(t.p.x + t.off.x, t.p.y + t.off.y, t.p.z + t.off.z);
   t.yaw.setFromAxisAngle(t.up, -aim); t.q.setFromUnitVectors(t.up, t.n).multiply(t.yaw);
+  if (kick) { t.off.set(-kick * V3_KICK * L, 0, 0).applyQuaternion(t.q); t.p.add(t.off); } // (the gun kicked back as it fires)
   v3Put(T, m.compose(t.p, t.q, t.sc.set(L, L, L)), tint);
+  if (lift && !tint) v3Blur(type, m, L); // (a rotor turning: a faint disc where its blades sweep)
+}
+// a helicopter's rotor disc: the round its blades sweep (their reach and height from the rotor's own shape), faint
+function v3Blur(type, m, L) {
+  const R = V3.rotor || (V3.rotor = new Map()); let b = R.get(type);
+  if (!b) { const g = v3Geo(type, 'turret', 'blue'); g.computeBoundingBox(); const B = g.boundingBox; R.set(type, b = { r: Math.max(B.max.x - B.min.x, B.max.z - B.min.z) / 2, y: B.max.y - 0.004 }); }
+  let P = V3.pics.get('blur');
+  if (!P) {
+    const g = new THREE.CircleGeometry(1, 32); g.rotateX(-Math.PI / 2);
+    const mesh = new THREE.InstancedMesh(g, new THREE.MeshBasicMaterial({ color: '#2a2d30', transparent: true, opacity: V3_BLUR, depthWrite: false }), 16);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false; mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(16 * 3).fill(1), 3);
+    V3.scene.add(mesh); P = { mesh, n: 0 }; V3.pics.set('blur', P);
+  }
+  const t = v3Tmp; t.off.set(0, b.y * L, 0).applyQuaternion(t.q);
+  v3Put(P, m.compose(t.p.add(t.off), t.q, t.sc.set(b.r * L * 0.98, 1, b.r * L * 0.98)));
 }
 function v3Units() {
   const m = v3Tmp.m || (v3Tmp.m = new THREE.Matrix4()), rings = [];
@@ -253,7 +271,7 @@ function v3Units() {
     const T = Sim.TYPES[u.type], lift = T.air ? V3_AIR : 0, hd = u.hd || 0;
     if (v3HasModel(u.type)) {
       const man = !!MODELS[u.type].poses, pose = v3Walk(u), face = man && s.t - u.lastFire < 3 ? u.aim : hd; // (a soldier faces where it fires, and stands upright)
-      v3PutModel(u.type, u.side, u.x, u.y, face, T.hover || u.type === 'lift' ? performance.now() / 1000 * V3_ROTOR + u.id : s.t - u.lastFire < 3 ? u.aim : hd, m, null, T.air || man ? null : v3Run(u, hd), man ? 0.01 : lift, 0, 1, pose);
+      v3PutModel(u.type, u.side, u.x, u.y, face, T.hover || u.type === 'lift' ? performance.now() / 1000 * V3_ROTOR + u.id : s.t - u.lastFire < 3 ? u.aim : hd, m, null, T.air || man ? null : v3Run(u, hd), man ? 0.01 : lift, 0, 1, pose, u.type === 'tank' || u.type === 'how' ? Math.max(0, 1 - (s.t - u.lastFire) / 0.25) : 0);
     }
     else { const P = v3Pic(u.type, u.side); v3Put(P, v3Lay(u.x, u.y, hd, lift, P.w, P.h, 0, 0, m)); }
     if (u.type === 'tank' && hasSprite('tank') && !v3HasModel('tank')) { // (the turret, turned to where it fires)
