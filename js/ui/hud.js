@@ -68,7 +68,8 @@ function syncButtons() {
   $('fsRow').hidden = !fsCan() && !fsOn();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
   if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed) roadArmed = false; // (another thing armed: the road's off — roadui.js)
-  $('road').hidden = !s.dozers || !!(s.hqPending && s.hqPending.blue) || Sim.armSide(s, 'blue', 'dozer') === 'mate'; $('road').setAttribute('aria-pressed', String(roadArmed));
+  // (roads: hidden for now, the code stays)
+  $('road').hidden = true || !s.dozers || !!(s.hqPending && s.hqPending.blue) || Sim.armSide(s, 'blue', 'dozer') === 'mate'; $('road').setAttribute('aria-pressed', String(roadArmed));
   if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed || roadArmed) cv.style.cursor = eyeArmed ? DRONE_CUR : 'copy'; // (else the hover sets it)
   $('hqb').hidden = !hqToPlace(); $('hqb').setAttribute('aria-pressed', String(hqArmed));
   bar.classList.toggle('empty', ![...bar.children].some(c => !c.hidden)); // (the early levels have none of its buttons)
@@ -495,7 +496,7 @@ function placeBuilding(x, y, again) {
 }
 // arms: a click adds or takes off one of ours (at most three — the partner keeps one at least)
 document.querySelectorAll('[data-arm]').forEach(b => b.addEventListener('click', () => {
-  const k = b.dataset.arm; myArms = myArms.includes(k) ? myArms.filter(x => x !== k) : [...myArms, k].slice(-3);
+  const k = b.dataset.arm; if (myArms.includes(k)) return; myArms = [myArms[1], k]; // (always two: a new one replaces the older)
   try { localStorage.setItem('irts-arms', myArms.join(',')); } catch (e) { /* ignore */ }
   if (!lvl && s) Sim.setArms(s, myArms); // (the intro's game: not started yet)
   syncButtons();
