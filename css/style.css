@@ -519,3 +519,19 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 #askWheel button{pointer-events:auto;position:absolute;left:-19px;top:-19px;width:38px;height:38px;border:0;border-radius:50%;background:var(--frost,rgb(20 24 30 / .78));backdrop-filter:blur(6px);color:#fff;font-size:20px;line-height:38px;padding:0;cursor:pointer;box-shadow:0 2px 8px rgb(0 0 0 / .4);animation:askIn .14s ease-out both}
 #askWheel button:hover{filter:brightness(1.35);scale:1.12}
 @keyframes askIn{from{opacity:0;scale:.4}}
+
+/* ---- main menu, take 3: start, and under it the four arms as big tiles (two picked); the settings behind ⚙ ---- */
+#intro.mainmenu .armTiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:26px auto 0;width:min(720px,94vw)}
+#intro.mainmenu .armTiles .armTile{height:auto;width:auto;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px 12px;min-height:0;border-radius:16px;
+  background:rgb(6 12 8 / .78);border:2px solid rgb(255 255 255 / .12);color:#cfd8c2;font:600 16px var(--ui);cursor:pointer;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:transform .15s,border-color .15s,background .15s}
+#intro.mainmenu .armTiles .armTile:hover{transform:translateY(-2px);border-color:rgb(255 255 255 / .3)}
+#intro.mainmenu .armTile canvas{position:static;touch-action:auto;cursor:pointer;width:100%;height:auto;aspect-ratio:200/130;opacity:.55;transition:opacity .15s}
+#intro.mainmenu .armTiles .armTile[aria-pressed="true"]{border-color:var(--gold);background:rgb(58 48 22 / .88);color:var(--gold)}
+#intro.mainmenu .armTile[aria-pressed="true"] canvas{opacity:1}
+#menuGear{position:absolute;z-index:3;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  width:56px;height:56px;font-size:32px!important;border-radius:50%;background:rgb(6 12 8 / .7);border:0;color:#e8eedd;cursor:pointer}
+#menuGear[aria-expanded="true"]{background:rgb(227 199 127 / .25);color:var(--gold)}
+.menuSide[hidden]{display:none}
+#intro.mainmenu .menuHero{inset-inline-start:0}
+@media (max-width:720px){#intro.mainmenu .armTiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#intro.mainmenu .menuHero{bottom:0}}

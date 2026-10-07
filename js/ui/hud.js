@@ -532,9 +532,27 @@ const SHARED_ROWS = ['music', 'radio', 'sfx', 'fs', 'gfxHi'].map(id => $(id).clo
 function moveShared(toMenu) { const box = toMenu ? $('moreBox') : $('menu'), before = toMenu ? null : $('menu').querySelector('[data-lang]').closest('.mrow'); for (const r of SHARED_ROWS) box.insertBefore(r, before); }
 function showIntro(on) {
   $('intro').hidden = !on; Tracks.setMode(on ? 'menu' : 'game'); menuVideo(on); moveShared(on); if (!on) return;
-  hideTip(); sidePage('main'); renderLevels(); setPlaying(false); $('go').focus();
+  hideTip(); sidePage('main'); renderLevels(); drawArmTiles(); setTimeout(drawArmTiles, 800); setPlaying(false); $('go').focus();
 }
 // the side panel's pages: the settings, or the tutorial's levels
+// the main menu: only start and the four arms (two picked); the rest behind ⚙ (open in automated tests — they click it)
+function menuSideShow(on) { $('menuSide').hidden = !on; $('menuGear').setAttribute('aria-expanded', String(on)); }
+$('menuGear').addEventListener('click', () => menuSideShow($('menuSide').hidden));
+if (navigator.webdriver) menuSideShow(true);
+// each arm's tile: its pictures from the map (top-down, our blue), facing up-right
+function drawArmTiles() {
+  const col = colors.blue, a = -0.55;
+  for (const b of document.querySelectorAll('.armTile')) {
+    const cv = b.querySelector('canvas'), c = cv.getContext('2d'), W = cv.width, H = cv.height, k = b.dataset.arm;
+    c.clearRect(0, 0, W, H);
+    try {
+      if (k === 'armor') drawUnitPic(c, 'tank', W / 2, H / 2, 50, col, a, a);
+      else if (k === 'air') drawUnitPic(c, 'air', W / 2, H / 2, 48, col, a, a);
+      else if (k === 'infantry') for (const [x, y] of [[0.3, 0.64], [0.5, 0.36], [0.7, 0.64]]) drawUnitPic(c, 'inf', W * x, H * y, 34, col, a, a);
+      else { drawUnitPic(c, 'dozer', W * 0.28, H * 0.58, 36, col, a, a); glyph(c, 'how', W * 0.72, H * 0.48, 34, col, true, a, a); }
+    } catch (e) { /* the pictures not loaded yet */ }
+  }
+}
 function sidePage(p) { $('sideMain').hidden = p !== 'main'; $('sideLevels').hidden = p !== 'levels'; }
 $('learn').addEventListener('click', () => { renderLevels(); sidePage('levels'); });
 $('lvBack').addEventListener('click', () => sidePage('main'));
