@@ -20,7 +20,7 @@ function openAskWheel(e, x, y) {
   });
   $('stage').appendChild(w);
 }
-function closeAskWheel() { const w = $('askWheel'); if (w) w.remove(); hideTip(); }
+function closeAskWheel() { const w = $('askWheel'); if (w) { w.remove(); hideTip(); } } // (only when it was open: every click hid any bubble — the tour's too, and the tutorial stood still)
 // ask the partner: on the map, in the list, and its answer on the radio
 function askAt(kind, x, y) {
   const a = Sim.ask(s, 'blue', kind, x, y); if (!a) return;

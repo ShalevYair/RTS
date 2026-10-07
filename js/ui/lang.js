@@ -271,7 +271,7 @@ document.addEventListener('pointerover', e => {
   const el = e.target.closest && e.target.closest('[data-tip]');
   if (!el || el === tipFor) return;
   clearTimeout(tipTimer);
-  tipTimer = setTimeout(() => { if (!el.isConnected || el.offsetParent === null) return; tipFor = el; showTip(typeof el.tipText === 'function' ? el.tipText() : tr(el.dataset.tip), rectOf(el)); }, 350);
+  tipTimer = setTimeout(() => { if (!el.isConnected || el.offsetParent === null || tour) return; /* (not during a tour: it would take the tour bubble's place) */ tipFor = el; showTip(typeof el.tipText === 'function' ? el.tipText() : tr(el.dataset.tip), rectOf(el)); }, 350);
 });
 document.addEventListener('pointerout', e => {
   const el = e.target.closest && e.target.closest('[data-tip]');
