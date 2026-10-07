@@ -18,7 +18,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     const intro = await p.evaluate(() => ({
       levels: [...document.querySelectorAll('#levels button')].map(x => (x.disabled ? '-' : '') + x.textContent + (x.getAttribute('aria-pressed') === 'true' ? '*' : '')).join(' '),
       words: document.querySelector('#intro .card').innerText.replace(/\s+/g, ' ').trim() }));
-    check(name, /^1\* -2 .* -13$/.test(intro.levels) && intro.words.length < 90, `first visit: level 1 picked, the rest locked (${intro.levels}); on screen: "${intro.words}"`);
+    check(name, /^1\* 2 .* 13 ∞$/.test(intro.levels) && intro.words.length < 90, `first visit: level 1 picked, all open (for now — CLAUDE.md), ∞ the full game last (${intro.levels}); on screen: "${intro.words}"`);
     await p.screenshot({ path: `${OUT}/${name}-lv-intro.png` });
     // the tutorial: "tutorial" in the side panel, then a level (▶ "start game" is the full game)
     await p.click('#learn'); await p.click('#levels button:first-child'); await p.waitForTimeout(300); await p.evaluate(() => tourNext(true)); // (the tour is tests/ui/tour.js)
