@@ -549,6 +549,7 @@ $('moreBtn').addEventListener('click', () => { const b = $('moreBox'); b.hidden 
 function startGame(level) {
   if (fsCan()) fullScreen(true); // (into the game: always full screen — the switch is for while playing; an old 'off' kept it windowed for good)
   lvl = level; newGame(true); showIntro(false);
+  if (v3Want() && !V3.on) v3Toggle(); // (the 3D view by default — F9 flips it, and it's remembered)
   // a tutorial level, once per visit: the goal in a few words and what's new, one by one, then the fight
   // (irts-tour = 99: never — the UI tests)
   if (lvl && toured !== 99 && !tourSeen.has(lvl)) { tourSeen.add(lvl); toured = Math.max(toured, lvl); try { localStorage.setItem('irts-tour', String(toured)); } catch (e) { /* ignore */ } runTour(levelTour(lvl), () => setPlaying(true)); }
