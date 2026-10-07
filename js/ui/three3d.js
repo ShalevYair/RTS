@@ -314,6 +314,7 @@ function v3Rings(rings) {
 // of about its size that throws the sun's shadow (so a flat picture still stands). Drones: their picture up in the air,
 // turning slowly. ----
 const V3_BLD_K = 1.0; // (a building's model: its length, of its picture's)
+const V3_HURT = 0.6, V3_BURNT = 0.3, V3_RUIN = 0.3, V3_RUIN_H = 0.08, V3_RUBBLE = 44; // (hurt below this: darker, to V3_BURNT at nothing; a ruin: this dark, of its height)
 const V3_BLOCK = { hq: 0.9, fhq: 0.6, decoy: 0.9, tower: 3.2, antenna: 2.4, radar: 1.4, power: 1.1 }, V3_SITE = 0.3, V3_MEM = 0.55;
 function v3Building(kind, col, px) {
   const own = BUILDING_PIC[kind], bare = !!(own && sprite.img[own]), key = 'b:' + kind + col + px;
@@ -333,8 +334,12 @@ function v3Nodes(rings) {
     V3.plinth = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({ color: 0x8a7c5c, flatShading: true }), 400);
     V3.plinth.receiveShadow = V3.plinth.castShadow = true; V3.plinth.frustumCulled = false; V3.scene.add(V3.plinth);
   }
+  if (!V3.rubble) {
+    V3.rubble = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), 4000);
+    V3.rubble.castShadow = V3.rubble.receiveShadow = true; V3.rubble.frustumCulled = false; V3.rubble.count = 0; V3.scene.add(V3.rubble);
+  }
   const m = v3Tmp.m, o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), tint = v3Tmp.tint || (v3Tmp.tint = new THREE.Color());
-  let nb = 0, np = 0;
+  let nb = 0, np = 0, nr = 0;
   const put = (kind, col, x, y, R, px, k, side, grow = 1) => {
     // (a model of it, if there is one — art/models/b_<kind>.glb: facing the enemy, going up as it's built)
     // (level, between the middle height of its corners and the highest — a little into the slope above — on a plinth down to the lowest:
@@ -362,12 +367,57 @@ function v3Nodes(rings) {
     }
     const S = Sim.STRUCTS[n.kind], on = s.t >= n.ready, site = Number.isFinite(n.work) && !on;
     const grow = on || (n.kind === 'hq' && !site) ? 1 : site ? Math.min(1, n.work / Math.max(0.01, n.need)) : Math.max(0, Math.min(1, (s.t - n.t0) / Math.max(0.01, n.ready - n.t0)));
-    put(n.kind, col, n.x, n.y, S.r, pxOf(n.kind), on ? 1 : V3_SITE + (1 - V3_SITE) * grow, n.side, grow);
+    const hurt = n.hp / S.hp; // (badly hurt: darker — burnt)
+    put(n.kind, col, n.x, n.y, S.r, pxOf(n.kind), on ? (hurt < V3_HURT ? V3_BURNT + (1 - V3_BURNT) * hurt / V3_HURT : 1) : V3_SITE + (1 - V3_SITE) * grow, n.side, grow);
     if (selNode === n.id) rings.push({ x: n.x, y: n.y, r: S.r + 10 });
   }
+  // (the ruins of buildings destroyed: the model, dark and low — unless a new one stands on it)
+  for (const r of s.ruins || []) {
+    if ((s.fog && !shownAt(r)) || s.nodes.some(n => n.kind !== 'drone' && Math.hypot(n.x - r.x, n.y - r.y) < Sim.STRUCTS[n.kind].r)) continue;
+    put(r.kind, colors[r.side], r.x, r.y, Sim.STRUCTS[r.kind].r, pxOf(r.kind), V3_RUIN, r.side, V3_RUIN_H);
+    // (and over it a heap of debris: blocks of concrete, burnt beams, sheets of the roof — the same each frame, from where it stood)
+    const R = Sim.STRUCTS[r.kind].r, g = Sim.elevAt(s, r) * V3_LV;
+    for (let i = 0; i < V3_RUBBLE && nr < 4000; i++) {
+      const h = (j) => { const v = Math.sin(r.x * 12.9898 + r.y * 78.233 + i * 37.719 + j * 4.581) * 43758.5453; return v - Math.floor(v); };
+      const a = h(1) * 6.28, d = Math.sqrt(h(2)) * R * 0.85, w = 2 + h(3) * R * 0.35, kind = h(4);
+      o.position.set(r.x + Math.cos(a) * d, g + 0.8 + (1 - d / R) * R * 0.22 * h(5), r.y + Math.sin(a) * d * 0.8); // (heaped up in the middle)
+      o.rotation.set((h(6) - 0.5) * 1.2, h(7) * 6.28, (h(8) - 0.5) * 1.2);
+      o.scale.set(w, kind < 0.6 ? w * 0.45 : 0.6, kind < 0.6 ? w * 0.7 : w * 0.25); o.updateMatrix(); V3.rubble.setMatrixAt(nr, o.matrix);
+      V3.rubble.setColorAt(nr++, tint.set(kind < 0.6 ? 0x6f6a62 : kind < 0.85 ? 0x2a2420 : colors[r.side]).multiplyScalar(0.55 + h(9) * 0.35));
+    }
+  }
+  V3.rubble.count = nr; V3.rubble.instanceMatrix.needsUpdate = true; if (V3.rubble.instanceColor) V3.rubble.instanceColor.needsUpdate = true;
   if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { const g = s.memNodes.blue[id]; put(g.kind, colors.red, g.x, g.y, Sim.STRUCTS[g.kind].r, pxOf(g.kind), V3_MEM, 'red'); }
   if (s.posts) for (const p of s.posts) { const R = Sim.POSTS[p.kind].r; put(p.kind, postCol(p), p.x, p.y, R, Math.round(R * 2.4), s.fog && !postSeen(p) ? V3_MEM : 1, p.side); if (selPost === p) rings.push({ x: p.x, y: p.y, r: R + 10 }); }
+  v3Flags();
   V3.blocks.count = nb; V3.blocks.instanceMatrix.needsUpdate = true; V3.plinth.count = np; V3.plinth.instanceMatrix.needsUpdate = true;
+}
+// the flag of each headquarters (and the dummy one — it's to look the same): a pole at a front corner of its yard and
+// a cloth in the side's colour, waving with the smoke's wind (WIND) — its points moved each frame, a wave running to
+// the free end (a few of them: a mesh each)
+const V3_FLAG = { at: [12.5 / 34, 4 / 34], pole: 8.7 / 34, w: 3.2 / 34, h: 2.0 / 34 }; // (where in its yard, of its length — where the model had a still one, tools/build_buildings.py b_hq; the pole and cloth: of the length)
+function v3Flags() {
+  const F = V3.flags || (V3.flags = new Map()), seen = new Set(), t = performance.now() / 1000, wa = Math.atan2(WIND.y, WIND.x);
+  for (const n of s.nodes) {
+    if ((n.kind !== 'hq' && n.kind !== 'decoy') || n.hp <= 0 || s.t < n.ready || !nodeShown(n) || !v3HasModel('b_' + n.kind)) continue;
+    seen.add(n.id); let f = F.get(n.id);
+    const L = pxOf(n.kind) * V3_BLD_K, fa = n.side === 'red' ? Math.PI : 0;
+    if (!f || f.side !== n.side) {
+      if (f) { V3.scene.remove(f.g); f.cloth.geometry.dispose(); }
+      const g = new THREE.Group(), ph = V3_FLAG.pole * L, cw = V3_FLAG.w * L, ch = V3_FLAG.h * L;
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, ph, 6), V3.flagPole || (V3.flagPole = new THREE.MeshLambertMaterial({ color: '#8c8f93' })));
+      pole.position.y = ph / 2; pole.castShadow = true; g.add(pole);
+      const cg = new THREE.PlaneGeometry(cw, ch, 10, 3); cg.translate(cw / 2, ph - ch / 2 - 0.3, 0);
+      const cloth = new THREE.Mesh(cg, new THREE.MeshLambertMaterial({ color: colors[n.side], side: THREE.DoubleSide })); cloth.castShadow = true; g.add(cloth);
+      V3.scene.add(g); F.set(n.id, f = { g, cloth, side: n.side, x0: Float32Array.from(cg.attributes.position.array), cw });
+    }
+    const lx = V3_FLAG.at[0] * L, lz = V3_FLAG.at[1] * L, c = Math.cos(fa), sn = Math.sin(fa), x = n.x + lx * c - lz * sn, y = n.y + lx * sn + lz * c;
+    f.g.position.set(x, Sim.elevAt(s, { x, y }) * V3_LV, y); f.g.rotation.y = -wa; // (the cloth streams down the wind)
+    const P = f.cloth.geometry.attributes.position, A = P.array, X = f.x0;
+    for (let i = 0; i < A.length; i += 3) { const u = X[i] / f.cw; A[i + 2] = Math.sin(t * 5 - u * 7 + n.id) * f.cw * 0.09 * u; A[i + 1] = X[i + 1] - u * u * f.cw * 0.08; }
+    P.needsUpdate = true; f.cloth.geometry.computeVertexNormals();
+  }
+  for (const [id, f] of F) if (!seen.has(id)) { V3.scene.remove(f.g); f.cloth.geometry.dispose(); F.delete(id); }
 }
 // ---- fire and smoke: bits of light and smoke, each a soft round picture facing the camera (or, a scorch mark, lying
 // on the ground), all of a kind in one InstancedMesh with its own colour and see-through-ness (aCol) — the light ones

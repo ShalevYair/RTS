@@ -1,4 +1,5 @@
 // Sim: game constants and tunables (no DOM; also loaded by the Node tests)
+const RUINS_MAX = 80; // (the last buildings destroyed, kept for the picture: their ruins — s.ruins)
 const H = 640;
 // map size (DESIGN.md §5): the small map is H high; the big one 2× wide and 2× high. No hill within HILL_CLEAR of
 // either edge (the bases).

@@ -384,6 +384,7 @@ function updateStructs(s, dt) {
       if (n.kind === 'hq') { s.hqDown = n.side; s.hqDownAt = { x: n.x, y: n.y }; } // (step: that side has lost; the UI's finale looks there)
       if (!n.razed) scoreUp(s, n.side === 'blue' ? 'red' : 'blue', Math.round((SCORE_NODES[n.kind] || SCORE_NODE) * (s.t < n.ready && n.kind !== 'drone' ? 0.5 : 1))); // (the enemy's score; pulled down by us — nothing)
       n.gone = true; s.fx.push({ x: n.x, y: n.y, life: 0.9, max: 0.9, size: n.kind === 'drone' ? 18 : 34 });
+      if (n.kind !== 'drone' && !n.razed) { const R = s.ruins || (s.ruins = []); R.push({ kind: n.kind, side: n.side, x: n.x, y: n.y, t: s.t }); if (R.length > RUINS_MAX) R.shift(); } // (for the picture: what's left of it)
       for (const q of s.squads) if (q.home === n.id) q.home = null; // its squads fight on, without refills
       const sq = n.squad && s.squads.find(q => q.id === n.squad); if (sq) sq.home = null;
       if (n.side === 'blue' && n.razed) note(s, `${S.name}: פורק`); // (pulled down by us: no alarm)

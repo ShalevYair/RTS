@@ -300,7 +300,7 @@ def b_hq(seed=1):
     M.hull('body', [(3.5 + du, 2.6 + e, -1 + dv) for du, e in ((0, 0.3), (2.0, 0)) for dv in (-1.6, 1.6)] + [(3.5 + du, 2.75 + e, -1 + dv) for du, e in ((0, 0.3), (2.0, 0)) for dv in (-1.6, 1.6)])
     M.mast(-1.0, -5.0, 8.0, 7.1, 3)
     for i in range(3): M.ac(-0.5 + i * 1.4, 7.1, 3.2)
-    M.flag(12.5, 4.0, 8.5)
+    # (its flag: drawn in the game, waving — three3d.js v3Flags, at (12.5, 4.0), 8.5 high)
     M.car(9.0, -10.5, 0.1).car(9.5, -6.5, 0.05).car(-12.0, 11.0, 1.6, 6.0, 2.4).car(-12.5, -11.5, 1.5)
     M.crates(-14.5, -3.0, 2, 3, 2).crates(10.0, 10.5, 3, 2, 2, 0.9, 'wood').barrels(5.5, 12.5, 6)
     M.sandbags(13.0, -12.0, 1.6, 9)
