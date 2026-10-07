@@ -676,7 +676,7 @@ function v3ScenChunk(key) {
   const [ci, cj] = key.split(',').map(Number), by = new Map(), o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), list = [], tint = v3Tmp.tint || (v3Tmp.tint = new THREE.Color());
   for (const e of v3ScenList(ci, cj)) { let l = by.get(e[0]); if (!l) by.set(e[0], l = []); l.push(e); }
   for (const [model, l] of by) {
-    const mesh = new THREE.InstancedMesh(v3Geo(model, 'hull', 'scen'), V3.scenMat || (V3.scenMat = v3Shaded(new THREE.MeshLambertMaterial({ vertexColors: true }))), l.length);
+    const mesh = new THREE.InstancedMesh(v3Geo(model, 'hull', 'scen'), V3.scenMat || (V3.scenMat = v3Leafy(v3Shaded(new THREE.MeshLambertMaterial({ vertexColors: true })))), l.length);
     l.forEach(([, x, y, a, w], i) => {
       const tall = model.startsWith('tree') ? Math.min(V3_TREE_H, V3_TREE_MAX / MODELS[model].size[1]) : 1; // (the tall thin ones: no higher than V3_TREE_MAX × wide — they hid all round them)
       o.position.set(x, v3Gnd(x, y) - w * 0.03, y); o.rotation.set(0, a, 0); o.scale.set(w, w * tall, w); o.updateMatrix(); mesh.setMatrixAt(i, o.matrix);
@@ -755,7 +755,7 @@ function v3Water() {
 // scenery in their shader (v3Shaded: the colour mixed toward the fog's and the night's blue, a warm glow where lit).
 // Units and buildings over it, as on the flat map. Made again every V3_SHADE_MS. The sun and the sky dim at night. ----
 const V3_SHADE = 8, V3_SHADE_MS = 60, V3_GLOW = 0.18;
-const V3U = { v3Fog: { value: null }, v3Dark: { value: null }, v3Size: { value: null }, v3FogCol: { value: null }, v3Night: { value: 0 }, v3Lit: { value: 0 }, v3Deco: { value: null }, v3DecoBox: { value: null } };
+const V3U = { v3Fog: { value: null }, v3Dark: { value: null }, v3Size: { value: null }, v3FogCol: { value: null }, v3Night: { value: 0 }, v3Lit: { value: 0 }, v3Deco: { value: null }, v3DecoBox: { value: null }, v3Time: { value: 0 } };
 function v3Shaded(mat, deco) {
   if (deco) mat.defines = { V3_DECO: 1 }; // (the ground: what's drawn on it too, v3Deco)
   mat.onBeforeCompile = sh => {
@@ -784,6 +784,34 @@ function v3Shaded(mat, deco) {
       #include <fog_fragment>`);
   };
   mat.customProgramCacheKey = () => 'v3shade' + (deco ? 'd' : ''); return mat;
+}
+// trees and bushes less low-poly: the leaves (the green points) lit as a soft round crown — the normal bent out from
+// the trunk and up, not each facet's own — with clumps of light and dark leaves, darker deep inside and low down,
+// and swaying a little in the wind (each tree its own beat); trunks and rocks as they are
+const V3_LEAF = { bend: 0.75, sway: 0.025 };
+function v3Leafy(mat) {
+  const was = mat.onBeforeCompile;
+  mat.onBeforeCompile = sh => {
+    was(sh);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float v3Time; varying float vLeaf; varying vec3 vLP;')
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+        vLeaf = (color.g > color.r * 1.08 && color.g > color.b * 1.1) ? 1.0 : 0.0; vLP = position;
+        objectNormal = normalize(mix(objectNormal, normalize(vec3(position.x, 0.55, position.z)), vLeaf * ${V3_LEAF.bend}));`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        #ifdef USE_INSTANCING
+        float v3ph = instanceMatrix[3].x * 0.013 + instanceMatrix[3].z * 0.017;
+        transformed.xz += vec2(sin(v3Time * 1.3 + v3ph), cos(v3Time * 1.1 + v3ph * 1.7)) * ${V3_LEAF.sway} * position.y * position.y * vLeaf;
+        #endif`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vLeaf; varying vec3 vLP;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        if (vLeaf > 0.5) {
+          float cl = v3gn(vLP.xz * 14.0 + vLP.y * 9.0) * 0.6 + v3gn(vLP.xz * 37.0 - vLP.y * 23.0) * 0.4;
+          diffuseColor.rgb = mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, 0.72) * vec3(0.78, 0.8, 0.66); // (a deeper, duller green than the kit's)
+          diffuseColor.rgb *= (0.62 + 0.62 * cl) * (0.75 + 0.25 * smoothstep(0.0, 0.9, length(vLP.xz) * 2.2 + vLP.y * 0.25));
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.08, 1.0, 0.72), smoothstep(0.55, 0.8, cl) * 0.5);
+        }`);
+  };
+  mat.customProgramCacheKey = () => 'v3leaf'; return mat;
 }
 function v3ShadeInit() {
   const mk = () => { const c = document.createElement('canvas'), t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; return { c, g: c.getContext('2d'), t }; };
@@ -842,6 +870,7 @@ function v3Deco() {
 }
 // every frame, instead of the flat map
 function v3Draw() {
+  V3U.v3Time.value = performance.now() / 1000;
   if (V3.of !== decor) { v3Ground(); for (const P of V3.pics.values()) { V3.scene.remove(P.mesh); P.mesh.dispose(); } V3.pics.clear(); }
   const r = V3.r, st = stage.getBoundingClientRect(), w = Math.round(st.width), h = Math.round(st.height);
   if (V3.w !== w || V3.h !== h) { V3.w = w; V3.h = h; r.setSize(w, h, false); V3.cam.aspect = w / h; V3.cam.updateProjectionMatrix(); }
