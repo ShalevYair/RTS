@@ -439,6 +439,21 @@ def wing(M, mat, pts, y, t=0.12, sz=1):
     root = max(abs(p[1]) for p in pts) * 0 + min(abs(z) for _, z in pts)
     M.hull(mat, P + [(x, y + (t if abs(z) <= root + 0.01 else t * 0.4), sz * z) for x, z in pts])
 
+def roundel(M, c, r, axis='y'):
+    """a national marking: a white disc with a ring and a star-ish centre in the side's colour"""
+    M.k = 1.0; M.cyl('white', c, r, 0.02, axis, 14)
+    d = {'y': (0, 0.012, 0), 'z': (0, 0, 0.012), 'x': (0.012, 0, 0)}[axis]; d2 = tuple(2 * v for v in d)
+    M.k = 1.0; M.cyl('body', tuple(np.add(c, d)), r * 0.62, 0.02, axis, 14); M.k = 1.1; M.cyl('white', tuple(np.add(c, d2)), r * 0.3, 0.02, axis, 6)
+
+def navlights(M, left, right, tail=None, r=0.07):
+    """red on the left tip, green-blue on the right (no green paint: water), white at the tail"""
+    M.k = 1.2; M.cyl('red', left, r, r * 2, 'x', 6); M.cyl('water', right, r, r * 2, 'x', 6)
+    if tail: M.cyl('white', tail, r, r * 2, 'x', 6)
+
+def antenna(M, c, h=0.35, w=0.18):
+    """a blade antenna standing up (or down, h < 0)"""
+    M.k = 0.6; M.hull('dark', [(c[0], c[1], c[2] - 0.02), (c[0], c[1], c[2] + 0.02), (c[0] - w, c[1], c[2]), (c[0] - w * 0.7, c[1] + h, c[2])])
+
 def k_air():  # a fighter (F-16-like): a lofted body, a belly intake, a bubble canopy, cropped deltas, missiles at the tips
     M = Mesh()
     M.k = 1.0; M.loft('body', round_secs([(-5.2, 0.42), (-4.4, 0.55), (-1.0, 0.7), (1.5, 0.66, 0.05), (3.5, 0.5, 0.05), (5.0, 0.28, 0.0), (6.0, 0.05, -0.05)], 0, 1.05))
@@ -454,6 +469,16 @@ def k_air():  # a fighter (F-16-like): a lofted body, a belly intake, a bubble c
         M.k = 0.9; M.hull('body', [(-4.2, -0.4, sz * 0.4), (-5.0, -0.4, sz * 0.4), (-5.2, -1.0, sz * 0.55), (-4.6, -1.0, sz * 0.55), (-4.2, -0.4, sz * 0.36)])  # ventral fins
     M.k = 1.0; M.hull('body', [(-3.0, 0.5, 0.06), (-3.0, 0.5, -0.06), (-4.9, 3.1, 0.04), (-4.9, 3.1, -0.04), (-5.5, 3.1, 0.04), (-5.4, 0.45, 0.06), (-5.4, 0.45, -0.06)])  # fin
     M.k = 0.9; M.cyl('tank', (0.3, -0.95, 0), 0.35, 3.2, 'x', 12)                                                     # belly tank
+    M.k = 0.6; M.cyl('metal', (6.3, -0.05, 0), 0.025, 0.7, 'x', 6)                                                    # pitot
+    M.k = 0.5; M.strut('dark', (2.55, 0.56, 0.32), (2.6, 1.02, 0.0), 0.025); M.strut('dark', (2.55, 0.56, -0.32), (2.6, 1.02, 0.0), 0.025)  # canopy bow
+    M.k = 0.5; M.strut('dark', (1.8, 0.6, 0), (3.7, 0.5, 0), 0.015)
+    for sz in (-1, 1):
+        roundel(M, (-2.2, 0.1, sz * 2.9), 0.45)
+        M.k = 0.6; M.box('dark', (-1.2, 0.7, sz * 0.3), (3.5, 0.01, 0.02)); M.box('dark', (0.5, 0.66, sz * 0.45), (0.02, 0.01, 0.3))  # panel lines
+    navlights(M, (-2.6, 0.02, 4.75), (-2.6, 0.02, -4.75), (-5.4, 3.0, 0))
+    roundel(M, (-4.4, 1.6, 0.05), 0.35, 'z'); roundel(M, (-4.4, 1.6, -0.05), 0.35, 'z')
+    antenna(M, (1.2, 0.68, 0)); antenna(M, (-1.5, -0.65, 0), -0.25)
+    M.k = 0.5; M.box('dark', (-0.8, 0.72, 0), (0.35, 0.01, 0.25))                                                     # refuelling door
     return [('hull', M, None)]
 
 def k_tanker():  # a four-engined tanker (KC-135-like), lofted, with a flight deck, nacelles and a boom
@@ -472,6 +497,15 @@ def k_tanker():  # a four-engined tanker (KC-135-like), lofted, with a flight de
         M.k = 0.95; wing(M, 'body', [(-12.5, 0.8), (-15.3, 6.5), (-16.6, 6.5), (-16.2, 0.8)], 0.7, 0.18, sz)
     M.k = 1.0; M.hull('body', [(-11.5, 1.3, 0.15), (-11.5, 1.3, -0.15), (-15.6, 7.6, 0.08), (-15.6, 7.6, -0.08), (-17.2, 7.6, 0.08), (-16.8, 1.0, 0.15), (-16.8, 1.0, -0.15)])
     M.k = 0.8; M.strut('dark', (-15.5, -0.6, 0), (-19.5, -2.0, 0), 0.18); M.box('dark', (-18.5, -1.7, 0), (0.15, 0.08, 1.2))  # the boom, its vanes
+    M.k = 1.0; M.cyl('white', (-19.6, -2.05, 0), 0.08, 0.2, 'x', 6)                                                    # its nozzle
+    for sz in (-1, 1):
+        M.k = 1.0; M.box('glass', (13.4, 0.95, sz * 1.25), (0.8, 0.35, 0.04), rot=sz * 0.3)                          # cockpit side windows
+        M.k = 0.6; M.box('dark', (12.0, 0.1, sz * 1.66), (0.9, 1.6, 0.02)); M.box('dark', (-9.5, 0.1, sz * 1.66), (0.8, 1.3, 0.02))  # doors
+        roundel(M, (-4.0, -0.2, sz * 13.0), 1.1)
+        roundel(M, (6.0, 0.4, sz * 1.66), 0.7, 'z')
+    navlights(M, (-5.9, -0.45, 19.0), (-5.9, -0.45, -19.0), (-16.9, 7.5, 0), 0.18)
+    for x in (8.0, 0.0, -6.0): antenna(M, (x, 1.65, 0), 0.6, 0.5)
+    M.k = 1.2; M.cyl('red', (4.0, -1.68, 0), 0.15, 0.1, 'y', 8); M.cyl('red', (4.0, 1.68, 0), 0.15, 0.1, 'y', 8)        # beacons
     return [('hull', M, None)]
 
 def rotor(r, y, x=0.0, blades=4):
@@ -515,6 +549,13 @@ def k_heli():  # an attack helicopter (Apache): a narrow lofted body, a stepped 
         M.k = 0.7; M.strut('dark', (0.6, 0.85, sz * 0.5), (0.6, 0.1, sz * 0.9), 0.07); M.k = 0.8; M.tyre((0.6, 0.25, sz * 0.95), 0.25, 0.15, sz)  # main gear
     M.k = 0.6; M.cyl('dark', (3.3, 0.55, 0), 0.22, 0.4, 'y', 10); M.cyl('dark', (3.8, 0.55, 0), 0.05, 1.0, 'x', 6)   # chin gun
     M.k = 0.95; M.cyl('body', (0.2, 2.95, 0), 0.5, 0.7, 'y', 10)                                                            # mast fairing
+    M.k = 0.8; ball(M, 'dark', (4.0, 1.2, 0), 0.28, 1.0, 8); M.k = 1.0; M.box('glass', (4.25, 1.25, 0), (0.04, 0.16, 0.3))   # nose sensor
+    navlights(M, (0.4, 1.35, 2.15), (0.4, 1.35, -2.15), (-6.9, 3.0, 0))
+    antenna(M, (-2.5, 2.05, 0)); antenna(M, (0.0, 0.7, 0), -0.25)
+    for sz in (-1, 1):
+        roundel(M, (-3.6, 2.07, sz * 0.32), 0.25, 'z')
+        rivets(M, [((x, 1.6, sz * 0.73), 'z') for x in np.linspace(-1.4, 1.4, 7)], 0.02)
+        M.k = 0.8; M.box('metal', (2.4, 1.0, sz * 0.62), (0.25, 0.04, 0.15))                                                  # steps
     return [('hull', M, None), ('turret', rotor(13.0, 3.5, 0.2), 0)]
 
 def k_gunship():  # a utility helicopter with door guns (Black Hawk): a deep lofted cabin, open doors, a long tail
@@ -535,6 +576,14 @@ def k_gunship():  # a utility helicopter with door guns (Black Hawk): a deep lof
     M.k = 0.95; M.hull('body', [(-7.0, 2.3, -1.4), (-7.0, 2.3, 1.4), (-7.6, 2.3, -1.4), (-7.6, 2.3, 1.4), (-7.0, 2.38, 0), (-7.6, 2.38, 0)])
     M.k = 0.7; M.tyre((2.8, 0.3, 0), 0.25, 0.15, 1)
     M.k = 0.95; M.cyl('body', (0.0, 3.0, 0), 0.6, 0.6, 'y', 10)
+    navlights(M, (1.0, 2.4, 1.1), (1.0, 2.4, -1.1), (-7.8, 3.0, 0))
+    antenna(M, (-3.5, 2.5, 0)); antenna(M, (1.5, 0.45, 0), -0.25); antenna(M, (3.0, 2.3, 0), 0.25, 0.12)
+    M.k = 0.7; ball(M, 'dark', (4.2, 0.85, 0), 0.2, 1.0, 8)                                                                 # FLIR
+    M.k = 0.6; M.strut('dark', (3.6, 2.2, 0.3), (2.6, 3.0, 0.4), 0.03); M.strut('dark', (3.6, 2.2, -0.3), (2.6, 3.0, -0.4), 0.03)  # wire cutters
+    for sz in (-1, 1):
+        roundel(M, (-3.8, 2.3, sz * 0.5), 0.3, 'z')
+        rivets(M, [((x, 2.55, sz * 1.03), 'z') for x in np.linspace(-2.4, 1.4, 8)], 0.02)
+        M.k = 0.8; M.box('metal', (1.0, 0.45, sz * 1.1), (0.4, 0.04, 0.2))                                                  # step
     return [('hull', M, None), ('turret', rotor(14.0, 3.5, 0.0), 0)]
 
 def k_lift():  # a heavy transport helicopter (CH-53): a long boxy body, a rear ramp, sponsons, a six-bladed rotor
@@ -556,6 +605,14 @@ def k_lift():  # a heavy transport helicopter (CH-53): a long boxy body, a rear 
     M.k = 1.0; M.loft('body', round_secs([(-6.3, 0.6, 2.8), (-10.6, 0.3, 3.1)], 0, 1.0, 8))
     tail(M, -10.4, 3.1, 2.8, 1.5)
     M.k = 0.95; M.cyl('body', (0.6, 3.9, 0), 0.6, 0.7, 'y', 10)
+    M.k = 0.6; M.strut('metal', (4.5, 1.9, 1.0), (7.6, 1.6, 1.1), 0.06); M.k = 0.4; M.cyl('dark', (7.65, 1.6, 1.1), 0.08, 0.15, 'x', 8)  # refuelling probe
+    navlights(M, (0.2, 1.5, 2.2), (0.2, 1.5, -2.2), (-11.0, 4.0, 0))
+    antenna(M, (-2.0, 3.3, 0), 0.4, 0.25); antenna(M, (2.5, 0.6, 0), -0.3)
+    for sz in (-1, 1):
+        roundel(M, (-5.0, 2.5, sz * 1.15), 0.45, 'z')
+        rivets(M, [((x, 1.0, sz * 1.36), 'z') for x in np.linspace(-4.0, 3.0, 10)], 0.025)
+        M.k = 0.6; M.box('dark', (3.0, 1.8, sz * 1.36), (1.0, 1.5, 0.02))                                                    # crew door
+        M.k = 0.7; M.cyl('dark', (-6.0, 2.6, sz * 0.7), 0.12, 0.6, 'x', 8)                                                   # flare dispensers
     return [('hull', M, None), ('turret', rotor(17.0, 4.4, 0.6, 6), 0)]
 
 def jeep():  # a light armoured 4×4 (Humvee-like): low and wide, a sloped bonnet, a squared cab, a turret ring on top
