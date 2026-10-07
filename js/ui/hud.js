@@ -539,12 +539,17 @@ function showIntro(on) {
 function menuSideShow(on) { $('menuSide').hidden = !on; $('menuGear').setAttribute('aria-expanded', String(on)); }
 $('menuGear').addEventListener('click', () => menuSideShow($('menuSide').hidden));
 if (navigator.webdriver) menuSideShow(true);
-// each arm's tile: its pictures from the map (top-down, our blue), facing up-right
+// each arm's tile: its pictures from the map (top-down, our blue), facing up-right — or its own picture
+// (art/menu/arm_<arm>.jpg → tools/menupics.py → MENU_PICS), fitted in
+const armPic = {};
+for (const k in (typeof MENU_PICS === 'object' ? MENU_PICS : {})) { const im = new Image(); im.onload = () => { armPic[k] = im; drawArmTiles(); }; im.src = MENU_PICS[k].src; }
 function drawArmTiles() {
   const col = colors.blue, a = -0.55;
   for (const b of document.querySelectorAll('.armTile')) {
     const cv = b.querySelector('canvas'), c = cv.getContext('2d'), W = cv.width, H = cv.height, k = b.dataset.arm;
     c.clearRect(0, 0, W, H);
+    const own = armPic['arm_' + k];
+    if (own) { const f = Math.min(W * 0.96 / own.width, H * 0.96 / own.height), w = own.width * f, h = own.height * f; c.drawImage(own, (W - w) / 2, (H - h) / 2, w, h); continue; }
     try {
       if (k === 'armor') drawUnitPic(c, 'tank', W / 2, H / 2, 50, col, a, a);
       else if (k === 'air') drawUnitPic(c, 'air', W / 2, H / 2, 48, col, a, a);
