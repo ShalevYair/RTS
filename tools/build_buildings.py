@@ -25,6 +25,7 @@ class B(Mesh):
 
     def pad(self, L, W, mat='concrete', y=0.12, tile=4.0):
         """the base's ground: slabs of concrete, each a shade of its own"""
+        self.padLW = getattr(self, 'padLW', None) or (L, W)
         nx, nz = max(1, int(round(L / tile))), max(1, int(round(W / tile)))
         for i in range(nx):
             for j in range(nz):
@@ -45,6 +46,7 @@ class B(Mesh):
     def wall_ring(self, L, W, gate=6.0, h=1.3, s=1.1, gate_side='+x'):
         """barriers round an L × W yard, an opening of `gate` in the middle of one side"""
         x, z = L / 2 - s / 2, W / 2 - s / 2; g = gate / 2
+        self.walls = (L, W, gate if gate_side == '+x' else 0, h, s)
         if gate_side == '+x': self.barrier((x, -z), (x, -g), h, s).barrier((x, g), (x, z), h, s)
         else: self.barrier((x, -z), (x, z), h, s)
         self.barrier((-x, -z), (-x, z), h, s)
@@ -68,6 +70,10 @@ class B(Mesh):
                 self.k = 1.12; w = 0.07
                 self.hull(mat, [P(u + du, sv * hv, y0 + t + e) for du in (-w, w) for e in (0, 0.05)] + [P(u + du, 0, ytop + t + e) for du in (-w, w) for e in (0, 0.05)])
         self.k = 0.6; self.hull('dark', [P(u, 0, y0 + h + h * over / (W / 2) + t + e) + np.zeros(3) for u in (-hu, hu) for e in (0, 0.12)] + [P(u, dv, y0 + h + h * over / (W / 2) + t - 0.1) for u in (-hu, hu) for dv in (-0.25, 0.25)])
+        if L > 4:  # (vents along the ridge)
+            for u in np.linspace(-hu * 0.6, hu * 0.6, max(2, int(L / 6))):
+                yr = y0 + h + h * over / (W / 2) + t + 0.1; c = P(u, 0, yr)
+                self.k = 0.85; self.cyl('metal', c, 0.22, 0.4, 'y', 8); self.k = 0.6; self.cyl('metal', (c[0], yr + 0.25, c[2]), 0.32, 0.08, 'y', 8)
         self.k = 1.0; return self
 
     def gable_ends(self, cx, cz, L, W, y0, h, mat='concrete', along='x'):
@@ -132,6 +138,7 @@ class B(Mesh):
             a = 1.0 + i * 2.2; y = y0 + h * (0.65 + 0.15 * i)
             self.k = 1.0; self.cyl('white', (x + np.cos(a) * 0.6, y, z + np.sin(a) * 0.6), 0.55, 0.15, 'x', 14, r2=0.15, rot=-a)
         self.strut('dark', np.array((x, y0 + h, z)), np.array((x, y0 + h + 2.5, z)), 0.03)
+        self.k = 1.3; self.cyl('red', (x, y0 + h + 0.15, z), 0.18, 0.3, 'y', 8)
         return self
 
     def strut(self, mat, p0, p1, w):
@@ -150,6 +157,45 @@ class B(Mesh):
             q = [(xs[i], h, zs[i]), (xs[i + 1], h - 0.05, zs[i + 1]), (xs[i + 1], h - fh - 0.05, zs[i + 1]), (xs[i], h - fh, zs[i])]
             self.k = 0.92 + 0.12 * (i % 2); self.add('body', q, [(0, 1, 2, 3), (3, 2, 1, 0)])
         self.k = 1.0; return self
+
+    def floodlight(self, x, z, h=6.0, at=(0.0, 0.0)):
+        """a light pole: a mast, a lamp head tilted toward `at`"""
+        self.k = 0.8; self.strut('metal', np.array((x, 0, z)), np.array((x, h, z)), 0.08)
+        a = np.arctan2(at[1] - z, at[0] - x)
+        self.k = 0.6; self.block('dark', (x + np.cos(a) * 0.3, h + 0.1, z + np.sin(a) * 0.3), (0.6, 0.35, 0.5), 0.15, rot=-a)
+        self.k = 1.3; self.box('white', (x + np.cos(a) * 0.62, h + 0.05, z + np.sin(a) * 0.62), (0.04, 0.25, 0.4), rot=-a)
+        self.k = 1.0; return self
+
+    def wire(self, a, b, y, step=1.4):
+        """razor wire on a wall: a zigzag along the top"""
+        a, b = np.asarray(a, float), np.asarray(b, float); d = b - a; L = np.hypot(*d); n = max(2, int(L / step)); nrm = np.array((-d[1], d[0])) / L
+        pts = [a + d * i / n + nrm * (0.25 if i % 2 else -0.25) for i in range(n + 1)]
+        for i, (p0, p1) in enumerate(zip(pts, pts[1:])): self.k = 0.75; self.strut('metal', np.array((p0[0], y + (0.4 if i % 2 else 0.1), p0[1])), np.array((p1[0], y + (0.1 if i % 2 else 0.4), p1[1])), 0.02)
+        return self
+
+    def finish(self):
+        """what a lived-in base has: on a walled one — razor wire along the top, a boom and a guard booth at the gate,
+        floodlights in the corners"""
+        if not getattr(self, 'walls', None):  # (no wall: two lights at opposite corners of its ground)
+            if getattr(self, 'padLW', None):
+                L, W = self.padLW
+                for sx in (-1, 1): self.floodlight(sx * (L / 2 - 0.8), sx * (W / 2 - 0.8), 5.0)
+            return self
+        L, W, gate, h, s_ = self.walls; x, z = L / 2 - s_ / 2, W / 2 - s_ / 2
+        for a, b in (((-x, -z), (-x, z)), ((-x, z), (x, z)), ((-x, -z), (x, -z))): self.wire(a, b, h)
+        if gate:
+            g = gate / 2
+            self.wire((x, -z), (x, -g), h).wire((x, g), (x, z), h)
+            for i in range(6):  # (the boom: red and white, across the gate)
+                self.k = 1.1; self.box('red' if i % 2 else 'white', (x + 0.6, 1.0, -g + 0.3 + (i + 0.5) * (gate - 0.6) / 6), (0.12, 0.12, (gate - 0.6) / 6))
+            self.k = 0.8; self.box('metal', (x + 0.6, 0.5, -g + 0.3), (0.3, 1.0, 0.3))
+            bx, bz = x - 2.2, -g - 1.6  # (the booth: inside, by the gate)
+            self.var(0.95, 1.05).block('concrete', (bx, 1.2, bz), (1.8, 2.4, 1.8), 0.05)
+            self.k = 1.0; self.box('body', (bx, 2.5, bz), (2.2, 0.2, 2.2))
+            self.k = 1.0; self.box('glass', (bx + 0.92, 1.5, bz), (0.04, 0.7, 1.2)); self.box('glass', (bx, 1.5, bz + 0.92), (1.2, 0.7, 0.04))
+        for sx in (-1, 1):
+            for sz in (-1, 1): self.floodlight(sx * (x - s_ - 0.4), sz * (z - s_ - 0.4), 5.5 + 1.0 * (L > 25))
+        return self
 
     def ac(self, x, y, z):
         """a rooftop air-conditioning unit: a grey box, a dark fan on top"""
@@ -175,7 +221,9 @@ class B(Mesh):
         # (guy ropes' pegs: a few posts round it)
         self.k = 1.0
         for u in np.linspace(-L / 2, L / 2, 4):
-            for sv in (-1, 1): self.strut('wood', np.array((cx + u, 0, cz + sv * (W / 2 + 0.9))), np.array((cx + u, 0.5, cz + sv * (W / 2 + 0.9))), 0.05)
+            for sv in (-1, 1):
+                self.strut('wood', np.array((cx + u, 0, cz + sv * (W / 2 + 0.9))), np.array((cx + u, 0.5, cz + sv * (W / 2 + 0.9))), 0.05)
+                self.k = 0.75; self.strut('canvas', np.array((cx + u, wall, cz + sv * W / 2)), np.array((cx + u, 0.45, cz + sv * (W / 2 + 0.9))), 0.015); self.k = 1.0
         return self
 
     def net(self, cx, cz, L, W, h=2.4):
@@ -226,6 +274,10 @@ class B(Mesh):
             self.hull('body', [(px + du, h * 0.55 + e, cz + sv * (W / 2 + dv)) for du in (-1.2, 1.2) for dv, e in ((0, 0.4), (1.6, 0)) for e2 in (0,)] +
                       [(px + du, h * 0.55 + e + 0.1, cz + sv * (W / 2 + dv)) for du in (-1.2, 1.2) for dv, e in ((0, 0.4), (1.6, 0))])
             self.k = 0.4; self.box('dark', (px, 1.1, cz + sv * (W / 2 + 0.03)), (1.1, 2.1, 0.06)); self.k = 1.0
+        for sv in (-1, 1):
+            for i, y in enumerate(np.arange(0.25, h - 1.2, 0.5)):
+                self.k = 1.0; self.box('warn' if i % 2 == 0 else 'dark', (cx + L / 2 + 0.03, y, cz + sv * (dw / 2 + 0.12)), (0.04, 0.5, 0.24))
+            self.k = 0.6; self.box('dark', (cx + L / 2 + 0.25, h - 1.1, cz + sv * dw * 0.3), (0.5, 0.15, 0.3)); self.k = 1.3; self.box('white', (cx + L / 2 + 0.45, h - 1.2, cz + sv * dw * 0.3), (0.05, 0.08, 0.25))
         if inside: inside(self)
         return self
 
@@ -726,4 +778,7 @@ KINDS = {'b_hq': b_hq, 'b_decoy': lambda: b_hq(1), 'b_fhq': b_fhq, 'b_tent': b_t
 
 if __name__ == '__main__':
     for k in (['b_' + a.removeprefix('b_') for a in sys.argv[1:]] or KINDS):
-        write(k, KINDS[k](), GEN)
+        parts = KINDS[k]()
+        for _, M, _ in parts:
+            if isinstance(M, B): M.finish()
+        write(k, parts, GEN)
