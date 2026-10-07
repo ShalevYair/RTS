@@ -576,10 +576,12 @@ function v3Fx() {
 // V3_CHUNK, a mesh for each model in each (so what's off screen, or out of the sun's shadow box, isn't drawn), made
 // again only when something in it is cleared, run over or cut. ----
 const V3_SCEN = {
-  tree: ['tree_oak', 'tree_default', 'tree_detailed', 'tree_fat', 'tree_pineRoundB'],
-  bush: ['bush_a', 'bush_b'], rock: ['rock_smallC', 'rock_largeA'], rockHi: ['rock_largeA', 'rock_tallB', 'rock_smallC'],
+  tree: ['tree_oak', 'tree_default', 'tree_detailed', 'tree_fat', 'tree_pineRoundB', 'tree_cone', 'tree_pineTallA', 'tree_pineRoundD', 'tree_pineSmallB',
+    'tree_plateau', 'tree_simple', 'tree_small', 'tree_tall', 'tree_thin', 'tree_blocks', 'tree_pineDefaultA', 'tree_oak_dark'],
+  bush: ['bush_a', 'bush_b', 'plant_bushLarge', 'plant_bushDetailed', 'plant_bushSmall'], rock: ['rock_smallC', 'rock_largeA', 'rock_smallF', 'stone_largeB'],
+  rockHi: ['rock_largeA', 'rock_tallB', 'rock_smallC', 'rock_largeC', 'rock_tallE'],
 };
-const V3_SCEN_K = { tree: 0.8, bush: 1.1, rock: 0.9 }, V3_TREE_H = 0.75, V3_CHUNK = 512;
+const V3_SCEN_K = { tree: 0.8, bush: 1.1, rock: 0.9 }, V3_TREE_H = 0.75, V3_TREE_MAX = 2.0, V3_CHUNK = 512;
 const v3HasScen = () => typeof MODELS === 'object' && V3_SCEN.tree.every(k => MODELS[k]);
 // (what stands in a square: [model, x, y, turn, width])
 function v3ScenList(ci, cj) {
@@ -609,7 +611,7 @@ function v3ScenChunk(key) {
   for (const [model, l] of by) {
     const mesh = new THREE.InstancedMesh(v3Geo(model, 'hull', 'scen'), V3.scenMat || (V3.scenMat = v3Shaded(new THREE.MeshLambertMaterial({ vertexColors: true }))), l.length);
     l.forEach(([, x, y, a, w], i) => {
-      const tall = model.startsWith('tree') ? V3_TREE_H : 1;
+      const tall = model.startsWith('tree') ? Math.min(V3_TREE_H, V3_TREE_MAX / MODELS[model].size[1]) : 1; // (the tall thin ones: no higher than V3_TREE_MAX × wide — they hid all round them)
       o.position.set(x, v3Gnd(x, y) - w * 0.03, y); o.rotation.set(0, a, 0); o.scale.set(w, w * tall, w); o.updateMatrix(); mesh.setMatrixAt(i, o.matrix);
       const h = j => { const v = Math.sin(x * 12.9898 + y * 78.233 + j * 37.72) * 43758.5453; return v - Math.floor(v); }, k = 0.82 + h(0) * 0.3; // (each a little lighter or darker,
       mesh.setColorAt(i, tint.setRGB(k * (1 + (h(1) - 0.5) * 2 * V3_SCEN_HUE), k * (1 + (h(2) - 0.5) * 2 * V3_SCEN_HUE), k * (1 + (h(3) - 0.5) * 2 * V3_SCEN_HUE))); // and each of R, G, B up to ±V3_SCEN_HUE)
