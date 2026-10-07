@@ -90,7 +90,7 @@ ok(Sim.buildCheck(s, 'blue', 150, 900) === '', 'building near the HQ, below the 
   };
   const down = walk(top, dir), up = walk(dir, top);
   const flat = Sim.TYPES.jeep.speed;
-  ok(dir && down * 2 > flat * 1.1 && up * 2 < flat * 0.85, `a jeep (${flat}/s on the flat) goes down a slope at ${(down * 2).toFixed(0)}/s and up it at ${(up * 2).toFixed(0)}/s`);
+  ok(dir && down * 2 > flat * 1.05 && up * 2 < flat * 0.85, /* (gentler hills since HILL_SPREAD 2.83: a little less) */ `a jeep (${flat}/s on the flat) goes down a slope at ${(down * 2).toFixed(0)}/s and up it at ${(up * 2).toFixed(0)}/s`);
 }
 // the AI: a forward HQ on a hill
 let onHill = 0, fhqs = 0;

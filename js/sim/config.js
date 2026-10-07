@@ -14,14 +14,15 @@ const MAP_H_MAX = 2800, MAP_W_MAX = 6000, HILL_CLEAR = 240;
 // height, in contour lines (0 = the plain, hills up to HILL_LEVELS), on a grid every ELEV_CELL. A ground unit gets
 // ELEV_SIGHT more sight and ELEV_RANGE more range per line it stands on; climbing slows it and going down speeds it up, by
 // SLOPE_K per line climbed per unit walked, at most SLOPE_MAX. Aircraft don't care.
-// HILL_SPREAD: each hill, once placed, is spread over that much more length and width (broad hills, not bumps)
+// HILL_SPREAD: each hill, once placed, is spread over that much more length and width (broad hills, not bumps; 2.83, not 2:
+// twice the ground, so half as steep — they looked sharp)
 // a unit chooses its target anew every SCAN_EVERY ticks (its turn by its id; at once if the target is gone)
 const SCAN_EVERY = 4, SCAN_AI = 1;
 // the AI weighs enemies in one square of AI_CLUSTER as one target
 const AI_CLUSTER = 60;
 // (ELEV_SIGHT more sight and ELEV_RANGE more range a line: from line 8, 9% further than from line 5; a building's sight too)
 const ELEV_SIGHT = 0.05, ELEV_RANGE = 0.03;
-const HILL_SPREAD = 2, HILL_LEVELS = 10, ELEV_CELL = 8, SLOPE_K = 9, SLOPE_MAX = 0.5;
+const HILL_SPREAD = 2.83, HILL_LEVELS = 10, ELEV_CELL = 8, SLOPE_K = 9, SLOPE_MAX = 0.5;
 // random maps: the enemy's half is our half's twin, each feature moved up to MAP_JITTER and resized up to MAP_RESIZE;
 // lakes keep LAKE_GAP between them
 const MAP_JITTER = 30, MAP_RESIZE = 0.12, LAKE_GAP = 60, SHAPE_AMP = 0.14;
