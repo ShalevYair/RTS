@@ -136,6 +136,26 @@ class Mesh:
         self.k = 1.0; return self
 
 
+def rivets(M, pts, r=0.035, mat='metal', k=0.75):
+    """bolt heads (tiny domes) at these points, facing `axis` out of the surface: pts = [((x, y, z), axis), …]"""
+    for c, ax in pts: M.k = k; M.cyl(mat, c, r, 0.03, ax, 6, r2=r * 0.6)
+    M.k = 1.0
+
+def plate(M, c, w=0.5, h=0.12, out=1):
+    """a number plate: white with a dark frame, facing +X (out=1) or -X"""
+    M.k = 0.5; M.box('dark', (c[0] + out * 0.01, c[1], c[2]), (0.02, h + 0.04, w + 0.04)); M.k = 1.0; M.box('white', (c[0] + out * 0.025, c[1], c[2]), (0.02, h, w))
+    for i in range(5): M.k = 0.3; M.box('dark', (c[0] + out * 0.04, c[1], c[2] - w * 0.35 + i * w * 0.175), (0.01, h * 0.5, w * 0.09))
+
+def flap(M, x, y0, z, w=0.45, h=0.5):
+    """a rubber mud flap hanging behind a wheel"""
+    M.k = 0.55; M.box('dark', (x, y0 - h / 2, z), (0.03, h, w)); M.k = 0.8; M.box('metal', (x, y0 - 0.02, z), (0.05, 0.04, w + 0.05))
+
+def jerrycan(M, c, rot=0.0, mat='olive'):
+    """a jerrycan standing: the can, its three handles on top"""
+    M.k = 0.95; M.block(mat, c, (0.17, 0.45, 0.34), 0.15, rot)
+    for d in (-0.08, 0, 0.08): M.k = 0.75; M.box(mat, (c[0] + np.sin(rot) * d, c[1] + 0.25, c[2] + np.cos(rot) * d), (0.05, 0.05, 0.03), rot)
+    M.k = 1.0
+
 def ry(a): c, s = np.cos(a), np.sin(a); return np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
 def rz(a): c, s = np.cos(a), np.sin(a); return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
 
@@ -217,6 +237,22 @@ def truck(L=7.0, W=2.5, axles=(-1.0, -2.2), cab=1.8, hood=1.3, r=0.55):
     M.k = 1.0; M.box('body', (cx0 + 0.6, 3.1, 0), (0.9, 0.12, W - 0.5))                                     # roof hatch
     M.wheels([f - 1.0] + list(axles), hw - 0.12, r, 0.42)
     for sz in (-1, 1): M.k = 1.0; M.box('red', (-L / 2 + 0.05, 1.25, sz * (hw - 0.15)), (0.05, 0.12, 0.2))   # rear lights
+    # (the details: what a real truck has on it)
+    for sz in (-1, 1):
+        M.k = 0.4; M.strut('dark', (cx1 - 0.05, 2.32, sz * 0.25), (cx1 - 0.2, 2.72, sz * 0.5), 0.015)      # wipers
+        M.k = 0.9; M.strut('metal', (cx0 + 0.15, 1.6, sz * (hw + 0.04)), (cx0 + 0.15, 2.75, sz * (hw + 0.04)), 0.025)  # grab handles
+        M.k = 1.0; M.box('warn', (cx0 - 0.3, 1.2, sz * (hw + 0.01)), (0.12, 0.07, 0.03))                      # side marker
+        rx = min(axles)                                                                                      # (the back axle)
+        M.k = 0.95; M.hull('body', [(rx + dx, 1.42, sz * zz) for dx in (-0.65, 0.65) for zz in (hw - 0.45, hw + 0.02)] + [(rx + dx, 1.32, sz * zz) for dx in (-0.65, 0.65) for zz in (hw - 0.45, hw + 0.02)])
+        flap(M, rx - r - 0.15, 1.3, sz * (hw - 0.2), 0.42, 0.55)
+        M.k = 0.8; M.box('olive', ((cx0 + rx) / 2 + 0.2, 1.05, sz * (hw - 0.2)), (0.55, 0.35, 0.35))         # toolbox
+        M.k = 0.4; M.box('dark', ((cx0 + rx) / 2 + 0.2, 1.05, sz * (hw - 0.02)), (0.4, 0.03, 0.02))
+    M.k = 0.9; M.box('body', (cx1 - rk - 0.08, 3.08, 0), (0.25, 0.04, W - 0.3))                              # sun visor
+    for z in (-0.35, 0, 0.35): M.k = 1.0; M.cyl('warn' if z == 0 else 'white', (cx1 - rk - 0.15, 3.18, z), 0.06, 0.1, 'x', 8)  # roof lights
+    M.k = 0.5; M.strut('dark', (cx0 + 0.2, 3.1, -(hw - 0.25)), (cx0 + 0.1, 4.8, -(hw - 0.3)), 0.012)          # aerial
+    plate(M, (f + 0.24, 1.08, 0), 0.5, 0.12, 1); plate(M, (-L / 2 + 0.03, 1.15, 0), 0.5, 0.12, -1)
+    rivets(M, [((f + 0.25, 1.08, z), 'x') for z in np.linspace(-hw * 0.8, hw * 0.8, 6)])
+    for sz in (-1, 1): jerrycan(M, (cx0 - 0.15, 1.45, sz * 0.62), np.pi / 2)                                # behind the cab
     return M, f, hw, cx0
 
 def bed_sides(M, x0, x1, hw, h=0.6, y0=1.18):
@@ -341,6 +377,12 @@ def k_mlrs():  # M270: a tracked hull with a sloped nose, an armoured cab, a lau
     for sz in (-1, 1): M.k = 1.0; M.box('glass', (L / 2 - 1.3, 2.55, sz * (hw - 0.32)), (0.6, 0.35, 0.04))
     for sz in (-1, 1): M.k = 1.0; M.cyl('white', (L / 2 - 0.12, 1.45, sz * (hw - 0.85)), 0.09, 0.05, 'x', 8)
     M.k = 0.8; M.box('dark', (-L / 2 + 0.6, 2.0, hw - 0.7), (0.8, 0.1, 0.5))                                          # engine grille
+    for sz in (-1, 1):
+        M.k = 0.85; M.strut('metal', (L / 2 - 1.85, 2.2, sz * (hw - 0.3)), (L / 2 - 1.85, 2.8, sz * (hw - 0.33)), 0.02)   # grab handles
+        rivets(M, [((x, 1.6, sz * (hw - 0.6 + 0.005)), 'z') for x in np.linspace(-L / 2 + 0.4, L / 2 - 1.2, 8)], 0.03)
+        jerrycan(M, (-L / 2 + 1.4, 2.2, sz * (hw - 0.75)), 0.0)
+    for z in (-0.6, 0.6): M.k = 1.0; M.box('red', (-L / 2 - 0.01, 1.7, z), (0.03, 0.08, 0.15))
+    plate(M, (L / 2 - 0.1, 1.25, 0), 0.45, 0.1, 1)
     T = Mesh(); cx = -1.0
     T.k = 0.8; T.cyl('dark', (cx, 2.05, 0), 0.9, 0.2, 'y', 14)
     T.k = 1.0; T.hull('body', [(cx + u, 2.25 + u * 0.08 + e, w) for u in (-2.0, 2.0) for e in (0, 1.05) for w in (-1.15, 1.15)])
@@ -375,6 +417,12 @@ def k_dozer():  # D9 armoured: tracks, an engine bay with a grille, an armoured 
         M.strut('metal', (L / 2 - 1.3, 2.0, sz * 0.6), (L / 2 - 0.15, 1.6, sz * 0.6), 0.09)                           # lift rams
     M.k = 0.8; M.box('dark', (-L / 2 + 0.2, 1.4, 0), (0.3, 0.3, 1.8))
     M.hull('dark', [(-L / 2 - 0.1, 1.4, -0.12), (-L / 2 - 0.1, 1.4, 0.12), (-L / 2 - 0.3, 0.0, -0.1), (-L / 2 - 0.3, 0.0, 0.1), (-L / 2 + 0.15, 1.3, 0), (-L / 2 - 0.05, 0.3, 0)])  # ripper
+    for sz in (-1, 1):  # (work lights on the cab, its grab rails, bolts on the blade, a beacon)
+        M.k = 1.0; M.cyl('white', (-0.3, 3.9, sz * 0.6), 0.09, 0.12, 'x', 8); M.cyl('white', (-2.15, 3.9, sz * 0.6), 0.09, 0.12, 'x', 8)
+        M.k = 0.85; M.strut('metal', (-2.25, 2.1, sz * (hw - 0.75)), (-2.25, 3.4, sz * (hw - 0.85)), 0.02)
+    rivets(M, [((L / 2 + 0.16, y, z), 'x') for y in (0.5, 1.4) for z in np.linspace(-hw, hw, 7)], 0.04)
+    M.k = 1.0; M.cyl('warn', (-1.15, 3.95, 0), 0.1, 0.18, 'y', 8)
+    jerrycan(M, (-L / 2 + 0.6, 2.3, 0.7), 0.0); jerrycan(M, (-L / 2 + 0.6, 2.3, 0.35), 0.0)
     return [('hull', M, None)]
 
 
@@ -522,10 +570,21 @@ def jeep():  # a light armoured 4×4 (Humvee-like): low and wide, a sloped bonne
         M.k = 0.7; M.box('dark', (-0.35, 0.95, sz * (hw + 0.01)), (0.04, 0.6, 0.03))
         M.k = 1.0; M.cyl('white', (L / 2 - 0.02, 0.95, sz * (hw - 0.3)), 0.1, 0.05, 'x', 8)
         M.strut('dark', (L / 2 - 1.5, 1.5, sz * hw), (L / 2 - 1.3, 1.6, sz * (hw + 0.3)), 0.03)
+        M.k = 0.8; M.box('dark', (L / 2 - 1.3, 1.68, sz * (hw + 0.32)), (0.05, 0.25, 0.16))                      # mirror
     M.k = 0.5; M.box('dark', (L / 2 - 0.01, 0.8, 0), (0.05, 0.4, W - 0.9))
     M.k = 0.7; M.block('dark', (L / 2 + 0.08, 0.6, 0), (0.2, 0.25, W - 0.2), 0.2)
     M.k = 0.8; M.cyl('dark', (-0.6, 1.95, 0), 0.62, 0.14, 'y', 14)                                                       # turret ring
     M.wheels([1.5, -1.4], hw - 0.12, 0.5, 0.4)
+    for sz in (-1, 1):
+        M.k = 0.4; M.strut('dark', (L / 2 - 1.62, 1.38, sz * 0.15), (L / 2 - 1.72, 1.75, sz * 0.45), 0.012)   # wipers
+        flap(M, -1.95, 0.75, sz * (hw - 0.12), 0.38, 0.4)
+        rivets(M, [((x, y, sz * (hw + 0.005)), 'z') for x in (-1.2, -0.55, -0.1, 0.5) for y in (1.0, 1.8)], 0.025)
+        M.k = 1.0; M.box('warn', (L / 2 - 0.05, 1.02, sz * (hw - 0.12)), (0.04, 0.06, 0.12))                     # indicators
+    plate(M, (L / 2 + 0.18, 0.55, 0), 0.42, 0.1, 1); plate(M, (-L / 2 - 0.01, 0.75, -0.3), 0.42, 0.1, -1)
+    M.k = 0.5; M.cyl('dark', (L / 2 + 0.16, 0.62, 0), 0.12, 0.6, 'z', 8)                                          # winch
+    M.k = 0.7; M.box('wood', (L / 2 - 0.9, 1.15, 0.45), (0.9, 0.04, 0.06)); M.k = 0.6; M.box('metal', (L / 2 - 0.45, 1.15, 0.45), (0.2, 0.03, 0.12))  # shovel
+    M.k = 0.7; M.box('wood', (L / 2 - 0.9, 1.15, -0.45), (0.8, 0.04, 0.05)); M.k = 0.6; M.box('metal', (L / 2 - 0.5, 1.15, -0.45), (0.06, 0.03, 0.25))  # pick
+    jerrycan(M, (-L / 2 - 0.08, 1.05, 0.55), 0.0)
     return M
 
 def k_ajeep():  # anti-aircraft: a twin cannon on a turntable behind a shield
@@ -631,6 +690,14 @@ def k_tank():
     T.k = 0.8; T.block('canvas', (-2.85, b + 0.5, 0.45), (0.5, 0.4, 0.8), 0.25); T.k = 0.95; T.block('olive', (-2.85, b + 0.45, -0.5), (0.45, 0.32, 0.6), 0.15)
     for z in np.linspace(-1.25, 1.25, 15):  # (the chains: balls on short strings under the back)
         T.k = 0.5; T.strut('dark', (-2.52, b + 0.27, z), (-2.52, b + 0.06, z), 0.01); ball(T, 'dark', (-2.52, b + 0.05, z), 0.035, 1.0, 5)
+    for sz in (-1, 1):  # (details: bolts on the turret's modules, grab rails, the hull's rear lights, front flaps)
+        for x in (-1.9, -1.1, -0.3): rivets(T, [((x + dx, b + 0.42 + dy, sz * 1.52), 'z') for dx in (-0.28, 0.28) for dy in (-0.18, 0.18)], 0.03)
+        T.k = 0.85; T.strut('metal', (-2.2, b + 0.78, sz * 1.15), (-1.0, b + 0.8, sz * 1.25), 0.02)
+        M.k = 0.6; M.box('dark', (3.7, 0.95, sz * (hw - 0.35)), (0.04, 0.6, 0.62))                          # front mud flaps
+        for x in np.linspace(-2.8, 0.4, 9): M.k = 0.7; M.box('dark', (x, 1.9, sz * (hw - 0.55)), (0.12, 0.04, 0.3))  # spare links
+        M.k = 0.6; M.cyl('dark', (-3.74, 1.05, sz * 1.15), 0.08, 0.1, 'x', 8)                                # tow eyes
+    for z in (-0.5, 0.5): M.k = 1.0; M.box('warn', (-3.76, 1.6, z), (0.03, 0.06, 0.12))
+    rivets(M, [((x, gy(x) + 0.03, z), 'y') for x in (1.7, 2.3, 2.9, 3.4) for z in (0.35, 1.25)], 0.035)
     tf, pitch = track_frames(x0, x1, tz, th, tw)
     return [('hull', M, None), ('turret', T, 0)] + tf, {'cycle': pitch}
 
