@@ -36,7 +36,7 @@ function aiBuild(s, side, D, who) {
   const pk = who ? side + who : side; // (arms: each player its own place in the plan)
   if (D.mass && !s.level && s.fog && may('decoy') && alive(s, side, ['decoy']).length < 2) { // (hard: deception — a fake HQ or two by the forward HQs)
     const f = alive(s, side, ['fhq']).find(n => s.t >= n.ready), foe = s.bases[foeOf(side)];
-    if (f) for (let i = 0; i < 8; i++) { const a = Math.atan2(foe.y - f.y, foe.x - f.x) + (s.rand() - 0.5) * 2, r = STRUCTS[f.kind].r + STRUCTS.decoy.r + BUILD_GAP + 5 + s.rand() * 50; if (build(s, side, 'decoy', f.x + Math.cos(a) * r, f.y + Math.sin(a) * r)) break; }
+    if (f) for (let i = 0; i < 8; i++) { const a = Math.atan2(foe.y - f.y, foe.x - f.x) + (s.rand() - 0.5) * 2, r = roomOf(s, f.kind) + roomOf(s, 'decoy') + 5 + s.rand() * 50; if (build(s, side, 'decoy', f.x + Math.cos(a) * r, f.y + Math.sin(a) * r)) break; }
   }
   if (s.logi && may('depot')) aiSupply(s, side);
   if (buildCount(s, side, who) >= buildLimit(s, side)) return;
@@ -51,7 +51,7 @@ function aiBuild(s, side, D, who) {
   const anchors = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq').sort((a, b) => dist(a, goal) - dist(b, goal));
   for (const a of anchors) for (let i = 0; i < 24; i++) {
     // (toward the enemy first; then all round it, a little farther — a crowded front left no room, and it stood stuck)
-    const wide = i >= 12, ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * (wide ? 2 * Math.PI : 2.4), r = STRUCTS[a.kind].r + STRUCTS[kind].r + BUILD_GAP + 5 + s.rand() * (wide ? 180 : 110);
+    const wide = i >= 12, ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * (wide ? 2 * Math.PI : 2.4), r = roomOf(s, a.kind) + roomOf(s, kind) + 5 + s.rand() * (wide ? 180 : 110);
     const x = a.x + Math.cos(ang) * r, y = a.y + Math.sin(ang) * r;
     if (build(s, side, kind, x, y)) { if (counter) { s.aiCounter[side] = { kind, t: s.t }; (s.aiCounterLog = s.aiCounterLog || []).push({ side, kind, t: Math.round(s.t) }); } else s.plan[pk] = (s.plan[pk] || 0) + 1; s.lastBuild[pk] = s.t; (s.planMiss = s.planMiss || {})[side] = 0; return; }
   }
@@ -95,7 +95,7 @@ function aiSupply(s, side) {
     const want = s.t - hq.ready > AI_SUPPLY2 ? 2 : 1;
     if (alive(s, side, [kind]).length >= want || (s.builds && !s.builds.includes(kind))) continue;
     if (kind === 'waterst') { for (const p of shoreSpots(s, hq, STRUCTS.waterst.r).slice(0, 30)) if (build(s, side, kind, p.x, p.y)) return; continue; }
-    for (let i = 0; i < 12; i++) { const a = s.rand() * Math.PI * 2, r = STRUCTS.hq.r + STRUCTS[kind].r + BUILD_GAP + 5 + s.rand() * 90; if (build(s, side, kind, hq.x + Math.cos(a) * r, hq.y + Math.sin(a) * r)) return; }
+    for (let i = 0; i < 12; i++) { const a = s.rand() * Math.PI * 2, r = roomOf(s, 'hq') + roomOf(s, kind) + 5 + s.rand() * 90; if (build(s, side, kind, hq.x + Math.cos(a) * r, hq.y + Math.sin(a) * r)) return; }
   }
 }
 // forward HQ on a hill (DESIGN.md §6): a hill just past the edge of our control, clear of known enemies and
