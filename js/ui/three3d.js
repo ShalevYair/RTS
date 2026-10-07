@@ -177,33 +177,42 @@ function v3Model(type, part, side) {
   mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3);
   V3.scene.add(mesh); P = { mesh, w: 1, h: 1, ox: 0, oy: 0, n: 0 }; V3.pics.set(key, P); return P;
 }
-// ---- camouflage: each unit's paint (its `team` part) in a pattern of its own, worked out on the card from where on
-// the model a point is (so it stays on the unit as it moves) — none, spots, tiger stripes, or squares (digital). Which
-// one and its seed come in the instance's colour: green < 0 = -(pattern + seed), red = the tint (as without it). The
-// side's colour stays the base — the pattern only darker and lighter of it, so blue and red still tell at a glance. ----
-const V3_CAMO = 4; // (patterns: 0 plain, 1 spots, 2 stripes, 3 squares)
-function v3CamoOf(u, c) { const p = (u.id * 7 + (u.side === 'red' ? 1 : 0)) % V3_CAMO, sd = ((u.id * 0.6180339) % 1) * 0.98; return p ? c.setRGB(1, -(p + sd), 0) : null; }
+// ---- camouflage: each unit's paint (its `team` part) in colours of its own — a scheme of three (a base, a dark, a
+// light) in its side's hues (blue: deep blue, teal, indigo, slate; red: brick, maroon, rust, brown and sand), laid in a
+// pattern — plain, spots, tiger stripes, or squares (digital) — worked out on the card from where on the model a point
+// is (so it stays on the unit as it moves). Which scheme, pattern and seed come in the instance's colour: red = the tint,
+// green < 0 = -(pattern + seed), blue = the scheme (side × 4 + which). The model's own shading of its paint (panels a
+// shade lighter or darker) kept: aTeam = its brightness against the part's mean (0 = not paint). ----
+const V3_CAMO = 4, V3_SCHEMES = 4; // (patterns: 0 plain, 1 spots, 2 stripes, 3 squares; schemes a side)
+const V3_PAL = [ // (sRGB: base, dark, light — blue's four, then red's)
+  ['#3d6fb0', '#1c3157', '#8fb4e0'], ['#2b8296', '#173f4c', '#86c3cc'], ['#5864b8', '#262b5e', '#aab3ea'], ['#4f7898', '#22374a', '#b9cde0'],
+  ['#b04a32', '#4f1d14', '#e0936e'], ['#93303a', '#3f1218', '#d07a72'], ['#b8652a', '#4d2a12', '#e2a868'], ['#8f5634', '#3a2214', '#d6bf8e']];
+function v3CamoOf(u, c) {
+  const h = (u.id * 0.6180339) % 1, p = Math.floor(h * 97) % V3_CAMO, sc = (u.side === 'red' ? V3_SCHEMES : 0) + Math.floor(((u.id * 0.7548777) % 1) * V3_SCHEMES);
+  return c.setRGB(1, -(p + 0.01 + h * 0.98), sc + 0.5);
+}
 function v3Camo(mat) {
   mat.onBeforeCompile = sh => {
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying float vTeam; varying vec2 vPat;')
+    sh.uniforms.v3Pal = { value: V3_PAL.flat().map(x => { const c = new THREE.Color(x); return new THREE.Vector3(c.r, c.g, c.b); }) }; // (linear)
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying float vTeam; varying vec3 vPat; varying float vTint;')
       .replace('#include <color_vertex>', `#include <color_vertex>
-      vP3 = position; vTeam = aTeam; vPat = vec2(0.0);
+      vP3 = position; vTeam = aTeam; vPat = vec3(-1.0); vTint = 1.0;
       #ifdef USE_INSTANCING_COLOR
-      if (instanceColor.g < 0.0) { vPat = vec2(floor(-instanceColor.g), fract(-instanceColor.g)); vColor.xyz = color.xyz * instanceColor.r; }
+      if (instanceColor.g < 0.0) { vPat = vec3(floor(-instanceColor.g), fract(-instanceColor.g), floor(instanceColor.b)); vColor.xyz = color.xyz * instanceColor.r; vTint = instanceColor.r; }
       #endif`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      varying vec3 vP3; varying float vTeam; varying vec2 vPat;
+      uniform vec3 v3Pal[${V3_PAL.length * 3}]; varying vec3 vP3; varying float vTeam; varying vec3 vPat; varying float vTint;
       float v3h(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
       float v3n(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(mix(v3h(i), v3h(i + vec3(1,0,0)), f.x), mix(v3h(i + vec3(0,1,0)), v3h(i + vec3(1,1,0)), f.x), f.y),
                    mix(mix(v3h(i + vec3(0,0,1)), v3h(i + vec3(1,0,1)), f.x), mix(v3h(i + vec3(0,1,1)), v3h(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-      if (vPat.x > 0.5 && vTeam > 0.5) {
-        vec3 q = vP3 + vPat.y * 17.0; float k = 1.0;
-        if (vPat.x < 1.5) { float n = v3n(q * 7.0) * 0.65 + v3n(q * 15.0) * 0.35; k = n < 0.4 ? 0.55 : n > 0.62 ? 1.3 : 1.0; }
-        else if (vPat.x < 2.5) { float w = sin((vP3.x * 1.0 + vP3.z * 0.35 + vP3.y * 0.6) * 34.0 + v3n(q * 6.0) * 5.0); k = w > 0.45 ? 0.5 : 1.08; }
-        else { float n = v3h(floor(q * 22.0)); k = n < 0.3 ? 0.58 : n > 0.75 ? 1.28 : 1.0; }
-        diffuseColor.rgb *= k;
+      if (vPat.x > -0.5 && vTeam > 0.01) {
+        int b = int(vPat.z) * 3; vec3 c0 = v3Pal[b], c1 = v3Pal[b + 1], c2 = v3Pal[b + 2], q = vP3 + vPat.y * 17.0, c = c0;
+        if (vPat.x > 0.5 && vPat.x < 1.5) { float n = v3n(q * 6.0) * 0.65 + v3n(q * 14.0) * 0.35; c = n < 0.4 ? c1 : n > 0.6 ? c2 : c0; }
+        else if (vPat.x > 1.5 && vPat.x < 2.5) { float w = sin((vP3.x + vP3.z * 0.35 + vP3.y * 0.6) * 22.0 + v3n(q * 5.0) * 5.0); c = w > 0.35 ? c1 : w < -0.75 ? c2 : c0; }
+        else if (vPat.x > 2.5) { float n = v3h(floor(q * 20.0)) * 0.6 + v3n(q * 5.0) * 0.4; c = n < 0.38 ? c1 : n > 0.62 ? c2 : c0; }
+        diffuseColor.rgb = c * vTeam * vTint;
       }`);
   };
   return mat;
@@ -229,7 +238,9 @@ function v3Geo(type, part, side) {
       col[i * 3 + j] = k === 'team' && side !== 'wreck' ? c * (1 - TK) + s2 * TK * 0.55 : c;
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    g.setAttribute('aTeam', new THREE.BufferAttribute(new Float32Array(n).fill(k === 'team' ? 1 : 0), 1)); // (its paint: where the camouflage goes)
+    const at = new Float32Array(n); // (its paint: where the camouflage goes — each point's brightness against the part's mean, so its panels keep their shades)
+    if (k === 'team') { let m = 0; for (let i = 0; i < n; i++) m += (u8[i * 12 + 9] + u8[i * 12 + 10] + u8[i * 12 + 11]) / 765; m = Math.max(0.01, m / n); for (let i = 0; i < n; i++) at[i] = Math.min(1.5, Math.max(0.45, (u8[i * 12 + 9] + u8[i * 12 + 10] + u8[i * 12 + 11]) / 765 / m)); }
+    g.setAttribute('aTeam', new THREE.BufferAttribute(at, 1));
     geo.push(g);
   }
   const all = geo.length > 1 ? v3Merge(geo) : geo[0]; G.set(key, all); return all;
