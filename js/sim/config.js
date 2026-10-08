@@ -329,9 +329,12 @@ const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 
 // difficulty: how often the AI re-plans and how well it decides (never extra units or vision).
 // mass: squads converge on the same target instead of spreading out
 const DIFFS = {
-  easy:   { name: 'קל',   every: 12, smart: false, traits: false },
-  normal: { name: 'רגיל', every: 8,  smart: true,  traits: false },
-  hard:   { name: 'קשה',  every: 5,  smart: true,  traits: true, mass: true },
+  // wave: how the AI attacks (aiWaves) — easy: none, each squad goes for the enemy once it's ready; normal: it gathers
+  // n units (in squads) and they go together, at one target; hard: it gathers more, and they go at the 2–3 weakest
+  // fronts at once (AI_FRONT_N units a front at least)
+  easy:   { name: 'קל',   every: 12, smart: false, traits: false, wave: null },
+  normal: { name: 'רגיל', every: 8,  smart: true,  traits: false, wave: { n: 8, fronts: 1 } },
+  hard:   { name: 'קשה',  every: 5,  smart: true,  traits: true, mass: true, wave: { n: 10, fronts: 3 } },
 };
 const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
@@ -368,6 +371,13 @@ const AI_MISSILE_MISS = 2;
 // fighters where they are (gather: until AI_PUSH_IN of them are within AI_PUSH_R of the spot, AI_PUSH_GATHER s at
 // most), then all of them go for the enemy HQ together — until it falls, the edge is gone (under AI_PUSH_STOP) or
 // AI_PUSH_T s; then not again for AI_PUSH_REST s
+// waves (DIFFS[..].wave, aiWaves): the ground fighters not in a wave wait at the rally point — AI_RALLY toward the
+// enemy from the furthest-forward HQ / forward HQ — and go for enemies AI_DEFEND_R from our buildings. With wave.n of
+// them ready (or AI_WAVE_MIN after AI_WAVE_WAIT s since the last one) they go: at the target that scores best (the
+// enemy known within AI_FRONT_R of it — weak spots first —, how far, what it's worth); hard: at up to wave.fronts of
+// them at once, AI_FRONT_SEP apart at least. A wave is over when it's down to AI_WAVE_END of what it set out with
+// (they go back), and moves on to the next target once its own is gone
+const AI_RALLY = 260, AI_DEFEND_R = 320, AI_WAVE_WAIT = 200, AI_WAVE_MIN = 4, AI_WAVE_END = 0.4, AI_FRONT_R = 350, AI_FRONT_SEP = 550, AI_FRONT_N = 4;
 const AI_PUSH_SHARE = 0.6, AI_PUSH_STOP = 0.5, AI_PUSH_MIN = 4, AI_PUSH_IN = 0.7, AI_PUSH_R = 250, AI_PUSH_GATHER = 60, AI_PUSH_T = 300, AI_PUSH_REST = 120;
 // supply (s.logi): each supply truck keeps AI_TRUCK_BACK behind one of our squads — the neediest of what it carries
 // first, else the k-th furthest forward —; a squad goes no more than AI_HOP past the nearest truck that keeps it going

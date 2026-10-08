@@ -16,7 +16,8 @@ const has = (s, kind) => s.nodes.some(n => n.side === 'red' && n.kind === kind &
   // (the drop: a red commando set down on our side of the map — x under 40% of it — straight from a helicopter)
   // (s.noCounter: the regular commander on the other side answers soldiers with MLRS and jeeps — aiCounter — and overran
   // this one before its raids; what's checked here is the raid)
-  const s = game(319, 'normal', 'commando'); s.noCounter = true; // (seed 319: 317 lost the war before its raids once buildings got more room — main failed 318 too: one game, noisy) let dropped = 0, liftAt = null;
+  const s = game(319, 'normal', 'commando'); s.noCounter = true; // (seed 319: 317 lost the war before its raids once buildings got more room — main failed 318 too: one game, noisy)
+  let dropped = 0, liftAt = null;
   // (a raid flown: a helicopter with commandos aboard past the middle of the map, on its way in — set down, or shot
   // down by our AA on the way: the defence's business, not the raid's)
   let flown = 0;
