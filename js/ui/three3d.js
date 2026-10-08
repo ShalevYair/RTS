@@ -61,7 +61,7 @@ function v3Env(r) {
 function v3World(px, py) {
   const w = V3.w || 1, h = V3.h || 1, C = V3.cam;
   const o = C.position, d = new THREE.Vector3(px / w * 2 - 1, -(py / h * 2 - 1), 0.5).unproject(C).sub(o).normalize();
-  const under = t => o.y + d.y * t <= Sim.elevAt(s, { x: o.x + d.x * t, y: o.z + d.z * t }) * V3_LV;
+  const under = t => o.y + d.y * t <= v3E(o.x + d.x * t, o.z + d.z * t);
   const far = (o.y + 20) / Math.max(0.05, -d.y), step = Math.max(4, far / 300);
   let a = 0, b = -1;
   for (let t = step; t <= far * 1.5; t += step) { if (under(t)) { b = t; break; } a = t; }
@@ -71,16 +71,40 @@ function v3World(px, py) {
 }
 // a world point (on the ground there) → the stage
 function v3Screen(x, y) {
-  const p = new THREE.Vector3(x, Sim.elevAt(s, { x, y }) * V3_LV, y).project(V3.cam);
+  const p = new THREE.Vector3(x, v3E(x, y), y).project(V3.cam);
   return { x: (p.x + 1) / 2 * (V3.w || 1), y: (1 - p.y) / 2 * (V3.h || 1) };
 }
 // ---- the ground: a mesh over the height grid, a vertex a cell (the huge map: ~160 000), with the flat map's picture ----
+// the ground's heights as shown (world units, one a point of the elevation grid): the elevation, with the hills sinking
+// smoothly to each lake within V3_SHORE (cut into a hill, a lake was a pit with sheer walls — only the look: the
+// simulation keeps its heights, and changing them dragged the bot games out), and the buildings' pads (v3Pads) on top.
+// v3E — the height at any point, as shown: everything put on the ground stands on it
+const V3_SHORE = 160;
+function v3Heights() {
+  const E = s.elev, n = E.w * E.h, hg = new Float32Array(n), box = s.lakes.map(l => [l, Math.max(l.rx, l.ry) * 1.3 + V3_SHORE]);
+  for (let k = 0; k < n; k++) {
+    let h = E.g[k] * V3_LV; if (!h) { hg[k] = 0; continue; }
+    const x = (k % E.w) * ELEV_CELL, y = Math.floor(k / E.w) * ELEV_CELL; let f = 1;
+    for (const [l, R] of box) {
+      if (Math.abs(x - l.x) >= R || Math.abs(y - l.y) >= R) continue;
+      const d = (Math.sqrt(Sim.lakeK(l, { x, y }, 4)) - 1) * Math.min(l.rx, l.ry); if (d < V3_SHORE) { const q = Math.max(0, d / V3_SHORE); f = Math.min(f, q * q * (3 - 2 * q)); }
+    }
+    hg[k] = h * f;
+  }
+  V3.hg = hg; V3.hgv = hg.slice(); V3.hgOf = E;
+}
+function v3E(x, y, bare) { // (bare: without the pads — what a building's own pad is worked out from)
+  const E = s.elev, g = V3.hgOf === E && (bare ? V3.hg : V3.hgv); if (!g) return Sim.elevAt(s, { x, y }) * V3_LV;
+  const fx = Math.max(0, Math.min(E.w - 1.001, x / ELEV_CELL)), fy = Math.max(0, Math.min(E.h - 1.001, y / ELEV_CELL)), i = Math.floor(fx), j = Math.floor(fy), a = fx - i, b = fy - j, k = j * E.w + i;
+  return (g[k] * (1 - a) + g[k + 1] * a) * (1 - b) + (g[k + E.w] * (1 - a) + g[k + E.w + 1] * a) * b;
+}
 function v3Ground() {
   if (V3.ground) { V3.scene.remove(V3.ground); V3.ground.geometry.dispose(); V3.ground.material.map.dispose(); V3.ground.material.dispose(); }
+  v3Heights(); V3.padSig = null; V3.padTouched = null;
   const E = s.elev, nx = E.w, ny = E.h, pos = new Float32Array(nx * ny * 3), uv = new Float32Array(nx * ny * 2);
   for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
     const k = j * nx + i, x = Math.min(s.W, i * ELEV_CELL), y = Math.min(s.H, j * ELEV_CELL);
-    pos[k * 3] = x; pos[k * 3 + 1] = E.g[k] * V3_LV; pos[k * 3 + 2] = y;
+    pos[k * 3] = x; pos[k * 3 + 1] = V3.hg[k]; pos[k * 3 + 2] = y;
     uv[k * 2] = x / s.W; uv[k * 2 + 1] = 1 - y / s.H;
   }
   const idx = new Uint32Array((nx - 1) * (ny - 1) * 6); let n = 0;
@@ -168,11 +192,11 @@ let v3Tmp = {};
 // where a ground unit lies: on the slope there (the ground's normal), turned to its heading
 function v3Lay(x, y, hd, lift, w, h, ox, oy, out, sy = 1) {
   if (!v3Tmp.n) Object.assign(v3Tmp, { c: new THREE.Color(), white: new THREE.Color(1, 1, 1), n: new THREE.Vector3(), up: new THREE.Vector3(0, 1, 0), q: new THREE.Quaternion(), yaw: new THREE.Quaternion(), p: new THREE.Vector3(), sc: new THREE.Vector3(), off: new THREE.Vector3(), g: new THREE.Matrix4() });
-  const e = 4, hx = (Sim.elevAt(s, { x: x + e, y }) - Sim.elevAt(s, { x: x - e, y })) * V3_LV / (2 * e), hz = (Sim.elevAt(s, { x, y: y + e }) - Sim.elevAt(s, { x, y: y - e })) * V3_LV / (2 * e);
+  const e = 4, hx = (v3E(x + e, y) - v3E(x - e, y)) / (2 * e), hz = (v3E(x, y + e) - v3E(x, y - e)) / (2 * e);
   const t = v3Tmp; t.n.set(-hx, 1, -hz).normalize();
   t.yaw.setFromAxisAngle(t.up, -hd); t.q.setFromUnitVectors(t.up, lift ? t.up : t.n).multiply(t.yaw);
   t.off.set(ox, 0, oy).applyQuaternion(t.q);
-  t.p.set(x + t.off.x, Sim.elevAt(s, { x, y }) * V3_LV + 0.6 + lift + t.off.y, y + t.off.z);
+  t.p.set(x + t.off.x, v3E(x, y) + 0.6 + lift + t.off.y, y + t.off.z);
   return out.compose(t.p, t.q, t.sc.set(w, sy, h));
 }
 // ---- 3D models (art/models/*.glb → MODELS, tools/models.py): a kind's hull and turret, each two meshes — its main
@@ -418,7 +442,7 @@ function v3Rings(rings) {
   let n = 0; const o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D());
   for (const g of rings) {
     if (n >= 4000) break;
-    o.position.set(g.x, Sim.elevAt(s, g) * V3_LV + 1 + (g.air ? V3_AIR : 0), g.y); o.scale.set(g.r * V3_RING.k, 1, g.r * V3_RING.k); o.updateMatrix(); V3.rings.setMatrixAt(n++, o.matrix);
+    o.position.set(g.x, v3E(g.x, g.y) + 1 + (g.air ? V3_AIR : 0), g.y); o.scale.set(g.r * V3_RING.k, 1, g.r * V3_RING.k); o.updateMatrix(); V3.rings.setMatrixAt(n++, o.matrix);
   }
   V3.rings.count = n; V3.rings.instanceMatrix.needsUpdate = true;
 }
@@ -444,7 +468,7 @@ function v3Pads(pads) {
   const sig = pads.map(p => p.map(v => Math.round(v)).join(',')).join(';'); if (sig === V3.padSig && V3.padOf === G) return;
   V3.padSig = sig; V3.padOf = G;
   const P = G.geometry.attributes.position, E = s.elev, nx = E.w;
-  if (V3.padTouched) for (const k of V3.padTouched) P.array[k * 3 + 1] = E.g[k] * V3_LV;
+  if (V3.padTouched) for (const k of V3.padTouched) P.array[k * 3 + 1] = V3.hgv[k] = V3.hg[k];
   const touched = new Set(), w = new Map();
   for (const [x, y, L, W, base] of pads) {
     const i0 = Math.max(0, Math.floor((x - L / 2 - V3_PAD) / ELEV_CELL)), i1 = Math.min(nx - 1, Math.ceil((x + L / 2 + V3_PAD) / ELEV_CELL));
@@ -452,7 +476,7 @@ function v3Pads(pads) {
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
       const k = j * nx + i, ex = Math.max(0, Math.abs(i * ELEV_CELL - x) - L / 2), ey = Math.max(0, Math.abs(j * ELEV_CELL - y) - W / 2), d = Math.hypot(ex, ey) / V3_PAD;
       if (d >= 1) continue; const f = 1 - d * d * (3 - 2 * d); if (f <= (w.get(k) || 0)) continue; // (the nearer building's pad wins)
-      w.set(k, f); P.array[k * 3 + 1] = E.g[k] * V3_LV * (1 - f) + base * f; touched.add(k);
+      w.set(k, f); P.array[k * 3 + 1] = V3.hgv[k] = V3.hg[k] * (1 - f) + base * f; touched.add(k);
     }
   }
   V3.padTouched = touched; P.needsUpdate = true; G.geometry.computeVertexNormals();
@@ -479,7 +503,7 @@ function v3Nodes(rings) {
     // (level, between the middle height of its corners and the highest — a little into the slope above — on a plinth down to the lowest:
     // tilted with the ground it leaned, and at the highest corner it stood on a tower)
     if (v3HasModel('b_' + kind)) {
-      const L = px * V3_BLD_K, W = MODELS['b_' + kind].size[2] * L, g = (dx, dy) => Sim.elevAt(s, { x: x + dx, y: y + dy }) * V3_LV;
+      const L = px * V3_BLD_K, W = MODELS['b_' + kind].size[2] * L, g = (dx, dy) => v3E(x + dx, y + dy, true);
       // (half dug in, half built up: the ground under it levelled to halfway between its lowest and highest corner — cut
       // into the slope on the high side, a bank on the low one — v3Pads; it stood on a tall mound to its highest corner)
       const hs = [g(-L / 2, -W / 2), g(L / 2, -W / 2), g(-L / 2, W / 2), g(L / 2, W / 2), g(0, 0)], base = (Math.min(...hs) + Math.max(...hs)) / 2;
@@ -489,7 +513,7 @@ function v3Nodes(rings) {
     }
     const P = v3Building(kind, col, px);
     v3Put(P, v3Lay(x, y, 0, 0, P.w, P.h, 0, 0, m), k < 1 ? tint.setScalar(k) : null);
-    if (nb < 800) { const hgt = R * (V3_BLOCK[kind] || 0.75) * Math.min(1, k); o.position.set(x, Sim.elevAt(s, { x, y }) * V3_LV + hgt / 2, y); o.scale.set(R * 1.3, hgt, R * 1.3); o.updateMatrix(); V3.blocks.setMatrixAt(nb++, o.matrix); }
+    if (nb < 800) { const hgt = R * (V3_BLOCK[kind] || 0.75) * Math.min(1, k); o.position.set(x, v3E(x, y) + hgt / 2, y); o.scale.set(R * 1.3, hgt, R * 1.3); o.updateMatrix(); V3.blocks.setMatrixAt(nb++, o.matrix); }
   };
   for (const n of s.nodes) {
     if (n.hp <= 0 || !nodeShown(n)) continue;
@@ -512,7 +536,7 @@ function v3Nodes(rings) {
     if ((s.fog && !shownAt(r)) || s.nodes.some(n => n.kind !== 'drone' && Math.hypot(n.x - r.x, n.y - r.y) < Sim.STRUCTS[n.kind].r)) continue;
     put(r.kind, colors[r.side], r.x, r.y, Sim.STRUCTS[r.kind].r, pxOf(r.kind), V3_RUIN, r.side, V3_RUIN_H);
     // (and over it a heap of debris: blocks of concrete, burnt beams, sheets of the roof — the same each frame, from where it stood)
-    const R = Sim.STRUCTS[r.kind].r, g = Sim.elevAt(s, r) * V3_LV;
+    const R = Sim.STRUCTS[r.kind].r, g = v3E(r.x, r.y);
     for (let i = 0; i < V3_RUBBLE && nr < 4000; i++) {
       const h = (j) => { const v = Math.sin(r.x * 12.9898 + r.y * 78.233 + i * 37.719 + j * 4.581) * 43758.5453; return v - Math.floor(v); };
       const a = h(1) * 6.28, d = Math.sqrt(h(2)) * R * 0.85, w = 2 + h(3) * R * 0.35, kind = h(4);
@@ -548,7 +572,7 @@ function v3Flags() {
       V3.scene.add(g); F.set(n.id, f = { g, cloth, side: n.side, x0: Float32Array.from(cg.attributes.position.array), cw });
     }
     const lx = V3_FLAG.at[0] * L, lz = V3_FLAG.at[1] * L, c = Math.cos(fa), sn = Math.sin(fa), x = n.x + lx * c - lz * sn, y = n.y + lx * sn + lz * c;
-    f.g.position.set(x, Sim.elevAt(s, { x, y }) * V3_LV, y); f.g.rotation.y = -wa; // (the cloth streams down the wind)
+    f.g.position.set(x, v3E(x, y), y); f.g.rotation.y = -wa; // (the cloth streams down the wind)
     const P = f.cloth.geometry.attributes.position, A = P.array, X = f.x0;
     for (let i = 0; i < A.length; i += 3) { const u = X[i] / f.cw; A[i + 2] = Math.sin(t * 5 - u * 7 + n.id) * f.cw * 0.09 * u; A[i + 1] = X[i + 1] - u * u * f.cw * 0.08; }
     P.needsUpdate = true; f.cloth.geometry.computeVertexNormals();
@@ -597,7 +621,7 @@ function v3Dot(B, x, h, y, d, r, g, b, a) {
   o.makeScale(d, d, d); o.setPosition(x, h, y); B.m.setMatrixAt(B.n, o);
   const k = B.n * 4, A = B.col.array; A[k] = r; A[k + 1] = g; A[k + 2] = b; A[k + 3] = a; B.n++;
 }
-const v3Gnd = (x, y) => Sim.elevAt(s, { x, y }) * V3_LV;
+const v3Gnd = (x, y) => v3E(x, y);
 // weapons that fire at aircraft (their shot ends up in the air) / from aircraft
 const V3_UP = new Set(['aa', 'ajeep', 'arrow', 'dome']), V3_FROM_AIR = new Set(['air', 'heli', 'gunship']);
 function v3Fx() {
@@ -778,7 +802,7 @@ function v3Water() {
         diffuseColor.rgb *= 0.88 + 0.22 * w; diffuseColor.rgb += vec3(0.9, 0.95, 1.0) * smoothstep(0.78, 0.98, w) * 0.55; diffuseColor.a *= 0.85 + 0.3 * smoothstep(0.7, 1.0, w);`);
     };
     mat.customProgramCacheKey = () => 'v3water';
-    const m = new THREE.Mesh(geo, mat); m.position.set(l.x, Sim.elevAt(s, l) * V3_LV + 0.5, l.y); m.renderOrder = 2;
+    const m = new THREE.Mesh(geo, mat); m.position.set(l.x, v3E(l.x, l.y) + 0.5, l.y); m.renderOrder = 2;
     V3.scene.add(m); V3.water.meshes.push(m);
   }
 }
@@ -908,7 +932,7 @@ function v3Draw() {
   if (V3.w !== w || V3.h !== h) { V3.w = w; V3.h = h; r.setSize(w, h, false); V3.cam.aspect = w / h; V3.cam.updateProjectionMatrix(); }
   // (the camera: over cam, as far off as shows the flat map's width at its middle)
   const vw = fit.w / view.css, d = Math.max(60, vw / (2 * Math.tan(V3_FOV * Math.PI / 360) * V3.cam.aspect));
-  const ty = Sim.elevAt(s, cam) * V3_LV;
+  const ty = v3E(cam.x, cam.y);
   V3.cam.position.set(cam.x, ty + d * Math.sin(V3_PITCH), cam.y + d * Math.cos(V3_PITCH)); V3.cam.lookAt(cam.x, ty, cam.y);
   V3.cam.far = d * 6 + 4000; V3.cam.updateProjectionMatrix(); V3.cam.updateMatrixWorld();
   V3.scene.fog.near = d * 1.6; V3.scene.fog.far = d * 5 + 2000;
@@ -930,7 +954,7 @@ function v3Draw() {
 // screen where its model stands (and scaled as the ground is there)
 function v3Info() {
   const c = ctx, dpr = fit ? fit.dpr : 1, P = v3Tmp.ip || (v3Tmp.ip = new THREE.Vector3()), W = V3.w, H = V3.h;
-  const scr = (x, y, h) => { P.set(x, Sim.elevAt(s, { x, y }) * V3_LV + h, y).project(V3.cam); return [(P.x + 1) / 2 * W, (1 - P.y) / 2 * H, P.z]; };
+  const scr = (x, y, h) => { P.set(x, v3E(x, y) + h, y).project(V3.cam); return [(P.x + 1) / 2 * W, (1 - P.y) / 2 * H, P.z]; };
   const put = (x, y, h) => {
     const a = scr(x, y, h); if (a[2] > 1 || a[0] < -60 || a[0] > W + 60 || a[1] < -60 || a[1] > H + 60) return false;
     const b = scr(x + 10, y, h), k = Math.hypot(b[0] - a[0], b[1] - a[1]) / 10;
