@@ -436,6 +436,27 @@ function v3Building(kind, col, px) {
   // (not darkened by its own block's shadow, which falls on it too)
   const S = v3Sheet(key, pic, pic.width / ART_RES, pic.height / ART_RES); S.mesh.receiveShadow = false; S.flat = true; return S;
 }
+// the ground under each building levelled to its base (V3_PAD more round it, sloping back to the hill), worked out again
+// only when the buildings change (their places, rounded); the heights kept from the elevation grid are put back first
+const V3_PAD = 28;
+function v3Pads(pads) {
+  const G = V3.ground; if (!G) return;
+  const sig = pads.map(p => p.map(v => Math.round(v)).join(',')).join(';'); if (sig === V3.padSig && V3.padOf === G) return;
+  V3.padSig = sig; V3.padOf = G;
+  const P = G.geometry.attributes.position, E = s.elev, nx = E.w;
+  if (V3.padTouched) for (const k of V3.padTouched) P.array[k * 3 + 1] = E.g[k] * V3_LV;
+  const touched = new Set(), w = new Map();
+  for (const [x, y, L, W, base] of pads) {
+    const i0 = Math.max(0, Math.floor((x - L / 2 - V3_PAD) / ELEV_CELL)), i1 = Math.min(nx - 1, Math.ceil((x + L / 2 + V3_PAD) / ELEV_CELL));
+    const j0 = Math.max(0, Math.floor((y - W / 2 - V3_PAD) / ELEV_CELL)), j1 = Math.min(E.h - 1, Math.ceil((y + W / 2 + V3_PAD) / ELEV_CELL));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const k = j * nx + i, ex = Math.max(0, Math.abs(i * ELEV_CELL - x) - L / 2), ey = Math.max(0, Math.abs(j * ELEV_CELL - y) - W / 2), d = Math.hypot(ex, ey) / V3_PAD;
+      if (d >= 1) continue; const f = 1 - d * d * (3 - 2 * d); if (f <= (w.get(k) || 0)) continue; // (the nearer building's pad wins)
+      w.set(k, f); P.array[k * 3 + 1] = E.g[k] * V3_LV * (1 - f) + base * f; touched.add(k);
+    }
+  }
+  V3.padTouched = touched; P.needsUpdate = true; G.geometry.computeVertexNormals();
+}
 function v3Nodes(rings) {
   if (!V3.blocks) {
     V3.blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }), 800);
@@ -452,16 +473,18 @@ function v3Nodes(rings) {
     V3.rubble.castShadow = V3.rubble.receiveShadow = true; V3.rubble.frustumCulled = false; V3.rubble.count = 0; V3.scene.add(V3.rubble);
   }
   const m = v3Tmp.m, o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), tint = v3Tmp.tint || (v3Tmp.tint = new THREE.Color());
-  let nb = 0, np = 0, nr = 0;
+  let nb = 0, np = 0, nr = 0; const pads = [];
   const put = (kind, col, x, y, R, px, k, side, grow = 1) => {
     // (a model of it, if there is one — art/models/b_<kind>.glb: facing the enemy, going up as it's built)
     // (level, between the middle height of its corners and the highest — a little into the slope above — on a plinth down to the lowest:
     // tilted with the ground it leaned, and at the highest corner it stood on a tower)
     if (v3HasModel('b_' + kind)) {
       const L = px * V3_BLD_K, W = MODELS['b_' + kind].size[2] * L, g = (dx, dy) => Sim.elevAt(s, { x: x + dx, y: y + dy }) * V3_LV;
-      const hs = [g(-L / 2, -W / 2), g(L / 2, -W / 2), g(-L / 2, W / 2), g(L / 2, W / 2), g(0, 0)], avg = hs.reduce((a, b) => a + b) / hs.length, top = avg + 0.6 * (Math.max(...hs) - avg), low = Math.min(...hs);
-      v3PutModel('b_' + kind, side || 'none', x, y, side === 'red' ? Math.PI : 0, 0, m, k < 1 ? tint.setScalar(Math.max(0.35, k)) : null, null, top - hs[4] + 0.01, L, Math.max(0.12, grow));
-      if (top - low > 0.5 && np < 400) { o.position.set(x, (top + low) / 2 - 0.5, y); o.rotation.set(0, 0, 0); o.scale.set(L * 0.97, top - low + 1.6, W * 0.97); o.updateMatrix(); V3.plinth.setMatrixAt(np++, o.matrix); }
+      // (half dug in, half built up: the ground under it levelled to halfway between its lowest and highest corner — cut
+      // into the slope on the high side, a bank on the low one — v3Pads; it stood on a tall mound to its highest corner)
+      const hs = [g(-L / 2, -W / 2), g(L / 2, -W / 2), g(-L / 2, W / 2), g(L / 2, W / 2), g(0, 0)], base = (Math.min(...hs) + Math.max(...hs)) / 2;
+      pads.push([x, y, L, W, base]);
+      v3PutModel('b_' + kind, side || 'none', x, y, side === 'red' ? Math.PI : 0, 0, m, k < 1 ? tint.setScalar(Math.max(0.35, k)) : null, null, base - hs[4] + 0.01, L, Math.max(0.12, grow));
       return;
     }
     const P = v3Building(kind, col, px);
@@ -503,7 +526,7 @@ function v3Nodes(rings) {
   if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { const g = s.memNodes.blue[id]; put(g.kind, colors.red, g.x, g.y, Sim.STRUCTS[g.kind].r, pxOf(g.kind), V3_MEM, 'red'); }
   if (s.posts) for (const p of s.posts) { const R = Sim.POSTS[p.kind].r; put(p.kind, postCol(p), p.x, p.y, R, Math.round(R * 2.4), s.fog && !postSeen(p) ? V3_MEM : 1, p.side); if (selPost === p) rings.push({ x: p.x, y: p.y, r: R + 10 }); }
   v3Flags();
-  V3.blocks.count = nb; V3.blocks.instanceMatrix.needsUpdate = true; V3.plinth.count = np; V3.plinth.instanceMatrix.needsUpdate = true;
+  v3Pads(pads); V3.blocks.count = nb; V3.blocks.instanceMatrix.needsUpdate = true; V3.plinth.count = np; V3.plinth.instanceMatrix.needsUpdate = true;
 }
 // the flag of each headquarters (and the dummy one — it's to look the same): a pole at a front corner of its yard and
 // a cloth in the side's colour, waving with the smoke's wind (WIND) — its points moved each frame, a wave running to
