@@ -16,7 +16,9 @@ MATS = {'body': [0.40, 0.40, 0.31], 'dark': [0.09, 0.09, 0.085], 'metal': [0.42,
         'tank': [0.62, 0.62, 0.58], 'water': [0.24, 0.38, 0.62], 'warn': [0.75, 0.62, 0.15], 'white': [0.86, 0.86, 0.84],
         # (buildings)
         'concrete': [0.64, 0.62, 0.57], 'sand': [0.70, 0.61, 0.45], 'canvas': [0.43, 0.43, 0.30], 'wood': [0.47, 0.35, 0.23],
-        'olive': [0.33, 0.36, 0.24], 'asphalt': [0.22, 0.22, 0.21], 'red': [0.72, 0.12, 0.10], 'net': [0.30, 0.34, 0.21]}
+        'olive': [0.33, 0.36, 0.24], 'asphalt': [0.22, 0.22, 0.21], 'red': [0.72, 0.12, 0.10], 'net': [0.30, 0.34, 0.21],
+        # (the cargo's sign painted on a truck: a blue drop — water, an amber drop — fuel, a missile — ammunition)
+        'signwater': [0.10, 0.42, 1.0], 'signfuel': [1.0, 0.55, 0.04], 'signammo': [0.95, 0.80, 0.10]}
 
 
 class Mesh:
@@ -271,6 +273,21 @@ def bed_sides(M, x0, x1, hw, h=0.6, y0=1.18):
         M.box('body', (x0 + 0.03, yy + 0.07, 0), (0.06, 0.14, hw * 2))
     M.k = 1.0
 
+def sign_shape(kind, s):
+    """a cargo sign's outline (2D, convex, round its middle, s high): a drop, or a missile seen side-on"""
+    from scipy.spatial import ConvexHull
+    if kind == 'drop':
+        P = [(np.cos(a) * s * 0.32, -s * 0.18 + np.sin(a) * s * 0.32) for a in np.linspace(0, 2 * np.pi, 18, endpoint=False)] + [(0, s * 0.5)]
+    else:  # (a missile pointing +x: body, nose, the fins drawn as a wider tail)
+        P = [(-s * 0.9, -s * 0.22), (-s * 0.9, s * 0.22), (-s * 0.6, s * 0.1), (-s * 0.6, -s * 0.1), (s * 0.6, s * 0.1), (s * 0.6, -s * 0.1), (s * 0.95, 0)]
+    P = np.asarray(P, float); return P[ConvexHull(P).vertices]
+
+def sign(M, mat, kind, c, s, side=None):
+    """the sign painted on: on a side (side = ±1: the xy plane at z = c[2]), or on top (the xz plane at y = c[1])"""
+    P = sign_shape(kind, s); M.k = 1.0
+    if side is None: M.slab(mat, [(c[0] + x, c[2] - y) for x, y in P], c[1], c[1] + 0.03, 'xz')
+    else: M.slab(mat, [(c[0] + x, c[1] + y) for x, y in P], c[2], c[2] + 0.03 * side, 'xy')
+
 def k_truck():  # ammunition / supply: a cargo bed under canvas on bows
     M, f, hw, cx0 = truck(); x0, x1 = -3.45, cx0 - 0.15
     bed_sides(M, x0, x1, hw)
@@ -282,6 +299,9 @@ def k_truck():  # ammunition / supply: a cargo bed under canvas on bows
         M.k = 0.85; M.loft('canvas', [(xx - 0.05, [(y + 0.29, z * 1.01) for y, z in arch]), (xx + 0.05, [(y + 0.29, z * 1.01) for y, z in arch])])
     M.k = 0.35; M.box('dark', (x0 - 0.02, 2.4, 0), (0.04, 1.0, hw * 1.4))                                  # the open back
     for sz in (-1, 1): M.k = 0.8; M.box('canvas', (x0 + 0.5, 1.7, sz * (hw + 0.02)), (0.6, 0.4, 0.03))    # tie-down flaps
+    xm = (x0 + x1) / 2
+    sign(M, 'signammo', 'missile', (xm, 2.77, 0.0), 1.7)                                                  # on the canvas top
+    for sz in (-1, 1): sign(M, 'signammo', 'missile', (xm, 2.0, sz * (hw + 0.03)), 1.2, sz)             # and its sides
     return [('hull', M, None)]
 
 def k_tanktruck(color):  # a fuel / water bowser: a tank with domed ends, bands, a walkway and a hose reel
@@ -297,6 +317,9 @@ def k_tanktruck(color):  # a fuel / water bowser: a tank with domed ends, bands,
     M.k = 0.85; M.box('metal', (x0 + 0.25, 1.45, 0), (0.5, 0.7, hw * 1.6))                                # rear cabinet
     M.k = 0.6; M.cyl('dark', (x0 + 0.25, 1.5, hw - 0.1), 0.32, 0.25, 'z', 12)                              # hose reel
     M.k = 0.7; M.box('dark', (xc, 1.2, 0), (L - 0.2, 0.2, hw * 1.7))
+    mark = 'signwater' if color == 'water' else 'signfuel'                                                 # its drop, both sides
+    for sz in (-1, 1): sign(M, mark, 'drop', (xc, 2.15, sz * (r + 0.03)), 1.7, sz)
+    for xx in (xc - 1.1, xc + 1.1): sign(M, mark, 'drop', (xx, 3.24, 0.0), 1.3)  # and on top, on the walkway
     return [('hull', M, None)]
 
 def k_radio():  # a shelter body: door, ladder, AC unit, a telescopic mast with whips and a dish
