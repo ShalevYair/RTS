@@ -335,7 +335,7 @@ const DIFFS = {
 };
 const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
-// forward HQs: a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
+// forward HQs (AI_FHQ_REACH: no longer used — they go up at the front, AI_FHQ_BACK); the trip is dropped after AI_FHQ_TRIP s
 const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
 const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'howshop', 'airfield', 'heliatk', 'jeepat', 'garage', 'mlrsshop', 'tankerbase', 'heligun', 'domesite', 'tankshop', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost', 'helilift'], AI_READY = 0.6;
 // the AI's commander (style), picked per game for red from the seed or in the main menu (blue bots play 'steady'):
@@ -375,6 +375,10 @@ const AI_PUSH_SHARE = 0.6, AI_PUSH_STOP = 0.5, AI_PUSH_MIN = 4, AI_PUSH_IN = 0.7
 const AI_TRUCK_BACK = 60, AI_HOP = 450, AI_NEED = 0.3;
 // AI_SILENT_R: the hard AI sends squads going farther than this in radio silence
 // AI_RADIO_BACK: how far behind a leading squad the AI keeps a signals truck
+// AI_ARROW_OUT: an Arrow truck stands this far past the base's furthest building toward the enemy (its edge), the trucks
+// AI_ARROW_GAP apart across; AI_DOME_BACK: an Iron Dome truck this far behind a leading squad (at the front);
+// AI_FHQ_BACK: a forward HQ goes up this far behind the leading squads, AI_FHQ_HILL round there a hill if there is one
+const AI_ARROW_OUT = 50, AI_ARROW_GAP = 90, AI_DOME_BACK = 90, AI_FHQ_BACK = 120, AI_FHQ_HILL = 220;
 const AI_RADIO_BACK = 140, AI_HOME_R = 350, FALLEN_T = 12, AI_SILENT_R = 500;
 
 // radio silence: a silent squad sends no reports (only the full-control ring still shows it), moves at SILENT_SPEED
@@ -484,7 +488,7 @@ const FUEL_BARRELS = { tank: 2, dozer: 2 }, FUEL_HQ_RATE = 0.05, FUEL_HQ_FAR = 1
 // place. Soldiers drink: WATER_T s on a full canteen; dry, THIRST of their health a second; by a water building
 // (WATER_NEAR of its edge) WATER_FILL. Under LIGHT_AT a light shows (fuel yellow, water blue). A medic / mechanic
 // goes to the hurt of its kind within MED_SEEK. A water building stands within SHORE_R of a lake.
-const TRUCK_CAP = { fueltruck: 16, truck: 8, watertruck: 30 }, // (fuel: 16 — with 8, dozens of vehicles stood dry and a 45-minute game hardly moved)
+const TRUCK_CAP = { fueltruck: 24, truck: 8, watertruck: 30 }, // (fuel: 24 — with 8, dozens of vehicles stood dry and a 45-minute game hardly moved)
   TRUCK_R = 100, TRUCK_REFILL = 12, FUEL_FILL = 0.25, AMMO_FILL = 0.2, WATER_FILL = 0.1;
 const AMMO_CRATES = { tank: 2 }, AMMO_HQ_RATE = 0.04;
 const AI_SUPPLY2 = 300;
