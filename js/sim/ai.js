@@ -94,11 +94,18 @@ function aiSupply(s, side, asked) {
   (s.aiSupAt = s.aiSupAt || {})[side] = s.t;
   const hq = hqOf(s, side); if (!hq || s.t < hq.ready) return;
   for (const kind of ['waterst', 'depot', 'fuelst']) {
-    const want = Math.min(STRUCTS[kind].max || 2, (s.t - hq.ready > AI_SUPPLY2 ? 2 : 1) + (kind === asked ? 1 : 0)); // (asked for and none to send: one more)
+    let want = (s.t - hq.ready > AI_SUPPLY2 ? 2 : 1) + (kind === asked ? 1 : 0); // (asked for and none to send: one more)
+    // (fuel: a station for every FUEL_ST_PER vehicles of the whole side that burn it — the partner counts the player's too)
+    if (kind === 'fuelst') want = Math.max(want, Math.ceil(s.units.filter(u => u.side === side && u.hp > 0 && u.fuel !== undefined && needsFuel(u.type)).length / FUEL_ST_PER));
+    want = Math.min(specOf(s, kind).max || 2, want);
     if (alive(s, side, [kind]).length >= want || (s.builds && !s.builds.includes(kind))) continue;
     const done = () => { if (kind === asked && s.askMake) for (const k in s.askMake) if (s.askMake[k] === kind && k.startsWith(side)) delete s.askMake[k]; };
     if (kind === 'waterst') for (const p of shoreSpots(s, hq, STRUCTS.waterst.r).slice(0, 30)) if (build(s, side, kind, p.x, p.y)) return done(); // (a lake's bank first; none in reach — a well by the HQ, as the rest)
-    for (let i = 0; i < 12; i++) { const a = s.rand() * Math.PI * 2, r = roomOf(s, 'hq') + roomOf(s, kind) + 5 + s.rand() * 90; if (build(s, side, kind, hq.x + Math.cos(a) * r, hq.y + Math.sin(a) * r)) return done(); }
+    // (round the HQ first, then the forward HQs and the side's other buildings — an HQ in a corner had no room for a
+    // second fuel station, and dozens of vehicles shared one)
+    const ring = 90 + 40 * alive(s, side, [kind]).length;
+    const at = [hq, ...s.nodes.filter(n => n.side === side && n.hp > 0 && n.kind === 'fhq'), ...s.nodes.filter(n => n.side === side && n.hp > 0 && n !== hq && n.kind !== 'fhq' && n.kind !== 'drone' && n.kind !== 'decoy')];
+    for (const [j, n] of at.slice(0, 8).entries()) for (let i = 0; i < (j ? 6 : 12); i++) { const a = s.rand() * Math.PI * 2, r = roomOf(s, n.kind) + roomOf(s, kind) + 5 + s.rand() * (j ? 90 : ring); if (build(s, side, kind, n.x + Math.cos(a) * r, n.y + Math.sin(a) * r)) return done(); }
   }
 }
 // forward HQ on a hill (DESIGN.md §6): a hill just past the edge of our control, clear of known enemies and

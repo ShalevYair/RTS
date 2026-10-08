@@ -35,24 +35,27 @@ ok(Sim.needsWater('inf') && Sim.needsWater('commando') && Sim.needsWater('med') 
   ok(u.fuel >= 0.95, `a fuel truck came and filled it (${(u.fuel * 100).toFixed(0)}% at ${s.t.toFixed(0)} s)`);
 }
 {
-  // supply buildings: past the allowance, at most 2 of each; a truck at once, a second 2 minutes on, then no more
+  // supply buildings: past the allowance, at most 2 of each (fuel stations: FUEL_ST_MAX — one for every FUEL_ST_PER
+  // vehicles); a truck at once, another every 2 minutes on — fuel: 4 a station, the others 2 —, then no more
   const s = field(5); s.cd = s.cd || {};
   const lim = Sim.buildLimit(s, 'blue');
   ok(Sim.build(s, 'blue', 'fuelst', 330, 820) && Sim.build(s, 'blue', 'fuelst', 330, 460) && Sim.build(s, 'blue', 'depot', 450, 820), 'two fuel stations and a depot laid');
   ok(Sim.buildCount(s, 'blue') === 0 && Sim.buildLimit(s, 'blue') === lim, 'they don\'t take from the building allowance');
-  ok(Sim.buildCheck(s, 'blue', 450, 460, 'fuelst') === 'max', 'a third fuel station: no');
+  ok(Sim.buildCheck(s, 'blue', 450, 460, 'fuelst') !== 'max' && Sim.specOf(s, 'fuelst').max === Sim.FUEL_ST_MAX, `a third fuel station: yes (up to ${Sim.FUEL_ST_MAX})`);
+  ok(Sim.build(s, 'blue', 'depot', 450, 460) && Sim.buildCheck(s, 'blue', 600, 300, 'depot') === 'max', 'a third depot: no');
   step(s, 400, () => s.nodes.filter(n => n.side === 'blue' && n.kind === 'fuelst' && s.t >= n.ready).length === 2);
   const t0 = s.t; step(s, 5);
   const trucks = () => s.units.filter(u => u.side === 'blue' && u.type === 'fueltruck').length;
   ok(trucks() >= 2, `a truck at once from each (${trucks()})`);
   step(s, 125); ok(trucks() === 4, `2 minutes on, a second each: ${trucks()}`);
-  step(s, 130); ok(trucks() === 4, 'and no more than 4');
+  step(s, 250); ok(trucks() === 8, `4 minutes more: four each (${trucks()})`);
+  step(s, 130); ok(trucks() === 8, 'and no more than 8');
   // trucks follow the front, unless the player sent them somewhere
   const tr = s.units.filter(u => u.side === 'blue' && u.type === 'fueltruck'), told = s.squads.find(q => q.id === tr[0].squad);
   Sim.order(s, told.id, 'hold', 500, 300, false);
   Sim.setFront(s, 'blue', 1000, 640); step(s, 90);
   const atFront = tr.slice(1).filter(u => Math.hypot(u.x - 1000, u.y - 640) < 160).length;
-  ok(atFront === 3 && Math.hypot(tr[0].x - 500, tr[0].y - 300) < 60, `the others went to the front (${atFront}/3); the one we sent stayed`);
+  ok(atFront === tr.length - 1 && Math.hypot(tr[0].x - 500, tr[0].y - 300) < 60, `the others went to the front (${atFront}/${tr.length - 1}); the one we sent stayed`);
   // an empty truck drives to its station, fills, and comes back
   const e = tr[1]; e.load = 0; let went = false;
   step(s, 150, () => { const st = s.nodes.find(n => n.kind === 'fuelst' && n.side === 'blue' && Math.hypot(n.x - e.x, n.y - e.y) < 80); if (st) went = true; return went && e.load >= Sim.TRUCK_CAP.fueltruck && Math.hypot(e.x - 1000, e.y - 640) < 160; });
@@ -131,5 +134,15 @@ ok(Sim.needsWater('inf') && Sim.needsWater('commando') && Sim.needsWater('med') 
   ok(!s.logi && !s.water, 'no supply rules outside the full game');
   mk(s, 'truck', 700, 300); const iq = mk(s, 'inf', 720, 300), i = unitOf(s, iq); step(s, 0.1); i.sup = 0.3;
   step(s, 10); ok(i.sup > 0.9 && i.water === undefined, `a truck refills as before, no water (${(i.sup * 100).toFixed(0)}%)`);
+}
+{
+  // arms: the computer partner (guns) builds a fuel station for every FUEL_ST_PER vehicles of the whole side — the
+  // player's too (seed 41: an HQ in a corner, no room round it — the rest go by the side's other buildings)
+  let s = Sim.create(41, 2200, 'normal', Sim.H * 2, { singles: true }); Sim.extras(s); s = Sim.openField(s); s.fog = true;
+  Sim.setArms(s, ['armor', 'infantry']); s.meBot = true;
+  for (let i = 0; i < 30 * 960 && !s.over; i++) Sim.step(s, 1 / 30);
+  const veh = s.units.filter(u => u.side === 'blue' && u.hp > 0 && u.fuel !== undefined && Sim.needsFuel(u.type)).length;
+  const st = s.nodes.filter(n => n.side === 'blue' && n.kind === 'fuelst' && n.hp > 0).length, trucks = s.units.filter(u => u.side === 'blue' && u.type === 'fueltruck').length;
+  ok(st >= Math.min(Sim.FUEL_ST_MAX, Math.ceil(veh / Sim.FUEL_ST_PER)) - 1 && st >= 3, `the partner's fuel stations keep up: ${st} for ${veh} vehicles (${trucks} trucks)`);
 }
 process.exit(bad ? 1 : 0);
