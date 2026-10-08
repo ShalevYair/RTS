@@ -291,6 +291,20 @@ function radioStation(s, sq, mine, k, B = AI_RADIO_BACK) {
   const p = { x: Math.round((c.x + (home.x - c.x) / d * back) / G) * G, y: Math.round((c.y + (home.y - c.y) / d * back) / G) * G };
   return threatAt(s, sq.side, p, AI_NEAR) ? careStation(s, sq, mine) : p;
 }
+// a signals truck (unless asked somewhere — asks.js): where most of the side's fighting units are — the k-th truck
+// at the k-th crowd, AI_CROWD_SEP from the others' — AI_RADIO_BACK back from it toward home; with none, as before
+function crowdStation(s, sq, team, k) {
+  const ids = new Set(team.filter(q => !TYPES[q.type].care && !TYPES[q.type].air).map(q => q.id)), C = AI_CROWD_CELL, cells = new Map();
+  for (const u of s.units) if (u.hp > 0 && ids.has(u.squad)) { const key = Math.floor(u.x / C) * 4096 + Math.floor(u.y / C); let c = cells.get(key); if (!c) cells.set(key, c = { n: 0, x: 0, y: 0, i: Math.floor(u.x / C), j: Math.floor(u.y / C) }); c.n++; c.x += u.x; c.y += u.y; }
+  if (!cells.size) return radioStation(s, sq, team, k);
+  // (each cell with the 8 round it: the crowd there, and its middle)
+  const spots = [...cells.values()].map(c => { let n = 0, x = 0, y = 0; for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) { const o = cells.get((c.i + di) * 4096 + c.j + dj); if (o) { n += o.n; x += o.x; y += o.y; } } return { n, x: x / n, y: y / n }; }).sort((a, b) => b.n - a.n);
+  const picked = [];
+  for (const p of spots) if (picked.every(o => dist(o, p) >= AI_CROWD_SEP)) picked.push(p);
+  const c = picked[k % picked.length], home = homeOf(s, sq), d = dist(c, home) || 1, back = Math.min(d, AI_RADIO_BACK), G = 40;
+  const p = { x: Math.round((c.x + (home.x - c.x) / d * back) / G) * G, y: Math.round((c.y + (home.y - c.y) / d * back) / G) * G };
+  return threatAt(s, sq.side, p, AI_NEAR) ? careStation(s, sq, team) : p;
+}
 
 // missiles: each truck not yet launching goes for the nearest building we know (never the HQ — knownFoeNode); and
 // Trophy on the tanks, a few minutes in
@@ -355,7 +369,7 @@ function think(s, side, level, who) {
     if (raid.has(sq.id) || sq.boarding || sq.aboard) continue; // (a raid: the helicopter and its commandos — aiLift)
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
     // support: bulldozers go where their sites are (on their own); signals trucks stay a little behind the squads
-    if (TYPES[sq.type].support) { if (sq.type === 'radio') { const p = radioStation(s, sq, team, radios++); setOrder(sq, 'hold', p.x, p.y); } continue; }
+    if (TYPES[sq.type].support) { if (sq.type === 'radio') { const p = crowdStation(s, sq, team, radios++); setOrder(sq, 'hold', p.x, p.y); } continue; }
     if (sq.type === 'lift') { const h = homeOf(s, sq), off = (h.kind && STRUCTS[h.kind] ? STRUCTS[h.kind].r : 50) + 45; setOrder(sq, 'hold', Math.round(h.x), Math.round(h.y + (h.y < s.H / 2 ? off : -off))); continue; } // (a transport helicopter not on a raid: waits at home, beside its pad / the HQ, toward the middle — over it, the commandos couldn't reach it — aiLift)
     if (sq.type === 'tanker') { const p = tankerStation(s, sq, foes); setOrder(sq, 'hold', p.x, p.y); continue; }
     if (s.logi && CARGO[sq.type] && !s.noAiSupply) { const k = trucks[sq.type] = (trucks[sq.type] || 0) + 1, p = truckStation(s, sq, team, k - 1); setOrder(sq, 'hold', p.x, p.y); continue; }

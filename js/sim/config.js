@@ -385,6 +385,9 @@ const AI_PUSH_SHARE = 0.6, AI_PUSH_STOP = 0.5, AI_PUSH_MIN = 4, AI_PUSH_IN = 0.7
 const AI_TRUCK_BACK = 60, AI_HOP = 450, AI_NEED = 0.3;
 // AI_SILENT_R: the hard AI sends squads going farther than this in radio silence
 // AI_RADIO_BACK: how far behind a leading squad the AI keeps a signals truck
+// AI_CROWD_*: a signals truck goes to where most of its side's units are (crowdStation): crowds counted in cells of
+// AI_CROWD_CELL (each with the 8 round it), the trucks' crowds AI_CROWD_SEP apart at least
+const AI_CROWD_CELL = 150, AI_CROWD_SEP = 450;
 const AI_RADIO_BACK = 140, AI_HOME_R = 350, FALLEN_T = 12, AI_SILENT_R = 500;
 
 // radio silence: a silent squad sends no reports (only the full-control ring still shows it), moves at SILENT_SPEED
