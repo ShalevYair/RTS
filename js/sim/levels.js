@@ -68,6 +68,7 @@ function level(n, seed = 1, W = 1000, opts = {}) {
   s.supply = L.ui.includes('care'); // ammunition runs out from the level that brings medics, mechanics and supply trucks
   s.style.red = 'steady';
   s.bots = L.bot ? ['red'] : [];
+  s.split = true; // (the tutorial: the units' rules as before — the player's own, the AI's own; it'll be redone)
   s.aiCan = { build: !!L.nodes.includes('tent'), drone: false, fhq: false, ...L.can };
   if (L.builds) s.builds = L.builds.slice();
   // what's left of the opening: only the listed structures; a squad whose building is gone gets no refills

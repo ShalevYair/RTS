@@ -181,6 +181,61 @@ function aiPush(s, side, fighters, structs, St) {
   if (!hq || s.t - P.t1 > AI_PUSH_T) return stop();
   return { x: Math.round(hq.x / 20) * 20, y: Math.round(hq.y / 20) * 20 };
 }
+// the attack by waves (DIFFS[..].wave, AI_RALLY…): which of our ground fighters are in a wave and where it goes, where
+// the others wait, and the enemies by our buildings. ground: the fighters this think may move (not home to heal)
+function aiWaves(s, side, key, W, ground, foes, structs) {
+  const A = (s.aiWaves = s.aiWaves || {})[key] = (s.aiWaves[key] || { waves: [], last: s.t, n: 0 });
+  const foe = foeOf(side), ours = s.nodes.filter(n => n.side === side && n.hp > 0 && n.kind !== 'drone' && n.kind !== 'decoy');
+  // the rally point: out from our furthest-forward HQ / forward HQ, toward the enemy
+  const bases = ours.filter(n => n.kind === 'hq' || n.kind === 'fhq'), g = s.bases[foe];
+  const fwd = bases.length ? bases.reduce((a, n) => dist(n, g) < dist(a, g) ? n : a) : (hqOf(s, side) || s.bases[side]);
+  const d0 = dist(fwd, g) || 1, rally = { x: Math.round(fwd.x + (g.x - fwd.x) / d0 * AI_RALLY), y: Math.round(fwd.y + (g.y - fwd.y) / d0 * AI_RALLY) };
+  // (an enemy's weight: what we know of it — unidentified, a middling squad)
+  const weight = k => (k.strength ?? 0.6) * (k.n ?? 3);
+  const threats = foes.filter(({ k }) => !k.air && ours.some(n => dist(n, k) < AI_DEFEND_R + nodeR(n)));
+  // the weakest fronts: each known target scored by the enemy round it, how far it is and what it's worth
+  const pick = (from, F, not = []) => {
+    const cands = structs.filter(n => n.kind !== 'drone').map(n => ({ x: n.x, y: n.y, v: n.kind === 'hq' ? 3 : n.kind === 'fhq' ? 2 : 1 }));
+    if (!cands.length) for (const { k } of foes) if (!k.air) cands.push({ x: k.x, y: k.y, v: 0.5 });
+    for (const c of cands) {
+      let def = 0; for (const { k } of foes) if (!TYPES[k.type || 'inf'].care && Math.hypot(k.x - c.x, k.y - c.y) < AI_FRONT_R) def += weight(k);
+      c.sc = def * 120 + dist(from, c) * 0.3 - c.v * 150;
+    }
+    cands.sort((a, b) => a.sc - b.sc);
+    const out = [];
+    for (const c of cands) if (out.length < F && [...out, ...not].every(o => dist(o, c) >= AI_FRONT_SEP)) out.push(c);
+    return out.map(c => ({ x: Math.round(c.x / 20) * 20, y: Math.round(c.y / 20) * 20 }));
+  };
+  const byId = new Map(ground.map(q => [q.id, q])), alive = q => q && !q.dead;
+  // the waves under way: down to AI_WAVE_END of what they set out with — over; their target gone — the next one
+  for (const w of A.waves) {
+    w.ids = w.ids.filter(id => alive(s.squads.find(q => q.id === id)));
+    const qs = w.ids.map(id => byId.get(id)).filter(Boolean), now = qs.reduce((a, q) => a + q.strength * q.size, 0);
+    if (!qs.length || now < w.power * AI_WAVE_END) { w.over = true; continue; }
+    const c = { x: qs.reduce((a, q) => a + q.cx, 0) / qs.length, y: qs.reduce((a, q) => a + q.cy, 0) / qs.length };
+    const there = dist(c, w.to) < 120, still = structs.some(n => dist(n, w.to) < 60) || foes.some(({ k }) => !k.air && dist(k, w.to) < AI_FRONT_R * 0.5);
+    if (there && !still) { const nx = pick(c, 1, A.waves.filter(o => o !== w && !o.over).map(o => o.to))[0] || pick(c, 1)[0]; if (nx) w.to = nx; else w.over = true; }
+  }
+  A.waves = A.waves.filter(w => !w.over);
+  const inWave = new Map(); for (const w of A.waves) for (const id of w.ids) inWave.set(id, w.to);
+  // a new wave: enough of them ready by the rally point (or a few, after a long wait)
+  const ready = ground.filter(q => !inWave.has(q.id) && q.strength >= 0.6 && dist({ x: q.cx, y: q.cy }, rally) < AI_PUSH_R * 1.5);
+  const units = ready.reduce((a, q) => a + q.count, 0);
+  if (units >= W.n || (units >= AI_WAVE_MIN && s.t - A.last > AI_WAVE_WAIT)) {
+    const F = Math.max(1, Math.min(W.fronts, ready.length, Math.floor(units / AI_FRONT_N))), to = pick(rally, F);
+    if (to.length) {
+      const ws = to.map(p => ({ id: ++A.n, to: p, ids: [], power: 0 }));
+      // (each squad to the nearest front that still has room: the fronts about even, in units)
+      const per = units / ws.length;
+      for (const q of ready.slice().sort((a, b) => b.size * b.strength - a.size * a.strength)) {
+        const w = ws.filter(o => (o.units || 0) < per).sort((a, b) => dist({ x: q.cx, y: q.cy }, a.to) - dist({ x: q.cx, y: q.cy }, b.to))[0];
+        w.ids.push(q.id); w.units = (w.units || 0) + q.count; w.power += q.strength * q.size; inWave.set(q.id, w.to);
+      }
+      A.waves.push(...ws); A.last = s.t;
+    }
+  }
+  return { inWave, rally, threats };
+}
 // commando raids (hard, and the commando commander): each transport helicopter takes the commandos at home on board
 // (AI_RAID_MIN, or what's there after AI_RAID_WAIT s), flies them to AI_RAID_BEHIND past an enemy building it knows of —
 // the far side, from home — and sets them down; from there they go for the buildings (think). Returns the squads busy
@@ -285,6 +340,9 @@ function think(s, side, level, who) {
   const stayHome = !!St.home; // (missiles: a few squads keep home)
   if (can.build) aiSpecial(s, side, own);
   const push = D.smart && !s.noAiPush && aiPush(s, side, fighters, structs, St); // (ahead: all together, one blow — not on easy)
+  // waves (normal, hard; not in the tutorial, not staying home): the ground fighters gather and go together — aiWaves
+  const W = D.wave && !s.level && !stayHome && !s.noWaves ? aiWaves(s, side, side + (who || ''), D.wave, fighters.filter(q => !TYPES[q.type].air && q.type !== 'commando' && !(D.smart && q.strength < St.ready && s.t - q.lastContact >= CONTACT_MEMORY)), foes, structs) : null;
+  let rallied = 0;
   // posts: a squad of soldiers to each one we don't hold (they go on their own; the rest of think leaves them be)
   const toPost = stayHome ? new Set() : aiPosts(s, side, mine, setOrder); // (staying home: no soldiers off to the posts)
   const raid = (D.traits || St.raids) && can.build ? aiLift(s, side, mine, structs) : new Set(); // (commando raids by helicopter)
@@ -306,6 +364,14 @@ function think(s, side, level, who) {
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
     if (D.smart && sq.strength < St.ready && !fighting) { const h = homeOf(s, sq); setOrder(sq, 'hold', h.x, h.y); continue; }
+    if (W && !push && !TYPES[sq.type].air && sq.type !== 'commando' && !toPost.has(sq.id)) {
+      const to = W.inWave.get(sq.id);
+      if (to) { setOrder(sq, 'attack', to.x, to.y); if (D.mass && friction(s)) silence(s, sq.id, dist(c, to) > AI_SILENT_R, true); continue; }
+      // (not in one: an enemy by our buildings — the nearest; else wait at the rally point, side by side)
+      const th = W.threats.filter(({ k }) => canHit(sq, k)).sort((a, b) => dist(c, a.k) - dist(c, b.k))[0];
+      if (th) { setOrder(sq, 'attack', Math.round(th.k.x / 40) * 40, Math.round(th.k.y / 40) * 40); continue; }
+      if (!fighting) { const g = s.bases[foe], a = Math.atan2(g.y - W.rally.y, g.x - W.rally.x) + Math.PI / 2, o = ((rallied % 2) ? 1 : -1) * Math.ceil(rallied / 2) * 60; rallied++; setOrder(sq, 'hold', Math.round(W.rally.x + Math.cos(a) * o), Math.round(W.rally.y + Math.sin(a) * o)); continue; }
+    }
     if (push) { setOrder(sq, 'attack', push.x, push.y); if (D.mass && friction(s)) silence(s, sq.id, dist(c, push) > AI_SILENT_R, true); continue; } // (the blow: gathering, then the enemy HQ)
     const cands = [], seen = new Set();
     for (const { q, k } of foes) {

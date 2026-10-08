@@ -371,9 +371,8 @@ function freeSpot(s, side, p, type, self) {
 }
 const goOut = (s, q, p) => { if (p) { const c = TYPES[q.type].air ? p : freeSpot(s, q.side, p, q.type, q); order(s, q.id, TYPES[q.type].care ? 'hold' : 'attack', c.x, c.y, true); } };
 function updateStructs(s, dt) {
-  // (the player's wait for the next forward HQ runs only once the last one stands: not while it's on its way or going
-  // up; the AI's as before — changed, bot games on the big map stalled)
-  for (const side of ['blue', 'red']) for (const k in s.cd[side]) if (k !== 'fhq' || !(singles(s, side) && fhqUnderway(s, side))) s.cd[side][k] = Math.max(0, s.cd[side][k] - dt);
+  // (the wait for the next forward HQ runs only once the last one stands: not while it's on its way or going up)
+  for (const side of ['blue', 'red']) for (const k in s.cd[side]) if (k !== 'fhq' || !(sameRules(s, side) && fhqUnderway(s, side))) s.cd[side][k] = Math.max(0, s.cd[side][k] - dt);
   droneSupply(s, dt);
   const arrived = new Set(s.squads.filter(q => q.arrived && !q.dead && !q.retreating).map(q => q.id));
   const idle = s.units.filter(u => !TYPES[u.type].air && arrived.has(u.squad) && !u.care && !u.resup && !(s.t - u.lastFire < REPAIR_QUIET));
