@@ -108,6 +108,7 @@ function tap(e) {
   if (roadArmed) { placeRoad(x, y, e.shiftKey); return; } // (roadui.js)
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
   if (e.altKey && s.arms) { openAskWheel(e, x, y); return; } // (arms: Alt + click — ask the partner for something here, askui.js)
+  cardAt(x, y); // (what's under the click: its card — infocard.js; bare ground closes it)
   selPost = hitPost(x, y); // (a post clicked: the ring of where it works, until the next click — field.js)
   const hit = hitSquad(x, y);
   // a transport helicopter of ours clicked with soldiers picked: they go to it and get on
@@ -221,7 +222,7 @@ function hover(e) {
   setCursor(cursorAt(x, y));
   // the line of what's under the mouse — a squad (ours, or the enemy's in sight), else a building: after 400 ms on the
   // same one, gone when the mouse leaves it
-  const q = !n && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed ? hitSquad(x, y) || hitFoeSquad(x, y) : null;
+  const q = !n && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed ? hitSquad(x, y) || hitMateSquad(x, y) || hitFoeSquad(x, y) : null; // (the partner's too: infocard.js)
   const pt = !n && !q ? hitPost(x, y) : null; // (a post: who holds it, what it gives)
   const key = q ? 'q' + q : n ? (n.mem ? 'm' : '') + n.id : pt ? 'p' + pt.id : null;
   if (key === hoverNode) return;
