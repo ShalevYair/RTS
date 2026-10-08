@@ -203,7 +203,7 @@ const STRUCTS = {
   depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 28, cat: 'service' },
   // the fuel station (fuel.js): barrels into its yard, and up to `keep` fuel trucks
   fuelst:   { name: 'תחנת דלק', icon: '⛽', hp: 400, value: 3, unit: 'fueltruck', build: 40, every: 30, size: 1, keep: 4, r: 28, cat: 'service' },
-  waterst:  { name: 'מתקן מים', icon: '💧', hp: 400, value: 3, unit: 'watertruck', build: 40, every: 120, size: 2, keep: 2, max: 2, free: true, first: true, shore: true, r: 28, cat: 'service' }, // (shore: on a lake's bank)
+  waterst:  { name: 'מתקן מים', icon: '💧', hp: 400, value: 3, unit: 'watertruck', build: 40, every: 120, size: 2, keep: 2, max: 2, free: true, first: true, r: 28, cat: 'service' }, // (shore: on a lake's bank)
   // a fake HQ: cheap, no slot, draws the enemy (under fog it passes for the HQ until made out closely)
   decoy:    { name: 'מפקדה מזויפת', icon: '🏰', hp: 250,  value: 0.5, build: 15, badge: '🎭', r: 48, cat: 'service' },
 };

@@ -75,7 +75,7 @@ ok(Sim.needsWater('inf') && Sim.needsWater('commando') && Sim.needsWater('med') 
   ok(u.hp < h0 - 0.08 * Sim.TYPES.inf.hp, `dry: 10 s cost ${((h0 - u.hp) / Sim.TYPES.inf.hp * 100).toFixed(0)}% of his health`);
   mk(s, 'watertruck', 930, 300); step(s, 12);
   ok(u.water > 0.9, `a water truck by him: ${(u.water * 100).toFixed(0)}%`);
-  ok(Sim.buildCheck(s, 'blue', 330, 460, 'waterst') === 'shore', 'a water building away from a lake: no');
+  ok(Sim.buildCheck(s, 'blue', 330, 460, 'waterst') !== 'shore', 'a water building away from a lake: yes too (a well — with no lake in reach there was no water at all)');
   const p = Sim.shoreSpots(s, { x: 250, y: 640 }, Sim.STRUCTS.waterst.r)[0];
   ok(p && Sim.build(s, 'blue', 'waterst', p.x, p.y), 'on the bank: yes');
 }

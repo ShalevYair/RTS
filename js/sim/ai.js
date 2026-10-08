@@ -38,11 +38,13 @@ function aiBuild(s, side, D, who) {
     const f = alive(s, side, ['fhq']).find(n => s.t >= n.ready), foe = s.bases[foeOf(side)];
     if (f) for (let i = 0; i < 8; i++) { const a = Math.atan2(foe.y - f.y, foe.x - f.x) + (s.rand() - 0.5) * 2, r = roomOf(s, f.kind) + roomOf(s, 'decoy') + 5 + s.rand() * 50; if (build(s, side, 'decoy', f.x + Math.cos(a) * r, f.y + Math.sin(a) * r)) break; }
   }
-  if (s.logi && may('depot')) aiSupply(s, side);
+  const asked = who && s.askMake && s.askMake[pk]; // (what the partner was asked for and has none of: what makes it, first — asks.js)
+  if (s.logi && may('depot')) aiSupply(s, side, asked);
   if (buildCount(s, side, who) >= buildLimit(s, side)) return;
   if (!D.smart && s.t - (s.lastBuild[pk] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
-  let kind = D.smart && !s.noCounter && s.style[side] === 'steady' ? aiCounter(s, side, may) : null, counter = !!kind; // (what it has seen of the enemy first: an answer to it — the regular commander, who mixes; the others keep to their arm)
+  let kind = asked && !LOGI_KINDS.includes(asked) && buildable(s, asked) ? asked : null, counter = false;
+  if (!kind) { kind = D.smart && !s.noCounter && s.style[side] === 'steady' ? aiCounter(s, side, may) : null; counter = !!kind; } // (what it has seen of the enemy first: an answer to it — the regular commander, who mixes; the others keep to their arm)
   const base = D.traits && s.style[side] === 'steady' && !s.level ? AI_PLAN_HARD : AI_STYLES[s.style[side]].plan;
   const plan = who ? byTurns(base.filter(may)) : base; // (hard, regular: everything; arms: what of it is this player's — the plan of the difficulty, as one player would, its arms in turn)
   for (let i = 0; i < plan.length && !kind; i++) { const k = plan[((s.plan[pk] || 0) + i) % plan.length]; if (buildable(s, k)) { kind = k; s.plan[pk] = (s.plan[pk] || 0) + i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
@@ -53,7 +55,7 @@ function aiBuild(s, side, D, who) {
     // (toward the enemy first; then all round it, a little farther — a crowded front left no room, and it stood stuck)
     const wide = i >= 12, ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * (wide ? 2 * Math.PI : 2.4), r = roomOf(s, a.kind) + roomOf(s, kind) + 5 + s.rand() * (wide ? 180 : 110);
     const x = a.x + Math.cos(ang) * r, y = a.y + Math.sin(ang) * r;
-    if (build(s, side, kind, x, y)) { if (counter) { s.aiCounter[side] = { kind, t: s.t }; (s.aiCounterLog = s.aiCounterLog || []).push({ side, kind, t: Math.round(s.t) }); } else s.plan[pk] = (s.plan[pk] || 0) + 1; s.lastBuild[pk] = s.t; (s.planMiss = s.planMiss || {})[side] = 0; return; }
+    if (build(s, side, kind, x, y)) { if (kind === asked) { delete s.askMake[pk]; s.lastBuild[pk] = s.t; return; } if (counter) { s.aiCounter[side] = { kind, t: s.t }; (s.aiCounterLog = s.aiCounterLog || []).push({ side, kind, t: Math.round(s.t) }); } else s.plan[pk] = (s.plan[pk] || 0) + 1; s.lastBuild[pk] = s.t; (s.planMiss = s.planMiss || {})[side] = 0; return; }
   }
   // (no room for it — a big one, a crowded base: after a few tries the next one; it stood stuck on an airfield)
   if (!anchors.length) return; // (nowhere to build from yet: not a miss)
@@ -87,15 +89,16 @@ function aiCounter(s, side, may = () => true) {
 }
 // the supply buildings (s.logi; past the allowance): one of each as soon as there's an HQ — a water building on a lake's
 // bank in our control — then a second of each after AI_SUPPLY2 s
-function aiSupply(s, side) {
+function aiSupply(s, side, asked) {
   if (s.t - (s.aiSupAt && s.aiSupAt[side] || -99) < 10) return;
   (s.aiSupAt = s.aiSupAt || {})[side] = s.t;
   const hq = hqOf(s, side); if (!hq || s.t < hq.ready) return;
   for (const kind of ['waterst', 'depot', 'fuelst']) {
-    const want = s.t - hq.ready > AI_SUPPLY2 ? 2 : 1;
+    const want = Math.min(STRUCTS[kind].max || 2, (s.t - hq.ready > AI_SUPPLY2 ? 2 : 1) + (kind === asked ? 1 : 0)); // (asked for and none to send: one more)
     if (alive(s, side, [kind]).length >= want || (s.builds && !s.builds.includes(kind))) continue;
-    if (kind === 'waterst') { for (const p of shoreSpots(s, hq, STRUCTS.waterst.r).slice(0, 30)) if (build(s, side, kind, p.x, p.y)) return; continue; }
-    for (let i = 0; i < 12; i++) { const a = s.rand() * Math.PI * 2, r = roomOf(s, 'hq') + roomOf(s, kind) + 5 + s.rand() * 90; if (build(s, side, kind, hq.x + Math.cos(a) * r, hq.y + Math.sin(a) * r)) return; }
+    const done = () => { if (kind === asked && s.askMake) for (const k in s.askMake) if (s.askMake[k] === kind && k.startsWith(side)) delete s.askMake[k]; };
+    if (kind === 'waterst') for (const p of shoreSpots(s, hq, STRUCTS.waterst.r).slice(0, 30)) if (build(s, side, kind, p.x, p.y)) return done(); // (a lake's bank first; none in reach — a well by the HQ, as the rest)
+    for (let i = 0; i < 12; i++) { const a = s.rand() * Math.PI * 2, r = roomOf(s, 'hq') + roomOf(s, kind) + 5 + s.rand() * 90; if (build(s, side, kind, hq.x + Math.cos(a) * r, hq.y + Math.sin(a) * r)) return done(); }
   }
 }
 // forward HQ on a hill (DESIGN.md §6): a hill just past the edge of our control, clear of known enemies and

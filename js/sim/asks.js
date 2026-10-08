@@ -14,13 +14,24 @@ function askCrews(s, side, who, kind) {
     (ASK_BY[kind] ? ASK_BY[kind].includes(q.type) : !TYPES[q.type].care && !TYPES[q.type].air && q.type !== 'ssm'));
 }
 // can the other player answer this kind at all (has the units for it)? — the UI offers only these
-const canAsk = (s, side, who, kind) => !!s.arms && askCrews(s, side, who === 'me' ? 'mate' : 'me', kind).length > 0;
+// anything may be asked that the other player has, or could build (its arms): with none of it, a computer partner builds
+// what makes it first (ASK_MAKE: water — a water point, fuel — a fuel station, …), and sends it once there is one;
+// the ask waits for it ASK_WAIT s
+const ASK_MAKE = { fuel: ['fuelst'], ammo: ['depot'], water: ['waterst'], lift: ['helilift'], fire: ['howshop', 'mlrsshop', 'heliatk', 'airfield', 'ssmshop'] }, ASK_WAIT = 300, ASK_RETRY = 5;
+const askMake = (s, side, who, kind) => (ASK_MAKE[kind] || []).find(k => (armSide(s, side, k) || 'me') === who && (!s.builds || s.builds.includes(k)) && (k !== 'fuelst' || s.fuel) && (!STRUCTS[k].fuel || s.fuel) && (!STRUCTS[k].max || alive(s, side, [k]).length < STRUCTS[k].max)) || null;
+const canAsk = (s, side, who, kind) => { const o = who === 'me' ? 'mate' : 'me'; return !!s.arms && (askCrews(s, side, o, kind).length > 0 || !!askMake(s, side, o, kind)); };
+// every few seconds: the asks waiting for something to be built, asked again; the partner's build order dropped once none waits
+function askRetry(s) {
+  if (!s.asks || !s.asks.length) return;
+  for (const a of s.asks) if (a.wait && !a.ok && s.t - (a.tried || a.t) >= ASK_RETRY) { a.tried = s.t; answerAsk(s, a); if (a.ok) { a.wait = false; a.late = true; a.t = s.t; } }
+  if (s.askMake) for (const k in s.askMake) if (!s.asks.some(a => a.wait && !a.ok && a.side + (a.from === 'me' ? 'mate' : 'me') === k)) delete s.askMake[k];
+}
 // a site of the side near (x, y), still going up
 const siteNear = (s, side, x, y) => s.nodes.filter(n => n.side === side && n.hp > 0 && isSite(n) && s.t < n.ready && Math.hypot(n.x - x, n.y - y) < nodeR(n) + ASK_SITE_R).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
 // a new ask from player `from` of the side; the computer partner answers the player's at once
 function ask(s, side, kind, x, y, from = 'me') {
   if (!ASK_KINDS.includes(kind) || !Number.isFinite(x) || !Number.isFinite(y)) return null;
-  s.asks = (s.asks || []).filter(a => s.t - a.t < ASK_T);
+  s.asks = (s.asks || []).filter(a => s.t - a.t < (a.wait ? ASK_WAIT : ASK_T));
   const a = { id: s.askN = (s.askN || 0) + 1, side, from, kind, x: Math.round(x), y: Math.round(y), t: s.t, by: [], ok: false };
   s.asks.push(a);
   if (from === 'me' && s.mate && side === 'blue') answerAsk(s, a);
@@ -69,6 +80,10 @@ function answerAsk(s, a) {
     if (q && assignSite(s, q, n, true)) a.by.push(q.id);
   }
   a.ok = a.by.length > 0;
+  if (!a.ok && (who === 'mate' || s.meBot)) { // (none of it: the computer builds what makes it, and the ask waits)
+    const k = askMake(s, a.side, who, a.kind);
+    if (k) { a.make = k; a.wait = true; (s.askMake = s.askMake || {})[a.side + who] = k; }
+  }
   return a.ok;
 }
 // the squads on an answered ask still (think leaves them be)
