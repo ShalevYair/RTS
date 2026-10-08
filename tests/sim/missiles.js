@@ -46,7 +46,8 @@ ok(S.ssmshop.build === 180 && S.ssmshop.every === 120 && S.ssmshop.size === 1 &&
   for (let i = 0; i < 30 * 1.5 && T.hp === Sim.TYPES.tank.hp; i++) pin();
   ok(D.reload > 50 && T.hp === Sim.TYPES.tank.hp, 'Iron Dome stopped the first anti-tank missile');
   for (let i = 0; i < 30 * 4; i++) pin(); ok(T.hp < Sim.TYPES.tank.hp, 'the next ones got through (one a minute)');
-  const s2 = fresh(), at2 = mk(s2, 'blue', 'at', 1, 500, 320), tk2 = mk(s2, 'red', 'tank', 1, 580, 320), T2 = s2.units.find(u => u.squad === tk2.id); T2.trophy = Sim.TROPHY_MAX;
+  // (the tank out of crushing reach — CRUSH_GO — and in the soldier's range: this is about the missiles)
+  const s2 = fresh(), at2 = mk(s2, 'blue', 'at', 1, 500, 320), tk2 = mk(s2, 'red', 'tank', 1, 630, 320), T2 = s2.units.find(u => u.squad === tk2.id); T2.trophy = Sim.TROPHY_MAX;
   let low = Sim.TROPHY_MAX, hpAt0 = null; for (let i = 0; i < 30 * 9; i++) { T2.cd = 99; Sim.step(s2, 1 / 30); low = Math.min(low, T2.trophy); if (low === 0 && hpAt0 === null) hpAt0 = T2.hp; }
   ok(hpAt0 === Sim.TYPES.tank.hp && T2.hp < Sim.TYPES.tank.hp, `Trophy stopped ${Sim.TROPHY_MAX - low} missiles untouched, then they got through (${Math.round(T2.hp)} hp)`);
   const s3 = fresh(), tk3 = mk(s3, 'blue', 'tank', 1, 300, 320), sh = mk(s3, 'red', 'tank', 1, 360, 320), T3 = s3.units.find(u => u.squad === tk3.id); T3.trophy = Sim.TROPHY_MAX;
