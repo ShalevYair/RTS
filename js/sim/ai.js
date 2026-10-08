@@ -129,11 +129,16 @@ function aiForward(s, side, mine, setOrder) {
   const hill = s.hills.filter(h => dist(h, spot) < AI_FHQ_HILL).sort((a, b) => dist(a, spot) - dist(b, spot))[0];
   if (hill) spot = { x: hill.x, y: hill.y };
   spot = { x: Math.round(clamp(spot.x, 40, s.W - 40)), y: Math.round(clamp(spot.y, 40, s.H - 40)) };
-  if (quality(s, side, spot, true) >= BUILD_MIN_Q || Math.abs(spot.x - foe.x) < NODES.hq.r1 || threatAt(s, side, spot, AI_NEAR)) return;
+  // (the front where we can build already — the squads waiting by the rally point —: a hill just past the edge of our
+  // control, as before; without it, a side whose squads waited at home never set one up, and games dragged on)
+  const atFront = !(s.oldPlace === true || s.oldPlace === 'fhq') && !(quality(s, side, spot, true) >= BUILD_MIN_Q || Math.abs(spot.x - foe.x) < NODES.hq.r1 || threatAt(s, side, spot, AI_NEAR));
+  const nodes = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq');
+  const spots = atFront ? [spot] : s.hills.filter(h => quality(s, side, h, true) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
+    nodes.some(n => dist(n, h) < nodeSpec(n.kind).r1 + AI_FHQ_REACH) && !threatAt(s, side, h, AI_NEAR));
   let best = null, bs = Infinity;
-  for (const q of mine) if (fhqBuilders(s).includes(q.type) && q.strength >= AI_READY && !(q.type === 'dozer' && (jobOf(s, q) || q.hqAt))) {
-    const sc = dist({ x: q.cx, y: q.cy }, spot);
-    if (sc < bs) { bs = sc; best = { sq: q.id, hill: spot }; }
+  for (const q of mine) if (fhqBuilders(s).includes(q.type) && q.strength >= AI_READY && !(q.type === 'dozer' && (jobOf(s, q) || q.hqAt))) for (const h of spots) {
+    const sc = dist({ x: q.cx, y: q.cy }, h) + (atFront ? 0 : 0.5 * Math.abs(h.x - foe.x));
+    if (sc < bs) { bs = sc; best = { sq: q.id, hill: { x: h.x, y: h.y } }; }
   }
   if (!best) return;
   // (with support: a site on that bulldozer's list; it gets there on its own)
@@ -399,8 +404,8 @@ function think(s, side, level, who) {
     if (sq.type === 'tanker') { const p = tankerStation(s, sq, foes); setOrder(sq, 'hold', p.x, p.y); continue; }
     if (s.logi && CARGO[sq.type] && !s.noAiSupply) { const k = trucks[sq.type] = (trucks[sq.type] || 0) + 1, p = truckStation(s, sq, team, k - 1); setOrder(sq, 'hold', p.x, p.y); continue; }
     if (TYPES[sq.type].arty) { const p = radioStation(s, sq, team, arty++, ARTY_BACK); setOrder(sq, 'hold', p.x, p.y); continue; } // (artillery: behind the leading squads — it fires over them on its own, artyTick)
-    if (sq.type === 'arrow') { const p = arrowStation(s, sq, arrows++); setOrder(sq, 'hold', p.x, p.y); continue; } // (Arrow: the base's edge, toward the enemy)
-    if (sq.type === 'dome') { const p = radioStation(s, sq, team, domes++, AI_DOME_BACK); setOrder(sq, 'hold', p.x, p.y); continue; } // (Iron Dome: at the front)
+    if (sq.type === 'arrow' && !(s.oldPlace === true || s.oldPlace === 'arrow')) { const p = arrowStation(s, sq, arrows++); setOrder(sq, 'hold', p.x, p.y); continue; } // (Arrow: the base's edge, toward the enemy)
+    if (sq.type === 'dome' && !(s.oldPlace === true || s.oldPlace === 'dome')) { const p = radioStation(s, sq, team, domes++, AI_DOME_BACK); setOrder(sq, 'hold', p.x, p.y); continue; } // (Iron Dome: at the front)
     if (TYPES[sq.type].care) { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); continue; }
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)

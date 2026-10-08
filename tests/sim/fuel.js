@@ -140,9 +140,14 @@ ok(Sim.needsWater('inf') && Sim.needsWater('commando') && Sim.needsWater('med') 
   // player's too (seed 41: an HQ in a corner, no room round it — the rest go by the side's other buildings)
   let s = Sim.create(41, 2200, 'normal', Sim.H * 2, { singles: true }); Sim.extras(s); s = Sim.openField(s); s.fog = true;
   Sim.setArms(s, ['armor', 'infantry']); s.meBot = true;
-  for (let i = 0; i < 30 * 960 && !s.over; i++) Sim.step(s, 1 / 30);
+  for (let i = 0; i < 30 * 600 && !s.over; i++) Sim.step(s, 1 / 30);
+  // (forty more tanks of the player's by the HQ: the partner should catch up — a station for every FUEL_ST_PER)
+  const hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq');
+  for (let k = 0; k < 40; k++) { const q = Sim._makeSquad(s, 'blue', 'tank', null, hq.x + 120 + (k % 5) * 30, hq.y - 120 + Math.floor(k / 5) * 30); q.size = 1; Sim._fillSquad(s, q, q.cx, q.cy); }
+  for (let i = 0; i < 30 * 360 && !s.over; i++) Sim.step(s, 1 / 30);
+  // (3 at least: built for the 40 more — some of them fell since)
   const veh = s.units.filter(u => u.side === 'blue' && u.hp > 0 && u.fuel !== undefined && Sim.needsFuel(u.type)).length;
   const st = s.nodes.filter(n => n.side === 'blue' && n.kind === 'fuelst' && n.hp > 0).length, trucks = s.units.filter(u => u.side === 'blue' && u.type === 'fueltruck').length;
-  ok(st >= Math.min(Sim.FUEL_ST_MAX, Math.ceil(veh / Sim.FUEL_ST_PER)) - 1 && st >= 3, `the partner's fuel stations keep up: ${st} for ${veh} vehicles (${trucks} trucks)`);
+  ok(st >= 3 && st >= Math.min(Sim.FUEL_ST_MAX, Math.ceil(veh / Sim.FUEL_ST_PER)) - 1, `the partner's fuel stations keep up: ${st} for ${veh} vehicles (${trucks} trucks)`);
 }
 process.exit(bad ? 1 : 0);

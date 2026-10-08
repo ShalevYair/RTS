@@ -338,7 +338,7 @@ const DIFFS = {
 };
 const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
-// forward HQs (AI_FHQ_REACH: no longer used — they go up at the front, AI_FHQ_BACK); the trip is dropped after AI_FHQ_TRIP s
+// forward HQs: at the front (AI_FHQ_BACK), else a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
 const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
 const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'howshop', 'airfield', 'heliatk', 'jeepat', 'garage', 'mlrsshop', 'tankerbase', 'heligun', 'domesite', 'tankshop', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost', 'helilift'], AI_READY = 0.6;
 // the AI's commander (style), picked per game for red from the seed or in the main menu (blue bots play 'steady'):
