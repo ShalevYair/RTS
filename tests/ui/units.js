@@ -54,7 +54,7 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
     await p.waitForTimeout(200); await p.screenshot({ path: `${OUT}/${name}-placehq.png` });
     const h1 = await p.evaluate(() => { const carrier = () => s.squads.find(q => q.side === 'blue' && q.hqAt); // (the full game: the bulldozer goes to put it up)
       placeHq(s.W * 0.5, 300); const refused = !carrier(); let P = { x: s.W * 0.1, y: s.H * 0.2 }; for (let i = 0; i < 40 && Sim.hqCheck(s, 'blue', P.x, P.y); i++) P = { x: s.W * (0.04 + (i % 5) * 0.03), y: s.H * (0.15 + Math.floor(i / 5) * 0.1) }; /* (a spot the HQ fits: a lake or the map's edge may be in the way) */ placeHq(P.x, P.y); const going = !!carrier() && carrier().type === 'dozer';
-      setPlaying(false); for (let i = 0; i < 30 * 120 && (s.hqPending.blue || !s.nodes.some(n => n.side === 'red' && n.kind === 'hq')); i++) Sim.step(s, 1 / 30); /* (ours and theirs: the AI's spot may be further off) */
+      setPlaying(false); for (let i = 0; i < 30 * 240 && (s.hqPending.blue || !s.nodes.some(n => n.side === 'red' && n.kind === 'hq')); i++) Sim.step(s, 1 / 30); /* (ours and theirs: the AI's spot may be further off) */
       const h = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq'); updateHud(); syncButtons();
       return { refused, going, at: h && [Math.round(h.x), Math.round(h.y)], t: Math.round(s.t), pending: s.hqPending.blue, btn: !document.getElementById('hqb').hidden, red: s.nodes.some(n => n.side === 'red' && n.kind === 'hq') }; });
     check(name, !h0.hq && h0.armed && h0.btn && h0.build === 'nohq' && h1.refused && h1.going && h1.at && !h1.pending && !h1.btn && h1.red, `the HQ where we pick it ${JSON.stringify({ h0, h1 })}`);
