@@ -338,7 +338,7 @@ const DIFFS = {
 };
 const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack
-// forward HQs: a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
+// forward HQs: at the front (AI_FHQ_BACK), else a hill at most AI_FHQ_REACH past a node's edge; the trip is dropped after AI_FHQ_TRIP s
 const AI_FHQ_REACH = 250, AI_FHQ_TRIP = 90;
 const AI_PLAN = ['aapost', 'tankshop', 'atpost', 'jeepshop', 'clinic', 'tent', 'depot', 'fuelst', 'howshop', 'airfield', 'heliatk', 'jeepat', 'garage', 'mlrsshop', 'tankerbase', 'heligun', 'domesite', 'tankshop', 'ssmshop', 'jeepaa', 'arrowsite', 'commandopost', 'helilift'], AI_READY = 0.6;
 // the AI's commander (style), picked per game for red from the seed or in the main menu (blue bots play 'steady'):
@@ -385,6 +385,10 @@ const AI_PUSH_SHARE = 0.6, AI_PUSH_STOP = 0.5, AI_PUSH_MIN = 4, AI_PUSH_IN = 0.7
 const AI_TRUCK_BACK = 60, AI_HOP = 450, AI_NEED = 0.3;
 // AI_SILENT_R: the hard AI sends squads going farther than this in radio silence
 // AI_RADIO_BACK: how far behind a leading squad the AI keeps a signals truck
+// AI_ARROW_OUT: an Arrow truck stands this far past the base's furthest building toward the enemy (its edge), the trucks
+// AI_ARROW_GAP apart across; AI_DOME_BACK: an Iron Dome truck this far behind a leading squad (at the front);
+// AI_FHQ_BACK: a forward HQ goes up this far behind the leading squads, AI_FHQ_HILL round there a hill if there is one
+const AI_ARROW_OUT = 50, AI_ARROW_GAP = 90, AI_DOME_BACK = 90, AI_FHQ_BACK = 120, AI_FHQ_HILL = 220;
 // AI_CROWD_*: a signals truck goes to where most of its side's units are (crowdStation): crowds counted in cells of
 // AI_CROWD_CELL (each with the 8 round it), the trucks' crowds AI_CROWD_SEP apart at least
 const AI_CROWD_CELL = 150, AI_CROWD_SEP = 450;
@@ -497,7 +501,8 @@ const FUEL_BARRELS = { tank: 2, dozer: 2 }, FUEL_HQ_RATE = 0.05, FUEL_HQ_FAR = 1
 // place. Soldiers drink: WATER_T s on a full canteen; dry, THIRST of their health a second; by a water building
 // (WATER_NEAR of its edge) WATER_FILL. Under LIGHT_AT a light shows (fuel yellow, water blue). A medic / mechanic
 // goes to the hurt of its kind within MED_SEEK. A water building stands within SHORE_R of a lake.
-const TRUCK_CAP = { fueltruck: 8, truck: 8, watertruck: 30 }, TRUCK_R = 100, TRUCK_REFILL = 12, FUEL_FILL = 0.25, AMMO_FILL = 0.2, WATER_FILL = 0.1;
+const TRUCK_CAP = { fueltruck: 24, truck: 8, watertruck: 30 }, // (fuel: 24 — with 8, dozens of vehicles stood dry and a 45-minute game hardly moved)
+  TRUCK_R = 100, TRUCK_REFILL = 12, FUEL_FILL = 0.25, AMMO_FILL = 0.2, WATER_FILL = 0.1;
 const AMMO_CRATES = { tank: 2 }, AMMO_HQ_RATE = 0.04;
 const AI_SUPPLY2 = 300;
 // the tanker: TANKER_T s of its own fuel, TANKER_CAP planes' fulls; a plane within TANKER_R of it fills TANKER_FILL a
@@ -508,7 +513,10 @@ const TANKER_T = 600, TANKER_CAP = 8, TANKER_R = 45, TANKER_FILL = 0.25, BINGO_P
 // allowance (free); a truck at once (first), another 2 minutes on, one lost — another 2 minutes on: 4 trucks of each
 // kind at most. Outside it (the tutorial) as they were: specOf)
 const LOGI_SPEC = { every: 120, size: 2, keep: 2, max: 2, free: true, first: true, value: 0 }; // (value 0: not in the power — structures.js)
-const LOGI_STRUCTS = Object.fromEntries(['depot', 'fuelst', 'waterst'].map(k => [k, { ...STRUCTS[k], ...LOGI_SPEC }]));
+// (a fuel station: 4 trucks, and as many stations as a side needs — FUEL_ST_PER vehicles that burn fuel to a station,
+// FUEL_ST_MAX at most: with two of them, two trucks each, dozens of vehicles stood dry and the games hardly moved)
+const FUEL_ST_PER = 10, FUEL_ST_MAX = 12;
+const LOGI_STRUCTS = Object.fromEntries(['depot', 'fuelst', 'waterst'].map(k => [k, { ...STRUCTS[k], ...LOGI_SPEC, ...(k === 'fuelst' ? { size: 4, keep: 4, max: FUEL_ST_MAX } : {}) }]));
 const specOf = (s, kind) => (s.logi && LOGI_STRUCTS[kind]) || STRUCTS[kind];
 // arms games (s.arms): the air force builds faster — its buildings went up, but hardly an aircraft came out (one a
 // 120 / 90 s, and the anti-aircraft brought them down), and it did ~10% of the damage. Not in the others: there more

@@ -94,14 +94,21 @@ function aiSupply(s, side, asked) {
   (s.aiSupAt = s.aiSupAt || {})[side] = s.t;
   const hq = hqOf(s, side); if (!hq || s.t < hq.ready) return;
   for (const kind of ['waterst', 'depot', 'fuelst']) {
-    const want = Math.min(STRUCTS[kind].max || 2, (s.t - hq.ready > AI_SUPPLY2 ? 2 : 1) + (kind === asked ? 1 : 0)); // (asked for and none to send: one more)
+    let want = (s.t - hq.ready > AI_SUPPLY2 ? 2 : 1) + (kind === asked ? 1 : 0); // (asked for and none to send: one more)
+    // (fuel: a station for every FUEL_ST_PER vehicles of the whole side that burn it — the partner counts the player's too)
+    if (kind === 'fuelst') want = Math.max(want, Math.ceil(s.units.filter(u => u.side === side && u.hp > 0 && u.fuel !== undefined && needsFuel(u.type)).length / FUEL_ST_PER));
+    want = Math.min(specOf(s, kind).max || 2, want);
     if (alive(s, side, [kind]).length >= want || (s.builds && !s.builds.includes(kind))) continue;
     const done = () => { if (kind === asked && s.askMake) for (const k in s.askMake) if (s.askMake[k] === kind && k.startsWith(side)) delete s.askMake[k]; };
     if (kind === 'waterst') for (const p of shoreSpots(s, hq, STRUCTS.waterst.r).slice(0, 30)) if (build(s, side, kind, p.x, p.y)) return done(); // (a lake's bank first; none in reach — a well by the HQ, as the rest)
-    for (let i = 0; i < 12; i++) { const a = s.rand() * Math.PI * 2, r = roomOf(s, 'hq') + roomOf(s, kind) + 5 + s.rand() * 90; if (build(s, side, kind, hq.x + Math.cos(a) * r, hq.y + Math.sin(a) * r)) return done(); }
+    // (round the HQ first, then the forward HQs and the side's other buildings — an HQ in a corner had no room for a
+    // second fuel station, and dozens of vehicles shared one)
+    const ring = 90 + 40 * alive(s, side, [kind]).length;
+    const at = [hq, ...s.nodes.filter(n => n.side === side && n.hp > 0 && n.kind === 'fhq'), ...s.nodes.filter(n => n.side === side && n.hp > 0 && n !== hq && n.kind !== 'fhq' && n.kind !== 'drone' && n.kind !== 'decoy')];
+    for (const [j, n] of at.slice(0, 8).entries()) for (let i = 0; i < (j ? 6 : 12); i++) { const a = s.rand() * Math.PI * 2, r = roomOf(s, n.kind) + roomOf(s, kind) + 5 + s.rand() * (j ? 90 : ring); if (build(s, side, kind, n.x + Math.cos(a) * r, n.y + Math.sin(a) * r)) return done(); }
   }
 }
-// forward HQ on a hill (DESIGN.md §6): a hill just past the edge of our control, clear of known enemies and
+// forward HQ (DESIGN.md §6): at the front — behind the leading squads, on a hill there if any —, clear of known enemies and
 // short of the enemy HQ; the nearest fit jeep/tank squad goes there (the rest of think leaves it alone) and sets up
 function aiForward(s, side, mine, setOrder) {
   const job = s.aiFhq[side], sq = job && s.squads.find(q => q.id === job.sq);
@@ -111,13 +118,27 @@ function aiForward(s, side, mine, setOrder) {
     return;
   }
   if (s.cd[side].fhq > 0 || fhqCount(s, side) >= fhqMax(s)) return;
-  const nodes = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq'), foe = s.bases[foeOf(side)];
-  const hills = s.hills.filter(h => quality(s, side, h, true) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
+  // (at the front: AI_FHQ_BACK behind the middle of the leading squads — on a hill round there if there is one —, where
+  // we can't build yet and no enemy is known close by; it was a hill just past the edge of our control, often far
+  // behind the fighting)
+  const foe = s.bases[foeOf(side)], home = hqOf(s, side) || s.bases[side];
+  const lead = mine.filter(q => !TYPES[q.type].care && !TYPES[q.type].air && !TYPES[q.type].support).sort((a, b) => dist({ x: a.cx, y: a.cy }, foe) - dist({ x: b.cx, y: b.cy }, foe)).slice(0, 3);
+  if (!lead.length) return;
+  const c = { x: lead.reduce((a, q) => a + q.cx, 0) / lead.length, y: lead.reduce((a, q) => a + q.cy, 0) / lead.length }, dc = dist(c, home) || 1;
+  let spot = { x: c.x + (home.x - c.x) / dc * Math.min(dc, AI_FHQ_BACK), y: c.y + (home.y - c.y) / dc * Math.min(dc, AI_FHQ_BACK) };
+  const hill = s.hills.filter(h => dist(h, spot) < AI_FHQ_HILL).sort((a, b) => dist(a, spot) - dist(b, spot))[0];
+  if (hill) spot = { x: hill.x, y: hill.y };
+  spot = { x: Math.round(clamp(spot.x, 40, s.W - 40)), y: Math.round(clamp(spot.y, 40, s.H - 40)) };
+  // (the front where we can build already — the squads waiting by the rally point —: a hill just past the edge of our
+  // control, as before; without it, a side whose squads waited at home never set one up, and games dragged on)
+  const atFront = !(s.oldPlace === true || s.oldPlace === 'fhq') && !(quality(s, side, spot, true) >= BUILD_MIN_Q || Math.abs(spot.x - foe.x) < NODES.hq.r1 || threatAt(s, side, spot, AI_NEAR));
+  const nodes = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq');
+  const spots = atFront ? [spot] : s.hills.filter(h => quality(s, side, h, true) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
     nodes.some(n => dist(n, h) < nodeSpec(n.kind).r1 + AI_FHQ_REACH) && !threatAt(s, side, h, AI_NEAR));
   let best = null, bs = Infinity;
-  for (const q of mine) if (fhqBuilders(s).includes(q.type) && q.strength >= AI_READY && !(q.type === 'dozer' && (jobOf(s, q) || q.hqAt))) for (const h of hills) {
-    const sc = dist({ x: q.cx, y: q.cy }, h) + 0.5 * Math.abs(h.x - foe.x);
-    if (sc < bs) { bs = sc; best = { sq: q.id, hill: h }; }
+  for (const q of mine) if (fhqBuilders(s).includes(q.type) && q.strength >= AI_READY && !(q.type === 'dozer' && (jobOf(s, q) || q.hqAt))) for (const h of spots) {
+    const sc = dist({ x: q.cx, y: q.cy }, h) + (atFront ? 0 : 0.5 * Math.abs(h.x - foe.x));
+    if (sc < bs) { bs = sc; best = { sq: q.id, hill: { x: h.x, y: h.y } }; }
   }
   if (!best) return;
   // (with support: a site on that bulldozer's list; it gets there on its own)
@@ -291,6 +312,15 @@ function radioStation(s, sq, mine, k, B = AI_RADIO_BACK) {
   const p = { x: Math.round((c.x + (home.x - c.x) / d * back) / G) * G, y: Math.round((c.y + (home.y - c.y) / d * back) / G) * G };
   return threatAt(s, sq.side, p, AI_NEAR) ? careStation(s, sq, mine) : p;
 }
+// an Arrow truck: on the edge of the base toward the enemy — AI_ARROW_OUT past the furthest of our buildings that way
+// round the HQ — the k-th AI_ARROW_GAP across from the line to the enemy (it covers the base from missiles)
+function arrowStation(s, sq, k) {
+  const hq = hqOf(s, sq.side) || s.bases[sq.side], g = s.bases[foeOf(sq.side)], d = dist(hq, g) || 1, ux = (g.x - hq.x) / d, uy = (g.y - hq.y) / d;
+  let edge = (hq.kind ? nodeR(hq) : 40);
+  for (const n of s.nodes) if (n.side === sq.side && n.hp > 0 && n.kind !== 'drone' && dist(n, hq) < NODES.hq.r1) edge = Math.max(edge, (n.x - hq.x) * ux + (n.y - hq.y) * uy + nodeR(n));
+  const o = ((k % 2) ? 1 : -1) * Math.ceil(k / 2) * AI_ARROW_GAP, r = edge + AI_ARROW_OUT, G = 20;
+  return { x: clamp(Math.round((hq.x + ux * r - uy * o) / G) * G, 20, s.W - 20), y: clamp(Math.round((hq.y + uy * r + ux * o) / G) * G, 20, s.H - 20) };
+}
 // a signals truck (unless asked somewhere — asks.js): where most of the side's fighting units are — the k-th truck
 // at the k-th crowd, AI_CROWD_SEP from the others' — AI_RADIO_BACK back from it toward home; with none, as before
 function crowdStation(s, sq, team, k) {
@@ -360,7 +390,7 @@ function think(s, side, level, who) {
   // posts: a squad of soldiers to each one we don't hold (they go on their own; the rest of think leaves them be)
   const toPost = stayHome ? new Set() : aiPosts(s, side, mine, setOrder); // (staying home: no soldiers off to the posts)
   const raid = (D.traits || St.raids) && can.build ? aiLift(s, side, mine, structs) : new Set(); // (commando raids by helicopter)
-  let nth = 0, radios = 0, arty = 0; const trucks = {};
+  let nth = 0, radios = 0, arty = 0, arrows = 0, domes = 0; const trucks = {};
   const asked = askBusy(s, side); // (arms: sent to answer a partner's ask — on it for a while — asks.js)
   if (who === 'mate') mateAsks(s, side, mine, foes);
   for (const sq of mine) {
@@ -374,6 +404,8 @@ function think(s, side, level, who) {
     if (sq.type === 'tanker') { const p = tankerStation(s, sq, foes); setOrder(sq, 'hold', p.x, p.y); continue; }
     if (s.logi && CARGO[sq.type] && !s.noAiSupply) { const k = trucks[sq.type] = (trucks[sq.type] || 0) + 1, p = truckStation(s, sq, team, k - 1); setOrder(sq, 'hold', p.x, p.y); continue; }
     if (TYPES[sq.type].arty) { const p = radioStation(s, sq, team, arty++, ARTY_BACK); setOrder(sq, 'hold', p.x, p.y); continue; } // (artillery: behind the leading squads — it fires over them on its own, artyTick)
+    if (sq.type === 'arrow' && !(s.oldPlace === true || s.oldPlace === 'arrow')) { const p = arrowStation(s, sq, arrows++); setOrder(sq, 'hold', p.x, p.y); continue; } // (Arrow: the base's edge, toward the enemy)
+    if (sq.type === 'dome' && !(s.oldPlace === true || s.oldPlace === 'dome')) { const p = radioStation(s, sq, team, domes++, AI_DOME_BACK); setOrder(sq, 'hold', p.x, p.y); continue; } // (Iron Dome: at the front)
     if (TYPES[sq.type].care) { const p = careStation(s, sq, mine); setOrder(sq, 'hold', p.x, p.y); continue; }
     const c = { x: sq.cx, y: sq.cy }, fighting = s.t - sq.lastContact < CONTACT_MEMORY;
     // worn down and not in a fight: go home to heal and refill before the next push (not on easy)
