@@ -123,6 +123,9 @@ function makeSquad(s, side, type, home, x, y, trait = 'balanced') {
 // singles in one at a time, and bot games stalled)
 // (on when the game is made with { singles: true } — the UI's games; the tests' games keep squads)
 const singles = (s, side) => !!s.singles && !(s.bots || []).includes(side);
+// the rules units move, fight and dig by: the same for every side, the player's and the computer's (s.split: the old
+// way — these for the player's units only, the AI's as before — to compare)
+const sameRules = (s, side, k) => !(s.split === true || (s.split && s.split[k])) || singles(s, side);
 // every unit its own squad (sq.single): n of them, one a squad, standing in a line across the way to the enemy at
 // (x, y); home: the building that raised them (it refills them). Returns the squads.
 function raiseSingles(s, side, type, home, x, y, n, trait) {
@@ -197,8 +200,8 @@ function bodyCenter(m) {
 
 // units don't stand on each other: overlapping ones are pushed apart; a tank goes over enemy soldiers
 // instead, crushing them. Ground units are pushed out of buildings too.
-// the room a unit takes: its body; the player's vehicles VEH_ROOM more (see config)
-const bodyR = (s, u) => TYPES[u.type].r * (s.singles && !FOOT.includes(u.type) && !TYPES[u.type].air && singles(s, u.side) ? VEH_ROOM : 1);
+// the room a unit takes: its body; vehicles VEH_ROOM more (see config)
+const bodyR = (s, u) => TYPES[u.type].r * (!FOOT.includes(u.type) && !TYPES[u.type].air && sameRules(s, u.side, 'room') ? VEH_ROOM : 1);
 function separate(s, dt = 0) {
   const us = s.units;
   // (pairs near each other only: a grid of squares as wide as the widest touch, each unit against the ones in its
@@ -224,9 +227,9 @@ function separate(s, dt = 0) {
         if (crush) { crush.hp -= CRUSH_DPS * dt; crush.by = (crush === a ? b : a).squad; continue; }
         const d = Math.sqrt(d2) || 0.01, p = (min - d) / 2, nx = d2 ? dx / d : 1, ny = d2 ? dy / d : 0;
         const wa = MASS[a.type] || 1, wb = MASS[b.type] || 1; let ka = 2 * wb / (wa + wb), kb = 2 * wa / (wa + wb); // the heavier gives way less
-        // (the player's units, one moving and the other standing: the standing one is pushed aside, the moving one
+        // (one moving and the other standing: the standing one is pushed aside, the moving one
         // hardly — it goes through, as in other RTS games; it was stopped, and stood blocked behind a line)
-        if (a.side === b.side && singles(s, a.side) && !s.noPush) { // (s.noPush: off, to compare)
+        if (a.side === b.side && sameRules(s, a.side, 'push') && !s.noPush) { // (s.noPush: off, to compare)
           const am = a.moving === s.t, bm = b.moving === s.t;
           if (am && !bm) { ka = PUSH_THROUGH; kb = 2 - PUSH_THROUGH; } else if (bm && !am) { kb = PUSH_THROUGH; ka = 2 - PUSH_THROUGH; }
         }

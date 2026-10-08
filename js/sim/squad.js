@@ -30,8 +30,8 @@ function updateSquad(s, sq, dt, of) {
   if (fresh) sendReport(s, sq);
   // heavy losses: under the line after being above it (a squad still filling up hasn't lost anything)
   // (part of it on board a helicopter isn't a loss)
-  // (s.logi, the player's: never — the hurt stay where they are, and a medic comes; they fell back and drove out again)
-  if (!sq.retreating && !sq.boarding && !sq.aboard && !(s.logi && singles(s, sq.side)) && sq.order.type !== 'retreat' && sq.strength < retreatAt(s, sq) && sq.peak >= retreatAt(s, sq)) {
+  // (s.logi: never — the hurt stay where they are, and a medic comes; they fell back and drove out again)
+  if (!sq.retreating && !sq.boarding && !sq.aboard && !(s.logi && sameRules(s, sq.side, 'retreat')) && sq.order.type !== 'retreat' && sq.strength < retreatAt(s, sq) && sq.peak >= retreatAt(s, sq)) {
     sq.retreating = true;
     report(s, sq, `אבדות כבדות (${Math.round(sq.strength * 100)}%), נסוג להתארגנות`); sendReport(s, sq, 'hit');
   }
@@ -121,7 +121,7 @@ function initiative(s, sq, dt) {
   if (best) { sq.support = best.id; sq.supportSince = s.t; report(s, sq, `יוזם: יוצא לסייע לכוח ה${best.name}`); }
 }
 
-// under fire (the player's squads, standing where they were sent): a fighting one that can hit the shooter and isn't
+// under fire (squads standing where they were sent): a fighting one that can hit the shooter and isn't
 // already firing goes at it; one that doesn't fight falls back toward the HQ, FLEE_D (not all the way). Once per
 // REACT_EVERY s a squad
 // (the squad's own doing: exactly where it means, nothing said on the radio)
@@ -129,7 +129,7 @@ const selfOrder = (sq, type, x, y) => { sq.order = { type, x, y, r: ORDER_R[type
 function underFire(s) {
   const byId = new Map(s.units.map(u => [u.id, u]));
   for (const u of s.units) {
-    if (!(s.t - (u.shotAt ?? -99) < 1) || TYPES[u.type].air || !singles(s, u.side)) continue;
+    if (!(s.t - (u.shotAt ?? -99) < 1) || TYPES[u.type].air || !sameRules(s, u.side, 'fire')) continue;
     const sq = s.squads.find(q => q.id === u.squad), a = byId.get(u.shotBy);
     if (!sq || sq.dead || !a || a.side === u.side || s.t - (sq.reactAt ?? -99) < REACT_EVERY || sq.retreating || sq.boarding || u.care || u.resup) continue;
     if (TYPES[u.type].care) {
@@ -139,9 +139,9 @@ function underFire(s) {
     } else if (sq.arrived && !(s.logi && SUPPLY[u.type] && u.sup <= 0) && MULT[u.type][a.type] > 0 && s.t - u.lastFire > 1.5) { sq.reactAt = s.t; selfOrder(sq, 'attack', a.x, a.y); } // (out of ammunition: it stays, it can't fight back)
   }
 }
-// how often a unit chooses its target anew, in ticks: the player's every SCAN_EVERY (twice that in the light mode), the
-// AI's every SCAN_AI (every tick, as before: less often, bot games on the big map stalled)
-const scanEvery = (s, u) => singles(s, u.side) ? (s.lite ? 2 * SCAN_EVERY : SCAN_EVERY) : SCAN_AI;
+// how often a unit chooses its target anew, in ticks: every SCAN_EVERY (twice that in the light mode); s.split: the
+// AI's every SCAN_AI, as before
+const scanEvery = (s, u) => sameRules(s, u.side, 'scan') ? (s.lite ? 2 * SCAN_EVERY : SCAN_EVERY) : SCAN_AI;
 function updateUnit(s, u, sq, dt) {
   const T = TYPES[u.type];
   u.cd = Math.max(0, u.cd - dt); u.engaged = false; u.atDrone = false;
@@ -235,8 +235,8 @@ function updateUnit(s, u, sq, dt) {
   let tx, ty;
   // (a tank goes for soldiers it's shooting at, to run them over — close ones only: from afar, every tank drove into the
   // enemy, bumping)
-  // (the player's units — the AI's as before: changed, bot games stalled)
-  const mine = singles(s, u.side);
+  // (s.split: the AI's go all the way, as before)
+  const mine = sameRules(s, u.side, 'stand');
   if (best && (bd > bestR * 0.9 || (u.type === 'tank' && FOOT.includes(best.type) && (!mine || bd < CRUSH_GO)))) { tx = best.x; ty = best.y; }
   // (attacking, and shooting at something — a unit out of the leash, a building: it stands where it can, not on top of it)
   else if (mine && u.engaged && !retreat && !T.air) return;
@@ -244,12 +244,14 @@ function updateUnit(s, u, sq, dt) {
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
   else if (T.air && !T.hover) { const sr = o.r * 0.55; circle(s, u, anchor.x + u.sx * sr, anchor.y + u.sy * sr, AIR_ORBIT, dt); return; }
   else { const sp = spacing(u.type), g = (u.slot || 0) * sp, b = (u.row || 0) * sp, a = sq.face || 0; tx = anchor.x - Math.sin(a) * g - Math.cos(a) * b; ty = anchor.y + Math.cos(a) * g - Math.sin(a) * b; } // in the line (or block)
-  // (the player's units, to their place: arrived — at it, or touching one of ours that has arrived there — it stands,
-  // even pushed a little off it: units circling a crowded spot for ever, shoving one another, was the jam. The AI's as
-  // before: changes to them stalled bot games)
-  if (mine && !T.air && !best && !retreat && !s.noArrive && !(sq.order.form && sq.order.form.march) && arrivedAt(s, u, tx, ty, sq.order)) return; // (s.noArrive: off, to compare; marching: its place moves on — never 'arrived' on the way)
+  // (to their place: arrived — at it, or touching one of ours that has arrived there — it stands,
+  // even pushed a little off it: units circling a crowded spot for ever, shoving one another, was the jam)
+  if (sameRules(s, u.side, 'arrive') && !T.air && !best && !retreat && !s.noArrive && !(sq.order.form && sq.order.form.march) && !takingPost(s, u, tx, ty) && arrivedAt(s, u, tx, ty, sq.order)) return; // (s.noArrive: off, to compare; marching: its place moves on — never 'arrived' on the way)
   moveTo(s, u, tx, ty, (retreat ? 1.15 : 1) * (sq.silent ? SILENT_SPEED : 1), dt);
 }
+// (a soldier sent at a post that isn't ours goes on into it — it takes it by touching it: 'arrived' by its wall, it
+// stood there)
+const takingPost = (s, u, tx, ty) => !!s.posts && CAPTURERS.includes(u.type) && s.posts.some(p => p.side !== u.side && Math.hypot(p.x - tx, p.y - ty) < POSTS[p.kind].r + 20);
 function arrivedAt(s, u, tx, ty, key) {
   if (u.yield && u.yield.until > s.t) return false; // (making way for one: it moves)
   // (arrived for this order only, and only once its place has stopped moving — a squad marching in step, a bulldozer
@@ -301,7 +303,7 @@ function moveTo(s, u, tx, ty, fast, dt, keep) {
   }
   if (!T.air && !keep) ({ x: tx, y: ty } = pathStep(s, u, tx, ty)); // (round lakes and buildings: path.js)
   if (!T.air && u.yield && u.yield.until > s.t) { tx += u.yield.x * u.yield.k; ty += u.yield.y * u.yield.k; } // (making room: off to the side)
-  if (!T.air && !keep && !s.noGiveUp && singles(s, u.side) && giveUp(s, u, tx, ty)) return; // (the player's units: the AI's squads waited on them, and bot games stalled)
+  if (!T.air && !keep && !s.noGiveUp && sameRules(s, u.side, 'giveup') && giveUp(s, u, tx, ty)) return;
   if (!T.air && s.lakes.length) ({ x: tx, y: ty } = wade(s, u, tx, ty));
   if (!T.air) ({ x: tx, y: ty } = skirt(s, u, tx, ty));
   if (!T.air && !s.noSteer) ({ x: tx, y: ty } = steer(s, u, tx, ty, dt)); // (s.noSteer: off, to compare)
@@ -335,7 +337,7 @@ function digTick(s, dt) {
   if (s.level) return;
   const T = s.trenches || (s.trenches = []);
   for (const u of s.units) {
-    const w = DIG_WAIT[u.type]; if (!w || (s.bots || []).includes(u.side)) continue; // (the player's side only — the computer's dug in too, and bot games dragged on: none of 3 ended in 50 min)
+    const w = DIG_WAIT[u.type]; if (!w || (!sameRules(s, u.side, 'dig') && (s.bots || []).includes(u.side))) continue; // (s.split: the player's side only, as before)
     // (standing: within DIG_MOVE of where it stopped — a unit holding its place still shifts a little all the time)
     if (!u.digP || Math.abs(u.x - u.digP.x) > DIG_MOVE || Math.abs(u.y - u.digP.y) > DIG_MOVE) { u.digP = { x: u.x, y: u.y, t: s.t }; u.dig = 0; u.dug = false; u.hole = null; continue; }
     if (s.t - u.digP.t < w) continue;
@@ -382,7 +384,7 @@ const WEDGE_R = 60;
 function unwedge(s, u, ru) {
   const blocks = [...s.nodes.filter(n => n.hp > 0 && n.kind !== 'drone').map(n => ({ x: n.x, y: n.y, r: nodeR(n) })), ...(s.posts || []).map(p => ({ x: p.x, y: p.y, r: POSTS[p.kind].r }))];
   const free = (x, y) => blocks.every(b => Math.hypot(b.x - x, b.y - y) > b.r + ru + 2) && !lakeAt(s, { x, y }, 4) && x > 0 && y > 0 && x < s.W && y < s.H;
-  if (u.type !== 'dozer' && !singles(s, u.side)) return false; // (bulldozers, and the player's units: the AI's others as before — changing them changed how bot games went)
+  if (u.type !== 'dozer' && !sameRules(s, u.side, 'wedge')) return false; // (s.split: bulldozers and the player's units only, as before)
   if (blocks.filter(b => Math.hypot(b.x - u.x, b.y - u.y) < b.r + ru + 3).length < 2) return false;
   for (let r = 4; r <= WEDGE_R; r += 4) for (let i = 0; i < 16; i++) {
     const a = i / 16 * 2 * Math.PI, x = u.x + Math.cos(a) * r, y = u.y + Math.sin(a) * r;
@@ -402,7 +404,7 @@ function steer(s, u, tx, ty, dt) {
   const ux = vx / d, uy = vy / d, step = Math.min(d, 30);
   if (u.detour > s.t) { const r = rot(ux, uy, Math.PI / 2); return { x: u.x + r.x * step, y: u.y + r.y * step }; }
   let o = null, oa = Infinity, oc = 0, og = false; // (og: it stands at our goal)
-  const mine = singles(s, u.side); // (the player's units: they make way and dodge, below)
+  const mine = sameRules(s, u.side, 'steer'); // (they make way and dodge, below)
   const dodging = u.dodge && u.dodge.until > s.t;
   for (const b of around(s, u.x, u.y, ru + MAX_R + UNIT_GAP + STEER_LOOK)) {
     if (b === u || TYPES[b.type].air) continue;
@@ -424,7 +426,7 @@ function steer(s, u, tx, ty, dt) {
   if (moving) { const r = rot(ux, uy, Math.PI / 2); return { x: u.x + r.x * step, y: u.y + r.y * step }; }
   // (one standing in the way that can make room — not fighting, not a bulldozer at work, not stepping aside for
   // another — steps aside, YIELD_D across our way, for YIELD_T s, and we go on: a tank comes through a row of jeeps)
-  // (the player's units only, like giving up: in the bots' squads it changed how their games went)
+  // (s.split: the AI's turn 45° instead, as before)
   if (!mine) { const r = rot(ux, uy, oc > 0 ? Math.PI / 4 : -Math.PI / 4); return { x: u.x + r.x * step, y: u.y + r.y * step }; }
   if (canYield(s, o)) {
     const sg = Math.abs(oc) > 1 ? Math.sign(oc) : (o.id % 2 ? 1 : -1); // (oc > 0: it's on our left — further left)
@@ -441,7 +443,7 @@ function steer(s, u, tx, ty, dt) {
   const r = rot(ux, uy, u.dodge.sg * DODGE_A);
   return { x: u.x + r.x * step, y: u.y + r.y * step };
 }
-const canYield = (s, o) => o.type !== 'dozer' && !(s.t - o.lastFire < 2) && !(o.yield && o.yield.until > s.t) && !(o.rest > s.t);
+const canYield = (s, o) => o.type !== 'dozer' && !(o.plant > 0) && !(s.t - o.lastFire < 2) && !(o.yield && o.yield.until > s.t) && !(o.rest > s.t);
 // ground units go round their own side's buildings: with one close ahead in the straight way (and the goal not the building itself or
 // right by it), the step is along its edge, on the side toward the goal. (Else a unit behind a building — pushed
 // there by it, or on the map's edge side — drove into it forever.)

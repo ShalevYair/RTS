@@ -2,7 +2,7 @@
 // partner can send there (Sim.canAsk) — a click on one asks; the partner says "on our way" or "we have none". Every
 // ask on the map: its icon with a ring that pulses (blue ours, yellow the partner's), fading over Sim.ASK_T. The
 // partner's asks of us: in the message list (a click takes the camera there), and said on the radio.
-const ASK_ICON = { fuel: '⛽', ammo: '📦', water: '💧', fire: '🎯', lift: '🚁', guard: '🛡️', build: '🏗️' }, ASK_WHEEL_R = 52;
+const ASK_ICON = { fuel: '⛽', ammo: '📦', water: '💧', fire: '🎯', lift: '🚁', guard: '🛡️', build: '🏗️', radio: '📡' }, ASK_WHEEL_R = 52;
 let askSeen = 0;
 function openAskWheel(e, x, y) {
   closeAskWheel();

@@ -8,7 +8,9 @@ const game = (seed, diff, style) => { let s = Sim.create(seed, 2200, diff, Sim.H
 const run = (s, sec, f) => { while (!s.over && s.t < sec) { Sim.step(s, 1 / 30); if (f) f(); } };
 const has = (s, kind) => s.nodes.some(n => n.side === 'red' && n.kind === kind && n.hp > 0);
 {
-  const s = game(312, 'normal', 'air'); let planes = 0, tankers = 0;
+  // (seed 313: on 312 blue found the tanker base and brought it down before a tanker was out, once the signals trucks
+  // went with the crowds — 313–315 all fly 4–6 aircraft and 2 tankers)
+  const s = game(313, 'normal', 'air'); let planes = 0, tankers = 0;
   run(s, 1200, () => { planes = Math.max(planes, s.units.filter(u => u.side === 'red' && u.type === 'air').length); tankers = Math.max(tankers, s.units.filter(u => u.side === 'red' && u.type === 'tanker').length); });
   ok(planes >= 2 && tankers >= 1, `the air force: up to ${planes} aircraft and ${tankers} tankers in the air`);
 }
@@ -16,7 +18,8 @@ const has = (s, kind) => s.nodes.some(n => n.side === 'red' && n.kind === kind &
   // (the drop: a red commando set down on our side of the map — x under 40% of it — straight from a helicopter)
   // (s.noCounter: the regular commander on the other side answers soldiers with MLRS and jeeps — aiCounter — and overran
   // this one before its raids; what's checked here is the raid)
-  const s = game(319, 'normal', 'commando'); s.noCounter = true; // (seed 319: 317 lost the war before its raids once buildings got more room — main failed 318 too: one game, noisy) let dropped = 0, liftAt = null;
+  const s = game(319, 'normal', 'commando'); s.noCounter = true; // (seed 319: 317 lost the war before its raids once buildings got more room — main failed 318 too: one game, noisy)
+  let dropped = 0, liftAt = null;
   // (a raid flown: a helicopter with commandos aboard past the middle of the map, on its way in — set down, or shot
   // down by our AA on the way: the defence's business, not the raid's)
   let flown = 0;

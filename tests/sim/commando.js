@@ -29,7 +29,8 @@ ok(Sim.STRUCTS.commandopost.build === 180 && Sim.STRUCTS.commandopost.every === 
   step(s, Sim.PLANT_T - 2); ok(s.nodes.includes(tent), 'not yet');
   step(s, 4); ok(!s.nodes.includes(tent), `the tent blown up after ${Sim.PLANT_T} s by it`);
   const R = Sim.STRUCTS.hq.r + 8, four = [0, 1, 2, 3].map(i => { const a = Math.PI + (i - 1.5) * 0.35; return mk(s, 'blue', 'commando', 1, hq.x + Math.cos(a) * R, hq.y + Math.sin(a) * R); });
+  // (+5: four side by side settle a second or two before they stand still)
   for (const q of four) { const u = s.units.find(m => m.squad === q.id); Sim.order(s, q.id, 'hold', u.x, u.y, true); } s.outbox = [];
-  step(s, Sim.PLANT_T + 3); ok(!s.nodes.includes(hq) || hq.hp <= 0 || s.hqDown === 'red', 'four together bring the HQ down');
+  step(s, Sim.PLANT_T + 5); ok(!s.nodes.includes(hq) || hq.hp <= 0 || s.hqDown === 'red', 'four together bring the HQ down');
 }
 if (bad) process.exitCode = 1;
