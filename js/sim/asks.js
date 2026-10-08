@@ -1,12 +1,12 @@
 // Sim: asks between partners (arms, DESIGN.md): a player marks a spot on the map with what they need there — fuel,
-// ammunition, water, fire, a lift, guarding, a site built first — and the other answers with what it has. The computer
+// ammunition, water, fire, a lift, guarding, a site built first, a signals truck to see there — and the other answers with what it has. The computer
 // partner (think 'mate') answers the player's at once (answerAsk), and asks the player in turn (mateAsks).
 // s.asks: { id, side, from ('me' | 'mate'), kind, x, y, t, by: the squads sent, ok }. For ASK_T s the squads sent stay
 // on it (think leaves them be), then the partner takes them back.
-const ASK_KINDS = ['fuel', 'ammo', 'water', 'fire', 'lift', 'guard', 'build'];
+const ASK_KINDS = ['fuel', 'ammo', 'water', 'fire', 'lift', 'guard', 'build', 'radio'];
 const ASK_T = 90, ASK_EVERY = 60, ASK_GUARD_N = 3, ASK_FIRE_N = 2, ASK_SITE_R = 90, ASK_MARK_R = 200;
 // what answers each (the types sent); guard: any fighting squad
-const ASK_BY = { fuel: ['fueltruck'], ammo: ['truck'], water: ['watertruck'], fire: ['how', 'mlrs', 'air', 'heli', 'gunship', 'ssm'], lift: ['lift'], build: ['dozer'] };
+const ASK_BY = { fuel: ['fueltruck'], ammo: ['truck'], water: ['watertruck'], fire: ['how', 'mlrs', 'air', 'heli', 'gunship', 'ssm'], lift: ['lift'], build: ['dozer'], radio: ['radio'] };
 const askWho = (s, q) => q.cmd ? 'me' : armSide(s, q.side, q.type) || 'me';
 // the squads of player `who` that could answer an ask of this kind
 function askCrews(s, side, who, kind) {
@@ -70,6 +70,8 @@ function answerAsk(s, a) {
       }
       go(q, 'attack', a.x, a.y); n++;
     }
+  } else if (a.kind === 'radio') { // (a signals truck: it sees all round the spot, 510)
+    if (crews[0]) go(crews[0], 'hold', a.x, a.y);
   } else if (a.kind === 'lift') {
     const q = crews.find(q => !s.units.some(u => u.squad === q.id && u.cargo && u.cargo.length));
     if (q) go(q, 'hold', a.x, a.y);
