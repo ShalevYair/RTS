@@ -25,13 +25,15 @@ function closeAskWheel() { const w = $('askWheel'); if (w) { w.remove(); hideTip
 function askAt(kind, x, y) {
   const a = Sim.ask(s, 'blue', kind, x, y); if (!a) return;
   pings.push({ x, y, t: performance.now() });
-  Radio.say(tr(a.ok ? 'askOk' : 'askNo'));
-  feedAdd({ kind: 'ask', x, y, text: tr('askMine', ASK_ICON[kind] + ' ' + tr('ask_' + kind)) + ' · ' + tr(a.ok ? 'askOk' : 'askNo') });
+  const said = a.ok ? tr('askOk') : a.make ? tr('askMake', sn(a.make)) : tr('askNo'); // (none, but it can be made: "we're building …")
+  Radio.say(said);
+  feedAdd({ kind: 'ask', x, y, text: tr('askMine', ASK_ICON[kind] + ' ' + tr('ask_' + kind)) + ' · ' + said });
 }
 // every frame: the partner's new asks of us — in the list and on the radio
 function askTick() {
   if (!s || !s.asks) { askSeen = 0; return; }
   for (const a of s.asks) {
+    if (a.late && !a.saidLate && a.from === 'me') { a.saidLate = true; const t = tr('askMine', ASK_ICON[a.kind] + ' ' + tr('ask_' + a.kind)) + ' · ' + tr('askOk'); feedAdd({ kind: 'ask', x: a.x, y: a.y, text: t }); Radio.say(tr('askOk')); } // (built, and sent now)
     if (a.id <= askSeen) continue; askSeen = a.id;
     if (a.from !== 'mate') continue;
     const t = tr('askMate', ASK_ICON[a.kind] + ' ' + tr('ask_' + a.kind));
