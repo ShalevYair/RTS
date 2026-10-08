@@ -28,6 +28,7 @@
   <canvas id="mini" class="glass" data-al="mini" hidden></canvas>
   <!-- under the map: the latest important messages (newest on top); a click goes there -->
   <div id="feed" class="feed" aria-live="polite"></div>
+  <div id="infoCard" class="infoCard" hidden><button id="icClose" class="icon" aria-label="✕">✕</button><canvas width="96" height="96" aria-hidden="true"></canvas><div class="icBody"><b></b><span class="icWho"></span><div class="icBars"></div><div class="icLine"></div><p class="icDesc"></p></div></div>
   <!-- top middle: the power bar, us against them -->
   <div class="hudc">
     <b class="pts blue" id="ptsB" data-tip="tipScore">0</b>
@@ -185,6 +186,7 @@
 <script src="js/ui/field.js"></script>
 <script src="js/ui/roadui.js"></script>
 <script src="js/ui/askui.js"></script>
+<script src="js/ui/infocard.js"></script>
 <script src="js/ui/three3d.js"></script>
 <script src="js/ui/main.js"></script>
 <script src="js/ui/prof.js"></script>

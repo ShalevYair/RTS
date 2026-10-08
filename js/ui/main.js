@@ -55,6 +55,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 function frameBody(now) {
+  cardTick(now); // (the info card: what was clicked — infocard.js)
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   // (at most STEP_CAP steps a frame for each 1× of speed: slow frames made more steps, the frames slower still, down
   // to 2 a second — the game goes a little slower instead)
