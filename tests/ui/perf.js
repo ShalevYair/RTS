@@ -1,12 +1,12 @@
 // Frame times in a real Chrome (headed, the GPU on): a bot game run to N s of game time, the camera on the busiest
 // place, 15 s of frames measured, and where the time goes. node tests/ui/perf.js [seconds=600] [big|huge] [3d] [zoom] [add] [still]
-// (3d: the 3D view — F9; zoom: cam.z, e.g. 1 = the whole map; add: this many more units round the camera, every type; still: the game paused, ours only — only the drawing)
+// (POST=0: the 3D view without post3d.js; 3d: the 3D view — F9; zoom: cam.z, e.g. 1 = the whole map; add: this many more units round the camera, every type; still: the game paused, ours only — only the drawing)
 const { chromium } = require('playwright');
 (async () => {
   const map = process.argv[3] || 'big';
   const b = await chromium.launch({ headless: false, ...(process.env.CHROME ? { executablePath: process.env.CHROME } : { channel: 'chrome' }) });
   const p = await b.newPage({ viewport: { width: 1600, height: 900 } });
-  await p.addInitScript((m) => { localStorage.setItem('irts-done','99'); localStorage.setItem('irts-tour','99'); localStorage.setItem('irts-map',m); localStorage.setItem('irts-fs','0'); localStorage.setItem('irts-tips','{"posts":1,"voice":1,"front":1,"groups":1,"rally":1,"care":1}'); }, map);
+  await p.addInitScript(([m, post]) => { if (post) localStorage.setItem('irts-post', post); localStorage.setItem('irts-done','99'); localStorage.setItem('irts-tour','99'); localStorage.setItem('irts-map',m); localStorage.setItem('irts-fs','0'); localStorage.setItem('irts-tips','{"posts":1,"voice":1,"front":1,"groups":1,"rally":1,"care":1}'); }, [map, process.env.POST || '']);
   p.on('pageerror', e => console.log('ERR', e.message));
   await p.goto('http://localhost:8765/?' + Date.now()); await p.waitForLoadState("networkidle"); await p.waitForTimeout(2500);
   const r = await p.evaluate(async ([secs, d3, zm, add, still]) => {

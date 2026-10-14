@@ -243,7 +243,7 @@ const cloudPic = (() => {
   return p;
 })();
 const clouds = { seed: null, list: [] }, CLOUD_SPEED = 6, CLOUD_ALPHA = 0.34;
-function drawClouds(c) {
+function drawClouds(c, k = 1) { // (k: of their usual darkness — the 3D view's fainter)
   if (clouds.seed !== s.seed + ':' + s.W) {
     clouds.seed = s.seed + ':' + s.W; clouds.list = [];
     let a = s.seed * 7 + 3; const r = () => ((a = (a * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
@@ -251,7 +251,7 @@ function drawClouds(c) {
     for (let i = 0; i < n; i++) clouds.list.push({ x: r() * (s.W + 800) - 400, y: r() * s.H, R: 260 + r() * 360, sq: 0.55 + r() * 0.35 });
   }
   const v = viewRect(), span = s.W + 800, t = reduceMotion ? 0 : s.t;
-  c.globalAlpha = CLOUD_ALPHA;
+  c.globalAlpha = CLOUD_ALPHA * k;
   for (const k of clouds.list) {
     const x = ((k.x + t * CLOUD_SPEED + 400) % span + span) % span - 400, y = k.y - t * CLOUD_SPEED * 0.25 % s.H;
     const yy = ((y % s.H) + s.H) % s.H, w = k.R * 2, h = k.R * 2 * k.sq;
