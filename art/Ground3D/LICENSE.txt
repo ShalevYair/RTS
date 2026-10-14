@@ -1,3 +1,4 @@
 Textures from Poly Haven (https://polyhaven.com), CC0 — public domain.
 grass: rocky_terrain_02 · grass2: forrest_ground_01 · dry: aerial_grass_rock · dirt: dirt_aerial_02 · rock: aerial_rocks_02 · mud: brown_mud_leaves_01
 buildings: floor concrete_floor_worn_001 · wall concrete_wall_008 · metal box_profile_metal_sheet
+units: paint green_metal_rust

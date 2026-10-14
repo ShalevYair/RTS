@@ -241,7 +241,10 @@ function v3CamoOf(u, c) {
 }
 // the units' and buildings' paint: a real material — a little rough and a little metal, reflecting the sky — with dirt
 // on it (grime in blotches, the roughness varying) and mud low down (V3_MUD of the model's length; not on turrets or aircraft)
-const V3_SAT = '0.8', V3_MUD = 0.09, V3_MUD_COL = [0.16, 0.12, 0.08];
+const V3_SAT = '0.8', V3_MUD = 0.16, V3_MUD_COL = [0.36, 0.3, 0.21]; // (dust low down, not dark mud: the land's dry)
+// the units' paint (UNIT3D in ground3d.js — Poly Haven's green_metal_rust, its light and dark only): s — repeats to the model's length;
+// k — how strong (cloth: the soldiers); nk — its dents; camo — how far the pattern's colours stay apart; panel — how much of the side's colour in the roof's panel
+const V3_UNITT = { s: '2.6', k: '1.0', cloth: '0.3', nk: '0.8', camo: '0.6', panel: '0.6', edge: '0.8' };
 const V3_HELMET = 0.74; // (a soldier's helmet and shoulders: what faces up, above this of its height)
 function v3Paint3(clean, head, bld) {
   bld = bld && typeof BLD3D === 'object';
@@ -249,7 +252,7 @@ function v3Paint3(clean, head, bld) {
   if (!V3[k]) {
     V3[k] = v3Camo(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.18, envMapIntensity: V3_ENV }));
     V3[k].defines = {}; if (!clean && !bld) V3[k].defines.V3_DIRTY = 1; // (no mud on a building: its bottom is the whole floor of its base) if (head) V3[k].defines.V3_HEAD = head.toFixed(4);
-    if (bld) { V3[k].defines.V3_BLD = 1; v3BldTex(); }
+    if (bld) { V3[k].defines.V3_BLD = 1; v3BldTex(); } else if (typeof UNIT3D === 'object') { V3[k].defines.V3_UNIT = 1; v3BldTex(); }
   }
   return V3[k];
 }
@@ -258,27 +261,28 @@ function v3Paint3(clean, head, bld) {
 // (triplanar, by where on it a point is), each as light and dark over the model's own colours (at its mean) and as a
 // normal map. V3_BLDT: s — repeats to the model's length; k — how strong the light and dark; nk — the normal maps. ----
 const V3_BLDT = { s: '7.0', ms: '9.0', k: '1.0', nk: '1.0', stain: '0.5', splash: '0.06', white: '0.45', base: '0.78' };
-const V3B = { v3Bf: { value: null }, v3Bw: { value: null }, v3Bm: { value: null }, v3Bfn: { value: null }, v3Bwn: { value: null }, v3Bmn: { value: null }, v3Bavg: { value: null } }; // (the means: made with the textures — Three isn't loaded yet here)
+const V3B = { v3Bf: { value: null }, v3Bw: { value: null }, v3Bm: { value: null }, v3Bfn: { value: null }, v3Bwn: { value: null }, v3Bmn: { value: null }, v3Bavg: { value: null }, v3Up: { value: null }, v3Upn: { value: null }, v3Uavg: { value: 0.1 } }; // (the means: made with the textures — Three isn't loaded yet here)
 function v3BldTex() {
-  if (V3B.v3Bf.value) return;
+  if (V3B.v3Bf.value || typeof BLD3D !== 'object') return;
   V3B.v3Bavg.value = new THREE.Vector3(0.2, 0.2, 0.2);
-  const avg = (im, j) => { const N = 32, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d', BG_CTX); g.drawImage(im, 0, 0, N, N); const d = g.getImageData(0, 0, N, N).data; let L = 0; for (let i = 0; i < d.length; i += 4) L += 0.2126 * (d[i] / 255) ** 2.2 + 0.7152 * (d[i + 1] / 255) ** 2.2 + 0.0722 * (d[i + 2] / 255) ** 2.2; V3B.v3Bavg.value.setComponent(j, L / (N * N)); };
+  const avg = (im, j) => { const N = 32, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d', BG_CTX); g.drawImage(im, 0, 0, N, N); const d = g.getImageData(0, 0, N, N).data; let L = 0; for (let i = 0; i < d.length; i += 4) L += 0.2126 * (d[i] / 255) ** 2.2 + 0.7152 * (d[i + 1] / 255) ** 2.2 + 0.0722 * (d[i + 2] / 255) ** 2.2; if (j > 2) V3B.v3Uavg.value = L / (N * N); else V3B.v3Bavg.value.setComponent(j, L / (N * N)); };
   const mk = (src, srgb, j) => {
     const t = new THREE.Texture(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = 4;
     const im = new Image(); im.onload = () => { t.image = im; t.needsUpdate = true; if (j >= 0) avg(im, j); }; im.src = src; return t;
   };
   const B = BLD3D; V3B.v3Bf.value = mk(B.floor.d, 1, 0); V3B.v3Bw.value = mk(B.wall.d, 1, 1); V3B.v3Bm.value = mk(B.metal.d, 1, 2);
   V3B.v3Bfn.value = mk(B.floor.n, 0, -1); V3B.v3Bwn.value = mk(B.wall.n, 0, -1); V3B.v3Bmn.value = mk(B.metal.n, 0, -1);
+  if (typeof UNIT3D === 'object') { V3B.v3Up.value = mk(UNIT3D.paint.d, 1, 3); V3B.v3Upn.value = mk(UNIT3D.paint.n, 0, -1); }
 }
 function v3Camo(mat) {
   mat.onBeforeCompile = sh => {
     sh.uniforms.v3Panel = { value: V3_PANEL.map(x => { const c = new THREE.Color(x); return new THREE.Vector3(c.r, c.g, c.b); }) };
     sh.uniforms.v3Pal = { value: V3_PAL.flat().map(x => { const c = new THREE.Color(x); return new THREE.Vector3(c.r, c.g, c.b); }) }; // (linear)
     Object.assign(sh.uniforms, V3B);
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;\n#ifdef V3_BLD\nvarying vec3 vTV0; varying vec3 vTV1; varying vec3 vTV2;\n#endif')
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;\n#if defined(V3_BLD) || defined(V3_UNIT)\nvarying vec3 vTV0; varying vec3 vTV1; varying vec3 vTV2;\n#endif')
       .replace('#include <color_vertex>', `#include <color_vertex>
       vP3 = position; vN3 = normal; vTeam = aTeam; vPat = vec3(-1.0); vTint = 1.0;
-      #ifdef V3_BLD
+      #if defined(V3_BLD) || defined(V3_UNIT)
         mat3 v3im = mat3(1.0);
         #ifdef USE_INSTANCING
           v3im = mat3(instanceMatrix);
@@ -290,6 +294,10 @@ function v3Camo(mat) {
       #endif`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
       uniform vec3 v3Pal[${V3_PAL.length * 3}]; uniform vec3 v3Panel[2]; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;
+      #ifdef V3_UNIT
+        varying vec3 vTV0; varying vec3 vTV1; varying vec3 vTV2; uniform sampler2D v3Up; uniform sampler2D v3Upn; uniform float v3Uavg;
+        vec3 v3W() { vec3 a = abs(normalize(vN3)); a = a * a; a = a * a; return a / max(a.x + a.y + a.z, 1e-4); }
+      #endif
       #ifdef V3_BLD
         varying vec3 vTV0; varying vec3 vTV1; varying vec3 vTV2;
         uniform sampler2D v3Bf; uniform sampler2D v3Bw; uniform sampler2D v3Bm; uniform sampler2D v3Bfn; uniform sampler2D v3Bwn; uniform sampler2D v3Bmn; uniform vec3 v3Bavg;
@@ -305,7 +313,8 @@ function v3Camo(mat) {
         if (vPat.x > 0.5 && vPat.x < 1.5) { float n = v3n(q * 6.0) * 0.65 + v3n(q * 14.0) * 0.35; c = n < 0.4 ? c1 : n > 0.6 ? c2 : c0; }
         else if (vPat.x > 1.5 && vPat.x < 2.5) { float w = sin((vP3.x + vP3.z * 0.35 + vP3.y * 0.6) * 22.0 + v3n(q * 5.0) * 5.0); c = w > 0.35 ? c1 : w < -0.75 ? c2 : c0; }
         else if (vPat.x > 2.5) { float n = v3h(floor(q * 20.0)) * 0.6 + v3n(q * 5.0) * 0.4; c = n < 0.38 ? c1 : n > 0.62 ? c2 : c0; }
-        if (vN3.y > 0.55 && abs(vP3.x) < ${V3_PANEL_W}) c = v3Panel[vPat.z < ${V3_SCHEMES}.0 ? 0 : 1] / max(vTeam, 0.5);
+        c = mix(c0, c, ${V3_UNITT.camo}); // (the pattern's colours nearer each other: paint faded in the sun)
+        if (vN3.y > 0.55 && abs(vP3.x) < ${V3_PANEL_W}) c = mix(c0, v3Panel[vPat.z < ${V3_SCHEMES}.0 ? 0 : 1], ${V3_UNITT.panel}) / max(vTeam, 0.5);
         diffuseColor.rgb = c * vTeam * vTint;
       }
       #ifdef V3_HEAD
@@ -337,6 +346,20 @@ function v3Camo(mat) {
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.3, 0.21), dust * 0.35);
       }
       #endif
+      #ifdef V3_UNIT
+      { // (worn army paint: its light and dark, its scratches, over the model's colours — less on the soldiers' cloth)
+        vec3 w = v3W(), p = vP3 * ${V3_UNITT.s}; vec3 L = vec3(0.2126, 0.7152, 0.0722);
+        float d = (dot(texture2D(v3Up, p.zy).rgb, L) * w.x + dot(texture2D(v3Up, p.xz).rgb, L) * w.y + dot(texture2D(v3Up, p.xy).rgb, L) * w.z) / v3Uavg;
+        #ifdef V3_HEAD
+          float uk = ${V3_UNITT.cloth};
+        #else
+          float uk = ${V3_UNITT.k};
+        #endif
+        diffuseColor.rgb *= mix(1.0, pow(max(d, 0.0), 1.3), uk);
+        float edge = smoothstep(0.08, 0.5, length(fwidth(vN3))); // (where the plates meet: the paint worn to the metal — every edge a fine light line)
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.5 + vec3(0.06, 0.055, 0.045), edge * ${V3_UNITT.edge} * (1.0 - smoothstep(0.0, 0.5, uk == ${V3_UNITT.cloth} ? 1.0 : 0.0)));
+      }
+      #endif
       #ifdef V3_DIRTY
       v3m = smoothstep(${V3_MUD.toFixed(3)}, 0.0, vP3.y + (v3g - 0.5) * 0.05) * 0.8;
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${V3_MUD_COL.join(', ')}) * (0.8 + 0.4 * v3g), v3m);
@@ -344,6 +367,18 @@ function v3Camo(mat) {
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
       roughnessFactor = clamp(roughnessFactor + (v3g - 0.5) * 0.35 + v3m * 0.3, 0.3, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      #ifdef V3_UNIT
+      { // (the dents and edges of the plates: the paint's normal map from three sides)
+        vec3 w = v3W(), p = vP3 * ${V3_UNITT.s};
+        vec3 tx = texture2D(v3Upn, p.zy).xyz * 2.0 - 1.0, ty = texture2D(v3Upn, p.xz).xyz * 2.0 - 1.0, tz = texture2D(v3Upn, p.xy).xyz * 2.0 - 1.0;
+        vec3 n0 = normalize(vN3), s = sign(n0);
+        vec3 nm = n0 + (vec3(0.0, tx.y, tx.x * s.x) * w.x + vec3(ty.x, 0.0, ty.y) * w.y + vec3(tz.x * s.z, tz.y, 0.0) * w.z) * ${V3_UNITT.nk};
+        normal = normalize(mat3(vTV0, vTV1, vTV2) * normalize(nm));
+        #ifdef DOUBLE_SIDED
+          normal *= faceDirection;
+        #endif
+      }
+      #endif
       #ifdef V3_BLD
       { // (the normal maps, from three sides, in the model's frame — then to the view)
         vec3 w = v3W(), p = vP3 * ${V3_BLDT.s}, q = vP3 * ${V3_BLDT.ms}; float mt = smoothstep(0.0, 0.05, vTeam);
