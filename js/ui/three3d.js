@@ -662,7 +662,7 @@ function v3Flags() {
 // fading tail; a missile's white trail; the artillery's shells in an arc), muzzle flashes, blasts (a fireball, a
 // glow round the big ones), the smoke (smokeTick: hurt vehicles, wrecks, chimneys, after a blast — rising and
 // drifting with the wind), scorch marks where blasts landed (scorchTick), the long-range missiles' arc. ----
-const V3_FX_MAX = 6000;
+const V3_FX_MAX = 6000, V3_BLAST_LIGHTS = 3, V3_BLAST_LIT = 0.12; // (the blasts' lights: how many; how bright for each unit of blast)
 // (a lamp's glow at night: d across (world units), colour, how bright at full dark; some: of the windows, the share lit; blink: on and off)
 const V3_LAMP_K = ['h', 'w', 'f', 'y', 'r', 'g'], V3_LAMP = { h: { d: 7, c: [1, 0.95, 0.75], a: 0.9 }, w: { d: 5, c: [1, 0.95, 0.8], a: 0.8 }, f: { d: 16, c: [1, 0.96, 0.82], a: 0.85 },
   y: { d: 4.5, c: [1, 0.72, 0.35], a: 0.75, some: 0.6 }, r: { d: 5, c: [1, 0.15, 0.1], a: 0.9, blink: true }, g: { d: 5, c: [0.2, 1, 0.45], a: 0.9 } };
@@ -671,33 +671,71 @@ function v3SoftPic(stops) {
   for (const [k, col] of stops) r.addColorStop(k, col);
   g.fillStyle = r; g.fillRect(0, 0, N, N); const t = new THREE.CanvasTexture(c); return t;
 }
-function v3Bill(add, flat, tex) {
-  const geo = new THREE.PlaneGeometry(1, 1), col = new THREE.InstancedBufferAttribute(new Float32Array(V3_FX_MAX * 4), 4);
-  col.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('aCol', col);
+// a picture of four (2 × 2) puffs of noise, seen from the side: smoke — billows lit from above, darker under; fire —
+// flames, hot (white) inside; ring — a thin round of dust (the shock wave on the ground)
+function v3NoisePic(kind) {
+  const N = 256, H = N / 2, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), im = g.createImageData(N, N), D = im.data;
+  if (kind === 'ring') {
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const d = Math.hypot(x - H, y - H) / H, a = Math.max(0, 1 - Math.abs(d - 0.8) / 0.16) * (d < 1 ? 1 : 0); const i = (y * N + x) * 4; D[i] = D[i + 1] = D[i + 2] = 255; D[i + 3] = 255 * a * a; }
+    g.putImageData(im, 0, 0); const tx = new THREE.CanvasTexture(c); return tx;
+  }
+  const P = new Uint8Array(512); { let s = 99; for (let i = 0; i < 256; i++) P[i] = i; for (let i = 255; i > 0; i--) { s = (s * 16807) % 2147483647; const j = s % (i + 1), k = P[i]; P[i] = P[j]; P[j] = k; } for (let i = 0; i < 256; i++) P[i + 256] = P[i]; }
+  const h = (x, y) => P[(P[x & 255] + y) & 255] / 255, sm = v => v * v * (3 - 2 * v);
+  const vn = (x, y) => { const i = Math.floor(x), j = Math.floor(y), fx = sm(x - i), fy = sm(y - j); return (h(i, j) * (1 - fx) + h(i + 1, j) * fx) * (1 - fy) + (h(i, j + 1) * (1 - fx) + h(i + 1, j + 1) * fx) * fy; };
+  const fbm = (x, y) => vn(x, y) * 0.5 + vn(x * 2.03, y * 2.03) * 0.25 + vn(x * 4.1, y * 4.1) * 0.15 + vn(x * 8.3, y * 8.3) * 0.1;
+  const Q = N / 2;
+  for (let q = 0; q < 4; q++) {
+    const ox = (q % 2) * Q, oy = Math.floor(q / 2) * Q, sx = q * 13.7, sy = q * 7.1;
+    for (let y = 0; y < Q; y++) for (let x = 0; x < Q; x++) {
+      const u = (x + 0.5) / Q * 2 - 1, v = (y + 0.5) / Q * 2 - 1, r = Math.hypot(u, v), n = fbm(u * 2.6 + sx, v * 2.6 + sy), i = ((oy + y) * N + ox + x) * 4;
+      if (kind === 'smoke') {
+        const edge = 1 - Math.min(1, r * (0.75 + 0.5 * n)), a = Math.max(0, Math.min(1, (edge - 0.08) * 2.2)) * (0.55 + 0.45 * n);
+        const lit = 0.55 + 0.35 * (1 - (v + 1) / 2) + 0.25 * (n - 0.5) * 2; // (lit from above: the top of a billow bright, its underside dark)
+        const L = Math.max(0, Math.min(255, 255 * lit)); D[i] = L; D[i + 1] = L * 0.98; D[i + 2] = L * 0.95; D[i + 3] = 255 * a;
+      } else {
+        const n2 = fbm(u * 5.3 + sy, v * 5.3 - sx), heat = Math.max(0, 1 - r * (0.55 + 1.3 * n) - (n2 - 0.5) * 0.35), a = Math.max(0, Math.min(1, heat * 2.6 - 0.2)); // (ragged: tongues of flame, not a disc)
+        const w = Math.min(1, heat * 1.8); D[i] = 255; D[i + 1] = 255 * (0.45 + 0.55 * w); D[i + 2] = 255 * (0.15 + 0.85 * w * w); D[i + 3] = 255 * a;
+      }
+    }
+  }
+  g.putImageData(im, 0, 0); const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; return tx;
+}
+function v3Bill(add, flat, tex, atlas) {
+  const geo = new THREE.PlaneGeometry(1, 1), col = new THREE.InstancedBufferAttribute(new Float32Array(V3_FX_MAX * 4), 4), rot = new THREE.InstancedBufferAttribute(new Float32Array(V3_FX_MAX * 2), 2);
+  col.setUsage(THREE.DynamicDrawUsage); rot.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('aCol', col); geo.setAttribute('aRot', rot);
   const mat = new THREE.ShaderMaterial({
     uniforms: { map: { value: tex } }, transparent: true, depthWrite: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending,
-    vertexShader: `attribute vec4 aCol; varying vec4 vCol; varying vec2 vUv;
-      void main() { vCol = aCol; vUv = uv; vec3 c = instanceMatrix[3].xyz; float k = length(instanceMatrix[0].xyz);
-        ${flat ? 'gl_Position = projectionMatrix * modelViewMatrix * vec4(c + vec3(position.x, 0.0, -position.y) * k, 1.0);'
-               : 'vec4 mv = modelViewMatrix * vec4(c, 1.0); mv.xy += position.xy * k; gl_Position = projectionMatrix * mv;'} }`,
+    vertexShader: `attribute vec4 aCol; attribute vec2 aRot; varying vec4 vCol; varying vec2 vUv;
+      void main() { vCol = aCol; vec3 c = instanceMatrix[3].xyz; float k = length(instanceMatrix[0].xyz);
+        float cs = cos(aRot.x), sn = sin(aRot.x); vec2 q = vec2(position.x * cs - position.y * sn, position.x * sn + position.y * cs);
+        vUv = uv; ${atlas ? 'vUv = (uv + vec2(mod(aRot.y, 2.0), floor(aRot.y / 2.0))) * 0.5;' : ''}
+        ${flat ? 'gl_Position = projectionMatrix * modelViewMatrix * vec4(c + vec3(q.x, 0.0, -q.y) * k, 1.0);'
+               : 'vec4 mv = modelViewMatrix * vec4(c, 1.0); mv.xy += q * k; mv.xyz *= 1.0 - min(0.6 * k, -mv.z * 0.5) / max(-mv.z, 1.0); gl_Position = projectionMatrix * mv;' /* (pulled toward the camera by part of its size: a wall next to it doesn't slice it) */} }`,
     fragmentShader: `uniform sampler2D map; varying vec4 vCol; varying vec2 vUv;
       void main() { vec4 t = texture2D(map, vUv); gl_FragColor = vec4(vCol.rgb * t.rgb, vCol.a * t.a); }`,
   });
   const m = new THREE.InstancedMesh(geo, mat, V3_FX_MAX); m.frustumCulled = false; m.renderOrder = add ? 6 : 5; m.count = 0;
-  V3.scene.add(m); return { m, col, n: 0 };
+  V3.scene.add(m); return { m, col, rot, n: 0 };
 }
 function v3FxInit() {
   const light = v3SoftPic([[0, 'rgba(255,255,255,1)'], [0.25, 'rgba(255,255,255,.75)'], [1, 'rgba(255,255,255,0)']]);
   const puffT = v3SoftPic([[0, 'rgba(255,255,255,.9)'], [0.55, 'rgba(255,255,255,.5)'], [1, 'rgba(255,255,255,0)']]);
-  V3.fx = { glow: v3Bill(true, false, light), smoke: v3Bill(false, false, puffT), mark: v3Bill(false, true, puffT) };
+  V3.fx = { glow: v3Bill(true, false, light), smoke: v3Bill(false, false, v3NoisePic('smoke'), true), fire: v3Bill(true, false, v3NoisePic('fire'), true),
+    mark: v3Bill(false, true, puffT), ring: v3Bill(false, true, v3NoisePic('ring')) };
+  // (the blasts' light on what's round them: a few lights, given to the biggest blasts of the moment)
+  V3.blastLights = [];
+  for (let i = 0; i < V3_BLAST_LIGHTS; i++) { const L = new THREE.PointLight('#ffa050', 0, 1, 1.2); V3.scene.add(L); V3.blastLights.push(L); }
 }
-// one more: at (x, h, y) world, d across, colour [r, g, b] (0–1), a
-function v3Dot(B, x, h, y, d, r, g, b, a) {
+// one more: at (x, h, y) world, d across, colour [r, g, b] (0–1), a; ang: turned (radians), v: which of the four pictures
+function v3Dot(B, x, h, y, d, r, g, b, a, ang = 0, v = 0) {
   if (B.n >= V3_FX_MAX || a <= 0.004) return;
   const o = v3Tmp.fm || (v3Tmp.fm = new THREE.Matrix4());
   o.makeScale(d, d, d); o.setPosition(x, h, y); B.m.setMatrixAt(B.n, o);
-  const k = B.n * 4, A = B.col.array; A[k] = r; A[k + 1] = g; A[k + 2] = b; A[k + 3] = a; B.n++;
+  const k = B.n * 4, A = B.col.array; A[k] = r; A[k + 1] = g; A[k + 2] = b; A[k + 3] = a;
+  B.rot.array[B.n * 2] = ang; B.rot.array[B.n * 2 + 1] = v; B.n++;
 }
+// (a number 0..1 from a seed, the same every frame)
+const v3Rnd = (s, i) => { const v = Math.sin(s * 12.9898 + i * 78.233) * 43758.5453; return v - Math.floor(v); };
 const v3Gnd = (x, y) => v3E(x, y);
 // weapons that fire at aircraft (their shot ends up in the air) / from aircraft
 const V3_UP = new Set(['aa', 'ajeep', 'arrow', 'dome']), V3_FROM_AIR = new Set(['air', 'heli', 'gunship']);
@@ -734,20 +772,39 @@ function v3Fx() {
       for (let i = 0; i <= 4; i++) { const p = at(k - len * i / 4); v3Dot(F.glow, p[0], p[1], p[2], (big ? 6 : 3.5) * (1 - i * 0.12), 1, big ? 0.65 : 0.85, big ? 0.3 : 0.45, (1 - i / 5) * 0.9); }
     }
   }
-  // blasts: a fireball (white → orange), a wide glow round the big ones; a little smoke left behind (as the flat map)
+  // blasts: a flash; a fireball of rolling flames, white-hot → orange → dark red, rising; sparks thrown out and
+  // falling; a ring of dust running out over the ground; dark smoke boiling up as the fire dies (and the flat map's
+  // smoke left behind); and the light of it on what's round (the biggest few, V3_BLAST_LIGHTS)
+  const lit = [];
   for (const f of s.fx) {
     if (f.wait > 0) continue;
-    const t = 1 - f.life / f.max, a = 1 - t, R = f.size, r = R * (0.35 + 0.65 * Math.sqrt(t)), h = v3Gnd(f.x, f.y);
+    const t = 1 - f.life / f.max, a = 1 - t, R = f.size, air = f.air, g0 = v3Gnd(f.x, f.y), h = g0 + (air ? V3_AIR : 0), sd = f.x * 0.37 + f.y * 0.71 + f.max * 13.1, age = t * f.max;
     if (!f.smoked && R >= 8) { f.smoked = true; const n = R >= 26 ? 3 : R >= 18 ? 2 : 1; for (let i = 0; i < n; i++) puff(f.x + (Math.random() - 0.5) * R * 0.6, f.y, R >= 18, 0.7 + R / 30); }
-    v3Dot(F.glow, f.x, h + r * 0.6, f.y, r * 2.2, 1, 0.75 + 0.25 * a, 0.35 * a + 0.1, a);
-    v3Dot(F.glow, f.x, h + r * 0.4, f.y, r * 1.2, 1, 1, 0.85, a * a);
-    if (R >= 14) v3Dot(F.glow, f.x, h + 4, f.y, R * 4.4, 1, 0.55, 0.2, 0.3 * a);
+    if (t < 0.18) v3Dot(F.glow, f.x, h + R * 0.5, f.y, R * 5, 1, 0.92, 0.75, (1 - t / 0.18) * 0.9); // (the flash)
+    const nf = R >= 20 ? 9 : R >= 10 ? 6 : 3;
+    for (let i = 0; i < nf; i++) { // (the fireball)
+      const da = v3Rnd(sd, i) * 6.283, dr = v3Rnd(sd, i + 9) * R * 0.55 * Math.sqrt(t + 0.05), up = R * (0.25 + 0.9 * t) * (0.6 + 0.8 * v3Rnd(sd, i + 19));
+      const sz = R * (0.9 + 1.4 * Math.sqrt(t)) * (0.7 + 0.6 * v3Rnd(sd, i + 29)), hot = Math.max(0, 1 - t * 2.2);
+      const cr = 0.95, cg = 0.32 + 0.45 * hot, cb = 0.06 + 0.45 * hot * hot, al = Math.pow(a, 1.4) * (0.45 + 0.25 * hot); // (added together: dimmer each, or the middle is just white)
+      v3Dot(F.fire, f.x + Math.cos(da) * dr, h + up, f.y + Math.sin(da) * dr * 0.6, sz, cr, cg, cb, al, v3Rnd(sd, i + 39) * 6.283 + age * (v3Rnd(sd, i) - 0.5) * 2, i % 4);
+      if (t > 0.35) v3Dot(F.smoke, f.x + Math.cos(da) * dr, h + up * 1.15 + R * 0.3, f.y + Math.sin(da) * dr * 0.6, sz * 1.2, 0.1, 0.09, 0.08, Math.min(1, (t - 0.35) * 3) * a * 0.75, v3Rnd(sd, i + 49) * 6.283, (i + 1) % 4); // (black smoke as it burns out)
+    }
+    if (R >= 10 && !lite) for (let i = 0; i < (R >= 20 ? 14 : 8); i++) { // (sparks: out and up, then down)
+      const da = v3Rnd(sd, i + 59) * 6.283, sp = R * (2.5 + 3 * v3Rnd(sd, i + 69)), vu = R * (2 + 4 * v3Rnd(sd, i + 79)), z = h + vu * age - 120 * age * age;
+      if (z < g0) continue;
+      v3Dot(F.glow, f.x + Math.cos(da) * sp * age, z, f.y + Math.sin(da) * sp * age * 0.7, 2.2 + R * 0.06, 1, 0.75, 0.35, a);
+    }
+    if (!air && R >= 10) v3Dot(F.ring, f.x, g0 + 1, f.y, R * (1.5 + 7 * Math.sqrt(t)), 0.62, 0.55, 0.42, 0.55 * a * a, sd); // (the dust ring)
+    lit.push([R * a, f.x, h + R * 0.6, f.y, R]);
   }
+  // (the lights: to the biggest)
+  lit.sort((p, q) => q[0] - p[0]);
+  V3.blastLights.forEach((L, i) => { const b = lit[i]; if (!b || b[0] < 2) { L.intensity = 0; return; } L.position.set(b[1], b[2], b[3]); L.distance = b[4] * 9; L.intensity = b[0] * V3_BLAST_LIT; });
   // the smoke: rising, drifting with the wind, growing, fading (as the flat map's)
   for (const p of smoke) {
     const age = s.t - p.t, a = age / p.life, x = p.x + WIND.x * age, y = p.y + WIND.y * age;
-    const g = p.dark ? 0.24 : 0.74, al = (p.dark ? 0.6 : 0.42) * (1 - a) * Math.min(1, a * 6);
-    v3Dot(F.smoke, x, v3Gnd(p.x, p.y) + 4 + 9 * age * 1.6, y, p.r * (1 + a * 2.4) * 2.2, g, g * 0.97, g * 0.92, al);
+    const g = p.dark ? 0.2 : 0.7, al = (p.dark ? 0.75 : 0.5) * (1 - a) * Math.min(1, a * 6);
+    const sd = p.x * 0.73 + p.t * 3.1; v3Dot(F.smoke, x, v3Gnd(p.x, p.y) + 4 + 9 * age * 1.6, y, p.r * (1 + a * 2.6) * 3.0, g, g * 0.97, g * 0.92, al * 1.2, v3Rnd(sd, 1) * 6.283 + age * (v3Rnd(sd, 2) - 0.5) * 0.8, Math.floor(v3Rnd(sd, 3) * 4));
   }
   // scorch marks: dark earth, lying on the ground
   for (const p of scorch) v3Dot(F.mark, p.x, v3Gnd(p.x, p.y) + 0.8, p.y, p.r * 2.2, 0.12, 0.09, 0.06, 0.7 * (1 - (s.t - p.t) / SCORCH_T));

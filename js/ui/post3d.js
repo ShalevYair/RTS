@@ -54,7 +54,7 @@ function v3PostInit() {
     uniform sampler2D tIn; uniform vec2 px; uniform float th; varying vec2 vUv;
     void main() {
       vec3 c = (texture2D(tIn, vUv + px * vec2(-0.5, -0.5)).rgb + texture2D(tIn, vUv + px * vec2(0.5, -0.5)).rgb + texture2D(tIn, vUv + px * vec2(-0.5, 0.5)).rgb + texture2D(tIn, vUv + px * vec2(0.5, 0.5)).rgb) * 0.25;
-      float l = max(c.r, max(c.g, c.b)); gl_FragColor = vec4(c * smoothstep(th, th + 0.2, l), 1.0);
+      c = min(c, vec3(2.0)); float l = max(c.r, max(c.g, c.b)); gl_FragColor = vec4(c * smoothstep(th, th + 0.2, l), 1.0);
     }`, { tIn: { value: null }, px: { value: new THREE.Vector2() }, th: { value: V3_BLOOM.th } });
   V3P.mats.blur = v3PostMat(`
     uniform sampler2D tIn; uniform vec2 dir; varying vec2 vUv;
@@ -74,7 +74,8 @@ function v3PostInit() {
         float ao = (texture2D(tAo, vUv + apx * vec2(-1.0, -1.0)).r + texture2D(tAo, vUv + apx * vec2(1.0, -1.0)).r + texture2D(tAo, vUv + apx * vec2(-1.0, 1.0)).r + texture2D(tAo, vUv + apx * vec2(1.0, 1.0)).r) * 0.25;
         c *= mix(1.0, ao, 0.9);
       }
-      vec3 g = texture2D(tB1, vUv).rgb + texture2D(tB2, vUv).rgb * 1.3; c += g * bk * (1.0 - c * 0.5);
+      c = c / (1.0 + max(c - 1.0, 0.0)); // (over-bright — fire added on fire — rolled off toward white, not past it: the grade below breaks above 1)
+      vec3 g = texture2D(tB1, vUv).rgb + texture2D(tB2, vUv).rgb * 1.3; c = min(c + g * bk * (1.0 - c * 0.5), vec3(1.0));
       float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
       c = mix(vec3(l), c, sat);
       c = mix(c, c * c * (3.0 - 2.0 * c), con); // (an S-curve)
