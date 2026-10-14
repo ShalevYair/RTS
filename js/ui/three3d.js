@@ -217,7 +217,7 @@ function v3Model(type, part, side) {
   const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
   const clean = part === 'turret' || part.startsWith('spin') || !!(Sim.TYPES[type] && Sim.TYPES[type].air); // (no mud up there)
   const head = MODELS[type].poses ? MODELS[type].size[1] * V3_HELMET : 0; // (a soldier: the helmet in the side's colour)
-  const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), v3Paint3(clean, head), 64);
+  const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), v3Paint3(clean, head, type.startsWith('b_')), 64);
   mesh.castShadow = mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
   mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3);
   V3.scene.add(mesh); P = { mesh, w: 1, h: 1, ox: 0, oy: 0, n: 0 }; V3.pics.set(key, P); return P;
@@ -243,26 +243,58 @@ function v3CamoOf(u, c) {
 // on it (grime in blotches, the roughness varying) and mud low down (V3_MUD of the model's length; not on turrets or aircraft)
 const V3_SAT = '0.8', V3_MUD = 0.09, V3_MUD_COL = [0.16, 0.12, 0.08];
 const V3_HELMET = 0.74; // (a soldier's helmet and shoulders: what faces up, above this of its height)
-function v3Paint3(clean, head) {
-  const k = (clean ? 'vcolC' : 'vcol') + (head ? 'H' + head.toFixed(3) : '');
+function v3Paint3(clean, head, bld) {
+  bld = bld && typeof BLD3D === 'object';
+  const k = (clean ? 'vcolC' : 'vcol') + (head ? 'H' + head.toFixed(3) : '') + (bld ? 'B' : '');
   if (!V3[k]) {
     V3[k] = v3Camo(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.18, envMapIntensity: V3_ENV }));
-    V3[k].defines = {}; if (!clean) V3[k].defines.V3_DIRTY = 1; if (head) V3[k].defines.V3_HEAD = head.toFixed(4);
+    V3[k].defines = {}; if (!clean && !bld) V3[k].defines.V3_DIRTY = 1; // (no mud on a building: its bottom is the whole floor of its base) if (head) V3[k].defines.V3_HEAD = head.toFixed(4);
+    if (bld) { V3[k].defines.V3_BLD = 1; v3BldTex(); }
   }
   return V3[k];
+}
+// ---- the buildings' surfaces (BLD3D in ground3d.js — Poly Haven, CC0): concrete floor on what faces up, concrete wall
+// on what faces sideways, profiled metal sheet on the side-coloured roofs — laid on the model from three sides
+// (triplanar, by where on it a point is), each as light and dark over the model's own colours (at its mean) and as a
+// normal map. V3_BLDT: s — repeats to the model's length; k — how strong the light and dark; nk — the normal maps. ----
+const V3_BLDT = { s: '7.0', ms: '9.0', k: '1.0', nk: '1.0', stain: '0.5', splash: '0.06', white: '0.45', base: '0.78' };
+const V3B = { v3Bf: { value: null }, v3Bw: { value: null }, v3Bm: { value: null }, v3Bfn: { value: null }, v3Bwn: { value: null }, v3Bmn: { value: null }, v3Bavg: { value: null } }; // (the means: made with the textures — Three isn't loaded yet here)
+function v3BldTex() {
+  if (V3B.v3Bf.value) return;
+  V3B.v3Bavg.value = new THREE.Vector3(0.2, 0.2, 0.2);
+  const avg = (im, j) => { const N = 32, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d', BG_CTX); g.drawImage(im, 0, 0, N, N); const d = g.getImageData(0, 0, N, N).data; let L = 0; for (let i = 0; i < d.length; i += 4) L += 0.2126 * (d[i] / 255) ** 2.2 + 0.7152 * (d[i + 1] / 255) ** 2.2 + 0.0722 * (d[i + 2] / 255) ** 2.2; V3B.v3Bavg.value.setComponent(j, L / (N * N)); };
+  const mk = (src, srgb, j) => {
+    const t = new THREE.Texture(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = 4;
+    const im = new Image(); im.onload = () => { t.image = im; t.needsUpdate = true; if (j >= 0) avg(im, j); }; im.src = src; return t;
+  };
+  const B = BLD3D; V3B.v3Bf.value = mk(B.floor.d, 1, 0); V3B.v3Bw.value = mk(B.wall.d, 1, 1); V3B.v3Bm.value = mk(B.metal.d, 1, 2);
+  V3B.v3Bfn.value = mk(B.floor.n, 0, -1); V3B.v3Bwn.value = mk(B.wall.n, 0, -1); V3B.v3Bmn.value = mk(B.metal.n, 0, -1);
 }
 function v3Camo(mat) {
   mat.onBeforeCompile = sh => {
     sh.uniforms.v3Panel = { value: V3_PANEL.map(x => { const c = new THREE.Color(x); return new THREE.Vector3(c.r, c.g, c.b); }) };
     sh.uniforms.v3Pal = { value: V3_PAL.flat().map(x => { const c = new THREE.Color(x); return new THREE.Vector3(c.r, c.g, c.b); }) }; // (linear)
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;')
+    Object.assign(sh.uniforms, V3B);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;\n#ifdef V3_BLD\nvarying vec3 vTV0; varying vec3 vTV1; varying vec3 vTV2;\n#endif')
       .replace('#include <color_vertex>', `#include <color_vertex>
       vP3 = position; vN3 = normal; vTeam = aTeam; vPat = vec3(-1.0); vTint = 1.0;
+      #ifdef V3_BLD
+        mat3 v3im = mat3(1.0);
+        #ifdef USE_INSTANCING
+          v3im = mat3(instanceMatrix);
+        #endif
+        vTV0 = normalMatrix * (v3im * vec3(1.0, 0.0, 0.0)); vTV1 = normalMatrix * (v3im * vec3(0.0, 1.0, 0.0)); vTV2 = normalMatrix * (v3im * vec3(0.0, 0.0, 1.0)); // (the model's frame, in the view)
+      #endif
       #ifdef USE_INSTANCING_COLOR
       if (instanceColor.g < 0.0) { vPat = vec3(floor(-instanceColor.g), fract(-instanceColor.g), floor(instanceColor.b)); vColor.xyz = color.xyz * instanceColor.r; vTint = instanceColor.r; }
       #endif`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
       uniform vec3 v3Pal[${V3_PAL.length * 3}]; uniform vec3 v3Panel[2]; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;
+      #ifdef V3_BLD
+        varying vec3 vTV0; varying vec3 vTV1; varying vec3 vTV2;
+        uniform sampler2D v3Bf; uniform sampler2D v3Bw; uniform sampler2D v3Bm; uniform sampler2D v3Bfn; uniform sampler2D v3Bwn; uniform sampler2D v3Bmn; uniform vec3 v3Bavg;
+        vec3 v3W() { vec3 a = abs(normalize(vN3)); a = a * a; a = a * a; return a / max(a.x + a.y + a.z, 1e-4); } // (how much each side's projection)
+      #endif
       float v3h(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
       float v3n(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         return mix(mix(mix(v3h(i), v3h(i + vec3(1,0,0)), f.x), mix(v3h(i + vec3(0,1,0)), v3h(i + vec3(1,1,0)), f.x), f.y),
@@ -282,12 +314,50 @@ function v3Camo(mat) {
       float v3g = v3n(vP3 * 9.0 + 3.1) * 0.6 + v3n(vP3 * 31.0) * 0.4, v3m = 0.0;
       diffuseColor.rgb = mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, ${V3_SAT}); // (paint a little faded)
       diffuseColor.rgb *= (0.78 + 0.3 * v3g) * (0.72 + 0.28 * smoothstep(-0.6, 0.4, vN3.y)); // (grime in blotches; under-sides darker)
+      #ifdef V3_BLD
+      { // (concrete and metal: their light and dark over the model's colours)
+        vec3 w = v3W(), p = vP3 * ${V3_BLDT.s}, q = vP3 * ${V3_BLDT.ms}; float mt = smoothstep(0.0, 0.05, vTeam);
+        vec3 L = vec3(0.2126, 0.7152, 0.0722);
+        float conc = (dot(texture2D(v3Bf, p.xz).rgb, L) / v3Bavg.x) * w.y + (dot(texture2D(v3Bw, p.zy).rgb, L) * w.x + dot(texture2D(v3Bw, p.xy).rgb, L) * w.z) / v3Bavg.y;
+        float met = (dot(texture2D(v3Bm, q.xz).rgb, L) * w.y + dot(texture2D(v3Bm, q.zy).rgb, L) * w.x + dot(texture2D(v3Bm, q.xy).rgb, L) * w.z) / v3Bavg.z;
+        float d = mix(pow(max(conc, 0.0), 1.6), pow(max(met, 0.0), 1.3), mt);
+        diffuseColor.rgb *= mix(1.0, d, ${V3_BLDT.k});
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, L)) * vec3(1.02, 1.0, 0.96), mt * 0.45); // (the roofs' paint faded)
+        // (weather: wide stains, rain streaks down the walls, dirt splashed up from the ground, the roofs' edges darker)
+        float st = v3n(vP3 * 3.1 + 7.0) * 0.6 + v3n(vP3 * 8.3) * 0.4;
+        float side = 1.0 - w.y;
+        float streak = v3n(vec3(vP3.x * 55.0 + vP3.z * 55.0, vP3.y * 3.0, vP3.z * 9.0)) * side;
+        float low = (1.0 - smoothstep(0.0, ${V3_BLDT.splash}, vP3.y + (st - 0.5) * 0.02)) * side;
+        float lu = dot(diffuseColor.rgb, L); diffuseColor.rgb *= 1.0 - ${V3_BLDT.white} * smoothstep(0.35, 0.8, lu); // (nothing clean white out there: the white roofs a weathered light grey)
+        diffuseColor.rgb *= (1.0 - ${V3_BLDT.stain} * smoothstep(0.32, 0.68, st)) * (1.0 - 0.4 * smoothstep(0.45, 0.85, streak)) * (1.0 - 0.35 * low);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.13, 0.09), low * 0.35);
+        float oil = smoothstep(0.62, 0.8, v3n(vP3 * 31.0 + 1.3) * 0.6 + v3n(vP3 * 83.0) * 0.4) * w.y * (1.0 - mt); // (oil and tyre marks on the floors)
+        float dust = smoothstep(0.35, 0.75, v3n(vP3 * 5.3 + 4.0)) * w.y * (1.0 - mt); // (sand blown over them)
+        diffuseColor.rgb *= ${V3_BLDT.base} * (1.0 - 0.4 * oil) * mix(vec3(1.0), vec3(0.84, 0.8, 0.72), w.y * (1.0 - mt)); // (the floors warmer and darker: sun-baked, dusty)
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.3, 0.21), dust * 0.35);
+      }
+      #endif
       #ifdef V3_DIRTY
       v3m = smoothstep(${V3_MUD.toFixed(3)}, 0.0, vP3.y + (v3g - 0.5) * 0.05) * 0.8;
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${V3_MUD_COL.join(', ')}) * (0.8 + 0.4 * v3g), v3m);
       #endif`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-      roughnessFactor = clamp(roughnessFactor + (v3g - 0.5) * 0.35 + v3m * 0.3, 0.3, 1.0);`);
+      roughnessFactor = clamp(roughnessFactor + (v3g - 0.5) * 0.35 + v3m * 0.3, 0.3, 1.0);`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      #ifdef V3_BLD
+      { // (the normal maps, from three sides, in the model's frame — then to the view)
+        vec3 w = v3W(), p = vP3 * ${V3_BLDT.s}, q = vP3 * ${V3_BLDT.ms}; float mt = smoothstep(0.0, 0.05, vTeam);
+        vec3 ty = mix(texture2D(v3Bfn, p.xz).xyz, texture2D(v3Bmn, q.xz).xyz, mt) * 2.0 - 1.0;
+        vec3 tx = mix(texture2D(v3Bwn, p.zy).xyz, texture2D(v3Bmn, q.zy).xyz, mt) * 2.0 - 1.0;
+        vec3 tz = mix(texture2D(v3Bwn, p.xy).xyz, texture2D(v3Bmn, q.xy).xyz, mt) * 2.0 - 1.0;
+        vec3 n0 = normalize(vN3), s = sign(n0);
+        vec3 nm = n0 + (vec3(0.0, tx.y, tx.x * s.x) * w.x + vec3(ty.x, 0.0, ty.y) * w.y + vec3(tz.x * s.z, tz.y, 0.0) * w.z) * ${V3_BLDT.nk};
+        normal = normalize(mat3(vTV0, vTV1, vTV2) * normalize(nm));
+        #ifdef DOUBLE_SIDED
+          normal *= faceDirection;
+        #endif
+      }
+      #endif`);
   };
   return mat;
 }
@@ -921,7 +991,7 @@ function v3SunDir() { V3.sunDir.value.copy(V3.sun.position).sub(V3.sun.target.po
 // Units and buildings over it, as on the flat map. Made again every V3_SHADE_MS. The sun and the sky dim at night. ----
 const V3_SHADE = 8, V3_SHADE_MS = 60, V3_GLOW = 0.18;
 const V3U = { v3Fog: { value: null }, v3Dark: { value: null }, v3Size: { value: null }, v3FogCol: { value: null }, v3Night: { value: 0 }, v3Lit: { value: 0 }, v3Deco: { value: null }, v3DecoBox: { value: null }, v3Time: { value: 0 },
-  v3Tg: { value: null }, v3Tg2: { value: null }, v3Ty: { value: null }, v3Td: { value: null }, v3Tr: { value: null }, v3Tm: { value: null }, v3Ng: { value: null }, v3Nd: { value: null }, v3Nr: { value: null }, v3GndOn: { value: 0 }, v3MacroLum: { value: 0.1 } };
+  v3Tg: { value: null }, v3Tg2: { value: null }, v3Ty: { value: null }, v3Td: { value: null }, v3Tr: { value: null }, v3Tm: { value: null }, v3Ng: { value: null }, v3Nd: { value: null }, v3Nr: { value: null }, v3GndOn: { value: 0 }, v3MacroLum: { value: 0.1 }, v3GLum: { value: null } };
 // ---- the ground: real textures (js/ui/ground3d.js — Poly Haven photos, CC0; tools/ground3d.py), each with its normal
 // map, picked from the map's picture: meadow where it's green, dry grass where yellow (and in wide drifts), earth where
 // brown, mud where dark brown, rock on the steep (slope0..1: 1 − the normal's up), the high (high0..1, world units) and
@@ -939,6 +1009,13 @@ function v3GroundTex(macroLum) {
   const G = GROUND3D, U = V3U;
   U.v3Tg.value = mk(G.grass.d, 1); U.v3Tg2.value = mk((G.grass2 || G.grass).d, 1); U.v3Ty.value = mk(G.dry.d, 1); U.v3Td.value = mk(G.dirt.d, 1); U.v3Tr.value = mk(G.rock.d, 1); U.v3Tm.value = mk(G.mud.d, 1);
   U.v3Ng.value = mk(G.grass.n); U.v3Nd.value = mk(G.dirt.n); U.v3Nr.value = mk(G.rock.n);
+  // (each layer's mean light, so the meadow's two grasses and the dry one are mixed at one brightness — their own
+  // light and dark mixed in drifts read as clouds' shadows)
+  U.v3GLum.value = new THREE.Vector3(1, 1, 1);
+  [['grass', 0], ['grass2', 1], ['dry', 2]].forEach(([k, j]) => { const im = new Image(); im.onload = () => {
+    const N = 32, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d', BG_CTX); g.drawImage(im, 0, 0, N, N);
+    const d = g.getImageData(0, 0, N, N).data; let L = 0; for (let i = 0; i < d.length; i += 4) L += 0.2126 * (d[i] / 255) ** 2.2 + 0.7152 * (d[i + 1] / 255) ** 2.2 + 0.0722 * (d[i + 2] / 255) ** 2.2;
+    U.v3GLum.value.setComponent(j, L / (N * N)); }; im.src = (G[k] || G.grass).d; });
   U.v3GndOn.value = 1;
 }
 function v3Shaded(mat, deco) {
@@ -961,7 +1038,7 @@ function v3Shaded(mat, deco) {
           vec3 m = diffuseColor.rgb; float ml = dot(m, vec3(0.2126, 0.7152, 0.0722));
           float k2 = ${V3_GND.k2};
           vec2 gx = dFdx(vV3), gy = dFdy(vV3); // (the gradients outside the branches below: inside them they're undefined)
-          #define V3T(T, S) mix(textureGrad(T, vV3 / S, gx / S, gy / S), textureGrad(T, vV3 / (S * k2) + 0.37, gx / (S * k2), gy / (S * k2)), 0.35)
+          #define V3T(T, S) mix(textureGrad(T, vV3 / S, gx / S, gy / S), textureGrad(T, vV3 / (S * k2) + 0.37, gx / (S * k2), gy / (S * k2)), 0.25)
           // (what the picture is there)
           float green = smoothstep(0.0, 0.03, m.g - max(m.r, m.b) * 0.95);
           float brown = smoothstep(0.0, 0.025, m.r - m.g);
@@ -978,8 +1055,8 @@ function v3Shaded(mat, deco) {
           if (wr < 0.99) {
             if (wd < 0.99) {
               c = w2 < 0.99 ? V3T(v3Tg, ${V3_GND.grass}).rgb : vec3(0.0);
-              if (w2 > 0.01) c = mix(c, V3T(v3Tg2, ${V3_GND.grass2}).rgb, w2);
-              if (wy > 0.01) c = mix(c, V3T(v3Ty, ${V3_GND.dry}).rgb, wy);
+              if (w2 > 0.01) c = mix(c, V3T(v3Tg2, ${V3_GND.grass2}).rgb * (v3GLum.x / v3GLum.y), w2);
+              if (wy > 0.01) c = mix(c, V3T(v3Ty, ${V3_GND.dry}).rgb * (v3GLum.x / v3GLum.z), wy);
             }
             if (wd > 0.01) c = mix(c, V3T(v3Td, ${V3_GND.dirt}).rgb, wd);
             if (wm > 0.01) c = mix(c, V3T(v3Tm, ${V3_GND.mud}).rgb, wm);
@@ -1007,7 +1084,7 @@ function v3Shaded(mat, deco) {
       #endif`).replace('#include <common>', `#include <common>
       float v3gh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       float v3gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(v3gh(i), v3gh(i + vec2(1, 0)), f.x), mix(v3gh(i + vec2(0, 1)), v3gh(i + vec2(1, 1)), f.x), f.y); }
-      varying vec2 vV3; uniform float v3GndOn; uniform float v3MacroLum;
+      varying vec2 vV3; uniform float v3GndOn; uniform float v3MacroLum; uniform vec3 v3GLum;
       #ifdef V3_DECO
         uniform sampler2D v3Tg; uniform sampler2D v3Tg2; uniform sampler2D v3Ty; uniform sampler2D v3Td; uniform sampler2D v3Tr; uniform sampler2D v3Tm; uniform sampler2D v3Ng; uniform sampler2D v3Nd; uniform sampler2D v3Nr;
       #endif
