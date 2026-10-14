@@ -202,6 +202,7 @@ function v3Lay(x, y, hd, lift, w, h, ox, oy, out, sy = 1) {
   const e = 4, hx = (v3E(x + e, y) - v3E(x - e, y)) / (2 * e), hz = (v3E(x, y + e) - v3E(x, y - e)) / (2 * e);
   const t = v3Tmp; t.n.set(-hx, 1, -hz).normalize();
   t.yaw.setFromAxisAngle(t.up, -hd); t.q.setFromUnitVectors(t.up, lift ? t.up : t.n).multiply(t.yaw);
+  if (lift && t.tilt) t.q.multiply(t.tilt); // (an aircraft: banked in a turn, a helicopter's nose down as it goes — v3AirTilt)
   t.off.set(ox, 0, oy).applyQuaternion(t.q);
   t.p.set(x + t.off.x, v3E(x, y) + 0.6 + lift + t.off.y, y + t.off.z);
   return out.compose(t.p, t.q, t.sc.set(w, sy, h));
@@ -217,7 +218,8 @@ function v3Model(type, part, side) {
   const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
   const clean = part === 'turret' || part.startsWith('spin') || !!(Sim.TYPES[type] && Sim.TYPES[type].air); // (no mud up there)
   const H = MODELS[type].head, head = H ? `vec4(${H.map(v => v.toFixed(4)).join(', ')})` : ''; // (a soldier: the helmet in the side's colour — the ball round its head)
-  const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), v3Paint3(clean, head, type.startsWith('b_')), 64);
+  const air = !!(Sim.TYPES[type] && Sim.TYPES[type].air) && type !== 'drone', fly = air && (Sim.TYPES[type].hover && part === 'turret' ? 'rotor' : true), wing = air && !Sim.TYPES[type].hover ? MODELS[type].size[2] / 2 : 0; // (a plane: its wingtips in the side's colour, not a roof panel; a rotor's blades: matt)
+  const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), v3Paint3(clean, head, type.startsWith('b_'), fly, wing), 64);
   mesh.castShadow = mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
   mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3);
   V3.scene.add(mesh); P = { mesh, w: 1, h: 1, ox: 0, oy: 0, n: 0 }; V3.pics.set(key, P); return P;
@@ -245,12 +247,15 @@ const V3_SAT = '0.8', V3_MUD = 0.16, V3_MUD_COL = [0.36, 0.3, 0.21]; // (dust lo
 // the units' paint (UNIT3D in ground3d.js — Poly Haven's green_metal_rust, its light and dark only): s — repeats to the model's length;
 // k — how strong (cloth: the soldiers); nk — its dents; camo — how far the pattern's colours stay apart; panel — how much of the side's colour in the roof's panel
 const V3_UNITT = { s: '2.6', k: '1.0', cloth: '0.3', nk: '0.8', camo: '0.6', panel: '0.6' };
-function v3Paint3(clean, head, bld) {
+// (aircraft: smoother paint, a little sheen — V3_GLOSS: roughness, metalness; a plane's side colour on its wingtips, past V3_TIP of its half span)
+const V3_GLOSS = [0.5, 0.3], V3_TIP = 0.7;
+function v3Paint3(clean, head, bld, fly, wing) {
   bld = bld && typeof BLD3D === 'object';
-  const k = (clean ? 'vcolC' : 'vcol') + (head ? 'H' + head : '') + (bld ? 'B' : '');
+  const k = (clean ? 'vcolC' : 'vcol') + (head ? 'H' + head : '') + (bld ? 'B' : '') + (fly ? 'F' + fly + (wing || 0).toFixed(3) : '');
   if (!V3[k]) {
-    V3[k] = v3Camo(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.18, envMapIntensity: V3_ENV }));
-    V3[k].defines = {}; if (!clean && !bld) V3[k].defines.V3_DIRTY = 1; if (head) V3[k].defines.V3_HEAD = head; // (no mud on a building: its bottom is the whole floor of its base)
+    const rotor = fly === 'rotor'; // (a rotor's thin blades: matt — the sky's sheen on them made them light grey sticks)
+    V3[k] = v3Camo(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: rotor ? 1 : fly ? V3_GLOSS[0] : 0.78, metalness: rotor ? 0 : fly ? V3_GLOSS[1] : 0.18, envMapIntensity: rotor ? V3_ENV * 0.25 : V3_ENV }));
+    V3[k].defines = {}; if (!clean && !bld) V3[k].defines.V3_DIRTY = 1; if (head) V3[k].defines.V3_HEAD = head; if (wing) V3[k].defines.V3_SPAN = (wing * V3_TIP).toFixed(4); // (no mud on a building: its bottom is the whole floor of its base)
     if (bld) { V3[k].defines.V3_BLD = 1; v3BldTex(); } else if (typeof UNIT3D === 'object') { V3[k].defines.V3_UNIT = 1; v3BldTex(); }
   }
   return V3[k];
@@ -313,7 +318,9 @@ function v3Camo(mat) {
         else if (vPat.x > 1.5 && vPat.x < 2.5) { float w = sin((vP3.x + vP3.z * 0.35 + vP3.y * 0.6) * 22.0 + v3n(q * 5.0) * 5.0); c = w > 0.35 ? c1 : w < -0.75 ? c2 : c0; }
         else if (vPat.x > 2.5) { float n = v3n(q * 3.2) * 0.7 + v3n(q * 9.0) * 0.3, m = v3n(q * 4.1 + 9.0) * 0.75 + v3n(q * 11.0) * 0.25; c = n < 0.42 ? c1 : m > 0.6 ? c2 : c0; } // (woodland: big soft patches)
         c = mix(c0, c, ${V3_UNITT.camo}); // (the pattern's colours nearer each other: paint faded in the sun)
-        #ifndef V3_HEAD
+        #ifdef V3_SPAN
+        if (abs(vP3.z) > V3_SPAN) c = mix(c0, v3Panel[vPat.z < ${V3_SCHEMES}.0 ? 0 : 1], ${V3_UNITT.panel}) / max(vTeam, 0.5);
+        #elif !defined(V3_HEAD)
         if (vN3.y > 0.55 && abs(vP3.x) < ${V3_PANEL_W}) c = mix(c0, v3Panel[vPat.z < ${V3_SCHEMES}.0 ? 0 : 1], ${V3_UNITT.panel}) / max(vTeam, 0.5);
         #endif
         diffuseColor.rgb = c * vTeam * vTint;
@@ -470,7 +477,7 @@ function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, 
   if (!D.parts.turret) return;
   const t = v3Tmp, T = v3Model(type, 'turret', side), pv = D.pivot || [0, 0];
   t.off.set(pv[0] * L, 0, pv[1] * L).applyQuaternion(t.q); t.p.set(t.p.x + t.off.x, t.p.y + t.off.y, t.p.z + t.off.z);
-  t.yaw.setFromAxisAngle(t.up, -aim); t.q.setFromUnitVectors(t.up, t.n).multiply(t.yaw);
+  t.yaw.setFromAxisAngle(t.up, -aim); if (lift) t.q.multiply(t.yaw.setFromAxisAngle(t.up, hd - aim)); else t.q.setFromUnitVectors(t.up, t.n).multiply(t.yaw); // (a rotor: on its body, tilted with it — it stood on the slope of the ground below)
   if (kick) { t.off.set(-kick * V3_KICK * L, 0, 0).applyQuaternion(t.q); t.p.add(t.off); } // (the gun kicked back as it fires)
   v3Put(T, m.compose(t.p, t.q, t.sc.set(L, L, L)), tint);
   if (lift && !(tint && tint.g >= 0)) v3Blur(type, m, L); // (a rotor turning: a faint disc where its blades sweep)
@@ -489,8 +496,28 @@ function v3Blur(type, m, L) {
   const t = v3Tmp; t.off.set(0, b.y * L, 0).applyQuaternion(t.q);
   v3Put(P, m.compose(t.p.add(t.off), t.q, t.sc.set(b.r * L * 0.98, 1, b.r * L * 0.98)));
 }
+// ---- aircraft in flight: a plane banks into its turn (V3_BANK × how fast it turns, up to V3_BANK_MAX), a helicopter
+// dips its nose as it goes (V3_PITCH_K × its speed, up to V3_PITCH_MAX) and leans a little into a turn — eased
+// (V3_EASE a second); and what v3Fx draws for them (V3.airNow): a jet's hot nozzle and its faint vapour trail
+// (V3_TRAIL s of where it was), the dust a helicopter's downwash raises below it ----
+const V3_BANK = 0.55, V3_BANK_MAX = 0.75, V3_PITCH_K = 0.006, V3_PITCH_MAX = 0.28, V3_EASE = 4, V3_TRAIL = 1.4;
+function v3AirTilt(u, T) {
+  const A = V3.air || (V3.air = new Map()), now = performance.now() / 1000; let st = A.get(u.id);
+  if (!st || now - st.t > 1) { st = { hd: u.hd || 0, x: u.x, y: u.y, t: now, bank: 0, pitch: 0, sp: 0, hist: [], ht: 0 }; A.set(u.id, st); }
+  const dt = Math.max(1e-3, now - st.t), hd = u.hd || 0; let dh = hd - st.hd; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+  const sp = rate ? Math.hypot(u.x - st.x, u.y - st.y) / dt / Math.max(0.1, rate) : 0, w = rate ? dh / dt / Math.max(0.1, rate) : 0, e = Math.min(1, dt * V3_EASE);
+  st.sp += (sp - st.sp) * e;
+  const bank = Math.max(-V3_BANK_MAX, Math.min(V3_BANK_MAX, w * V3_BANK * (T.hover ? 0.4 : 1)));
+  st.bank += (bank - st.bank) * e; st.pitch += ((T.hover || u.type === 'lift' ? -Math.min(V3_PITCH_MAX, st.sp * V3_PITCH_K) : 0) - st.pitch) * e;
+  st.hd = hd; st.x = u.x; st.y = u.y; st.t = now;
+  const q = v3Tmp.tq || (v3Tmp.tq = new THREE.Quaternion()), eu = v3Tmp.te || (v3Tmp.te = new THREE.Euler());
+  v3Tmp.tilt = q.setFromEuler(eu.set(st.bank, 0, st.pitch, 'XZY'));
+  if (!st.hist.length || now - st.ht > 0.06) { st.hist.push([u.x, u.y, now]); st.ht = now; }
+  while (st.hist.length && now - st.hist[0][2] > V3_TRAIL) st.hist.shift();
+  (V3.airNow || (V3.airNow = [])).push({ u, st, T });
+}
 function v3Units() {
-  const m = v3Tmp.m || (v3Tmp.m = new THREE.Matrix4()), rings = [];
+  const m = v3Tmp.m || (v3Tmp.m = new THREE.Matrix4()), rings = []; V3.airNow = [];
   // (what the player sees, as the flat map: ours where the picture is exact, theirs where seen)
   const whole = s.fog ? new Set(s.squads.filter(q => q.side === 'blue' && sqShown(q)).map(q => q.id)) : null;
   for (const u of s.units) {
@@ -500,11 +527,13 @@ function v3Units() {
     if (!T.air) stride(u); // (as the flat map: the tracks and dust it leaves)
     if (s.fog && u.side === 'red') anim.last.set(u.id, { x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t }); // (out of sight: its ghost, below)
     if (u.type === 'tank' && u.dig > 0 && !u.dug && v3HasModel('inf')) { const p = digger(u); v3PutModel('inf', u.side, p.x, p.y, p.a, 0, m, null, null, 0.01, 0, 1, 'pose' + (Math.floor(performance.now() / 160) % MODELS.inf.poses)); } // (its crewman digging the berm)
+    if (T.air && v3HasModel(u.type)) v3AirTilt(u, T);
     if (v3HasModel(u.type)) {
       const man = !!MODELS[u.type].poses, pose = v3Walk(u), face = man && s.t - u.lastFire < 3 ? u.aim : hd; // (a soldier faces where it fires, and stands upright)
       v3PutModel(u.type, u.side, u.x, u.y, face, T.hover || u.type === 'lift' ? performance.now() / 1000 * V3_ROTOR + u.id : s.t - u.lastFire < 3 ? u.aim : hd, m, v3CamoOf(u, v3Tmp.camo || (v3Tmp.camo = new THREE.Color())), T.air || man ? null : v3Run(u, hd), man ? 0.01 : lift, 0, 1, pose, u.type === 'tank' || u.type === 'how' ? Math.max(0, 1 - (s.t - u.lastFire) / 0.25) : 0);
     }
     else { const P = v3Pic(u.type, u.side); v3Put(P, v3Lay(u.x, u.y, hd, lift, P.w, P.h, 0, 0, m)); }
+    v3Tmp.tilt = null;
     if (u.type === 'tank' && hasSprite('tank') && !v3HasModel('tank')) { // (the turret, turned to where it fires)
       const R = v3Pic('turret', u.side), H = SPRITES.tank_hull, k = SIZE.tank, sc = SPRITE_LEN.tank * k / H.w;
       const aim = s.t - u.lastFire < 3 ? u.aim : hd, px = (H.px - H.w / 2) * sc, py = (H.py - H.h / 2) * sc;
@@ -788,6 +817,27 @@ function v3Fx() {
     if (L.some) { const v = Math.sin(A[i] * 12.99 + A[i + 2] * 78.23) * 43758.5; if (v - Math.floor(v) > L.some) continue; }
     const a = nk * L.a * (L.blink ? 0.35 + 0.65 * (Math.sin(tt * 3 + A[i] * 0.1) > 0.6 ? 1 : 0) : 1);
     v3Dot(F.glow, A[i], A[i + 1], A[i + 2], L.d, L.c[0], L.c[1], L.c[2], a);
+  }
+  // aircraft: a jet's nozzle hot (brighter as it goes fast) and its faint vapour trail; dust under a helicopter, blown out
+  for (const { u, st, T } of V3.airNow || []) {
+    const D = MODELS[u.type], L = (SIZE[u.type] || 10) * (V3_LEN[u.type] || 1.6), hd = u.hd || 0, c = Math.cos(hd), sn = Math.sin(hd), g = v3Gnd(u.x, u.y), h = g + 0.6 + V3_AIR;
+    if (T.hover || u.type === 'lift') {
+      if (lite) continue;
+      const tt = performance.now() / 1000, n = 6, R = L * 0.55;
+      for (let i = 0; i < n; i++) { const a = i / n * 6.283 + tt * 0.7 + u.id, f = (tt * 0.9 + i / n) % 1, r = R * (0.5 + f * 1.1);
+        v3Dot(F.smoke, u.x + Math.cos(a) * r, g + 2 + f * 3, u.y + Math.sin(a) * r, L * (0.35 + f * 0.5), 0.78, 0.71, 0.56, 0.22 * Math.sin(Math.PI * f), a, i % 4); }
+      continue;
+    }
+    const eng = u.type === 'tanker' ? [[-0.05, 0.36], [-0.05, -0.36], [0.02, 0.2], [0.02, -0.2]] : [[-0.52, 0]]; // (along, across: of its length — a fighter's nozzle at the tail, a tanker's four engines under the wings)
+    const hot = 0.6 + 0.4 * Math.min(1, st.sp / 60);
+    for (const [ax, az] of eng) {
+      const x = u.x + c * ax * L - sn * az * L, y = u.y + sn * ax * L + c * az * L;
+      if (u.type !== 'tanker') { v3Dot(F.glow, x, h + D.size[1] * L * 0.32, y, L * 0.22, 1, 0.62, 0.28, 0.75 * hot); v3Dot(F.glow, x - c * L * 0.08, h + D.size[1] * L * 0.32, y - sn * L * 0.08, L * 0.12, 1, 0.9, 0.7, 0.8 * hot); }
+      if (lite) continue;
+      const H = st.hist; // (the trail: from each engine, where it was — thin and white, spreading and fading)
+      for (let i = 0; i < H.length; i++) { const p = H[i], age = performance.now() / 1000 - p[2], f = age / V3_TRAIL; if (f >= 1) continue;
+        v3Dot(F.smoke, p[0] + c * (ax - 0.15) * L - sn * az * L, h + D.size[1] * L * 0.3, p[1] + sn * (ax - 0.15) * L + c * az * L, L * (0.12 + f * 0.35), 0.92, 0.92, 0.9, 0.22 * (1 - f) * Math.min(1, st.sp / 30), i * 1.3, i % 4); }
+    }
   }
   // shots in flight
   for (const sh of s.shots) {
