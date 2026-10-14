@@ -290,7 +290,38 @@ function drawNightLit(c) {
   // and a warm glow over the lit spots
   c.save(); c.globalCompositeOperation = 'lighter';
   for (const [x, y, r, a] of lights) { const gr = c.createRadialGradient(x, y, 0, x, y, r * 0.6); gr.addColorStop(0, `rgba(255,170,80,${0.18 * a * k})`); gr.addColorStop(1, 'rgba(255,150,60,0)'); c.fillStyle = gr; ring(x, y, r * 0.6); c.fill(); }
+  for (const f of flares) { // (the flares themselves: a white star with a halo)
+    const p = flareAt(f); if (p.lit < 0.02) continue;
+    const gr = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, 22); gr.addColorStop(0, `rgba(255,255,240,${p.lit})`); gr.addColorStop(0.25, `rgba(235,240,255,${0.5 * p.lit})`); gr.addColorStop(1, 'rgba(220,230,255,0)');
+    c.fillStyle = gr; ring(p.x, p.y, 22); c.fill();
+  }
   c.restore();
+}
+// ---- illumination flares (FLARE): in a fight in the dark, now and then one goes up over where the shots land (a
+// mortar's, a gun's) — an aircraft that fires drops its own where it is — and hangs under its parachute, drifting down
+// with the wind, lighting the ground round it a cold white (nightLights: both views; three3d.js — a real light too).
+// Only the look: what each side sees isn't changed. gap / r: not again within r for gap s; p: a shot's chance; min:
+// how dark first; life: s lit; rise: s going up; h0 → h1: its height lit; light: the pool it lights ----
+const FLARE = { gap: 10, r: 160, p: 0.2, min: 0.35, life: 16, rise: 1.4, h0: 175, h1: 25, light: 380, max: 8 };
+const flares = [];
+function flareTick() {
+  if (flares.of !== s) { flares.length = 0; flares.of = s; }
+  const k = Sim.nightAt(s) || 0;
+  for (const sh of s.shots) if (!sh.flared) {
+    sh.flared = true; if (k < FLARE.min || flares.length >= FLARE.max || Math.random() > FLARE.p) continue;
+    const T = Sim.TYPES[sh.kind], air = !!(T && T.air), x = air ? sh.x1 : sh.x2 + (sh.x1 - sh.x2) * 0.2, y = air ? sh.y1 : sh.y2 + (sh.y1 - sh.y2) * 0.2;
+    if (flares.some(f => s.t - f.t < FLARE.gap && Math.hypot(f.x - x, f.y - y) < FLARE.r)) continue;
+    flares.push({ x, y, t: s.t, air, sd: Math.random() * 9 });
+  }
+  for (let i = flares.length - 1; i >= 0; i--) if (s.t - flares[i].t > FLARE.rise + FLARE.life || s.t < flares[i].t) flares.splice(i, 1);
+}
+// where a flare is now and how bright: x, y, h (up), lit 0..1 (it flickers; dies at the end)
+function flareAt(f) {
+  const age = s.t - f.t, up = f.air ? 1 : Math.min(1, age / FLARE.rise), a = Math.max(0, age - FLARE.rise) / FLARE.life;
+  const h = f.air ? FLARE.h0 + 40 - (FLARE.h0 + 15 - FLARE.h1) * Math.min(1, age / FLARE.life) : up < 1 ? FLARE.h0 * up * (2 - up) : FLARE.h0 - (FLARE.h0 - FLARE.h1) * a;
+  const lit = (f.air ? Math.min(1, age * 3) : up < 1 ? 0 : Math.min(1, (age - FLARE.rise) * 4)) * Math.min(1, (1 - a) * 6) * (0.85 + 0.15 * Math.sin(s.t * 23 + f.sd));
+  const drift = Math.max(0, age - (f.air ? 0 : FLARE.rise)) * 0.7;
+  return { x: f.x + WIND.x * drift, y: f.y + WIND.y * drift, h, lit: Math.max(0, lit) };
 }
 // (what's lit at night: [x, y, r, how much] — the flat map's and the 3D view's, three3d.js)
 function nightLights() {
@@ -301,6 +332,7 @@ function nightLights() {
   // (our own units carry a little light: vehicles more than soldiers)
   for (const u of s.units) if (u.side === 'blue' && !Sim.TYPES[u.type].air && (!s.fog || shownAt(u))) lights.push([u.x, u.y, CAR.has(u.type) ? 28 : 16, 0.5]);
   for (const f of s.fallen) if (CAR.has(f.type) && s.t - f.t < 10 && (!s.fog || shownAt(f))) lights.push([f.x, f.y, 34, 0.7 * (1 - (s.t - f.t) / 10)]);
+  for (const f of flares) { const p = flareAt(f); if (p.lit > 0.02) lights.push([p.x, p.y, FLARE.light * (0.75 + 0.25 * p.h / FLARE.h0), p.lit], [p.x, p.y, FLARE.light * 0.45, p.lit]); } // (flares: a wide pool, smaller as it comes down)
   return lights;
 }
 

@@ -126,6 +126,20 @@ function v3Sky(d) {
   // (Three mixes the fog in after the tone mapping and the sRGB: its colour given as the horizon's comes out on the screen)
   const f = V3.scene.fog; v3Screened(u.hor.value, f.color); f.near = d * V3_HAZE; f.far = d * 2.6 + 900;
 }
+// ---- for the minimap (render.js drawMini): the ground's picture, small (once a map), and the ground under the screen's
+// corners (the top ones held to the map's reach — over the horizon, the sky's ray ran off to the plain) ----
+function v3MiniBg(w, h) {
+  const tex = V3.ground && V3.ground.material.map; if (!tex || !tex.image) return null;
+  if (V3.miniBg && V3.miniBg.of === tex && V3.miniBg.c.width === w) return V3.miniBg.c;
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+  g.filter = 'saturate(0.85) brightness(0.92)'; g.drawImage(tex.image, 0, 0, w, h); g.filter = 'none';
+  V3.miniBg = { of: tex, c }; return c;
+}
+function v3ViewQuad() {
+  if (!V3.cam || !V3.w) return null;
+  const L = Math.max(s.W, s.H), cl = p => ({ x: Math.max(-L * 0.3, Math.min(s.W + L * 0.3, p.x)), y: Math.max(-L * 0.3, Math.min(s.H + L * 0.3, p.y)) });
+  return [[0, 0], [V3.w, 0], [V3.w, V3.h], [0, V3.h]].map(([x, y]) => cl(v3World(x, y)));
+}
 // ---- the screen ↔ the world ----
 // a point of the stage → the world: along the ray from the camera to where it first goes under the hills (steps,
 // then halving); past the map, the plain
@@ -939,7 +953,11 @@ function v3FxInit() {
   // (the blasts' light on what's round them: a few lights, given to the biggest blasts of the moment)
   V3.blastLights = [];
   for (let i = 0; i < V3_BLAST_LIGHTS; i++) { const L = new THREE.PointLight('#ffa050', 0, 1, 1.2); V3.scene.add(L); V3.blastLights.push(L); }
+  V3.flareLights = []; // (the flares' cold white light: the nearest few to the middle of the screen)
+  for (let i = 0; i < V3_FLARE.n; i++) { const L = new THREE.PointLight('#e9eeff', 0, V3_FLARE.dist, 1); V3.scene.add(L); V3.flareLights.push(L); }
 }
+// (flares in 3D: n lights, each this bright at its brightest and reaching dist; the glow's size)
+const V3_FLARE = { n: 3, k: 120, dist: 700, glow: 20 };
 // one more: at (x, h, y) world, d across, colour [r, g, b] (0–1), a; ang: turned (radians), v: which of the four pictures
 function v3Dot(B, x, h, y, d, r, g, b, a, ang = 0, v = 0) {
   if (B.n >= V3_FX_MAX || a <= 0.004) return;
@@ -1043,6 +1061,19 @@ function v3Fx() {
   }
   // scorch marks: dark earth, lying on the ground
   for (const p of scorch) v3Dot(F.mark, p.x, v3Gnd(p.x, p.y) + 0.8, p.y, p.r * 2.2, 0.12, 0.09, 0.06, 0.7 * (1 - (s.t - p.t) / SCORCH_T));
+  // the flares (art.js flareAt): a white star with a wide halo, a thin trail of smoke above it, a small parachute; and the light
+  const fl = [];
+  for (const f of flares) {
+    const p = flareAt(f), g0 = v3Gnd(p.x, p.y), age = s.t - f.t;
+    if (p.lit < 0.02) { if (!f.air && age < FLARE.rise) v3Dot(F.smoke, p.x, g0 + p.h, p.y, 4, 0.8, 0.8, 0.8, 0.4); continue; } // (going up: a faint streak)
+    v3Dot(F.glow, p.x, g0 + p.h, p.y, V3_FLARE.glow * (0.9 + 0.2 * p.lit), 1, 0.98, 0.9, p.lit);
+    v3Dot(F.glow, p.x, g0 + p.h, p.y, V3_FLARE.glow * 5, 0.75, 0.8, 1, 0.12 * p.lit);
+    v3Dot(F.mark, p.x, g0 + p.h + 9, p.y, 8, 0.9, 0.9, 0.85, 0.5 * Math.min(1, p.lit * 2));
+    for (let i = 1; i <= 6; i++) v3Dot(F.smoke, p.x - WIND.x * i * 0.8, g0 + p.h + i * 5, p.y - WIND.y * i * 0.8, 5 + i * 2, 0.75, 0.75, 0.78, 0.22 * (1 - i / 7) * p.lit);
+    fl.push([Math.hypot(p.x - cam.x, p.y - cam.y), p.x, g0 + p.h, p.y, p.lit]);
+  }
+  fl.sort((a, b) => a[0] - b[0]);
+  V3.flareLights.forEach((L, i) => { const b = fl[i]; if (!b) { L.intensity = 0; return; } L.position.set(b[1], b[2], b[3]); L.intensity = V3_FLARE.k * b[4] * V3_FLARE.dist / 100; });
   // the long-range missiles: high arcs with a white trail (seen by both sides)
   for (const mi of s.missiles || []) {
     const T = Sim.SSM_FLIGHT, L = Math.hypot(mi.x - mi.x0, mi.y - mi.y0), h0 = v3Gnd(mi.x0, mi.y0), h1 = v3Gnd(mi.x, mi.y);

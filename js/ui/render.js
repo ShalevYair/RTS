@@ -1295,15 +1295,21 @@ const MINI_W = 360;
 function drawMini() {
   const m = $('mini'), vr = viewRect(), all = !vr || (vr.w >= s.W - 1 && vr.h >= s.H - 1);
   m.hidden = all || !$('intro').hidden || !$('end').hidden;
+  const cp = $('compass'); cp.hidden = m.hidden || !V3.on; document.body.classList.toggle('v3', !!V3.on);
+  if (!cp.hidden) { const r = m.getBoundingClientRect(), pr = m.offsetParent ? m.offsetParent.getBoundingClientRect() : { left: 0, top: 0 }; cp.style.left = (r.left - pr.left - 12) + 'px'; cp.style.top = (r.bottom - pr.top - 18) + 'px'; cp.style.right = 'auto'; cp.firstChild.style.transform = `rotate(${(V3.yaw * 180 / Math.PI).toFixed(1)}deg)`; }
   // (the message list stands under it, below where it reaches when it grows under the mouse)
   const fd = $('feed'); fd.classList.toggle('underMini', !m.hidden);
   if (m.hidden) return;
   const w = MINI_W, h = Math.round(w * s.H / s.W), k = w / s.W;
   if (m.width !== w || m.height !== h) { m.width = w; m.height = h; m.style.setProperty('--ar', (s.W / s.H).toFixed(3)); fd.style.setProperty('--ar', (s.W / s.H).toFixed(3)); }
   const c = m.getContext('2d'); c.setTransform(k, 0, 0, k, 0, 0);
-  c.fillStyle = colors.ground; c.fillRect(0, 0, s.W, s.H);
-  c.fillStyle = hexA(colors.tree, 0.35); for (const hl of s.hills) { c.beginPath(); c.ellipse(hl.x, hl.y, hl.r, hl.r * hl.e, hl.a, 0, Math.PI * 2); c.fill(); }
-  c.fillStyle = colors.water; for (const l of s.lakes) { c.beginPath(); c.ellipse(l.x, l.y, l.rx, l.ry, l.a, 0, Math.PI * 2); c.fill(); }
+  const bg = V3.on && v3MiniBg(w, h); // (the 3D view: the ground's own picture, a little dimmed — the minimap as the map looks)
+  if (bg) { c.drawImage(bg, 0, 0, s.W, s.H); }
+  else {
+    c.fillStyle = colors.ground; c.fillRect(0, 0, s.W, s.H);
+    c.fillStyle = hexA(colors.tree, 0.35); for (const hl of s.hills) { c.beginPath(); c.ellipse(hl.x, hl.y, hl.r, hl.r * hl.e, hl.a, 0, Math.PI * 2); c.fill(); }
+    c.fillStyle = colors.water; for (const l of s.lakes) { c.beginPath(); c.ellipse(l.x, l.y, l.rx, l.ry, l.a, 0, Math.PI * 2); c.fill(); }
+  }
   if (s.fog) { c.fillStyle = hexA(colors.blue, 0.12); for (const n of s.nodes) if (n.side === 'blue' && Sim.nodeSpec(n.kind) && s.t >= n.ready) { c.beginPath(); c.arc(n.x, n.y, Sim.nodeSpec(n.kind).r0, 0, Math.PI * 2); c.fill(); } }
   const dot = (x, y, r, col, sq) => { c.fillStyle = col; c.beginPath(); if (sq) c.rect(x - r, y - r, 2 * r, 2 * r); else c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
   for (const n of s.nodes) if (nodeShown(n)) { if (n.kind === 'drone') { c.globalAlpha = 0.35; dot(n.x, n.y, 7, colors[n.side]); c.globalAlpha = 1; } else dot(n.x, n.y, 14, colors[n.side], true); }
@@ -1320,7 +1326,10 @@ function drawMini() {
   // a missile launched (ours, or theirs at us): the truck's spot flashes for a few seconds
   for (const f of s.marks) if ((f.kind === 'missile' || f.kind === 'launch') && s.t - f.t < 6 && Math.floor((s.t - f.t) * 3) % 2 === 0) { c.fillStyle = f.kind === 'missile' ? colors.red : '#ffd54a'; c.beginPath(); c.arc(f.x, f.y, 34, 0, Math.PI * 2); c.fill(); c.lineWidth = 8; c.strokeStyle = '#fff'; c.stroke(); }
   for (const f of s.marks) { c.strokeStyle = f.kind === 'lost' || f.kind === 'ff' || f.kind === 'nodeLost' ? colors.red : colors.ink; c.lineWidth = 10; c.beginPath(); c.arc(f.x, f.y, 40 + 30 * (s.t - f.t), 0, Math.PI * 2); c.stroke(); }
-  c.strokeStyle = colors.ink; c.lineWidth = 2 / k; c.strokeRect(vr.x, vr.y, vr.w, vr.h);
+  // (what's on screen: in the 3D view the ground under the screen's corners — a trapezoid, turned with the camera)
+  const quad = V3.on && v3ViewQuad();
+  if (quad) { c.beginPath(); quad.forEach((p, i) => i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)); c.closePath(); c.fillStyle = 'rgba(255,255,255,.08)'; c.fill(); c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = 2 / k; c.stroke(); }
+  else { c.strokeStyle = colors.ink; c.lineWidth = 2 / k; c.strokeRect(vr.x, vr.y, vr.w, vr.h); }
   drawViews(c, k); // (the saved views' numbers)
 }
 

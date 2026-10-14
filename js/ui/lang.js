@@ -16,7 +16,7 @@ const styleName = k => lang === 'en' ? EN_STYLES[k] : Sim.AI_STYLES[k].name;
 const TOUCH = matchMedia('(pointer: coarse)').matches;
 const STR = {
   he: {
-    title: 'המפקד', map: 'מפת הקרב', mini: 'מפה קטנה: לחץ כדי להסתכל שם',
+    title: 'המפקד', map: 'מפת הקרב', mini: 'מפה קטנה: לחץ כדי להסתכל שם', compass: 'מצפן: לחיצה מחזירה את המצלמה לצפון (גרירה בכפתור האמצעי מסובבת)',
     power: n => `העוצמה שלך מתוך כל הכוחות במפה. מתחת ל-${n}% — הפסד`, slots: 'מבנים: בנויים / מכסה. כל 🏕️ מוסיף 2', boost: 'הצד החלש מייצר מהר יותר',
     hold: 'להחזיק', attack: 'לתקוף', retreat: 'לסגת',
     quit: 'יציאה', quitDone: 'המשחק נסגר. אפשר לסגור את הלשונית.', tipScore: 'ניקוד: כמה השמיד כל צד מהשני (חייל 100, ג׳יפ 250, טנק 500, מבנה 1000, המפקדה 5000). לא מכריע את המשחק.', tipHold: 'להחזיק (Q): ללכת למקום ולהגן עליו', tipAttack: 'לתקוף (A): לתפוס את האזור ולרדוף אחרי האויב', tipRetreat: 'לסגת (R): הביתה, להתרפא ולהתמלא',
@@ -117,7 +117,7 @@ const STR = {
     tip_posts: 'מבנה ניטרלי: חייל שנכנס כובש אותו. עכבר מעליו = מה הוא נותן.', tip_voice: 'לחץ 🎙 ודבר: "טנקים לרדאר", "כוח 2 לנקודה 4". Alt+מספר שומר נקודה.',
   },
   en: {
-    title: 'The Commander', map: 'Battle map', mini: 'Minimap: tap to look there',
+    title: 'The Commander', map: 'Battle map', mini: 'Minimap: tap to look there', compass: 'Compass: click to face north again (a middle-button drag turns the camera)',
     power: n => `Your share of all the power on the map. Below ${n}% you lose`, slots: 'Buildings: built / limit. Each 🏕️ adds 2', boost: 'The weaker side builds faster',
     hold: 'Hold', attack: 'Attack', retreat: 'Retreat',
     quit: 'Quit', quitDone: 'The game is closed. You can close this tab.', tipScore: 'Score: what each side has destroyed of the other (soldier 100, jeep 250, tank 500, building 1000, HQ 5000). It does not decide the game.', tipHold: 'Hold (Q): go there and defend it', tipAttack: 'Attack (A): take the area, chase the enemy', tipRetreat: 'Retreat (R): home, to heal and refill',

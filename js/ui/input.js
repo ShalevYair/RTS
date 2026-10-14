@@ -359,6 +359,8 @@ cv.addEventListener('wheel', e => {
   e.preventDefault();
   const r = cv.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
 }, { passive: false });
+// the compass (the 3D view, by the minimap): north again
+$('compass').addEventListener('click', () => v3OrbitReset());
 // minimap: tap or drag to look there
 const mini = $('mini');
 function miniLook(e) { const r = mini.getBoundingClientRect(); lookAt((e.clientX - r.left) / r.width * s.W, (e.clientY - r.top) / r.height * s.H); }

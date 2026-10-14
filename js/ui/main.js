@@ -90,7 +90,7 @@ function frameBody(now) {
   // (at most STEP_CAP steps a frame for each 1× of speed: slow frames made more steps, the frames slower still, down
   // to 2 a second — the game goes a little slower instead)
   if (playing) { acc = Math.min(acc + dt * rate, DT * STEP_CAP * Math.max(1, rate)); s.lite = lite > 0; while (acc >= DT) { Sim.step(s, DT); acc -= DT; } } else acc = 0;
-  liteTick(now, dt);
+  liteTick(now, dt); flareTick(); // (flares over fights at night: art.js)
   // one sound per new explosion (the audio side rate-limits bursts)
   const vr = viewRect(), onScreen = p => vr && p.x > vr.x - 60 && p.x < vr.x + vr.w + 60 && p.y > vr.y - 60 && p.y < vr.y + vr.h + 60;
   for (const f of s.fx) if (!f.heard && !(f.wait > 0)) {
