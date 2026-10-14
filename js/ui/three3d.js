@@ -62,7 +62,7 @@ function v3Env(r) {
 // (SUN, art.js: a minute at a time from dawn to dusk): high and white at noon, low and orange at dawn and dusk, when
 // the horizon and the clouds go golden and pink. The distance haze (the scene's fog) takes the horizon's colour ----
 const V3_SKY_COL = { zen: '#5f8fc4', hor: '#c9d9e6', gold: '#f2a35e', pink: '#d98a8a', nzen: '#060b1a', nhor: '#1b2640' };
-const V3_SUN_GOLD = '#ffa055', V3_CLOUD_K = 0.55, V3_HAZE = 0.75, V3_SKIRT = [0.8, 0.95, 0.55]; // (the low sun's colour; how cloudy; the haze — from this × the view's depth; the plain's grass tint, linear — as the ground's own lift of its textures)
+const V3_SUN_GOLD = '#ffa055', V3_CLOUD_K = 0.55, V3_HAZE = 0.75; // (the low sun's colour; how cloudy; the haze — from this × the view's depth)
 function v3SkyInit() {
   const u = V3.skyU = { zen: { value: new THREE.Color() }, hor: { value: new THREE.Color() }, sunCol: { value: new THREE.Color() }, sunDir: { value: new THREE.Vector3(0, 1, 0) }, night: { value: 0 }, gold: { value: 0 }, cloud: { value: V3_CLOUD_K }, time: V3U.v3Time };
   const m = new THREE.ShaderMaterial({
@@ -120,11 +120,6 @@ function v3Sky(d) {
   u.zen.value.copy(C.zen).lerp(C.pink, gold * 0.25).lerp(C.nzen, Math.min(1, k * 1.3)); u.hor.value.copy(C.hor).lerp(C.gold, gold * 0.75).lerp(C.nhor, k * k);
   u.sunCol.value.set('#fff2dc').lerp(v3Tmp.sunG || (v3Tmp.sunG = new THREE.Color(V3_SUN_GOLD)), gold);
   V3.gold = gold;
-  // (the plain round the map: the meadow's own grass, once it's loaded — a flat colour was a green sheet to the horizon)
-  if (!V3.skirtTex && V3U.v3Tg.value && V3U.v3Tg.value.image) {
-    const tx = V3.skirtTex = V3U.v3Tg.value.clone(); tx.needsUpdate = true; tx.repeat.set(s.W * 8 / V3_GND.grass, s.H * 8 / V3_GND.grass);
-    const m = V3.skirt.material; m.map = tx; m.color.setRGB(...V3_SKIRT); m.needsUpdate = true;
-  }
   if (V3.farHills) V3.farHills.material.color.set(V3_FAR_COL).lerp(u.hor.value, 0.62 + 0.25 * k);
   V3.skyDome.position.copy(V3.cam.position); V3.skyDome.scale.setScalar(V3.cam.far * 0.8);
   // (the haze: the horizon's colour, from a little past the middle of the view)
@@ -210,17 +205,40 @@ function v3Ground() {
     const d = gc.getImageData(0, 0, N, N).data, lin = v => Math.pow(v / 255, 2.2); let L = 0;
     for (let i = 0; i < d.length; i += 4) L += 0.2126 * lin(d[i]) + 0.7152 * lin(d[i + 1]) + 0.0722 * lin(d[i + 2]);
     v3GroundTex(L / (N * N));
+    // (the meadow's colour: of the green there, a clearly green one — what the ground round the map fades to, v3Apron;
+    // a dull middle one read as dry grass to the layers, and the plain went brown)
+    const gr = []; for (let i = 0; i < d.length; i += 4) { const c = [lin(d[i]), lin(d[i + 1]), lin(d[i + 2])]; if (c[1] > c[0] && c[1] > c[2]) gr.push(c); }
+    gr.sort((a, b) => (b[1] - Math.max(b[0], b[2])) - (a[1] - Math.max(a[0], a[2]))); const md = gr[Math.floor(gr.length * 0.3)] || [0.06, 0.09, 0.03];
+    V3U.v3Meadow.value = new THREE.Vector3(...md);
   }
   const m = new THREE.Mesh(g, v3Shaded(new THREE.MeshLambertMaterial({ map: tex }), true));
   m.castShadow = m.receiveShadow = true;
   V3.scene.add(m); V3.ground = m; V3.of = decor;
-  // (round the map: plain grass to the horizon)
-  if (!V3.skirt) {
-    V3.skirt = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), v3Shaded(new THREE.MeshLambertMaterial({ color: '#5d6e45' })));
-    V3.skirt.rotation.x = -Math.PI / 2; V3.skirt.position.y = -2; V3.skirt.receiveShadow = true; V3.scene.add(V3.skirt);
-  }
-  V3.skirt.scale.set(s.W * 8, s.H * 8, 1); V3.skirt.position.x = s.W / 2; V3.skirt.position.z = s.H / 2; V3.skirtTex = null;
+  v3Apron(m.material);
   v3FarHills();
+}
+// ---- round the map, to the horizon: the ground goes on (v3Apron) — a ring from each point of the map's edge outward,
+// its height there sinking smoothly to the plain (V3_APRON: the rows' distances out; how far the hills' edge sinks), in
+// the ground's own material (its uv past the picture: the edge's colours, faded in the shader to the meadow's, v3Meadow).
+// A flat plain of its own met the map in a hard line, and a hill cut by the edge stood as a wall ----
+const V3_APRON = { rows: [0, 30, 80, 160, 280, 450, 700, 1050, 1600, 2600, 4500, 8000, 15000, 30000], sink: 500, corner: 6 };
+function v3Apron(mat) {
+  if (V3.apron) { V3.scene.remove(V3.apron); V3.apron.geometry.dispose(); }
+  const W = s.W, H = s.H, step = ELEV_CELL * 2, P = [], A = V3_APRON;
+  const edge = (x0, y0, x1, y1, nx, ny) => { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / step)); for (let i = 0; i < n; i++) P.push([x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, nx, ny]); };
+  const corner = (x, y, a0) => { for (let i = 0; i <= A.corner; i++) { const a = a0 + i / A.corner * Math.PI / 2; P.push([x, y, Math.cos(a), Math.sin(a)]); } };
+  edge(0, 0, W, 0, 0, -1); corner(W, 0, -Math.PI / 2); edge(W, 0, W, H, 1, 0); corner(W, H, 0); edge(W, H, 0, H, 0, 1); corner(0, H, Math.PI / 2); edge(0, H, 0, 0, -1, 0); corner(0, 0, Math.PI);
+  const R = A.rows.length, N = P.length, pos = new Float32Array(N * R * 3), uv = new Float32Array(N * R * 2), idx = [];
+  P.forEach(([x, y, nx, ny], i) => {
+    const h0 = v3E(Math.min(W - 0.01, Math.max(0, x)), Math.min(H - 0.01, Math.max(0, y)));
+    A.rows.forEach((d, j) => {
+      const k = i * R + j, px = x + nx * d, py = y + ny * d, f = Math.min(1, d / A.sink), hh = j === 0 ? h0 : h0 * (1 - f * f * (3 - 2 * f)) - 2 * Math.min(1, d / 100);
+      pos[k * 3] = px; pos[k * 3 + 1] = hh; pos[k * 3 + 2] = py; uv[k * 2] = px / W; uv[k * 2 + 1] = 1 - py / H;
+    });
+  });
+  for (let i = 0; i < N; i++) { const i2 = (i + 1) % N; for (let j = 0; j < R - 1; j++) { const a = i * R + j, b = i2 * R + j; idx.push(a, b, a + 1, b, b + 1, a + 1); } }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.frustumCulled = false; V3.scene.add(m); V3.apron = m;
 }
 // ---- hills far round the map (only to look at, never reached): a ring of ridges, V3_FAR_HILLS — from the edge (in),
 // its crest (mid) and out — of the bigger side; heights h0..h1 world units; in the haze; else the plain met the sky in a ruler's line ----
@@ -1336,7 +1354,7 @@ function v3SunDir() { V3.sunDir.value.copy(V3.sun.position).sub(V3.sun.target.po
 // Units and buildings over it, as on the flat map. Made again every V3_SHADE_MS. The sun and the sky dim at night. ----
 const V3_SHADE = 8, V3_SHADE_MS = 60, V3_GLOW = 0.18;
 const V3U = { v3Fog: { value: null }, v3Dark: { value: null }, v3Size: { value: null }, v3FogCol: { value: null }, v3Night: { value: 0 }, v3Lit: { value: 0 }, v3Deco: { value: null }, v3DecoBox: { value: null }, v3Time: { value: 0 },
-  v3Tg: { value: null }, v3Tg2: { value: null }, v3Ty: { value: null }, v3Td: { value: null }, v3Tr: { value: null }, v3Tm: { value: null }, v3Ng: { value: null }, v3Nd: { value: null }, v3Nr: { value: null }, v3GndOn: { value: 0 }, v3MacroLum: { value: 0.1 }, v3GLum: { value: null } };
+  v3Tg: { value: null }, v3Tg2: { value: null }, v3Ty: { value: null }, v3Td: { value: null }, v3Tr: { value: null }, v3Tm: { value: null }, v3Ng: { value: null }, v3Nd: { value: null }, v3Nr: { value: null }, v3GndOn: { value: 0 }, v3MacroLum: { value: 0.1 }, v3GLum: { value: null }, v3Meadow: { value: null } };
 // ---- the ground: real textures (js/ui/ground3d.js — Poly Haven photos, CC0; tools/ground3d.py), each with its normal
 // map, picked from the map's picture: meadow where it's green, dry grass where yellow (and in wide drifts), earth where
 // brown, mud where dark brown, rock on the steep (slope0..1: 1 − the normal's up), the high (high0..1, world units) and
@@ -1380,7 +1398,10 @@ function v3Shaded(mat, deco) {
       #ifdef V3_DECO
         vec3 v3tn = vec3(0.0, 0.0, 1.0); float v3far = 1.0;
         if (v3GndOn > 0.0) {
-          vec3 m = diffuseColor.rgb; float ml = dot(m, vec3(0.2126, 0.7152, 0.0722));
+          vec3 m = diffuseColor.rgb;
+          float v3out = max(max(-vV3.x, vV3.x - v3Size.x), max(-vV3.y, vV3.y - v3Size.y)); // (past the map's edge: its colours faded to the meadow's)
+          if (v3out > 0.0) m = mix(m, v3Meadow, smoothstep(0.0, 300.0, v3out));
+          float ml = dot(m, vec3(0.2126, 0.7152, 0.0722));
           float k2 = ${V3_GND.k2};
           vec2 gx = dFdx(vV3), gy = dFdy(vV3); // (the gradients outside the branches below: inside them they're undefined)
           #define V3T(T, S) mix(textureGrad(T, vV3 / S, gx / S, gy / S), textureGrad(T, vV3 / (S * k2) + 0.37, gx / (S * k2), gy / (S * k2)), 0.25)
@@ -1429,7 +1450,7 @@ function v3Shaded(mat, deco) {
       #endif`).replace('#include <common>', `#include <common>
       float v3gh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       float v3gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(v3gh(i), v3gh(i + vec2(1, 0)), f.x), mix(v3gh(i + vec2(0, 1)), v3gh(i + vec2(1, 1)), f.x), f.y); }
-      varying vec2 vV3; uniform float v3GndOn; uniform float v3MacroLum; uniform vec3 v3GLum;
+      varying vec2 vV3; uniform float v3GndOn; uniform float v3MacroLum; uniform vec3 v3GLum; uniform vec3 v3Meadow;
       #ifdef V3_DECO
         uniform sampler2D v3Tg; uniform sampler2D v3Tg2; uniform sampler2D v3Ty; uniform sampler2D v3Td; uniform sampler2D v3Tr; uniform sampler2D v3Tm; uniform sampler2D v3Ng; uniform sampler2D v3Nd; uniform sampler2D v3Nr;
       #endif
