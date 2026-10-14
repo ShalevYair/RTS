@@ -310,6 +310,42 @@ const Music = (() => {
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.09, t + 0.4); g.gain.setValueAtTime(0.09, t + SIREN_T - 0.6); g.gain.linearRampToValueAtTime(0.0001, t + SIREN_T);
     o.connect(f); o2.connect(f); f.connect(g).connect(sfxBus); o.start(t); o2.start(t); o.stop(t + SIREN_T + 0.05); o2.stop(t + SIREN_T + 0.05);
   }
+  // ---- the battlefield's hum, all the time (ambient): engines (a low rumble), tracks (a clanking), rotors (a beat),
+  // jets (a roar), feet (a soft patter) — each a loop of noise (and an oscillator under the engines) through its filter,
+  // its loudness set a few times a second from what moves near the middle of the screen (main.js: ambientTick), panned
+  // to where it mostly is. AMB: each one's loudest ----
+  const AMB = { engine: 0.2, track: 0.07, rotor: 0.22, jet: 0.13, feet: 0.07 };
+  let amb = null;
+  function ambInit() {
+    const out = ac.createStereoPanner ? ac.createStereoPanner() : ac.createGain(); out.connect(sfxBus);
+    const loop = () => { const s_ = ac.createBufferSource(); s_.buffer = noise; s_.loop = true; s_.start(0, Math.random()); return s_; };
+    const chain = (src, ...nodes) => { let a = src; for (const n of nodes) { a.connect(n); a = n; } return a; };
+    const filt = (type, f, q = 0.7) => { const b = ac.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; };
+    const gain = v => { const g = ac.createGain(); g.gain.value = v; return g; };
+    const lfo = (f, depth, g, type = 'sine') => { const o = ac.createOscillator(), d = gain(depth); o.type = type; o.frequency.value = f; o.connect(d).connect(g.gain); o.start(); return o; };
+    const A = { out, g: {} };
+    // (engines: deep noise and a low saw, rumbling a little)
+    A.g.engine = gain(0); chain(loop(), filt('lowpass', 160), A.g.engine).connect(out);
+    const saw = ac.createOscillator(); saw.type = 'sawtooth'; saw.frequency.value = 41; const sg = gain(0.35); chain(saw, filt('lowpass', 110), sg, A.g.engine); saw.start(); A.saw = saw;
+    // (tracks: a metallic band, beating like links on the wheels)
+    const tm = gain(0.5); A.g.track = gain(0); chain(loop(), filt('bandpass', 1700, 2.5), tm, A.g.track).connect(out); lfo(8.5, 0.5, tm, 'square');
+    // (rotors: thick low noise beaten fast)
+    const rm = gain(0.45); A.g.rotor = gain(0); chain(loop(), filt('lowpass', 420), rm, A.g.rotor).connect(out); A.rotorLfo = lfo(12, 0.55, rm, 'sawtooth');
+    // (jets: a wide roar)
+    A.g.jet = gain(0); chain(loop(), filt('bandpass', 700, 0.5), A.g.jet).connect(out);
+    // (feet: soft high taps, uneven)
+    const fm = gain(0.4); A.g.feet = gain(0); chain(loop(), filt('bandpass', 2600, 1.2), fm, A.g.feet).connect(out); lfo(3.3, 0.4, fm, 'square'); lfo(4.7, 0.3, fm, 'square');
+    return A;
+  }
+  // lv: { engine, track, rotor, jet, feet } 0..1, pan −1..1, speed — how fast the engines turn (0..1)
+  function ambient(lv, pan = 0, speed = 0.5) {
+    if (!ac || ac.state !== 'running') return;
+    if (!amb) amb = ambInit();
+    const t = ac.currentTime;
+    for (const k in AMB) amb.g[k].gain.setTargetAtTime((lv && lv[k] || 0) * AMB[k], t, 0.35);
+    if (amb.out.pan) amb.out.pan.setTargetAtTime(Math.max(-0.8, Math.min(0.8, pan)), t, 0.4);
+    amb.saw.frequency.setTargetAtTime(36 + 18 * speed, t, 0.5);
+  }
   // radio "click" before a voice report: a short band-passed noise burst on the effects bus
   function squelch() {
     if (!ac || ac.state !== 'running') return;
@@ -340,7 +376,7 @@ const Music = (() => {
     ({ ac, master, sfxBus, leadBus, lowBus, delay, noise } = keep); nextSong(keep.song);
     return { name: SONGS[k].name, rate, data: Array.from(buf.getChannelData(0), v => Math.max(-32768, Math.min(32767, Math.round(v * 32767)))) };
   }
-  return { start, stop, unlock, setVolume, setSfxVolume, boom, shot, squelch, siren, _debug: { render, playAll, tones, song: () => song.name, next: () => { nextSong(); return song.name; }, voices: () => voices } };
+  return { start, stop, unlock, setVolume, setSfxVolume, boom, shot, squelch, siren, ambient, _debug: { render, playAll, tones, song: () => song.name, next: () => { nextSong(); return song.name; }, voices: () => voices } };
 })();
 // ---- the soundtrack: recorded pieces (music/) — last stand on the main menu (at once, a quick fade in; tried as the page
 // loads, else at the first tap); in the game calm pieces while it's quiet

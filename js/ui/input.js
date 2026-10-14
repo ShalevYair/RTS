@@ -239,7 +239,7 @@ cv.addEventListener('pointerleave', () => { lastMouse = null; hoverNode = null; 
 // Mouse: a left click gives the order (or picks the squad under it); left-drag draws a rectangle that picks every squad
 // in it; the left button held still a moment (MOUSE_HOLD_MS), then dragged: the order with a facing and a depth (an
 // arrow from where it starts: the front toward where it's dragged, the rows spread over its length); a right click
-// clears the pick; right- or middle-drag pans; the wheel zooms;
+// clears the pick; right- or middle-drag pans (in the 3D view the middle one turns and tilts the camera); the wheel zooms;
 // the view also slides when the pointer rests at a screen edge. Touch: one finger pans, two pinch; press and hold, then
 // drag, is the order with a facing.
 // A press that moves more than DRAG_PX is not a tap.
@@ -252,7 +252,7 @@ cv.addEventListener('pointerdown', e => {
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
   const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed && !frontArmed && !roadArmed;
   const free = !eyeArmed && !buildArmed && !fhqArmed && !hqArmed && !roadArmed;
-  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0, face: false, right: e.pointerType === 'mouse' && e.button === 2 } : { moved: true };
+  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0, face: false, right: e.pointerType === 'mouse' && e.button === 2, turn: V3.on && e.pointerType === 'mouse' && e.button === 1 } : { moved: true };
   // touch, or the left button with something picked: held still for a moment, the drag that follows sets a facing
   const mouseHold = e.pointerType === 'mouse' && e.button === 0 && free && sel !== null;
   if ((e.pointerType !== 'mouse' || mouseHold) && touches.size === 1 && free) {
@@ -276,6 +276,7 @@ cv.addEventListener('pointermove', e => {
   const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
   if (!drag) return;
   if (drag.face) { const r = cv.getBoundingClientRect(); faceDrag.x1 = e.clientX - r.left; faceDrag.y1 = e.clientY - r.top; return; }
+  if (drag.turn) { drag.moved = true; v3Orbit(dx, dy); return; } // (the 3D view: the middle button turns and tilts the camera)
   if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_PX) { drag.moved = true; clearTimeout(drag.hold); if (!drag.box) panBy(e.clientX - drag.x - dx, e.clientY - drag.y - dy); }
   if (!drag.moved) return;
   if (drag.box) { const r = cv.getBoundingClientRect(); boxSel = { x0: drag.x - r.left, y0: drag.y - r.top, x1: e.clientX - r.left, y1: e.clientY - r.top }; }
@@ -404,6 +405,8 @@ document.addEventListener('keydown', e => {
   else if (k === 'b') buildHere();
   else if (k === 'g') toggleBuild();
   else if (k === 'f') $('fs').click();
+  else if (e.key.startsWith('Arrow') && (e.ctrlKey || e.metaKey) && V3.on) { e.preventDefault(); const a = 60; v3Orbit(e.key === 'ArrowLeft' ? -a : e.key === 'ArrowRight' ? a : 0, e.key === 'ArrowUp' ? -a : e.key === 'ArrowDown' ? a : 0); } // (the 3D view: turn and tilt)
+  else if (e.key === 'Home' && V3.on) v3OrbitReset();
   else if (e.key.startsWith('Arrow')) { e.preventDefault(); const d = 120; panBy(e.key === 'ArrowLeft' ? d : e.key === 'ArrowRight' ? -d : 0, e.key === 'ArrowUp' ? d : e.key === 'ArrowDown' ? -d : 0); }
   else if (e.key === '+' || e.key === '=' || e.key === '-') zoomAt(fit.w / 2, fit.top + fit.h / 2, e.key === '-' ? 1 / 1.25 : 1.25);
   else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; frontArmed = false; roadArmed = false; $('buildm').hidden = true; syncButtons(); closeMenu(); }

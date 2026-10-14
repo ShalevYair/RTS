@@ -75,7 +75,7 @@ const WIKI = {
       <h3>התחלה</h3><p>בוחרים איפה תקום המפקדה — ברצועה הירוקה בצד שלך. הטרקטור נוסע לשם ומקים אותה. עד שהיא עומדת אין בנייה.</p>
       <h3>בחירה</h3><ul><li>לחיצה על כוח בוחרת אותו; גרירה משמאל מסמנת מלבן.</li><li>הכפתורים למעלה: ★ = כולם, ואחריו כל סוג (מקשים 1–9).</li><li>לחיצה על מבנה בוחרת אותו ואת הכוח שלו.</li></ul>
       <h3>פקודות</h3><ul><li>לחיצה על המפה = לאן. הכפתור בפינה מחליף בין <b>לתקוף</b> (חרב) ל<b>החזיק</b> (מגן).</li><li>לחיצה על אויב = תקיפה עליו.</li><li>גרירה בכפתור הימני = לאן, ולאיזה כיוון לעמוד.</li><li><kbd>R</kbd> = נסיגה הביתה.</li></ul>
-      <h3>מצלמה</h3><p>גלגלת לזום, כפתור אמצעי או קצה המסך להזזה, או חיצים. בטלפון: אצבע אחת גוררת, שתיים מצביטות.</p>`],
+      <h3>מצלמה</h3><p>גלגלת לזום, גרירה ימנית או קצה המסך להזזה, או חיצים. בתלת-ממד: גרירה בכפתור האמצעי מסובבת ומטה את המצלמה (גם Ctrl + חיצים), Home מחזיר לצפון. בטלפון: אצבע אחת גוררת, שתיים מצביטות.</p>`],
     ['📡', 'פיקוד ושליטה', `<h2>פיקוד ושליטה</h2>
       <p>המשחק המלא הוא על <b>ערפל המלחמה</b>: אתה לא רואה הכל, והפקודות לא מגיעות מיד.</p>
       <h3>איכות שליטה</h3><p>סביב המפקדה, פיקוד קדמי, רחפן ומשאית קשר יש שליטה טובה (הכחול על המפה). שם פקודות מגיעות מהר ומדויק, והדיווחים נכונים. רחוק מהם — פקודות באיחור, "בערך", ולפעמים לא ברורות.</p>
@@ -117,7 +117,7 @@ const WIKI = {
       <h3>The start</h3><p>Pick where your HQ goes — in the green strip on your side. The bulldozer drives there and puts it up. Nothing else is built until it stands.</p>
       <h3>Picking</h3><ul><li>Click a squad to pick it; drag with the left button for a rectangle.</li><li>The buttons on top: ★ = all, then each kind (keys 1–9).</li><li>Click a building to pick it and its squad.</li></ul>
       <h3>Orders</h3><ul><li>Click the map = where to. The corner button switches <b>attack</b> (sword) and <b>hold</b> (shield).</li><li>Click an enemy = attack it.</li><li>Drag with the right button = where to, and which way to face.</li><li><kbd>R</kbd> = fall back home.</li></ul>
-      <h3>Camera</h3><p>Wheel to zoom; middle button, the screen edge or the arrows to move. On a phone: one finger drags, two pinch.</p>`],
+      <h3>Camera</h3><p>Wheel to zoom; right-drag, the screen edge or the arrows to move. In 3D: a middle-button drag turns and tilts the camera (Ctrl + arrows too), Home faces north again. On a phone: one finger drags, two pinch.</p>`],
     ['📡', 'Command and control', `<h2>Command and control</h2>
       <p>The full game is about the <b>fog of war</b>: you don't see everything, and orders don't arrive at once.</p>
       <h3>Control</h3><p>Around the HQ, forward HQs, drones and signals trucks control is good (the blue on the map): orders arrive fast and exact, reports are right. Far from them orders come late, "roughly", and sometimes garbled.</p>

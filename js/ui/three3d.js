@@ -19,6 +19,7 @@ function v3Want() { try { const v = localStorage.getItem('irts-3d'); return v ==
 function v3Toggle() {
   if (V3.on) { v3Show(false); return; }
   if (window.THREE) { v3Show(true); return; }
+  if (V3.loading) return; V3.loading = true; // (asked again while loading: once is enough — twice, its files were declared twice)
   // (the library, then the models — tools/models.py; without them, the pictures)
   const load = (src, next) => { const sc = document.createElement('script'); sc.src = src; sc.onload = next; sc.onerror = /models|ground3d/.test(src) ? next : () => toast('3D ✖', innerWidth / 2, 80, 3000); document.head.appendChild(sc); };
   load('js/lib/three.min.js', () => load('js/ui/models.js', () => load('js/ui/ground3d.js', () => v3Show(true))));
@@ -56,9 +57,92 @@ function v3Env(r) {
   const sun = new THREE.Mesh(new THREE.SphereGeometry(8, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 5.6, 4.8) })); sun.position.set(-55, 60, -55); sc.add(sun);
   const pm = new THREE.PMREMGenerator(r), tex = pm.fromScene(sc, 0.02).texture; pm.dispose(); return tex;
 }
+// ---- the sky (v3Sky): a dome round the camera — zenith to horizon, the sun's disc and its glow, clouds drifting
+// (fbm noise on a plane high up, lit from the sun), stars by night — and the sun itself turning with the flat map's
+// (SUN, art.js: a minute at a time from dawn to dusk): high and white at noon, low and orange at dawn and dusk, when
+// the horizon and the clouds go golden and pink. The distance haze (the scene's fog) takes the horizon's colour ----
+const V3_SKY_COL = { zen: '#5f8fc4', hor: '#c9d9e6', gold: '#f2a35e', pink: '#d98a8a', nzen: '#060b1a', nhor: '#1b2640' };
+const V3_SUN_GOLD = '#ffa055', V3_CLOUD_K = 0.55, V3_HAZE = 0.75, V3_SKIRT = [0.8, 0.95, 0.55]; // (the low sun's colour; how cloudy; the haze — from this × the view's depth; the plain's grass tint, linear — as the ground's own lift of its textures)
+function v3SkyInit() {
+  const u = V3.skyU = { zen: { value: new THREE.Color() }, hor: { value: new THREE.Color() }, sunCol: { value: new THREE.Color() }, sunDir: { value: new THREE.Vector3(0, 1, 0) }, night: { value: 0 }, gold: { value: 0 }, cloud: { value: V3_CLOUD_K }, time: V3U.v3Time };
+  const m = new THREE.ShaderMaterial({
+    uniforms: u, side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false,
+    vertexShader: `varying vec3 vD; void main() { vD = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position.z = gl_Position.w * 0.9999; }`,
+    fragmentShader: `uniform vec3 zen, hor, sunCol, sunDir; uniform float night, gold, cloud, time; varying vec3 vD;
+      float h2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float n2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * n2(p); p = p * 2.03 + 7.1; a *= 0.5; } return s; }
+      void main() {
+        vec3 d = normalize(vD); float y = max(d.y, 0.0), sd = max(dot(d, sunDir), 0.0);
+        vec3 c = mix(hor, zen, pow(y, 0.55));
+        // (the low sun: the horizon round it golden, pink farther off)
+        float side = pow(max(dot(normalize(vec3(d.x, 0.0, d.z) + 1e-4), normalize(vec3(sunDir.x, 0.0, sunDir.z) + 1e-4)), 0.0), 3.0);
+        c = mix(c, mix(vec3(0.85, 0.55, 0.55), vec3(0.98, 0.62, 0.32), side), gold * (1.0 - smoothstep(0.0, 0.45, y)) * (0.45 + 0.55 * side));
+        c += sunCol * (pow(sd, 900.0) * 6.0 + pow(sd, 40.0) * 0.35 + pow(sd, 6.0) * 0.12) * (1.0 - night * 0.85);
+        // (the clouds: on a plane high up, drifting; thin at the horizon)
+        if (d.y > 0.0) {
+          vec2 q = d.xz / (d.y + 0.08) * 1.6 + vec2(time * 0.012, time * 0.004);
+          float f = fbm(q), cv = smoothstep(0.62 - cloud * 0.3, 0.8 - cloud * 0.15, f) * smoothstep(0.0, 0.04, d.y);
+          float lit = 0.75 + 0.25 * fbm(q + sunDir.xz * 0.15) + pow(sd, 8.0) * 0.6;
+          vec3 cc = mix(vec3(0.94, 0.95, 0.97), vec3(1.0, 0.72, 0.5), gold) * lit;
+          cc = mix(cc, vec3(0.09, 0.11, 0.17), night);
+          c = mix(c, cc, cv * 0.85);
+          // (the stars, by night, between the clouds)
+          vec2 g = floor(d.xz / (d.y + 0.3) * 260.0); float st = step(0.9975, h2(g)) * night * (1.0 - cv) * smoothstep(0.05, 0.3, d.y);
+          c += vec3(st * (0.6 + 0.4 * sin(time * 2.0 + h2(g + 3.0) * 40.0)));
+        } else c = hor;
+        gl_FragColor = vec4(c, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+  V3.skyDome = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), m); V3.skyDome.frustumCulled = false; V3.skyDome.renderOrder = -10;
+  V3.scene.add(V3.skyDome); V3.scene.background = null; V3.sunV = new THREE.Vector3(-1, 1.41, -1).normalize();
+}
+// a linear colour as the screen shows it: × the exposure, ACES (Three's fit) and sRGB
+function v3Screened(c, out) {
+  const k = V3.r.toneMappingExposure / 0.6, x = c.r * k, y = c.g * k, z = c.b * k;
+  const i = [0.59719 * x + 0.35458 * y + 0.04823 * z, 0.076 * x + 0.90834 * y + 0.01566 * z, 0.0284 * x + 0.13383 * y + 0.83777 * z].map(v => (v * (v + 0.0245786) - 0.000090537) / (v * (0.983729 * v + 0.432951) + 0.238081));
+  const o = [1.60475 * i[0] - 0.53108 * i[1] - 0.07367 * i[2], -0.10208 * i[0] + 1.10813 * i[1] - 0.00605 * i[2], -0.00327 * i[0] - 0.07276 * i[1] + 1.07602 * i[2]];
+  const s = v => { v = Math.max(0, Math.min(1, v)); return v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; };
+  return out.setRGB(s(o[0]), s(o[1]), s(o[2]));
+}
+function v3Sky(d) {
+  if (!V3.skyDome) v3SkyInit();
+  sunTick(); // (the flat map turns its sun in its own frame — not drawn now)
+  const k = V3.nightK || 0, u = V3.skyU, C = v3Tmp.skyC || (v3Tmp.skyC = Object.fromEntries(Object.entries(V3_SKY_COL).map(([a, b]) => [a, new THREE.Color(b)])));
+  // (the sun's way: SUN's shadow per unit of height, turned to where the light comes from; noon as before, 45° up, lower to its ends)
+  const L = Math.hypot(SUN.x, SUN.y) || 1, rel = L / 1.6, el = Math.atan(1 / rel), hx = -SUN.x / L, hy = -SUN.y / L;
+  V3.sunV.set(hx * Math.cos(el), Math.sin(el), hy * Math.cos(el));
+  // (the golden hour: the lower the sun the more — and it lasts into the dusk: the dark takes the sky's top first, the horizon last)
+  const low = Math.min(1, Math.max(0, (rel - 1) / 1.4)), gold = Math.pow(low, 1.1) * (1 - k * k * 0.8);
+  u.sunDir.value.copy(V3.sunV); u.night.value = k; u.gold.value = gold;
+  u.zen.value.copy(C.zen).lerp(C.pink, gold * 0.25).lerp(C.nzen, Math.min(1, k * 1.3)); u.hor.value.copy(C.hor).lerp(C.gold, gold * 0.75).lerp(C.nhor, k * k);
+  u.sunCol.value.set('#fff2dc').lerp(v3Tmp.sunG || (v3Tmp.sunG = new THREE.Color(V3_SUN_GOLD)), gold);
+  V3.gold = gold;
+  // (the plain round the map: the meadow's own grass, once it's loaded — a flat colour was a green sheet to the horizon)
+  if (!V3.skirtTex && V3U.v3Tg.value && V3U.v3Tg.value.image) {
+    const tx = V3.skirtTex = V3U.v3Tg.value.clone(); tx.needsUpdate = true; tx.repeat.set(s.W * 8 / V3_GND.grass, s.H * 8 / V3_GND.grass);
+    const m = V3.skirt.material; m.map = tx; m.color.setRGB(...V3_SKIRT); m.needsUpdate = true;
+  }
+  if (V3.farHills) V3.farHills.material.color.set(V3_FAR_COL).lerp(u.hor.value, 0.62 + 0.25 * k);
+  V3.skyDome.position.copy(V3.cam.position); V3.skyDome.scale.setScalar(V3.cam.far * 0.8);
+  // (the haze: the horizon's colour, from a little past the middle of the view)
+  // (Three mixes the fog in after the tone mapping and the sRGB: its colour given as the horizon's comes out on the screen)
+  const f = V3.scene.fog; v3Screened(u.hor.value, f.color); f.near = d * V3_HAZE; f.far = d * 2.6 + 900;
+}
 // ---- the screen ↔ the world ----
 // a point of the stage → the world: along the ray from the camera to where it first goes under the hills (steps,
 // then halving); past the map, the plain
+// ---- the camera's turn and tilt (V3.yaw: 0 = looking north, as the flat map; V3.pitch: down from level, V3_TILT_MIN..V3_TILT_MAX):
+// a middle-button drag turns (across) and tilts (up and down), Ctrl + the arrows too, Home — back to north and V3_PITCH ----
+const V3_TILT_MIN = 16 * Math.PI / 180, V3_TILT_MAX = 82 * Math.PI / 180, V3_TURN_PX = 0.006, V3_TILT_PX = 0.004;
+V3.yaw = 0; V3.pitch = V3_PITCH;
+function v3Orbit(dx, dy) {
+  V3.yaw = (V3.yaw - dx * V3_TURN_PX) % (2 * Math.PI);
+  V3.pitch = Math.max(V3_TILT_MIN, Math.min(V3_TILT_MAX, V3.pitch + dy * V3_TILT_PX));
+}
+function v3OrbitReset() { V3.yaw = 0; V3.pitch = V3_PITCH; }
 function v3World(px, py) {
   const w = V3.w || 1, h = V3.h || 1, C = V3.cam;
   const o = C.position, d = new THREE.Vector3(px / w * 2 - 1, -(py / h * 2 - 1), 0.5).unproject(C).sub(o).normalize();
@@ -135,7 +219,32 @@ function v3Ground() {
     V3.skirt = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), v3Shaded(new THREE.MeshLambertMaterial({ color: '#5d6e45' })));
     V3.skirt.rotation.x = -Math.PI / 2; V3.skirt.position.y = -2; V3.skirt.receiveShadow = true; V3.scene.add(V3.skirt);
   }
-  V3.skirt.scale.set(s.W * 8, s.H * 8, 1); V3.skirt.position.x = s.W / 2; V3.skirt.position.z = s.H / 2;
+  V3.skirt.scale.set(s.W * 8, s.H * 8, 1); V3.skirt.position.x = s.W / 2; V3.skirt.position.z = s.H / 2; V3.skirtTex = null;
+  v3FarHills();
+}
+// ---- hills far round the map (only to look at, never reached): a ring of ridges, V3_FAR_HILLS — from the edge (in),
+// its crest (mid) and out — of the bigger side; heights h0..h1 world units; in the haze; else the plain met the sky in a ruler's line ----
+const V3_FAR_HILLS = { in: 0.45, mid: 1.0, out: 1.7, h0: 200, h1: 950, n: 360 }, V3_FAR_COL = '#4f6438';
+function v3FarHills() {
+  if (V3.farHills) { V3.scene.remove(V3.farHills); V3.farHills.geometry.dispose(); }
+  const F = V3_FAR_HILLS, L = Math.max(s.W, s.H), cx = s.W / 2, cy = s.H / 2, N = F.n, rows = [[F.in, 0], [(F.in * 2 + F.mid) / 3, 0.3], [(F.in + F.mid * 2) / 3, 0.75], [F.mid, 1], [(F.mid + F.out) / 2, 0.65], [F.out, 0.2]];
+  let sd = (s.seed * 7919 + 77) % 2147483647 || 1; const rnd = () => (sd = sd * 16807 % 2147483647) / 2147483647, ph = [0, 0, 0, 0, 0].map(() => rnd() * 6.28);
+  const pos = [], idx = [];
+  for (let i = 0; i <= N; i++) {
+    const a = i / N * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+    // (from the middle to the map's edge along this way: the rectangle's half-sizes)
+    const e = Math.min(s.W / 2 / Math.max(1e-3, Math.abs(ca)), s.H / 2 / Math.max(1e-3, Math.abs(sa)));
+    const w = 0.5 + 0.22 * Math.sin(a * 3 + ph[0]) + 0.14 * Math.sin(a * 8 + ph[1]) + 0.08 * Math.sin(a * 19 + ph[2]) + 0.05 * Math.sin(a * 37 + ph[3]) + 0.03 * Math.sin(a * 71 + ph[4]);
+    const hk = F.h0 + (F.h1 - F.h0) * Math.max(0, Math.min(1, w)) ** 1.6;
+    for (const [r, k] of rows) { const d = e + r * L; pos.push(cx + ca * d, -2 + k * hk, cy + sa * d); }
+  }
+  const R = rows.length;
+  for (let i = 0; i < N; i++) for (let j = 0; j < R - 1; j++) { const a = i * R + j, b = a + R; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  // (its own haze, not the scene's: far past the haze's end, it would be a band of the horizon's colour — a hill half
+  // gone into the air reads as far away; v3Sky mixes it each frame)
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: '#56683e', fog: false })); m.receiveShadow = false;
+  V3.scene.add(m); V3.farHills = m;
 }
 // the whole map's picture, as the flat map paints its tiles — without the hills' painted light and shade and the
 // contour lines (the real sun does the light now)
@@ -469,12 +578,21 @@ function v3Run(u, hd) {
 // (len: its length, if not by its kind's size — a building; rise: of its height — a building going up)
 // (pose: a soldier's walking pose, v3Walk — its length then by V3_MAN, its height)
 // (kick: 0..1, how far the gun is kicked back — just fired)
-function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, rise = 1, pose = null, kick = 0) {
+function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, rise = 1, pose = null, kick = 0, door = 0) {
   const D = MODELS[type], L = len || (D.poses ? V3_MAN / D.size[1] : (SIZE[type] || 10) * (V3_LEN[type] || 1.6)), H = v3Model(type, pose || 'hull', side);
   v3Put(H, v3Lay(x, y, hd, lift, L, L, 0, 0, m, L * rise), tint);
+  if (D.parts.door) { // (a workshop's roller door: rolled up toward its top by `door`, 0..1)
+    const g = v3Geo(type, 'door', side); if (!g.boundingBox) g.computeBoundingBox();
+    const top = g.boundingBox.max.y, k = Math.min(0.97, door), dm = v3Tmp.dm || (v3Tmp.dm = new THREE.Matrix4()), dm2 = v3Tmp.dm2 || (v3Tmp.dm2 = new THREE.Matrix4());
+    dm.makeScale(1, 1 - k, 1).setPosition(0, top * k, 0); v3Put(v3Model(type, 'door', side), dm2.multiplyMatrices(m, dm), tint);
+  }
+  if (D.parts.fan0) v3Put(v3Model(type, 'fan' + (tint && tint.r < 1 ? 0 : Math.floor(performance.now() / 1000 * V3_FAN + x * 0.37) & 3), side), m, tint); // (roof fans: a turn a frame — still on a site, a ruin, a memory)
   if (D.lights && V3.nightK > 0.02 && !(tint && tint.g >= 0) && !pose) { // (at night: its lamps lit — where they are now)
     const lv = v3Tmp.lv || (v3Tmp.lv = new THREE.Vector3()), A = V3.lamps;
-    for (const l of D.lights) { lv.set(l[0], l[1], l[2]).applyMatrix4(m); A.push(lv.x, lv.y, lv.z, V3_LAMP_K.indexOf(l[3])); }
+    for (const l of D.lights) {
+      if (l[3] === 'y') { const h = Math.sin(l[0] * 91.7 + l[2] * 37.3 + x * 0.13 + y * 0.07) * 4375.85; if (h - Math.floor(h) > V3.nightK * 1.4) continue; } // (the windows: lit one by one as it gets dark)
+      lv.set(l[0], l[1], l[2]).applyMatrix4(m); A.push(lv.x, lv.y, lv.z, V3_LAMP_K.indexOf(l[3]));
+    }
   }
   const K = D.track;
   if (K) ['L', 'R'].forEach((k, i) => { const r = run ? run[i] / (K.cycle * L) : 0, f = Math.floor((r - Math.floor(r)) * K.frames) % K.frames; v3Put(v3Model(type, 'track' + k + f, 'track'), m, tint); });
@@ -484,7 +602,7 @@ function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, 
   t.yaw.setFromAxisAngle(t.up, -aim); if (lift) t.q.multiply(t.yaw.setFromAxisAngle(t.up, hd - aim)); else t.q.setFromUnitVectors(t.up, t.n).multiply(t.yaw); // (a rotor: on its body, tilted with it — it stood on the slope of the ground below)
   if (kick) { t.off.set(-kick * V3_KICK * L, 0, 0).applyQuaternion(t.q); t.p.add(t.off); } // (the gun kicked back as it fires)
   v3Put(T, m.compose(t.p, t.q, t.sc.set(L, L, L)), tint);
-  if (lift && !(tint && tint.g >= 0)) v3Blur(type, m, L); // (a rotor turning: a faint disc where its blades sweep)
+  if (lift && !(tint && tint.g >= 0) && Sim.TYPES[type] && Sim.TYPES[type].air) v3Blur(type, m, L); // (a rotor turning: a faint disc where its blades sweep)
 }
 // a helicopter's rotor disc: the round its blades sweep (their reach and height from the rotor's own shape), faint
 function v3Blur(type, m, L) {
@@ -626,6 +744,8 @@ function v3Pads(pads) {
   }
   V3.padTouched = touched; P.needsUpdate = true; G.geometry.computeVertexNormals();
 }
+// (buildings alive: a radar dish's turn, rad/s; a roller door — up, open, down, s; roof fans — turns of a quarter a second)
+const V3_DISH = 0.9, V3_DOOR = { up: 1.2, open: 3.5, down: 2.0 }, V3_FAN = 14;
 function v3Nodes(rings) {
   if (!V3.blocks) {
     V3.blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }), 800);
@@ -643,7 +763,8 @@ function v3Nodes(rings) {
   }
   const m = v3Tmp.m, o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), tint = v3Tmp.tint || (v3Tmp.tint = new THREE.Color());
   let nb = 0, np = 0, nr = 0; const pads = [];
-  const put = (kind, col, x, y, R, px, k, side, grow = 1) => {
+  const now = performance.now() / 1000, doors = V3.doors || (V3.doors = new Map());
+  const put = (kind, col, x, y, R, px, k, side, grow = 1, n = null) => {
     // (a model of it, if there is one — art/models/b_<kind>.glb: facing the enemy, going up as it's built)
     // (level, between the middle height of its corners and the highest — a little into the slope above — on a plinth down to the lowest:
     // tilted with the ground it leaned, and at the highest corner it stood on a tower)
@@ -653,7 +774,14 @@ function v3Nodes(rings) {
       // into the slope on the high side, a bank on the low one — v3Pads; it stood on a tall mound to its highest corner)
       const hs = [g(-L / 2, -W / 2), g(L / 2, -W / 2), g(-L / 2, W / 2), g(L / 2, W / 2), g(0, 0)], base = (Math.min(...hs) + Math.max(...hs)) / 2;
       pads.push([x, y, L, W, base]);
-      v3PutModel('b_' + kind, side || 'none', x, y, side === 'red' ? Math.PI : 0, 0, m, k < 1 ? tint.setScalar(Math.max(0.35, k)) : null, null, base - hs[4] + 0.01, L, Math.max(0.12, grow));
+      // (alive: a radar dish turns, a workshop's door rolls up as a unit comes out — n.prog falls back — and down again)
+      const hd = side === 'red' ? Math.PI : 0, live = k >= 1 && grow >= 1, aim = live ? hd - now * V3_DISH - x * 0.01 : 0;
+      let door = 0;
+      if (n && live && MODELS['b_' + kind].parts.door) {
+        const d = doors.get(n.id) || { p: n.prog || 0, at: -99 }; if ((n.prog || 0) < d.p - 0.3) d.at = now; d.p = n.prog || 0; doors.set(n.id, d);
+        const t = now - d.at, F = V3_DOOR; door = t < F.up ? t / F.up : t < F.up + F.open ? 1 : Math.max(0, 1 - (t - F.up - F.open) / F.down);
+      }
+      v3PutModel('b_' + kind, side || 'none', x, y, hd, aim, m, k < 1 ? tint.setScalar(Math.max(0.35, k)) : null, null, base - hs[4] + 0.01, L, Math.max(0.12, grow), null, 0, door * door * (3 - 2 * door));
       return;
     }
     const P = v3Building(kind, col, px);
@@ -673,7 +801,7 @@ function v3Nodes(rings) {
     const S = Sim.STRUCTS[n.kind], on = s.t >= n.ready, site = Number.isFinite(n.work) && !on;
     const grow = on || (n.kind === 'hq' && !site) ? 1 : site ? Math.min(1, n.work / Math.max(0.01, n.need)) : Math.max(0, Math.min(1, (s.t - n.t0) / Math.max(0.01, n.ready - n.t0)));
     const hurt = n.hp / S.hp; // (badly hurt: darker — burnt)
-    put(n.kind, col, n.x, n.y, S.r, pxOf(n.kind), on ? (hurt < V3_HURT ? V3_BURNT + (1 - V3_BURNT) * hurt / V3_HURT : 1) : V3_SITE + (1 - V3_SITE) * grow, n.side, grow);
+    put(n.kind, col, n.x, n.y, S.r, pxOf(n.kind), on ? (hurt < V3_HURT ? V3_BURNT + (1 - V3_BURNT) * hurt / V3_HURT : 1) : V3_SITE + (1 - V3_SITE) * grow, n.side, grow, n);
     if (selNode === n.id) rings.push({ x: n.x, y: n.y, r: S.r + 10 });
   }
   // (the ruins of buildings destroyed: the model, dark and low — unless a new one stands on it)
@@ -1055,12 +1183,83 @@ function v3Scenery() {
   }
   // (cleared or run over since: scenKill; woods cut: s.ground.cut — their squares made again)
   const sq = (x, y) => Math.floor(x / V3_CHUNK) + ',' + Math.floor(y / V3_CHUNK);
-  if (scen.dead && scen.of === decor) for (; sc.dead < scen.dead.length; sc.dead++) { const it = scen.dead[sc.dead]; sc.todo.add(sq(it.x, it.y)); }
-  const G = s.ground; if (G) for (; sc.cut < G.cut.length; sc.cut++) { const k = G.cut[sc.cut]; sc.todo.add(sq((k % G.w + 0.5) * G.C, (Math.floor(k / G.w) + 0.5) * G.C)); }
+  if (scen.dead && scen.of === decor) for (; sc.dead < scen.dead.length; sc.dead++) {
+    const it = scen.dead[sc.dead]; sc.todo.add(sq(it.x, it.y));
+    if (it.t === 'tree' && !gfxLow) { const L = V3_SCEN.tree; v3FallStart(L[it.v % L.length], it.x, it.y, (it.v % 628) / 100, it.s * V3_SCEN_K.tree); } // (it falls: v3Falling)
+  }
+  const G = s.ground; if (G) for (; sc.cut < G.cut.length; sc.cut++) {
+    const k = G.cut[sc.cut]; sc.todo.add(sq((k % G.w + 0.5) * G.C, (Math.floor(k / G.w) + 0.5) * G.C));
+    if (!gfxLow) for (let q = 0; q < GRD_TREES; q++) { const C = G.C, i = k % G.w, j = Math.floor(k / G.w), w = GRD_TREE[0] + grdRand(k, 12 + q) * (GRD_TREE[1] - GRD_TREE[0]); v3FallStart(V3_SCEN.tree[Math.floor(grdRand(k, 16 + q) * V3_SCEN.tree.length)], i * C + grdRand(k, 4 + q) * C, j * C + grdRand(k, 8 + q) * C, grdRand(k, 20 + q) * 6.28, w * V3_SCEN_K.tree); }
+  }
   // (the ones nearest the camera first; at most a few ms a frame)
   if (!sc.todo.size) return;
   const t0 = performance.now(), near = [...sc.todo].map(k => { const [i, j] = k.split(',').map(Number); return [k, Math.hypot((i + 0.5) * V3_CHUNK - cam.x, (j + 0.5) * V3_CHUNK - cam.y)]; }).sort((a, b) => a[1] - b[1]);
   for (const [k] of near) { v3ScenChunk(k); sc.todo.delete(k); if (performance.now() - t0 > 6) break; }
+}
+// ---- craters (V3_CRATER): where shells, rockets and blasts landed (s.fx, not in the air, from size min), a bowl in the
+// ground — a raised rim of fresh earth, dark and burnt inside — that stays (the oldest go past max). Lying on the
+// ground: the bowl is in its normals (the inner slope away from the sun dark), the rim really up; see-through at the edge ----
+const V3_CRATER = { min: 18, k: 0.36, max: 220, rimH: 0.16 };
+function v3CraterGeo() {
+  const R = [0, 0.3, 0.55, 0.75, 0.9, 1.0, 1.1, 1.25, 1.45, 1.7], N = 24, pos = [], nrm = [], col = [], idx = [];
+  const prof = r => (r < 0.95 ? -0.38 * (1 - (r / 0.95) ** 2) : 0) + V3_CRATER.rimH * Math.exp(-(((r - 1.05) / 0.2) ** 2));
+  const cols = r => r < 0.6 ? [0.016, 0.012, 0.009, 0.92] : r < 0.95 ? [0.035, 0.026, 0.018, 0.9] : r < 1.3 ? [0.12, 0.088, 0.056, 0.85] : [0.1, 0.078, 0.05, Math.max(0, 1 - (r - 1.3) / 0.4) * 0.55]; // (linear: burnt black inside, fresh brown earth on the rim)
+  for (let i = 0; i < N; i++) {
+    const a = i / N * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), wob = 1 + 0.08 * Math.sin(a * 3 + 1) + 0.05 * Math.sin(a * 7);
+    for (const r0 of R) {
+      const r = r0 * wob, dp = (prof(r + 0.01) - prof(r - 0.01)) / 0.02; // (the slope, for the light)
+      pos.push(ca * r, Math.max(0, prof(r)) + 0.02, sa * r);
+      const n = new THREE.Vector3(-dp * ca, 1, -dp * sa).normalize(); nrm.push(n.x, n.y, n.z); col.push(...cols(r0));
+    }
+  }
+  const M = R.length;
+  for (let i = 0; i < N; i++) { const i2 = (i + 1) % N; for (let j = 0; j < M - 1; j++) { const a = i * M + j, b = i2 * M + j; idx.push(a, b, a + 1, b, b + 1, a + 1); } }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4)); g.setIndex(idx);
+  return g;
+}
+function v3Craters() {
+  if (!V3.crater) {
+    const m = v3Shaded(new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    V3.crater = new THREE.InstancedMesh(v3CraterGeo(), m, V3_CRATER.max); V3.crater.receiveShadow = true; V3.crater.frustumCulled = false; V3.crater.renderOrder = 1; V3.scene.add(V3.crater);
+    V3.craters = []; V3.craterOf = null;
+  }
+  if (V3.craterOf !== s) { V3.craters = []; V3.craterOf = s; V3.craterN = -1; }
+  const L = V3.craters;
+  for (const f of s.fx) if (!f.v3cr && !(f.wait > 0)) { f.v3cr = true; if (f.size >= V3_CRATER.min && !f.air && !Sim.lakeAt(s, f)) { if (L.length >= V3_CRATER.max) L.shift(); L.push({ x: f.x, y: f.y, r: f.size * V3_CRATER.k, a: Math.random() * 6.28 }); V3.craterN = -1; } }
+  if (V3.craterN === L.length) return; V3.craterN = L.length; // (laid again only when one is added)
+  const C = V3.crater, o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), up = v3Tmp.up || (v3Tmp.up = new THREE.Vector3(0, 1, 0)), n = v3Tmp.cn || (v3Tmp.cn = new THREE.Vector3()), q = v3Tmp.cq || (v3Tmp.cq = new THREE.Quaternion());
+  L.forEach((c, i) => {
+    const e = 3, hx = v3E(c.x + e, c.y) - v3E(c.x - e, c.y), hy = v3E(c.x, c.y + e) - v3E(c.x, c.y - e);
+    n.set(-hx, 2 * e, -hy).normalize(); q.setFromUnitVectors(up, n);
+    o.position.set(c.x, v3E(c.x, c.y), c.y); o.quaternion.copy(q); o.rotateY(c.a); o.scale.set(c.r, c.r, c.r); o.updateMatrix(); C.setMatrixAt(i, o.matrix);
+  });
+  C.count = L.length; C.instanceMatrix.needsUpdate = true;
+}
+// ---- trees that fall (V3_FALL_T): crushed by a tank or cleared for a building (scenKill) or a wood cut (s.ground.cut)
+// — the tree topples away from what pushed it, bounces once, lies a while and sinks into the ground ----
+const V3_FALL_T = { fall: 1.1, lie: 6, sink: 2.5, max: 40 };
+function v3FallStart(model, x, y, a, w) {
+  if (!V3.falling) V3.falling = [];
+  if (V3.falling.length >= V3_FALL_T.max || !model.startsWith('tree')) return;
+  // (away from the nearest tank or bulldozer — what's pushing it; else any way)
+  let best = null, bd = 80 * 80; for (const u of s.units) if (u.type === 'tank' || u.type === 'dozer') { const d = (u.x - x) ** 2 + (u.y - y) ** 2; if (d < bd) { bd = d; best = u; } }
+  const dir = best ? Math.atan2(y - best.y, x - best.x) : Math.random() * 6.28;
+  const m = new THREE.Mesh(v3CardGeo(model), v3CardMat()); m.customDepthMaterial = V3.cardDepth; m.castShadow = m.receiveShadow = true;
+  const tall = Math.min(V3_TREE_H, V3_TREE_MAX / MODELS[model].size[1]); V3.scene.add(m);
+  V3.falling.push({ m, x, y, a, w, tall, dir, t0: performance.now() / 1000 });
+}
+function v3Falling() {
+  const L = V3.falling; if (!L || !L.length) return;
+  const now = performance.now() / 1000, F = V3_FALL_T, ax = v3Tmp.fax || (v3Tmp.fax = new THREE.Vector3()), q = v3Tmp.fq || (v3Tmp.fq = new THREE.Quaternion()), qy = v3Tmp.fqy || (v3Tmp.fqy = new THREE.Quaternion()), Y = v3Tmp.fy || (v3Tmp.fy = new THREE.Vector3(0, 1, 0));
+  for (let i = L.length - 1; i >= 0; i--) {
+    const f = L[i], t = now - f.t0;
+    if (t > F.fall + F.lie + F.sink || V3.of !== decor) { V3.scene.remove(f.m); L.splice(i, 1); continue; }
+    // (falling faster as it goes — as a tree does — then a small bounce; lying a little short of flat)
+    const k = Math.min(1, t / F.fall), ang = t < F.fall ? k * k * 1.45 : 1.45 - 0.12 * Math.max(0, Math.sin((t - F.fall) * 9)) * Math.exp(-(t - F.fall) * 5);
+    ax.set(Math.sin(f.dir), 0, -Math.cos(f.dir)); q.setFromAxisAngle(ax, -ang); qy.setFromAxisAngle(Y, f.a);
+    const sink = Math.max(0, t - F.fall - F.lie) / F.sink;
+    f.m.position.set(f.x, v3Gnd(f.x, f.y) - sink * f.w * 0.5, f.y); f.m.quaternion.copy(q).multiply(qy); f.m.scale.set(f.w, f.w * f.tall, f.w);
+  }
 }
 // ---- dug in (Sim digTick; the flat map's drawTrenches): a ring of earth round a soldier, open at his back; a longer
 // one round a tank's front and sides — rising as it's dug, staying where it was (s.trenches), the enemy's where seen ----
@@ -1340,7 +1539,7 @@ function v3Shade() {
   V3.sun.intensity = V3_SUN * Math.PI * (1 - 0.62 * k); V3.sky.intensity = V3_SKY * Math.PI * (1 - 0.45 * k);
   // (the moon: by night the sun's light a cool blue, and the sky's — the shapes and their shadows still there, not just dark)
   const mc = v3Tmp.moon || (v3Tmp.moon = [new THREE.Color('#ffeacc'), new THREE.Color(V3_MOON), new THREE.Color('#c4d8f0'), new THREE.Color('#7f93c4')]);
-  V3.sun.color.copy(mc[0]).lerp(mc[1], k); V3.sky.color.copy(mc[2]).lerp(mc[3], k);
+  V3.sun.color.copy(mc[0]).lerp(v3Tmp.sunG || mc[0], (V3.gold || 0) * 0.75).lerp(mc[1], k); V3.sky.color.copy(mc[2]).lerp(mc[1], (V3.gold || 0) * 0.15).lerp(mc[3], k);
   // (the fog: its colour and how thick, fading in at the start as on the flat map)
   const fc = V3U.v3FogCol.value;
   if (s.fog) { const m = colors.fog.match(/[\d.]+/g) || [0, 0, 0, 0.5]; fc.set(m[0] / 255, m[1] / 255, m[2] / 255, (m[3] !== undefined ? +m[3] : 1) * (s.fogAt ? Math.min(1, (s.t - s.fogAt) / 3) : 1)); }
@@ -1429,10 +1628,11 @@ function v3Tufts(vw) {
   const T = V3.tufts, k = 1 - Math.max(0, Math.min(1, (vw - V3_TUFT.vw * 0.7) / (V3_TUFT.vw * 0.3))); // (1 close in, 0 from V3_TUFT.vw)
   if (k <= 0) { T.grass.count = T.stone.count = 0; V3.tuftKey = null; return; }
   const C = V3_TUFT.cell, B = V3.box, i0 = Math.floor(B.x / C), j0 = Math.floor(B.y / C), i1 = Math.ceil((B.x + B.w) / C), j1 = Math.ceil((B.y + B.h) / C);
-  const key = [i0, j0, i1, j1, Math.round(k * 8), V3.padSig, s.nodes.length].join();
+  const key = [i0, j0, i1, j1, Math.round(k * 8), V3.padSig, s.nodes.length, V3.craters ? V3.craters.length + ':' + (V3.craters[0] || {}).x : 0].join();
   if (V3.tuftKey === key) return; V3.tuftKey = key;
   const G = V3.gmap, m = v3Tmp.tm || (v3Tmp.tm = new THREE.Matrix4()), q = v3Tmp.tq2 || (v3Tmp.tq2 = new THREE.Quaternion()), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
-  const blocks = s.nodes.filter(n => n.kind !== 'drone' && n.hp > 0).map(n => [n.x, n.y, (Sim.STRUCTS[n.kind].r * 1.3 + 8) ** 2]).concat((s.posts || []).map(o => [o.x, o.y, (Sim.POSTS[o.kind].r * 1.3 + 8) ** 2]));
+  const blocks = s.nodes.filter(n => n.kind !== 'drone' && n.hp > 0).map(n => [n.x, n.y, (Sim.STRUCTS[n.kind].r * 1.3 + 8) ** 2]).concat((s.posts || []).map(o => [o.x, o.y, (Sim.POSTS[o.kind].r * 1.3 + 8) ** 2]))
+    .concat((V3.craters || []).filter(c => c.x > B.x - 60 && c.x < B.x + B.w + 60 && c.y > B.y - 60 && c.y < B.y + B.h + 60).map(c => [c.x, c.y, (c.r * 1.2) ** 2])); // (none in a crater)
   let ng = 0, ns = 0;
   for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
     const h = v3Rnd(i * 7.13, j * 3.71), x = (i + v3Rnd(i, j)) * C, y = (j + v3Rnd(j, i)) * C;
@@ -1465,7 +1665,7 @@ function v3Tufts(vw) {
 const V3_SHADOW_M = 60, V3_SHADOW_UP = 120, V3_SHADOW_STEP = 64;
 function v3SunBox(ty, vw) {
   const sun = V3.sun, sc = sun.shadow.camera, N = sun.shadow.mapSize.x;
-  sun.target.position.set(cam.x, ty, cam.y); sun.position.set(cam.x - 1500, ty + 2100, cam.y - 1500);
+  const sv = V3.sunV; sun.target.position.set(cam.x, ty, cam.y); sun.position.set(cam.x + sv.x * 2600, ty + sv.y * 2600, cam.y + sv.z * 2600);
   sun.target.updateMatrixWorld(); sun.updateMatrixWorld(); sc.position.copy(sun.position); sc.lookAt(sun.target.position); sc.updateMatrixWorld();
   const inv = sc.matrixWorldInverse, v = v3Tmp.sv || (v3Tmp.sv = new THREE.Vector3()), w = V3.w || 1, h = V3.h || 1;
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -1489,15 +1689,14 @@ function v3Draw() {
   if (V3.w !== w || V3.h !== h) { V3.w = w; V3.h = h; r.setSize(w, h, false); V3.cam.aspect = w / h; V3.cam.updateProjectionMatrix(); }
   // (the camera: over cam, as far off as shows the flat map's width at its middle)
   const vw = fit.w / view.css, d = Math.max(60, vw / (2 * Math.tan(V3_FOV * Math.PI / 360) * V3.cam.aspect));
-  const ty = v3E(cam.x, cam.y);
-  V3.cam.position.set(cam.x, ty + d * Math.sin(V3_PITCH), cam.y + d * Math.cos(V3_PITCH)); V3.cam.lookAt(cam.x, ty, cam.y);
-  V3.cam.near = Math.max(2, d * 0.2); V3.cam.far = d * 6 + 4000; V3.cam.updateProjectionMatrix(); V3.cam.updateMatrixWorld(); // (the near plane well out: the depth exact enough for the AO, post3d.js)
-  V3.scene.fog.near = d * 1.6; V3.scene.fog.far = d * 5 + 2000;
-  v3SunBox(ty, vw);
+  const ty = v3E(cam.x, cam.y), P = V3.pitch, Y = V3.yaw;
+  V3.cam.position.set(cam.x + d * Math.cos(P) * Math.sin(Y), ty + d * Math.sin(P), cam.y + d * Math.cos(P) * Math.cos(Y)); V3.cam.lookAt(cam.x, ty, cam.y);
+  V3.cam.near = Math.max(2, d * 0.2); V3.cam.far = d * 6 + 4000 + Math.max(s.W, s.H) * (V3.pitch < 0.6 ? 2.6 : 0); // (low: out to the far hills) V3.cam.updateProjectionMatrix(); V3.cam.updateMatrixWorld(); // (the near plane well out: the depth exact enough for the AO, post3d.js)
+  v3Sky(d); v3SunBox(ty, vw);
   sceneryTick(); groundTick(); // (as the flat map's frame: what's cleared, run over, cut)
   for (const P of V3.pics.values()) P.n = 0;
   V3.lamps = [];
-  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Water(); v3Trenches(); v3Tufts(vw); v3Shade(); v3Deco();
+  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Falling(); v3Craters(); v3Water(); v3Trenches(); v3Tufts(vw); v3Shade(); v3Deco();
   for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; P.mesh.instanceColor.needsUpdate = true; }
   if (v3PostWant()) v3PostRender(V3.scene, V3.cam, d); else r.render(V3.scene, V3.cam); // (post3d.js: AO, glow, grade)
   v3Info();
@@ -1511,7 +1710,9 @@ function v3Info() {
   const scr = (x, y, h) => { P.set(x, v3E(x, y) + h, y).project(V3.cam); return [(P.x + 1) / 2 * W, (1 - P.y) / 2 * H, P.z]; };
   const put = (x, y, h) => {
     const a = scr(x, y, h); if (a[2] > 1 || a[0] < -60 || a[0] > W + 60 || a[1] < -60 || a[1] > H + 60) return false;
-    const b = scr(x + 10, y, h), k = Math.hypot(b[0] - a[0], b[1] - a[1]) / 10; V3.infoK = k; // (label: its size on screen from it)
+    // (the scale: of the ground along the screen's up — what the flat map's offsets up and down are drawn along; across
+    // it, the ground shows bigger — at a low tilt the marks floated far over what they're for)
+    const b = scr(x + Math.sin(V3.yaw) * 10, y + Math.cos(V3.yaw) * 10, h), k = Math.hypot(b[0] - a[0], b[1] - a[1]) / 10; V3.infoK = k; // (label: its size on screen from it)
     c.setTransform(k * dpr, 0, 0, k * dpr, (a[0] - x * k) * dpr, (a[1] - y * k) * dpr); return true;
   };
   c.save(); c.textAlign = 'center';

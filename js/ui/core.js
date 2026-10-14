@@ -106,7 +106,11 @@ function zoomAt(px, py, f) {
   cam.x += wx - (px - view.cox) / view.css; cam.y += wy - (py - view.coy) / view.css; applyView();
 }
 // (the 3D view: zoom on the middle of the screen, and a pan up / down goes farther — the ground is seen slanting)
-const panBy = (dx, dy) => { if (V3.on) dy /= Math.sin(V3_PITCH); cam.x -= dx / view.css; cam.y -= dy / view.css; applyView(); };
+// (turned: the screen's right and down along the camera's turn, V3.yaw)
+const panBy = (dx, dy) => {
+  if (V3.on) { dy /= Math.sin(V3.pitch); const c = Math.cos(V3.yaw), n = Math.sin(V3.yaw); [dx, dy] = [dx * c + dy * n, dy * c - dx * n]; }
+  cam.x -= dx / view.css; cam.y -= dy / view.css; applyView();
+};
 // a point of the stage (px from its corner) ↔ the world (the 3D view has its own: three3d.js)
 const scrToWorld = (px, py) => V3.on ? v3World(px, py) : { x: (px - view.cox) / view.css, y: (py - view.coy) / view.css };
 const worldToScr = (x, y) => V3.on ? v3Screen(x, y) : { x: view.cox + x * view.css, y: view.coy + y * view.css };

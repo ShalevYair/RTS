@@ -19,7 +19,13 @@ GEN = 'tools/build_buildings.py'
 class B(Mesh):
     """a building's mesh, with the pieces they're made of"""
     def __init__(self, seed):
-        super().__init__(); self.r = np.random.default_rng(seed)
+        super().__init__(); self.r = np.random.default_rng(seed); self.extra = {}
+
+    def part(self, name):
+        """a moving part of its own (a node `name`: the game moves it — `turret` turns, `door` rolls up, `fan0`…`fan3`
+        are the blades at four turns, shown one a frame)"""
+        if name not in self.extra: P = B(0); P.r = self.r; self.extra[name] = P
+        return self.extra[name]
 
     def var(self, a=0.9, b=1.1): self.k = float(self.r.uniform(a, b)); return self
 
@@ -198,9 +204,17 @@ class B(Mesh):
         return self
 
     def ac(self, x, y, z):
-        """a rooftop air-conditioning unit: a grey box, a dark fan on top"""
+        """a rooftop air-conditioning unit: a grey box, a dark well on top and its fan — three blades, at four turns
+        (fan0…fan3: the game shows one a frame, so they spin)"""
         self.var(0.9, 1.05).block('metal', (x, y + 0.35, z), (1.0, 0.7, 0.8), 0.1)
-        self.k = 0.5; self.cyl('dark', (x, y + 0.72, z), 0.3, 0.04, 'y', 10); self.k = 1.0; return self
+        self.k = 0.3; self.cyl('dark', (x, y + 0.71, z), 0.36, 0.02, 'y', 12); self.k = 1.0
+        for f in range(4):
+            F = self.part('fan%d' % f); F.k = 0.75
+            for b in range(3):
+                a = f * np.pi / 6 + b * 2 * np.pi / 3
+                F.box('metal', (x + np.cos(a) * 0.17, y + 0.75, z + np.sin(a) * 0.17), (0.3, 0.02, 0.1), rot=-a)
+            F.cyl('dark', (x, y + 0.76, z), 0.06, 0.04, 'y', 6)
+        return self
 
     def ridge_tent(self, cx, cz, L, W, wall=1.6, h=3.4, panels=True, mat='canvas'):
         """a big army tent: walls, a ridge roof along x, the roof's blue panels, doors at the ends"""
@@ -261,6 +275,7 @@ class B(Mesh):
         dw = W * door; side = (W - dw) / 2
         for sv in (-1, 1): self.box('concrete', (cx + L / 2 - t / 2, h / 2, cz + sv * (dw / 2 + side / 2)), (t, h, side))
         self.box('concrete', (cx + L / 2 - t / 2, h - 0.6, cz), (t, 1.2, dw))                          # over the door
+        self.part('door').roller(cx + L / 2 - t / 2, (h - 1.2) / 2 + 0.05, cz, dw - 0.05, h - 1.2 - 0.1)   # (the roller door: up as a unit comes out)
         self.k = 0.35; self.box('asphalt', (cx, 0.14, cz), (L - t, 0.04, W - t))                        # the floor inside
         self.k = 0.25; self.box('dark', (cx - L / 2 + t + 0.02, h / 2, cz), (0.04, h - 0.2, W - 2 * t))  # dark inside
         self.k = 1.0
@@ -345,7 +360,7 @@ def b_aapost(seed=5):
         M.block('olive', (5.0, 1.2, 3.5), (1.2, 0.8, 1.3), 0.1)
         for sz in (-0.25, 0.25): M.cyl('dark', (5.8, 1.9, 3.5 + sz), 0.07, 2.2, 'x', 6, tilt=0.7)
         M.crates(4.5, -6.5, 2, 1, 2, 0.8)
-        M.k = 1.0; M.cyl('white', (-6.5, 2.4, -5.5), 0.7, 0.15, 'x', 14, r2=0.15, tilt=0.7)       # a radar dish
+        D = M.part('turret'); D.k = 1.0; D.cyl('white', (-6.5, 2.4, -5.5), 0.7, 0.15, 'x', 14, r2=0.15, tilt=0.7)  # a radar dish (turning)
         M.strut('metal', np.array((-6.5, 0, -5.5)), np.array((-6.5, 2.3, -5.5)), 0.08)
     return tent_base(seed, x)
 
@@ -671,8 +686,9 @@ def b_radar(seed=26):
     M.pad(L, L, 'concrete', 0.08); M.sandbags(0, 0, 4.2, 22, 2)
     lattice_tower(M, 0, 0, 9.0, 1.6, 0.8)
     M.k = 1.0; M.box('metal', (0, 9.1, 0), (2.4, 0.3, 2.4))
-    M.cyl('white', (0.3, 11.0, 0), 3.0, 0.6, 'x', 20, r2=0.6, tilt=0.15)                         # the dish
-    M.strut('metal', np.array((0, 9.2, 0)), np.array((0.3, 10.8, 0)), 0.15)
+    D = M.part('turret'); D.k = 1.0
+    D.cyl('white', (0.3, 11.0, 0), 3.0, 0.6, 'x', 20, r2=0.6, tilt=0.15)                         # the dish (turning)
+    D.strut('metal', np.array((0, 9.2, 0)), np.array((0.3, 10.8, 0)), 0.15)
     hut(M, -5.5, 5.0, 4.0, 3.0, 2.6)
     return [('hull', M, None)]
 
@@ -779,6 +795,6 @@ KINDS = {'b_hq': b_hq, 'b_decoy': lambda: b_hq(1), 'b_fhq': b_fhq, 'b_tent': b_t
 if __name__ == '__main__':
     for k in (['b_' + a.removeprefix('b_') for a in sys.argv[1:]] or KINDS):
         parts = KINDS[k]()
-        for _, M, _ in parts:
-            if isinstance(M, B): M.finish()
+        for _, M, _ in list(parts):
+            if isinstance(M, B): M.finish(); parts += [(n, P, None) for n, P in M.extra.items()]  # (its moving parts: nodes of their own)
         write(k, parts, GEN)

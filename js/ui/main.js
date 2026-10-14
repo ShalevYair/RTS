@@ -54,6 +54,36 @@ function frame(now) {
   if (typeof Prof !== 'undefined') Prof.frame(now, took); // (the speed recorder: prof.js, loaded after this)
   requestAnimationFrame(frame);
 }
+// ---- the battlefield's hum (Music.ambient): a few times a second, what moves on screen — weighted to the middle,
+// and louder the closer the camera — engines and tracks, rotors, jets, feet; quiet when paused or in a menu.
+// AMB_MS: how often; AMB_N: how many moving of a kind make it full (more is no louder) ----
+const AMB_MS = 120, AMB_N = { engine: 6, track: 3, rotor: 2, jet: 2, feet: 10 }, ambPos = new Map();
+let ambAt = 0;
+function ambientTick(now, vr) {
+  if (now - ambAt < AMB_MS) return; const dt = (now - ambAt) / 1000; ambAt = now;
+  if (!sfxOn || !playing || !vr || outro || !$('intro').hidden || !$('end').hidden) { Music.ambient(null); return; }
+  const cx = vr.x + vr.w / 2, cy = vr.y + vr.h / 2, R = Math.max(vr.w, vr.h) * 0.6, near = Math.max(0.25, Math.min(1, 900 / vr.w)); // (zoomed in: louder)
+  const sum = { engine: 0, track: 0, rotor: 0, jet: 0, feet: 0 }; let px = 0, pw = 0, sp = 0, sn = 0;
+  const seen = new Set();
+  for (const u of s.units) {
+    seen.add(u.id); const p = ambPos.get(u.id); ambPos.set(u.id, [u.x, u.y]);
+    if (!p || (u.side !== 'blue' && s.fog && !s.vis.blue.has(u.id))) continue;
+    const d = Math.hypot(u.x - cx, u.y - cy); if (d > R) continue;
+    const T = Sim.TYPES[u.type], v = Math.hypot(u.x - p[0], u.y - p[1]) / Math.max(0.01, dt), moving = v > 2;
+    const w = (1 - d / R) ** 1.5;
+    let k = null;
+    if (T.air) k = T.hover || u.type === 'lift' ? 'rotor' : u.type === 'drone' ? null : 'jet'; // (aircraft: heard always — they never stand)
+    else if (!moving) continue;
+    else if (u.type === 'tank' || u.type === 'dozer' || u.type === 'how' || u.type === 'mlrs') { sum.track += w; k = 'engine'; }
+    else if (CAR.has(u.type)) k = 'engine';
+    else k = 'feet';
+    if (!k) continue;
+    sum[k] += w; px += (u.x - cx) / R * w; pw += w; if (k === 'engine') { sp += Math.min(1, v / 40); sn++; }
+  }
+  for (const id of ambPos.keys()) if (!seen.has(id)) ambPos.delete(id);
+  const lv = {}; for (const k in sum) lv[k] = Math.min(1, sum[k] / AMB_N[k]) * near;
+  Music.ambient(lv, pw ? px / pw : 0, sn ? sp / sn : 0.4);
+}
 function frameBody(now) {
   cardTick(now); // (the info card: what was clicked — infocard.js)
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
@@ -72,6 +102,7 @@ function frameBody(now) {
     sh.heard = true; if (sfxOn && onScreen({ x: sh.x1, y: sh.y1 })) Music.shot(sh.kind, sh.x1 / s.W);
     fight.push(s.t); // (two sides: every shot is ours or at us)
   }
+  ambientTick(now, vr);
   // the music's mood: battle pieces once we're fighting (FIGHT_SHOTS shots in FIGHT_T s of game time),
   // calm again only after CALM_T s with none of that
   while (fight.length && fight[0] < s.t - FIGHT_T) fight.shift();
