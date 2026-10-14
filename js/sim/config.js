@@ -227,6 +227,11 @@ const REPAIR_R = 70, REPAIR_RATE = 3, REPAIR_MECH = 3, REPAIR_MAX = 8, REPAIR_QU
 // BUILD_GAP: the room kept between two buildings' footprints (the tutorial); BUILD_ROOM: in the full game, the ground
 // each building claims — a ring of BUILD_ROOM × r (its picture is 2.4r square: claimed ≈ 1.5 × the ground it covers)
 const BUILD_ROOM = 1.66, roomOf = (s, k) => (STRUCTS[k] || STRUCTS.tent).r * (s.dozers ? BUILD_ROOM : 1) + (s.dozers ? 0 : BUILD_GAP / 2);
+// (the full game: two buildings' centres at least this far apart — each one's half (BUILD_HALF × r: its picture / model
+// is 2.4r across) and, round the bigger, free ground BUILD_FREE of its size: a base, not a crowded town. The ring of
+// BUILD_ROOM left a building next to a big one only ~0.3 of its size away)
+const BUILD_HALF = 1.2, BUILD_FREE = 0.5;
+const roomPair = (s, a, b) => { if (!s.dozers) return roomOf(s, a) + roomOf(s, b); const ra = (STRUCTS[a] || STRUCTS.tent).r, rb = (STRUCTS[b] || STRUCTS.tent).r; return BUILD_HALF * (ra + rb) + BUILD_FREE * 2 * BUILD_HALF * Math.max(ra, rb); };
 const BUILD_MIN_Q = 0.5, BUILD_BASE = 2, BUILD_PER_NODE = 2, BUILD_GAP = 12, STRUCT_SIGHT = 240;
 // nothing drives through a building: ground units are kept its STRUCTS r from its centre.
 // Units keep UNIT_GAP between them. A tank that runs into enemy soldiers (FOOT) crushes them, CRUSH_DPS a second.

@@ -27,7 +27,7 @@ function hitNode(x, y, side) {
   const near = n => Math.hypot(n.x - x, n.y - y) < tapR(Sim.STRUCTS[n.kind].r + 6);
   const n = s.nodes.find(n => n.side === side && n.hp > 0 && n.kind !== 'drone' && nodeShown(n) && near(n));
   if (n || side === 'blue' || !s.fog) return n || null;
-  const m = Object.values(s.memNodes.blue).find(m => !s.visNodes.blue.has(m.id) && near(m));
+  const m = Object.values(s.memNodes.blue).find(m => !s.visNodes.blue.has(m.id) && m.kind !== 'drone' && near(m));
   return m ? { ...m, side: 'red', mem: true } : null;
 }
 // a building's line: its name, its state, and (ours) what it makes and when the next one comes out

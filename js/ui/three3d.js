@@ -117,6 +117,10 @@ function v3Ground() {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); g.setIndex(new THREE.BufferAttribute(idx, 1));
   g.computeVertexNormals();
   const tex = new THREE.CanvasTexture(v3Paint()); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = V3.r.capabilities.getMaxAnisotropy();
+  { // (a small copy of it on the CPU: where grass is, for the tufts — v3Tufts)
+    const w = 1024, h = Math.max(1, Math.round(w * s.H / s.W)), c = document.createElement('canvas'); c.width = w; c.height = h; const gc = c.getContext('2d', BG_CTX); gc.drawImage(tex.image, 0, 0, w, h);
+    V3.gmap = { w, h, d: gc.getImageData(0, 0, w, h).data }; V3.tuftKey = null;
+  }
   { // (the picture's mean light — linear, as the card sees it — what its light and dark over the textures are measured from)
     const N = 64, c = document.createElement('canvas'); c.width = c.height = N; const gc = c.getContext('2d', BG_CTX); gc.drawImage(tex.image, 0, 0, N, N);
     const d = gc.getImageData(0, 0, N, N).data, lin = v => Math.pow(v / 255, 2.2); let L = 0;
@@ -246,7 +250,7 @@ function v3CamoOf(u, c) {
 const V3_SAT = '0.8', V3_MUD = 0.16, V3_MUD_COL = [0.36, 0.3, 0.21]; // (dust low down, not dark mud: the land's dry)
 // the units' paint (UNIT3D in ground3d.js — Poly Haven's green_metal_rust, its light and dark only): s — repeats to the model's length;
 // k — how strong (cloth: the soldiers); nk — its dents; camo — how far the pattern's colours stay apart; panel — how much of the side's colour in the roof's panel
-const V3_UNITT = { s: '2.6', k: '1.0', cloth: '0.3', nk: '0.8', camo: '0.6', panel: '0.6' };
+const V3_UNITT = { s: '2.6', k: '1.0', cloth: '0.3', nk: '0.8', camo: '0.6', panel: '0.85' };
 // (aircraft: smoother paint, a little sheen — V3_GLOSS: roughness, metalness; a plane's side colour on its wingtips, past V3_TIP of its half span)
 const V3_GLOSS = [0.5, 0.3], V3_TIP = 0.7;
 function v3Paint3(clean, head, bld, fly, wing) {
@@ -517,7 +521,7 @@ function v3AirTilt(u, T) {
   (V3.airNow || (V3.airNow = [])).push({ u, st, T });
 }
 function v3Units() {
-  const m = v3Tmp.m || (v3Tmp.m = new THREE.Matrix4()), rings = []; V3.airNow = [];
+  const m = v3Tmp.m || (v3Tmp.m = new THREE.Matrix4()), rings = []; V3.airNow = []; V3.discs = [];
   // (what the player sees, as the flat map: ours where the picture is exact, theirs where seen)
   const whole = s.fog ? new Set(s.squads.filter(q => q.side === 'blue' && sqShown(q)).map(q => q.id)) : null;
   for (const u of s.units) {
@@ -540,6 +544,7 @@ function v3Units() {
       const cx = u.x + Math.cos(hd) * px - Math.sin(hd) * py, cy = u.y + Math.sin(hd) * px + Math.cos(hd) * py;
       v3Put(R, v3Lay(cx + Math.cos(aim) * R.ox - Math.sin(aim) * R.oy, cy + Math.sin(aim) * R.ox + Math.cos(aim) * R.oy, aim, 0.4, R.w, R.h, 0, 0, m));
     }
+    if (!lite) V3.discs.push(u.x, u.y, (SIZE[u.type] || 8) * (CAR.has(u.type) || T.air ? (V3_LEN[u.type] || 1.6) * V3_DISC.veh : V3_DISC.foot), u.side === 'blue' ? 0 : 1); // (its side's colour on the ground under it — v3Deco)
     if (u.side === 'blue' && isSel(u.squad) && u.type !== 'dozer') rings.push({ x: u.x, y: u.y, air: T.air, r: (SIZE[u.type] || 8) * (CAR.has(u.type) || T.air ? 0.75 : V3_FOOT * 0.9) });
   }
   // (the enemy just gone out of sight: dim where last seen, GHOST_T s — the flat map's drawGhosts)
@@ -687,7 +692,7 @@ function v3Nodes(rings) {
     }
   }
   V3.rubble.count = nr; V3.rubble.instanceMatrix.needsUpdate = true; if (V3.rubble.instanceColor) V3.rubble.instanceColor.needsUpdate = true;
-  if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { const g = s.memNodes.blue[id]; put(g.kind, colors.red, g.x, g.y, Sim.STRUCTS[g.kind].r, pxOf(g.kind), V3_MEM, 'red'); }
+  if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { const g = s.memNodes.blue[id]; if (g.kind === 'drone') continue; /* (a drone gone out of sight isn't 'remembered' where it was: it flies on — it showed as its icon, a flying saucer) */ put(g.kind, colors.red, g.x, g.y, Sim.STRUCTS[g.kind].r, pxOf(g.kind), V3_MEM, 'red'); }
   if (s.posts) for (const p of s.posts) { const R = Sim.POSTS[p.kind].r; put(p.kind, postCol(p), p.x, p.y, R, Math.round(R * 2.4), s.fog && !postSeen(p) ? V3_MEM : 1, p.side); if (selPost === p) rings.push({ x: p.x, y: p.y, r: R + 10 }); }
   v3Flags();
   v3Pads(pads); V3.blocks.count = nb; V3.blocks.instanceMatrix.needsUpdate = true; V3.plinth.count = np; V3.plinth.instanceMatrix.needsUpdate = true;
@@ -1299,6 +1304,21 @@ function v3Leafy(mat, cards) {
   if (cards) mat.defines = Object.assign(mat.defines || {}, { V3_CARDS: 1 });
   mat.customProgramCacheKey = () => 'v3leaf' + (cards ? 'c' : '') + Object.values(V3_LEAF).join(); return mat;
 }
+// ---- the night's own lights in 3D (over the flat map's, nightLights): headlights — a pool of light ahead of each
+// vehicle of ours, and of a seen enemy one (V3_HEAD_L: how far ahead, of its model's length; V3_HEAD_R: how wide; a);
+// muzzle flashes lighting what's round them for a moment (V3_FLASH_R). V3_MOON: the sun's light at full dark ----
+const V3_MOON = '#7d95d6', V3_HEAD_L = 1.6, V3_HEAD_R = 34, V3_HEAD_A = 0.75, V3_FLASH_R = 46;
+function v3NightLights() {
+  const out = [];
+  for (const u of s.units) {
+    if (!CAR.has(u.type) || Sim.TYPES[u.type].air) continue;
+    if (s.fog && !(u.side === 'blue' ? shownAt(u) : s.vis.blue.has(u.id) && shownAt(u))) continue;
+    const L = (SIZE[u.type] || 10) * (V3_LEN[u.type] || 1.6), hd = u.hd || 0;
+    for (const f of [0.75, 1.3]) out.push([u.x + Math.cos(hd) * L * V3_HEAD_L * f * 0.6, u.y + Math.sin(hd) * L * V3_HEAD_L * f * 0.6, V3_HEAD_R * (0.55 + 0.45 * f), V3_HEAD_A * (f > 1 ? 0.7 : 1)]);
+  }
+  for (const sh of s.shots) if (sh.dur + 0.12 - sh.life < 0.15) out.push([sh.x1, sh.y1, V3_FLASH_R, 0.8]);
+  return out;
+}
 function v3ShadeInit() {
   const mk = () => { const c = document.createElement('canvas'), t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; return { c, g: c.getContext('2d'), t }; };
   V3.fogP = mk(); V3.darkP = mk(); V3U.v3Fog.value = V3.fogP.t; V3U.v3Dark.value = V3.darkP.t;
@@ -1317,7 +1337,10 @@ function v3Shade() {
   const k = Sim.nightAt(s) || 0, now = performance.now(); V3.nightK = k;
   // (the night: the dark NIGHT_DARK of it, the sun and the sky down with it)
   V3U.v3Night.value = NIGHT_DARK * k; V3U.v3Lit.value = V3_GLOW * k * 0.5;
-  V3.sun.intensity = V3_SUN * Math.PI * (1 - 0.7 * k); V3.sky.intensity = V3_SKY * Math.PI * (1 - 0.45 * k);
+  V3.sun.intensity = V3_SUN * Math.PI * (1 - 0.62 * k); V3.sky.intensity = V3_SKY * Math.PI * (1 - 0.45 * k);
+  // (the moon: by night the sun's light a cool blue, and the sky's — the shapes and their shadows still there, not just dark)
+  const mc = v3Tmp.moon || (v3Tmp.moon = [new THREE.Color('#ffeacc'), new THREE.Color(V3_MOON), new THREE.Color('#c4d8f0'), new THREE.Color('#7f93c4')]);
+  V3.sun.color.copy(mc[0]).lerp(mc[1], k); V3.sky.color.copy(mc[2]).lerp(mc[3], k);
   // (the fog: its colour and how thick, fading in at the start as on the flat map)
   const fc = V3U.v3FogCol.value;
   if (s.fog) { const m = colors.fog.match(/[\d.]+/g) || [0, 0, 0, 0.5]; fc.set(m[0] / 255, m[1] / 255, m[2] / 255, (m[3] !== undefined ? +m[3] : 1) * (s.fogAt ? Math.min(1, (s.t - s.fogAt) / 3) : 1)); }
@@ -1325,7 +1348,7 @@ function v3Shade() {
   V3U.v3Size.value.set(s.W, s.H);
   if (now - (V3.shadeAt || 0) < V3_SHADE_MS) return; V3.shadeAt = now;
   if (s.fog) v3ShadePic(V3.fogP, fogHoles);
-  if (k) v3ShadePic(V3.darkP, g => { for (const [x, y, r, a] of nightLights()) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); } });
+  if (k) v3ShadePic(V3.darkP, g => { for (const [x, y, r, a] of nightLights().concat(v3NightLights())) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); } });
 }
 // ---- what the flat map draws on the ground — where we may build and the building at the cursor, the control map,
 // the enemy as we know it, the bulldozers' jobs, the roads being laid, the squads out of the exact picture, the front,
@@ -1338,6 +1361,23 @@ function v3DecoBox() {
   const y0 = Math.max(-M, Math.min(...P.map(p => p.y)) - M), y1 = Math.min(s.H + M, Math.max(...P.map(p => p.y)) + M);
   return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
 }
+// ---- each unit's side at a glance: a soft disc of its side's colour on the ground under it (as the team circles of
+// other RTS games) — the army paint and the ground are much the same colours, and from the zoom one plays at the
+// sides were hard to tell apart. V3_DISC: its radius — of its model's length (vehicles, aircraft) / of its size (soldiers); a: how strong ----
+const V3_DISC = { veh: 0.5, foot: 2.8, a: 0.42 }; // (veh: of its model's length)
+function v3Discs(g) {
+  const A = V3.discs || []; if (!A.length) return;
+  const P = V3.discPic || (V3.discPic = [colors.blue, colors.red].map(col => {
+    const N = 64, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'), r = x.createRadialGradient(N / 2, N / 2, 0, N / 2, N / 2, N / 2);
+    r.addColorStop(0, col); r.addColorStop(0.62, col); r.addColorStop(0.78, 'rgba(0,0,0,0)'); // (a disc with a soft edge; its middle under the unit anyway)
+    x.globalAlpha = 1; x.fillStyle = r; x.fillRect(0, 0, N, N);
+    x.globalCompositeOperation = 'destination-out'; const h = x.createRadialGradient(N / 2, N / 2, 0, N / 2, N / 2, N / 2); h.addColorStop(0, 'rgba(0,0,0,0.85)'); h.addColorStop(0.5, 'rgba(0,0,0,0.6)'); h.addColorStop(0.62, 'rgba(0,0,0,0)'); x.fillStyle = h; x.fillRect(0, 0, N, N); // (lighter in the middle: a ring more than a blot)
+    return c;
+  }));
+  g.globalAlpha = V3_DISC.a;
+  for (let i = 0; i < A.length; i += 4) { const r = A[i + 2]; g.drawImage(P[A[i + 3]], A[i] - r, A[i + 1] - r, r * 2, r * 2); }
+  g.globalAlpha = 1;
+}
 function v3Deco() {
   if (!V3.deco) {
     const c = document.createElement('canvas'); c.width = c.height = V3_DECO;
@@ -1348,11 +1388,98 @@ function v3Deco() {
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, V3_DECO, V3_DECO);
   g.setTransform(kx, 0, 0, ky, -B.x * kx, -B.y * ky);
   if (!lite) { drawTracks(g); drawClouds(g, V3_CLOUDS); } drawWeather(g); // (tracks in the ground, clouds' shadows, the morning fog; rain — over the screen)
+  v3Discs(g);
   if (s.fog) { if (Sim.friction(s)) drawQuality(g); drawEnemyIntel(g); drawMarks(g); }
   drawDozerJobs(g); drawBuildArea(g);
   for (const q of s.squads) if (q.side === 'blue' && !q.dead && !sqShown(q)) drawGuess(g, q, guessAt(q), isSel(q.id));
   drawFront(g); drawPicked(g); drawDesignated(g); drawAsks(g); drawPings(g);
   V3U.v3DecoBox.value.set(B.x, B.y, B.w, B.h); D.t.needsUpdate = true;
+}
+// ---- close up, the ground's small things: tufts of grass where the map is green, and pebbles where it's earth or
+// rock — set out round what's on screen, in cells of V3_TUFT.cell (each cell's the same every time: a hash of where
+// it is), not on water, under buildings or in the woods; only zoomed in (the view under V3_TUFT.vw wide), shrinking
+// to nothing as it nears that. Made again when the view has moved a cell or more ----
+const V3_TUFT = { cell: 6, vw: 1100, max: 14000, grass: 1.0, stone: 0.2, h: 4, sh: 2.0 };
+function v3TuftPic() {
+  const N = 128, c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d');
+  let sd = 7; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 26; i++) { // (blades: from the bottom, bent a little, darker at the root)
+    const x0 = N * (0.2 + 0.6 * r()), h = N * (0.45 + 0.5 * r()), bend = (r() - 0.5) * N * 0.35, w = 2 + r() * 3;
+    const gr = g.createLinearGradient(0, N, 0, N - h); gr.addColorStop(0, '#2f3a1c'); gr.addColorStop(1, r() < 0.3 ? '#b5b27a' : '#a7a670');
+    g.strokeStyle = gr; g.lineWidth = w; g.lineCap = 'round'; g.beginPath(); g.moveTo(x0, N); g.quadraticCurveTo(x0 + bend * 0.3, N - h * 0.6, x0 + bend, N - h); g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function v3TuftInit() {
+  // (a tuft: two crossed upright cards, their foot at y 0; a pebble: a small squashed stone)
+  const a = new THREE.PlaneGeometry(1, 1); a.translate(0, 0.5, 0); const b = a.clone(); b.rotateY(Math.PI / 2);
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([...a.attributes.position.array, ...b.attributes.position.array]), 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(48).map((_, i) => i % 3 === 1 ? 1 : 0), 3)); // (lit as the ground is: from above)
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([...a.attributes.uv.array, ...b.attributes.uv.array]), 2));
+  geo.setIndex([0, 2, 1, 2, 3, 1, 4, 6, 5, 6, 7, 5, 0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7]); // (each card both ways round, one-sided: two-sided, the back's normal turned down and it was black)
+  const gm = v3Shaded(new THREE.MeshLambertMaterial({ map: v3TuftPic(), alphaTest: 0.5 }));
+  const sg = new THREE.IcosahedronGeometry(0.5, 0); sg.scale(1, 0.45, 0.8); sg.translate(0, 0.1, 0);
+  const sm = v3Shaded(new THREE.MeshLambertMaterial({ color: '#ffffff', flatShading: true }));
+  const mk = (g, m) => { const M = new THREE.InstancedMesh(g, m, V3_TUFT.max); M.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(V3_TUFT.max * 3), 3); M.receiveShadow = true; M.frustumCulled = false; M.count = 0; V3.scene.add(M); return M; };
+  V3.tufts = { grass: mk(geo, gm), stone: mk(sg, sm) };
+}
+function v3Tufts(vw) {
+  if (gfxLow || lite || !V3.gmap || !V3.box) { if (V3.tufts) V3.tufts.grass.count = V3.tufts.stone.count = 0; return; }
+  if (!V3.tufts) v3TuftInit();
+  const T = V3.tufts, k = 1 - Math.max(0, Math.min(1, (vw - V3_TUFT.vw * 0.7) / (V3_TUFT.vw * 0.3))); // (1 close in, 0 from V3_TUFT.vw)
+  if (k <= 0) { T.grass.count = T.stone.count = 0; V3.tuftKey = null; return; }
+  const C = V3_TUFT.cell, B = V3.box, i0 = Math.floor(B.x / C), j0 = Math.floor(B.y / C), i1 = Math.ceil((B.x + B.w) / C), j1 = Math.ceil((B.y + B.h) / C);
+  const key = [i0, j0, i1, j1, Math.round(k * 8), V3.padSig, s.nodes.length].join();
+  if (V3.tuftKey === key) return; V3.tuftKey = key;
+  const G = V3.gmap, m = v3Tmp.tm || (v3Tmp.tm = new THREE.Matrix4()), q = v3Tmp.tq2 || (v3Tmp.tq2 = new THREE.Quaternion()), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
+  const blocks = s.nodes.filter(n => n.kind !== 'drone' && n.hp > 0).map(n => [n.x, n.y, (Sim.STRUCTS[n.kind].r * 1.3 + 8) ** 2]).concat((s.posts || []).map(o => [o.x, o.y, (Sim.POSTS[o.kind].r * 1.3 + 8) ** 2]));
+  let ng = 0, ns = 0;
+  for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) {
+    const h = v3Rnd(i * 7.13, j * 3.71), x = (i + v3Rnd(i, j)) * C, y = (j + v3Rnd(j, i)) * C;
+    if (x < 0 || y < 0 || x >= s.W || y >= s.H) continue;
+    const gi = (Math.floor(y / s.H * G.h) * G.w + Math.floor(x / s.W * G.w)) * 4, R = G.d[gi], Gr = G.d[gi + 1], Bl = G.d[gi + 2];
+    const green = (Gr - (R + Bl) / 2) / 255, lum = (R + Gr + Bl) / 765;
+    const grass = green > 0.04 && lum < 0.6, stone = !grass && green < 0.02;
+    const clump = v3Rnd(Math.floor(i / 5) * 3.1, Math.floor(j / 5) * 5.7) * 0.6 + v3Rnd(Math.floor(i / 2) * 1.3, Math.floor(j / 2) * 2.9) * 0.4; // (in patches: some ground bare, some thick)
+    if (!(grass ? h < V3_TUFT.grass * Math.max(0, clump - 0.35) / 0.65 : stone && h < V3_TUFT.stone)) continue;
+    if (s.lakes.length && lakeAt(s, { x, y })) continue;
+    if (s.ground && Sim.groundAt(s, x, y)) continue; // (woods, mud, cliffs, roads: their own)
+    if (blocks.some(b => (b[0] - x) ** 2 + (b[1] - y) ** 2 < b[2])) continue;
+    const r = v3Rnd(i * 1.7, j * 2.3), g = v3E(x, y);
+    q.setFromAxisAngle(up, r * 6.283);
+    if (grass && ng < V3_TUFT.max) {
+      const S = V3_TUFT.h * (0.6 + 0.8 * r) * k; m.compose(p.set(x, g - 0.3, y), q, sc.set(S * 1.1, S, S * 1.1)); T.grass.setMatrixAt(ng, m);
+      col.setRGB(R / 255, Gr / 255, Bl / 255).convertSRGBToLinear(); col.lerp(v3Tmp.dry || (v3Tmp.dry = new THREE.Color('#9c9460').convertSRGBToLinear()), 0.3 + 0.3 * h).multiplyScalar(2.0 + 0.6 * h); T.grass.setColorAt(ng++, col); // (the ground's colour under it, toward dry straw: not bright green blobs) // (its tint: the ground's under it, a little lighter — the blades catch the light)
+    } else if (stone && ns < V3_TUFT.max) {
+      const S = V3_TUFT.sh * (0.6 + 1.2 * r * r) * k; m.compose(p.set(x, g, y), q, sc.set(S, S, S)); T.stone.setMatrixAt(ns, m);
+      col.setRGB(R / 255, Gr / 255, Bl / 255).convertSRGBToLinear().multiplyScalar(0.8 + 0.6 * h); T.stone.setColorAt(ns++, col);
+    }
+  }
+  T.grass.count = ng; T.stone.count = ns;
+  for (const M of [T.grass, T.stone]) { M.instanceMatrix.needsUpdate = true; M.instanceColor.needsUpdate = true; }
+}
+// ---- the sun's shadow box: fitted to what's on screen, in the sun's own view — the ground under the screen's corners
+// (and V3_SHADOW_M round it, for what stands just off screen and throws its shadow in; up to V3_SHADOW_UP high),
+// its edges snapped to the shadow map's texels (or the shadows crawl as the view moves). A square of 1.8 × the
+// screen's width was most of it ground off screen: about 3 × the texels on what's seen now ----
+const V3_SHADOW_M = 60, V3_SHADOW_UP = 120, V3_SHADOW_STEP = 64;
+function v3SunBox(ty, vw) {
+  const sun = V3.sun, sc = sun.shadow.camera, N = sun.shadow.mapSize.x;
+  sun.target.position.set(cam.x, ty, cam.y); sun.position.set(cam.x - 1500, ty + 2100, cam.y - 1500);
+  sun.target.updateMatrixWorld(); sun.updateMatrixWorld(); sc.position.copy(sun.position); sc.lookAt(sun.target.position); sc.updateMatrixWorld();
+  const inv = sc.matrixWorldInverse, v = v3Tmp.sv || (v3Tmp.sv = new THREE.Vector3()), w = V3.w || 1, h = V3.h || 1;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [px, py] of [[0, 0], [w, 0], [0, h], [w, h], [w / 2, 0], [w / 2, h]]) {
+    const p = v3World(px, py), g = v3E(p.x, p.y);
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) for (const up of [0, V3_SHADOW_UP]) {
+      v.set(p.x + dx * V3_SHADOW_M, g + up, p.y + dy * V3_SHADOW_M).applyMatrix4(inv);
+      x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
+    }
+  }
+  // (each side its own length, in steps of V3_SHADOW_STEP, so the texels keep their size as it moves; edges on the texel grid)
+  const W = Math.ceil(Math.max(300, x1 - x0) / V3_SHADOW_STEP) * V3_SHADOW_STEP, H = Math.ceil(Math.max(300, y1 - y0) / V3_SHADOW_STEP) * V3_SHADOW_STEP;
+  const tx = W / N, ty2 = H / N, cx = Math.round((x0 + x1) / 2 / tx) * tx, cy = Math.round((y0 + y1) / 2 / ty2) * ty2;
+  if (sc.left !== cx - W / 2 || sc.top !== cy + H / 2) { sc.left = cx - W / 2; sc.right = cx + W / 2; sc.bottom = cy - H / 2; sc.top = cy + H / 2; sc.near = 10; sc.far = 6000; sc.updateProjectionMatrix(); }
 }
 // every frame, instead of the flat map
 function v3Draw() {
@@ -1366,14 +1493,11 @@ function v3Draw() {
   V3.cam.position.set(cam.x, ty + d * Math.sin(V3_PITCH), cam.y + d * Math.cos(V3_PITCH)); V3.cam.lookAt(cam.x, ty, cam.y);
   V3.cam.near = Math.max(2, d * 0.2); V3.cam.far = d * 6 + 4000; V3.cam.updateProjectionMatrix(); V3.cam.updateMatrixWorld(); // (the near plane well out: the depth exact enough for the AO, post3d.js)
   V3.scene.fog.near = d * 1.6; V3.scene.fog.far = d * 5 + 2000;
-  // (the sun's shadow box: round what's on screen)
-  const sun = V3.sun, half = Math.max(400, vw * 0.9), sc = sun.shadow.camera;
-  sun.target.position.set(cam.x, ty, cam.y - vw * 0.15); sun.position.set(cam.x - 1500, ty + 2100, cam.y - vw * 0.15 - 1500);
-  if (sc.right !== half) { sc.left = sc.bottom = -half; sc.right = sc.top = half; sc.near = 10; sc.far = 6000; sc.updateProjectionMatrix(); }
+  v3SunBox(ty, vw);
   sceneryTick(); groundTick(); // (as the flat map's frame: what's cleared, run over, cut)
   for (const P of V3.pics.values()) P.n = 0;
   V3.lamps = [];
-  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Water(); v3Trenches(); v3Shade(); v3Deco();
+  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Water(); v3Trenches(); v3Tufts(vw); v3Shade(); v3Deco();
   for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; P.mesh.instanceColor.needsUpdate = true; }
   if (v3PostWant()) v3PostRender(V3.scene, V3.cam, d); else r.render(V3.scene, V3.cam); // (post3d.js: AO, glow, grade)
   v3Info();
@@ -1387,7 +1511,7 @@ function v3Info() {
   const scr = (x, y, h) => { P.set(x, v3E(x, y) + h, y).project(V3.cam); return [(P.x + 1) / 2 * W, (1 - P.y) / 2 * H, P.z]; };
   const put = (x, y, h) => {
     const a = scr(x, y, h); if (a[2] > 1 || a[0] < -60 || a[0] > W + 60 || a[1] < -60 || a[1] > H + 60) return false;
-    const b = scr(x + 10, y, h), k = Math.hypot(b[0] - a[0], b[1] - a[1]) / 10;
+    const b = scr(x + 10, y, h), k = Math.hypot(b[0] - a[0], b[1] - a[1]) / 10; V3.infoK = k; // (label: its size on screen from it)
     c.setTransform(k * dpr, 0, 0, k * dpr, (a[0] - x * k) * dpr, (a[1] - y * k) * dpr); return true;
   };
   c.save(); c.textAlign = 'center';
@@ -1399,5 +1523,5 @@ function v3Info() {
     unitInfo(c, u); healthDot(c, u); fuelGauge(c, u);
     if (sel !== 'all' && sel != null && isSel(u.squad) && hurtUnit(u)) starOfDavid(c, u.x, u.y - SIZE[u.type] * (T.air ? 1.2 : 1.05) - 9 / view.css);
   }
-  c.restore(); c.setTransform(1, 0, 0, 1, 0, 0);
+  c.restore(); c.setTransform(1, 0, 0, 1, 0, 0); V3.infoK = 0;
 }

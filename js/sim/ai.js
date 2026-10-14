@@ -36,7 +36,7 @@ function aiBuild(s, side, D, who) {
   const pk = who ? side + who : side; // (arms: each player its own place in the plan)
   if (D.mass && !s.level && s.fog && may('decoy') && alive(s, side, ['decoy']).length < 2) { // (hard: deception — a fake HQ or two by the forward HQs)
     const f = alive(s, side, ['fhq']).find(n => s.t >= n.ready), foe = s.bases[foeOf(side)];
-    if (f) for (let i = 0; i < 8; i++) { const a = Math.atan2(foe.y - f.y, foe.x - f.x) + (s.rand() - 0.5) * 2, r = roomOf(s, f.kind) + roomOf(s, 'decoy') + 5 + s.rand() * 50; if (build(s, side, 'decoy', f.x + Math.cos(a) * r, f.y + Math.sin(a) * r)) break; }
+    if (f) for (let i = 0; i < 8; i++) { const a = Math.atan2(foe.y - f.y, foe.x - f.x) + (s.rand() - 0.5) * 2, r = roomPair(s, f.kind, 'decoy') + 5 + s.rand() * 50; if (build(s, side, 'decoy', f.x + Math.cos(a) * r, f.y + Math.sin(a) * r)) break; }
   }
   const asked = who && s.askMake && s.askMake[pk]; // (what the partner was asked for and has none of: what makes it, first — asks.js)
   if (s.logi && may('depot')) aiSupply(s, side, asked);
@@ -53,7 +53,7 @@ function aiBuild(s, side, D, who) {
   const anchors = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq').sort((a, b) => dist(a, goal) - dist(b, goal));
   for (const a of anchors) for (let i = 0; i < 24; i++) {
     // (toward the enemy first; then all round it, a little farther — a crowded front left no room, and it stood stuck)
-    const wide = i >= 12, ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * (wide ? 2 * Math.PI : 2.4), r = roomOf(s, a.kind) + roomOf(s, kind) + 5 + s.rand() * (wide ? 180 : 110);
+    const wide = i >= 12, ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * (wide ? 2 * Math.PI : 2.4), r = roomPair(s, a.kind, kind) + 5 + s.rand() * (wide ? 180 : 110);
     const x = a.x + Math.cos(ang) * r, y = a.y + Math.sin(ang) * r;
     if (build(s, side, kind, x, y)) { if (kind === asked) { delete s.askMake[pk]; s.lastBuild[pk] = s.t; return; } if (counter) { s.aiCounter[side] = { kind, t: s.t }; (s.aiCounterLog = s.aiCounterLog || []).push({ side, kind, t: Math.round(s.t) }); } else s.plan[pk] = (s.plan[pk] || 0) + 1; s.lastBuild[pk] = s.t; (s.planMiss = s.planMiss || {})[side] = 0; return; }
   }
@@ -105,7 +105,7 @@ function aiSupply(s, side, asked) {
     // second fuel station, and dozens of vehicles shared one)
     const ring = 90 + 40 * alive(s, side, [kind]).length;
     const at = [hq, ...s.nodes.filter(n => n.side === side && n.hp > 0 && n.kind === 'fhq'), ...s.nodes.filter(n => n.side === side && n.hp > 0 && n !== hq && n.kind !== 'fhq' && n.kind !== 'drone' && n.kind !== 'decoy')];
-    for (const [j, n] of at.slice(0, 8).entries()) for (let i = 0; i < (j ? 6 : 12); i++) { const a = s.rand() * Math.PI * 2, r = roomOf(s, n.kind) + roomOf(s, kind) + 5 + s.rand() * (j ? 90 : ring); if (build(s, side, kind, n.x + Math.cos(a) * r, n.y + Math.sin(a) * r)) return done(); }
+    for (const [j, n] of at.slice(0, 8).entries()) for (let i = 0; i < (j ? 6 : 12); i++) { const a = s.rand() * Math.PI * 2, r = roomPair(s, n.kind, kind) + 5 + s.rand() * (j ? 90 : ring); if (build(s, side, kind, n.x + Math.cos(a) * r, n.y + Math.sin(a) * r)) return done(); }
   }
 }
 // forward HQ (DESIGN.md §6): at the front — behind the leading squads, on a hill there if any —, clear of known enemies and

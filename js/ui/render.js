@@ -145,8 +145,21 @@ function hexA(col, a) {
   const n = parseInt(m[1], 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
 }
 function label(txt, x, y, col) {
-  const c = ctx; c.font = '700 13px Rubik, sans-serif'; c.lineWidth = 3; c.strokeStyle = colors.halo;
+  const c = ctx;
+  if (V3.on && V3.infoK) { // (3D: the same size on screen at any zoom — scaled with the ground, it was huge — on a small dark pill, its text in the side's colour lightened)
+    const k = 1 / V3.infoK, f = LABEL_PX * k; c.font = `600 ${f}px Rubik, sans-serif`;
+    const w = c.measureText(txt).width + f * 0.9, h = f * 1.35, r = h / 2, x0 = x - w / 2, y0 = y - f * 0.95;
+    c.fillStyle = 'rgba(16,20,24,0.62)'; c.beginPath(); c.roundRect(x0, y0, w, h, r); c.fill();
+    c.fillStyle = mixHex(col, '#ffffff', 0.55); c.fillText(txt, x, y); return;
+  }
+  c.font = '700 13px Rubik, sans-serif'; c.lineWidth = 3; c.strokeStyle = colors.halo;
   c.strokeText(txt, x, y); c.fillStyle = col; c.fillText(txt, x, y);
+}
+const LABEL_PX = 12;
+// (a colour toward another, k of the way: '#rrggbb' strings)
+function mixHex(a, b, k) {
+  const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), A = /^#[0-9a-f]{6}$/i.test(a) ? p(a) : [128, 128, 128], B = p(b);
+  return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * k).toString(16).padStart(2, '0')).join('');
 }
 // symmetric outlines (top half; mirrored around the x axis), facing +x
 const PLANE = [[0.95, 0], [0.55, -0.12], [0.15, -0.12], [-0.12, -0.85], [-0.32, -0.85], [-0.22, -0.12], [-0.62, -0.12], [-0.82, -0.42], [-0.95, -0.42], [-0.85, 0]];
@@ -823,18 +836,16 @@ function drawStructInfo(c, n) {
   if (!on && !(site && !n.working && !dozerComing(n) && queued)) label(site ? (n.working || dozerComing(n) ? Math.round(grow * 100) + '%' : '⏸') : String(Math.ceil(n.ready - s.t)), n.x, n.y - top, col);
   if (n.fixing && nodeShown(n)) { c.font = '13px sans-serif'; c.globalAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 150); c.fillText('🔧', n.x + 18, n.y - top + 4); c.globalAlpha = 1; }
   if (n.hp < S.hp) { c.fillStyle = colors.shadow; c.fillRect(n.x - 14, n.y + bot, 28, 3); c.fillStyle = col; c.fillRect(n.x - 14, n.y + bot, 28 * Math.max(0, n.hp / S.hp), 3); }
-  // ours: the next unit coming out — a bar filling up, and the unit's shape beside it
+  // ours: the next unit coming out — a bar filling up
   if (on && S.unit && n.side === 'blue' && n.prog > 0) {
     const y = n.y - top - 2; c.fillStyle = colors.halo; c.globalAlpha = 0.8; c.fillRect(n.x - 15, y - 2, 30, 5); c.globalAlpha = 1;
-    c.fillStyle = col; c.fillRect(n.x - 14, y - 1, 28 * Math.min(1, n.prog), 3);
-    const g = Math.min(6, SIZE[S.unit] * 0.55); glyph(c, S.unit, n.x - 21, y, g, col, colors.outline, 0, S.unit === 'aa' ? -Math.PI / 4 : 0, 0.8);
+    c.fillStyle = col; c.fillRect(n.x - 14, y - 1, 28 * Math.min(1, n.prog), 3); // (only the bar: the unit's shape beside it looked bad — what it makes is in the tooltip)
   }
-  // our HQ: the next bulldozer / signals truck coming out (the same bar, the shapes of what's coming beside it)
+  // our HQ: the next bulldozer / signals truck coming out (the same bar)
   const hn = on && n.kind === 'hq' && n.side === 'blue' && hqNext();
   if (hn) {
     const y = n.y - top - 2; c.fillStyle = colors.halo; c.globalAlpha = 0.8; c.fillRect(n.x - 15, y - 2, 30, 5); c.globalAlpha = 1;
     c.fillStyle = col; c.fillRect(n.x - 14, y - 1, 28 * hn.prog, 3);
-    hn.types.forEach((t, i) => glyph(c, t, n.x - 21 - i * 12, y, Math.min(6, SIZE[t] * 0.55), col, colors.outline, 0, 0, 0.8));
   }
 }
 // what our HQ sends out next (open field: bulldozers and signals trucks, every SUPPORT_EVERY s, while under the cap):
@@ -849,7 +860,7 @@ function hqNext() {
 function drawNodes(c) {
   for (const n of s.nodes) if (nodeShown(n)) drawStruct(c, n, false);
   if (!s.fog) return;
-  for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) drawStruct(c, { ...s.memNodes.blue[id], side: 'red' }, true);
+  for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id) && s.memNodes.blue[id].kind !== 'drone') drawStruct(c, { ...s.memNodes.blue[id], side: 'red' }, true); // (not a drone: it flies on)
 }
 // our bulldozers' work lists: each site's place in its bulldozer's queue (a small number), a faint dotted line from a
 // bulldozer to the site it's driving to, and ⏸ over one the player sent elsewhere while it still has work
@@ -1296,7 +1307,7 @@ function drawMini() {
   if (s.fog) { c.fillStyle = hexA(colors.blue, 0.12); for (const n of s.nodes) if (n.side === 'blue' && Sim.nodeSpec(n.kind) && s.t >= n.ready) { c.beginPath(); c.arc(n.x, n.y, Sim.nodeSpec(n.kind).r0, 0, Math.PI * 2); c.fill(); } }
   const dot = (x, y, r, col, sq) => { c.fillStyle = col; c.beginPath(); if (sq) c.rect(x - r, y - r, 2 * r, 2 * r); else c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
   for (const n of s.nodes) if (nodeShown(n)) { if (n.kind === 'drone') { c.globalAlpha = 0.35; dot(n.x, n.y, 7, colors[n.side]); c.globalAlpha = 1; } else dot(n.x, n.y, 14, colors[n.side], true); }
-  if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { c.globalAlpha = 0.5; const n = s.memNodes.blue[id]; dot(n.x, n.y, 14, colors.red, true); c.globalAlpha = 1; }
+  if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id) && s.memNodes.blue[id].kind !== 'drone') { c.globalAlpha = 0.5; const n = s.memNodes.blue[id]; dot(n.x, n.y, 14, colors.red, true); c.globalAlpha = 1; }
   // (the posts: a diamond in the holder's colour, white for no one's)
   for (const p of s.posts || []) { c.save(); c.translate(p.x, p.y); c.rotate(Math.PI / 4); c.fillStyle = p.side ? colors[p.side] : '#f2f2f2'; c.fillRect(-15, -15, 30, 30); c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeRect(-15, -15, 30, 30); c.restore(); }
   for (const q of s.squads) {

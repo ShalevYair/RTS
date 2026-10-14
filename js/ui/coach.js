@@ -27,7 +27,7 @@ function hint() {
   const c = { x: ours.reduce((a, u) => a + u.x, 0) / ours.length, y: ours.reduce((a, u) => a + u.y, 0) / ours.length };
   let best = null, bd = Infinity;
   for (const u of s.units) if (u.side === 'red' && (!s.fog || s.vis.blue.has(u.id))) { const d = Math.hypot(u.x - c.x, u.y - c.y); if (d < bd) { bd = d; best = u; } }
-  if (!best) for (const k in s.memNodes.blue) { const n = s.memNodes.blue[k], d = Math.hypot(n.x - c.x, n.y - c.y); if (d < bd) { bd = d; best = n; } }
+  if (!best) for (const k in s.memNodes.blue) { const n = s.memNodes.blue[k]; if (n.kind === 'drone') continue; const d = Math.hypot(n.x - c.x, n.y - c.y); if (d < bd) { bd = d; best = n; } }
   if (!best) { const h = s.nodes.find(n => n.side === 'red' && n.kind === 'hq' && (!s.fog || s.visNodes.blue.has(n.id))); if (h) best = h; }
   if (!best) return;
   // (off the screen: the camera goes halfway between us and it — or to it, if that's still not enough)
