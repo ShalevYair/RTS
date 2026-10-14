@@ -211,6 +211,7 @@ function separate(s, dt = 0) {
   const far = 2 * maxR + UNIT_GAP, G = new Map(), cell = u => Math.floor(u.x / far) * 65536 + Math.floor(u.y / far);
   // (in order across the map, as before: the same pairs in the same order, the same pushes)
   const xs = us.slice().sort((a, b) => a.x - b.x);
+  if (s.ground) for (const u of us) { u.px0 = u.x; u.py0 = u.y; } // (where each was: a push may not put it on ground it can't go on — below)
   xs.forEach((u, i) => { u.si = i; const k = cell(u); let l = G.get(k); if (!l) G.set(k, l = []); l.push(u); });
   const near = [];
   for (const a of xs) {
@@ -240,6 +241,11 @@ function separate(s, dt = 0) {
       }
     }
   }
+  // (pushed by the others into woods or mud it can't go into — a jeep shoved by the rest: back, or along it; inside,
+  // it stood there for good. Only these pushes: one pushed out of a building into the woods gets out by itself — moveTo;
+  // s.noGuard: off, to compare)
+  if (s.ground && !s.noGuard) for (const u of us) if (!TYPES[u.type].air) { const c = moveClass(u.type);
+    if (!groundOk(s, c, u.x, u.y) && groundOk(s, c, u.px0, u.py0)) { if (groundOk(s, c, u.x, u.py0)) u.y = u.py0; else if (groundOk(s, c, u.px0, u.y)) u.x = u.px0; else { u.x = u.px0; u.y = u.py0; } } }
   // (posts block the way too)
   const blocks = s.nodes.filter(n => n.kind !== 'drone' && n.hp > 0).map(n => ({ x: n.x, y: n.y, r: STRUCTS[n.kind].r }));
   if (s.posts) for (const p of s.posts) blocks.push({ x: p.x, y: p.y, r: POSTS[p.kind].r });

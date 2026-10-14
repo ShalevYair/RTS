@@ -76,5 +76,5 @@ function roadWork(s, dt) {
 // a square becomes road: whatever was there, gone; the path grids learn it at once
 function pave(s, c) {
   const G = s.ground; G.k[c] = GR_ROAD; G.cut.push(c); (G.paved || (G.paved = [])).push(c); s.groundV = (s.groundV || 0) + 1;
-  const P = s.pathG; if (P && P.cls) for (const cls in P.cls) { const g = P.cls[cls]; g.b[c] = P.b[c]; g.core[c] = P.core[c]; g.cost[c] = Math.round(8 / GROUND_K[cls][GR_ROAD]); }
+  const P = s.pathG; if (P && P.cls) for (const cls in P.cls) { const g = P.cls[cls]; g.b[c] = P.b[c]; g.core[c] = P.core[c]; g.cost[c] = Math.round(8 / GROUND_K[cls][GR_ROAD]); if (g.no) g.no[c] = 0; }
 }

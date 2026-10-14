@@ -54,12 +54,12 @@ function classGrid(s, G, cls) {
   if (!s.ground) return G;
   if (!G.cls) G.cls = {};
   if (G.cls[cls]) return G.cls[cls];
-  const N = G.w * G.h, b = G.b.slice(), core = G.core.slice(), cost = new Uint8Array(N).fill(8), K = s.ground.k;
+  const N = G.w * G.h, b = G.b.slice(), core = G.core.slice(), cost = new Uint8Array(N).fill(8), K = s.ground.k, no = new Uint8Array(N);
   for (let c = 0; c < N; c++) if (K[c]) {
     const k = groundK(cls, K[c]);
-    if (k <= 0) { b[c] = 1; core[c] = 1; } else cost[c] = Math.min(255, Math.round(8 / k));
+    if (k <= 0) { b[c] = 1; core[c] = 1; no[c] = 1; } else cost[c] = Math.min(255, Math.round(8 / k));
   }
-  return (G.cls[cls] = { w: G.w, h: G.h, C: G.C, b, core, cost });
+  return (G.cls[cls] = { w: G.w, h: G.h, C: G.C, b, core, cost, no });
 }
 const pathBlocks = n => n.kind !== 'drone' && n.hp > 0 && !!STRUCTS[n.kind];
 // what the grid was made from: the buildings (where, how big) and the posts
@@ -81,6 +81,7 @@ function pathClear(G, ax, ay, bx, by) {
   for (let k = 0; k <= n; k++) {
     const c = pathCell(G, ax + (bx - ax) * k / n, ay + (by - ay) * k / n);
     if (cost && !G.b[c] && cost[c] > ce) return false;
+    if (G.no && G.no[c]) return false; // (ground it can't go on — woods for a jeep: never, not even by the goal; a marching place inside a wood drew the jeeps straight into its edge)
     if (G.b[c]) { wall++; if (G.core[c]) hard = true; if (!free && wall * d / n > PATH_LEAD) return false; } // (the ring it stands in: only so deep — not on through a row of buildings)
     else { if (wall && (free || hard)) return false; free = true; wall = 0; hard = false; }
   }

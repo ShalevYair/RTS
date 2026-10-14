@@ -99,7 +99,7 @@ function clearGround(G, x, y, R) {
 function cutWood(s, c) {
   const G = s.ground; if (G.k[c] !== GR_WOOD) return;
   G.k[c] = GR_CUT; G.cut.push(c); s.groundV = (s.groundV || 0) + 1;
-  const P = s.pathG; if (P && P.cls) for (const cls in P.cls) { const g = P.cls[cls]; g.b[c] = P.b[c]; g.core[c] = P.core[c]; g.cost[c] = 8; }
+  const P = s.pathG; if (P && P.cls) for (const cls in P.cls) { const g = P.cls[cls]; g.b[c] = P.b[c]; g.core[c] = P.core[c]; g.cost[c] = 8; if (g.no) g.no[c] = 0; }
 }
 // may a unit of this class stand at (x, y)? (only the ground: lakes and buildings are separate's)
 const groundOk = (s, cls, x, y) => groundK(cls, groundAt(s, x, y)) > 0;

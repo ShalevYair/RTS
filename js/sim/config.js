@@ -317,7 +317,7 @@ const FACE_R = 320, FACE_TURN = 0.8, FACE_GO = 60, LINE_GAP = 20, ROW_GAP = 70, 
 // (attacking: the units that don't fight stand SUPPORT_BACK further back still)
 const SUPPORT_BACK = 50;
 // (together, far off: marching there in the formation — see formation; deep: the player's arrow, rows DEEP_MIN–DEEP_MAX apart)
-const MARCH_MIN = 220, MARCH_PACE = 0.9, MARCH_WAIT = 2.5, DEEP_MIN = 20, DEEP_MAX = 260;
+const MARCH_MIN = 220, MARCH_PACE = 0.9, MARCH_WAIT = 2.5, MARCH_SLOW = 0.3, DEEP_MIN = 20, DEEP_MAX = 260; // (MARCH_SLOW: the slowest pace one going together slows to, of its speed)
 // (the front: what never goes there — missile trucks fire from far behind)
 const FRONT_NOT = ['ssm', 'dozer', 'tanker'];
 // under fire: a fighting unit of the player's goes at the shooter, one that doesn't falls back FLEE_D toward the HQ

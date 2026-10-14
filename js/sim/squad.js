@@ -246,8 +246,11 @@ function updateUnit(s, u, sq, dt) {
   else { const sp = spacing(u.type), g = (u.slot || 0) * sp, b = (u.row || 0) * sp, a = sq.face || 0; tx = anchor.x - Math.sin(a) * g - Math.cos(a) * b; ty = anchor.y + Math.cos(a) * g - Math.sin(a) * b; } // in the line (or block)
   // (to their place: arrived — at it, or touching one of ours that has arrived there — it stands,
   // even pushed a little off it: units circling a crowded spot for ever, shoving one another, was the jam)
-  if (sameRules(s, u.side, 'arrive') && !T.air && !best && !retreat && !s.noArrive && !(sq.order.form && sq.order.form.march) && !takingPost(s, u, tx, ty) && arrivedAt(s, u, tx, ty, sq.order)) return; // (s.noArrive: off, to compare; marching: its place moves on — never 'arrived' on the way)
-  moveTo(s, u, tx, ty, (retreat ? 1.15 : 1) * (sq.silent ? SILENT_SPEED : 1), dt);
+  if (sameRules(s, u.side, 'arrive') && !T.air && !best && !retreat && !s.noArrive && !(sq.order.form && sq.order.form.march && sq.order.form.march.arrive === undefined) && !takingPost(s, u, tx, ty) && arrivedAt(s, u, tx, ty, sq.order)) return; // (s.noArrive: off, to compare; marching: its place moves on — never 'arrived' on the way)
+  // (going there together: at the pace that gets it to its place when the slowest gets to its own — not before)
+  const mf = sq.order.form && sq.order.form.march, rem = mf && mf.arrive !== undefined && !best && !retreat ? mf.arrive - s.t : 0;
+  const pace = rem > 0.5 ? clamp(Math.hypot(tx - u.x, ty - u.y) / rem / T.speed, MARCH_SLOW, 1) : 1;
+  moveTo(s, u, tx, ty, (retreat ? 1.15 : 1) * (sq.silent ? SILENT_SPEED : 1) * pace, dt);
 }
 // (a soldier sent at a post that isn't ours goes on into it — it takes it by touching it: 'arrived' by its wall, it
 // stood there)
@@ -262,7 +265,7 @@ function arrivedAt(s, u, tx, ty, key) {
   if (moved || u.arrKey !== key) { u.arr = null; u.arrBest = null; u.arrT = { x: tx, y: ty }; u.arrKey = key; if (moved) return false; }
   if (u.arr) {
     const off = dist(u, u.arr);
-    if (off >= ARRIVE_LEAVE) u.arr = null; // (pushed far off: it goes back)
+    if (off >= ARRIVE_LEAVE || Math.hypot(tx - u.x, ty - u.y) >= ARRIVE_LEAVE + ARRIVE_SLACK) u.arr = null; // (pushed far off — from where it stood, or from its place itself: it had stopped short of it, and pushes on top of that took it far — it goes back)
     else {
       // (pushed a little off: it stays while ours touch it — going back at once shoved the next, and so on round —
       // and walks back once none has for ARRIVE_CALM s)
@@ -314,8 +317,12 @@ function moveTo(s, u, tx, ty, fast, dt, keep) {
   // (hurt: slower; a vehicle on a road, or of the side holding the fuel station: faster)
   const veh = s.extras && isVehicle(u.type), sp = T.speed * hurtK(u) * (veh ? postK(s, u.side, 'fuel', FUEL_K) * (onRoad(s, u) ? ROAD_FAST : 1) : 1);
   // (the ground: woods, mud, cliffs — terrain.js; slower, or not at all: then along it, a step on one axis, if that's open)
-  const cls = !T.air && s.ground ? moveClass(u.type) : null, gk = cls ? groundSpeed(s, u, cls, vx, vy, d) : 1;
+  const cls = !T.air && s.ground ? moveClass(u.type) : null; let gk = cls ? groundSpeed(s, u, cls, vx, vy, d) : 1;
   u.gk = gk;
+  if (cls && gk === 0) { // (on ground it can't go on — put there somehow: out to the nearest it can, slowly)
+    const o = groundOut(s, cls, u); if (o) { const ex = o.x - u.x, ey = o.y - u.y, ed = Math.hypot(ex, ey) || 1, m = Math.min(ed, T.speed * 0.5 * dt); u.x += ex / ed * m; u.y += ey / ed * m; u.hd = Math.atan2(ey, ex); }
+    return;
+  }
   const k = keep ? sp * fast * dt / Math.max(d, 1e-6) : Math.min(1, sp * slope * fast * gk * dt / d); // (keep: at full speed, even past the point)
   let nx = u.x + vx * k, ny = u.y + vy * k;
   if (cls && !groundOk(s, cls, nx, ny) && groundOk(s, cls, u.x, u.y)) {
@@ -323,6 +330,11 @@ function moveTo(s, u, tx, ty, fast, dt, keep) {
   }
   u.x = nx; u.y = ny; u.hd = Math.atan2(vy, vx); u.movedAt = s.t; // (moving: not lying in ambush)
   if (!T.air && !u.hush && d * k >= DUST_FAST * T.speed * dt) u.dustAt = s.t; // (driving fast: dust the enemy can see from afar)
+}
+// the nearest spot round u that a unit of this class may stand on (rings 8 apart, out to 96), or null
+function groundOut(s, cls, u) {
+  for (let r = 8; r <= 96; r += 8) for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, x = u.x + Math.cos(a) * r, y = u.y + Math.sin(a) * r; if (groundOk(s, cls, x, y) && !lakeAt(s, { x, y })) return { x, y }; }
+  return null;
 }
 // the trees (each { x, y, r }; one run over or cleared by a building has .gone), in a grid of COVER_CELL
 function setCover(s, trees) {

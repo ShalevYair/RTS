@@ -90,20 +90,33 @@ function formation(s, ids, type, x, y, quiet, fa, deep) {
   let march = null;
   if (us.length) {
     const sx = us.reduce((a, u) => a + u.x, 0) / us.length, sy = us.reduce((a, u) => a + u.y, 0) / us.length;
-    if (Math.hypot(x - sx, y - sy) > MARCH_MIN) march = { sx, sy, v: Math.min(...us.map(u => TYPES[u.type].speed)) * MARCH_PACE, t0: s.t + MARCH_WAIT };
+    // (s.oldMarch: as before — the formation formed up round their middle, then moving from there; now each goes
+    // straight for its own place there, and they get there together — `arrive`, worked out below)
+    if (Math.hypot(x - sx, y - sy) > MARCH_MIN) march = s.oldMarch ? { sx, sy, v: Math.min(...us.map(u => TYPES[u.type].speed)) * MARCH_PACE, t0: s.t + MARCH_WAIT } : { arrive: s.t };
     // (the player's: no arrow — the front faces the way they go, and stays so; far from where they are, else the enemy HQ)
     if (!Number.isFinite(fa) && qs.length && sameRules(s, qs[0].side)) {
       const e = hqOf(s, qs[0].side === 'blue' ? 'red' : 'blue') || s.bases[qs[0].side === 'blue' ? 'red' : 'blue'];
       fa = Math.hypot(x - sx, y - sy) > FACE_GO ? Math.atan2(y - sy, x - sx) : Math.atan2(e.y - y, e.x - x);
     }
   }
-  let ok = false;
+  // (each its place by where it is: across the way, the leftmost the left place — and, in a block, the foremost the
+  // front rows; by the order they were made, their ways crossed, and they jammed in the middle)
+  const way = Number.isFinite(fa) ? fa : us.length ? Math.atan2(y - us.reduce((a, u) => a + u.y, 0) / us.length, x - us.reduce((a, u) => a + u.x, 0) / us.length) : 0;
+  const lx = -Math.sin(way), ly = Math.cos(way), fx = Math.cos(way), fy = Math.sin(way);
+  const where = q => { const u = s.units.find(v => v.squad === q.id); return u ? { x: u.x, y: u.y } : { x: q.cx, y: q.cy }; };
+  const across = q => { const p = where(q); return p.x * lx + p.y * ly; }, ahead = q => { const p = where(q); return p.x * fx + p.y * fy; };
+  let ok = false; const est = []; // (each squad's place in it: for when they'd all be there)
   for (const [k, list] of rows) {
     // (many of a kind in the row — more than PACK_AT — stand in blocks, unless the player set it)
     const n = list.reduce((a, q) => a + (q.count || q.size), 0); for (const q of list) q.packN = n;
     const singles = list.filter(q => q.single), rest = list.filter(q => !q.single), sp = Math.max(...list.map(q => spacing(q.type)));
     // single units side by side, no gap between them — or, many, in a block (cols across, rows back from the front)
     const block = singles.length && packed(singles[0], n), cols = block ? blockCols(singles.length) : singles.length, rws = Math.ceil(singles.length / Math.max(1, cols));
+    if (!s.oldSlots) { // (s.oldSlots: as before, to compare)
+      singles.sort((a, b) => ahead(a) - ahead(b)); // (rows: the hindmost first — row r grows forward)
+      for (let r = 0; r < rws; r++) { const row = singles.slice(r * cols, (r + 1) * cols).sort((a, b) => across(a) - across(b)); singles.splice(r * cols, row.length, ...row); }
+      rest.sort((a, b) => across(a) - across(b));
+    }
     const sw = cols * sp, parts = (singles.length ? 1 : 0) + rest.length;
     let at = -((singles.length ? sw : 0) + rest.reduce((a, q) => a + lineWidth(q, n), 0) + SIDE_GAP * Math.max(0, parts - 1)) / 2;
     // (in an attack, those that don't fight — signals trucks, bulldozers, medics, mechanics… — hold SUPPORT_BACK behind
@@ -114,10 +127,21 @@ function formation(s, ids, type, x, y, quiet, fa, deep) {
     const fixed = q => !!TYPES[q.type].care && !TYPES[q.type].air;
     singles.forEach((q, i) => {
       const c = i % cols, r = Math.floor(i / cols);
-      ok = order(s, q.id, how(q), x, y, quiet, { depth: (k - mid) * gap - (r - (rws - 1) / 2) * sp + back(q), lat: at + (c + 0.5) * sp, fa, fixed: fixed(q), march, deep }) || ok;
+      const depth = (k - mid) * gap - (r - (rws - 1) / 2) * sp + back(q), lat = at + (c + 0.5) * sp; est.push([q, depth, lat]);
+      ok = order(s, q.id, how(q), x, y, quiet, { depth, lat, fa, fixed: fixed(q), march, deep }) || ok;
     });
     if (singles.length) at += sw + SIDE_GAP;
-    for (const q of rest) { const w = lineWidth(q, n); ok = order(s, q.id, how(q), x, y, quiet, { depth: (k - mid) * gap + back(q), lat: at + w / 2, fa, fixed: fixed(q), march, deep }) || ok; at += w + SIDE_GAP; }
+    for (const q of rest) { const w = lineWidth(q, n); est.push([q, (k - mid) * gap + back(q), at + w / 2]); ok = order(s, q.id, how(q), x, y, quiet, { depth: (k - mid) * gap + back(q), lat: at + w / 2, fa, fixed: fixed(q), march, deep }) || ok; at += w + SIDE_GAP; }
+  }
+  // (together: when the slowest to its place, at MARCH_PACE of its speed, would be there — each goes at the pace that
+  // gets it to its own place then: the near ones slower, none waiting for the rest at their middle)
+  if (march && march.arrive !== undefined) {
+    const dx = Math.cos(way), dy = Math.sin(way); let T = 0;
+    for (const [q, depth, lat] of est) {
+      const px = x - dx * depth - dy * lat, py = y - dy * depth + dx * lat;
+      for (const u of s.units) if (u.squad === q.id && !TYPES[u.type].air) T = Math.max(T, Math.hypot(u.x - px, u.y - py) / (TYPES[u.type].speed * MARCH_PACE));
+    }
+    march.arrive = s.t + T;
   }
   return ok;
 }
@@ -159,8 +183,9 @@ function placeForm(s, sq, dt) {
   f.a = f.a === undefined ? faceAt(s, sq.side, f, f.fa) : turnTo(f.a, faceAt(s, sq.side, f, f.fa), FACE_TURN * dt);
   const dx = Math.cos(f.a), dy = Math.sin(f.a), at = (x, y) => ({ x: clamp(x - dx * f.depth - dy * f.lat, 10, s.W - 10), y: clamp(y - dy * f.depth + dx * f.lat, 10, s.H - 10) });
   // (marching there: the formation's middle on its way, not yet where it's going)
-  const m = f.march, L = m ? Math.hypot(f.x - m.sx, f.y - m.sy) : 0, g = m ? clamp(m.v * (s.t - m.t0) / Math.max(1, L), 0, 1) : 1;
+  const m = f.march && f.march.arrive === undefined ? f.march : null, L = m ? Math.hypot(f.x - m.sx, f.y - m.sy) : 0, g = m ? clamp(m.v * (s.t - m.t0) / Math.max(1, L), 0, 1) : 1;
   if (m && g >= 1) f.march = null;
+  if (f.march && f.march.arrive !== undefined && s.t > f.march.arrive + MARCH_WAIT) f.march = null; // (all there by now: no pace any more)
   let p = g < 1 ? at(m.sx + (f.x - m.sx) * g, m.sy + (f.y - m.sy) * g) : at(f.x, f.y);
   if (!TYPES[sq.type].air && lakeAt(s, p)) p = dryOf(s, p, 10);
   o.x = p.x; o.y = p.y;
