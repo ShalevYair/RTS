@@ -8,7 +8,7 @@ const { chromium } = require('playwright');
   const p = await b.newPage({ viewport: { width: 1600, height: 900 } });
   await p.addInitScript(([m, post]) => { if (post) localStorage.setItem('irts-post', post); localStorage.setItem('irts-done','99'); localStorage.setItem('irts-tour','99'); localStorage.setItem('irts-map',m); localStorage.setItem('irts-fs','0'); localStorage.setItem('irts-tips','{"posts":1,"voice":1,"front":1,"groups":1,"rally":1,"care":1}'); }, [map, process.env.POST || '']);
   p.on('pageerror', e => console.log('ERR', e.message));
-  await p.goto('http://localhost:8765/?' + Date.now()); await p.waitForLoadState("networkidle"); await p.waitForTimeout(2500);
+  await p.goto('http://localhost:8765/?' + Date.now()); await p.waitForFunction(() => typeof startGame === 'function' && typeof TILES === 'object'); await p.waitForTimeout(2500);
   const r = await p.evaluate(async ([secs, d3, zm, add, still]) => {
     startGame(0); s.bots = ['blue', 'red']; playing = true; while (s.t < secs) Sim.step(s, 1 / 30);
     // the camera on the busiest place: the middle of all units

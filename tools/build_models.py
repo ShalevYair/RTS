@@ -13,9 +13,9 @@ import numpy as np
 
 OUT = os.path.join(os.path.dirname(__file__), '..', 'art', 'models')
 MATS = {'body': [0.40, 0.40, 0.31], 'dark': [0.09, 0.09, 0.085], 'metal': [0.42, 0.43, 0.44], 'glass': [0.16, 0.22, 0.28],
-        'tank': [0.62, 0.62, 0.58], 'water': [0.24, 0.38, 0.62], 'warn': [0.75, 0.62, 0.15], 'white': [0.86, 0.86, 0.84],
+        'tank': [0.62, 0.62, 0.58], 'water': [0.24, 0.38, 0.62], 'warn': [0.75, 0.62, 0.15], 'white': [0.86, 0.86, 0.84], 'missile': [0.52, 0.54, 0.47], 'kit': [0.15, 0.17, 0.10],
         # (buildings)
-        'concrete': [0.64, 0.62, 0.57], 'sand': [0.70, 0.61, 0.45], 'canvas': [0.43, 0.43, 0.30], 'wood': [0.47, 0.35, 0.23],
+        'concrete': [0.64, 0.62, 0.57], 'sand': [0.70, 0.61, 0.45], 'canvas': [0.43, 0.43, 0.30], 'tarp': [0.27, 0.28, 0.18], 'wood': [0.47, 0.35, 0.23],
         'olive': [0.33, 0.36, 0.24], 'asphalt': [0.22, 0.22, 0.21], 'red': [0.72, 0.12, 0.10], 'net': [0.30, 0.34, 0.21],
         # (the cargo's sign painted on a truck: a blue drop — water, an amber drop — fuel, a missile — ammunition)
         'signwater': [0.10, 0.42, 1.0], 'signfuel': [1.0, 0.55, 0.04], 'signammo': [0.95, 0.80, 0.10]}
@@ -59,9 +59,18 @@ class Mesh:
                     p += [(sx * x, sy * (y - b), sz * (z - b)), (sx * (x - b), sy * y, sz * (z - b)), (sx * (x - b), sy * (y - b), sz * z)]
         return self.hull(mat, np.asarray(p) @ ry(rot).T + c)
 
+    BEVEL, BEVEL_MIN = 0.0, 0.12  # (every box bevelled by this of its smallest side, when that's at least BEVEL_MIN — the units: set in main)
+
     def box(self, mat, c, s, rot=0.0, tilt=0.0):
         """box centred at c, size s (x y z); turned `rot` round Y and tilted `tilt` round Z (nose up), both radians"""
         x, y, z = np.asarray(s, float) / 2
+        if Mesh.BEVEL and min(s) >= Mesh.BEVEL_MIN:  # (its edges cut: they catch the light, as a real plate's do)
+            b = Mesh.BEVEL * min(s); p = []
+            for sx in (-1, 1):
+                for sy in (-1, 1):
+                    for sz in (-1, 1):
+                        p += [(sx * x, sy * (y - b), sz * (z - b)), (sx * (x - b), sy * y, sz * (z - b)), (sx * (x - b), sy * (y - b), sz * z)]
+            return self.hull(mat, np.asarray(p) @ rz(tilt).T @ ry(rot).T + c)
         p = np.array([[sx * x, sy * y, sz * z] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)])
         p = p @ rz(tilt).T @ ry(rot).T + c
         # (corners: index = 4*sx + 2*sy + sz, each 0/1)
@@ -167,12 +176,33 @@ def ry(a): c, s = np.cos(a), np.sin(a); return np.array([[c, 0, s], [0, 1, 0], [
 def rz(a): c, s = np.cos(a), np.sin(a); return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
 
 
+SMOOTH, SMOOTH_ANG = False, 34  # (the units, set in main: normals smoothed where faces meet at under SMOOTH_ANG°)
+def smooth_normals(M):
+    """each corner's normal: the mean of the faces at that point (any material) that turn less than SMOOTH_ANG from
+    its own — a tyre, a fuselage, a tank's shell round, a box's edges still sharp. {material: (3n, 3)}"""
+    mats = list(M.tri); T = np.concatenate([np.asarray([t[:3] for t in M.tri[m]], float) for m in mats])
+    fn = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0]); area = np.linalg.norm(fn, axis=1); fn = fn / np.maximum(1e-12, area)[:, None]
+    P = T.reshape(-1, 3); F = np.repeat(fn, 3, 0); A = np.repeat(area, 3)
+    _, key = np.unique(np.round(P * 2000).astype(np.int64), axis=0, return_inverse=True); key = key.ravel()
+    order = np.argsort(key, kind='stable'); ks = key[order]; cut = np.flatnonzero(np.diff(ks)) + 1
+    out = F.copy(); c = np.cos(np.radians(SMOOTH_ANG))
+    for g in np.split(order, cut):
+        if len(g) < 2: continue
+        f = F[g]; w = (f @ f.T > c) * A[g][None, :]; n = w @ f
+        out[g] = n / np.maximum(1e-12, np.linalg.norm(n, axis=1))[:, None]
+    res, o = {}, 0
+    for m in mats: k = len(M.tri[m]) * 3; res[m] = out[o:o + k]; o += k
+    return res
+
+
 def write(kind, parts, gen='tools/build_models.py', extras=None):
     """parts: [(name, Mesh, parent index or None)] -> art/models/<kind>.glb (each part a node; a mesh per part, a
     primitive per material)"""
     mats = sorted({m for _, M, _ in parts for m in M.tri})
     lights = [l for name, M, parent in parts if parent is None for l in getattr(M, 'lights', [])]  # (the hull's: they don't turn)
     if lights: extras = {**(extras or {}), 'lights': lights}
+    head = next((M.head for name, M, parent in parts if name == 'hull' and getattr(M, 'head', None)), None)  # (a soldier's head: [x, y, z, r])
+    if head: extras = {**(extras or {}), 'head': head}
     J = {'asset': {'version': '2.0', 'generator': gen, **({'extras': extras} if extras else {})}, 'scene': 0, 'scenes': [{'nodes': []}],
          'nodes': [], 'meshes': [], 'accessors': [], 'bufferViews': [], 'buffers': [],
          'materials': [{'name': m, 'pbrMetallicRoughness': {'baseColorFactor': MATS[m] + [1], 'metallicFactor': 0.1, 'roughnessFactor': 0.8}} for m in mats]}
@@ -183,11 +213,12 @@ def write(kind, parts, gen='tools/build_models.py', extras=None):
         return len(J['bufferViews']) - 1
     for name, M, parent in parts:
         prims = []
+        sm = smooth_normals(M) if SMOOTH else {}
         for m, T in M.tri.items():
             K = np.repeat(np.asarray([t[3] for t in T], np.float32), 3)
             T = np.asarray([t[:3] for t in T], np.float32)  # (n, 3, 3)
             nr = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0]); nr /= np.maximum(1e-9, np.linalg.norm(nr, axis=1))[:, None]
-            pos = T.reshape(-1, 3); nrm = np.repeat(nr, 3, axis=0).astype(np.float32); idx = np.arange(len(pos), dtype=np.uint32)
+            pos = T.reshape(-1, 3); nrm = (sm[m] if m in sm else np.repeat(nr, 3, axis=0)).astype(np.float32); idx = np.arange(len(pos), dtype=np.uint32)
             col = np.repeat(np.clip(K, 0, 2)[:, None], 3, axis=1).astype(np.float32)
             a0 = len(J['accessors'])
             J['accessors'] += [{'bufferView': view(pos, 34962), 'componentType': 5126, 'count': len(pos), 'type': 'VEC3', 'min': pos.min(0).tolist(), 'max': pos.max(0).tolist()},
@@ -294,11 +325,11 @@ def k_truck():  # ammunition / supply: a cargo bed under canvas on bows
     a = np.linspace(0, np.pi, 9)
     arch = [(1.75 + 0.75 * np.sin(t) * 1.0 + 0.0 * t, (hw - 0.02) * np.cos(t)) for t in a] + [(1.75, hw - 0.02), (1.75, -hw + 0.02)]
     arch = [(y + 0.0, z) for y, z in arch]
-    M.k = 1.0; M.loft('canvas', [(x0, [(y + 0.25, z) for y, z in arch]), (x1, [(y + 0.25, z) for y, z in arch])])
+    M.k = 1.0; M.loft('tarp', [(x0, [(y + 0.25, z) for y, z in arch]), (x1, [(y + 0.25, z) for y, z in arch])])
     for xx in np.linspace(x0 + 0.4, x1 - 0.3, 4):  # (the bows under it, showing as ridges)
-        M.k = 0.85; M.loft('canvas', [(xx - 0.05, [(y + 0.29, z * 1.01) for y, z in arch]), (xx + 0.05, [(y + 0.29, z * 1.01) for y, z in arch])])
+        M.k = 0.85; M.loft('tarp', [(xx - 0.05, [(y + 0.29, z * 1.01) for y, z in arch]), (xx + 0.05, [(y + 0.29, z * 1.01) for y, z in arch])])
     M.k = 0.35; M.box('dark', (x0 - 0.02, 2.4, 0), (0.04, 1.0, hw * 1.4))                                  # the open back
-    for sz in (-1, 1): M.k = 0.8; M.box('canvas', (x0 + 0.5, 1.7, sz * (hw + 0.02)), (0.6, 0.4, 0.03))    # tie-down flaps
+    for sz in (-1, 1): M.k = 0.8; M.box('tarp', (x0 + 0.5, 1.7, sz * (hw + 0.02)), (0.6, 0.4, 0.03))    # tie-down flaps
     xm = (x0 + x1) / 2
     sign(M, 'signammo', 'missile', (xm, 2.77, 0.0), 1.7)                                                  # on the canvas top
     for sz in (-1, 1): sign(M, 'signammo', 'missile', (xm, 2.0, sz * (hw + 0.03)), 1.2, sz)             # and its sides
@@ -306,9 +337,10 @@ def k_truck():  # ammunition / supply: a cargo bed under canvas on bows
 
 def k_tanktruck(color):  # a fuel / water bowser: a tank with domed ends, bands, a walkway and a hose reel
     M, f, hw, cx0 = truck(); x0, x1 = -3.4, cx0 - 0.2; L = x1 - x0; xc = (x0 + x1) / 2; r = 1.0
-    M.k = 1.0; M.cyl(color, (xc, 2.15, 0), r, L - 0.5, 'x', 20)
-    M.cyl(color, (x1 - 0.12, 2.15, 0), r, 0.3, 'x', 20, r2=r * 0.7); M.cyl(color, (x0 + 0.12, 2.15, 0), r * 0.7, 0.3, 'x', 20, r2=r)
-    for xx in np.linspace(x0 + 0.6, x1 - 0.6, 3): M.k = 0.8; M.cyl(color, (xx, 2.15, 0), r * 1.03, 0.1, 'x', 20)     # bands
+    shell = 'body'  # (army paint, as the real ones: its drop sign says fuel or water)
+    M.k = 1.0; M.cyl(shell, (xc, 2.15, 0), r, L - 0.5, 'x', 24)
+    M.cyl(shell, (x1 - 0.12, 2.15, 0), r, 0.3, 'x', 24, r2=r * 0.7); M.cyl(shell, (x0 + 0.12, 2.15, 0), r * 0.7, 0.3, 'x', 24, r2=r)
+    for xx in np.linspace(x0 + 0.6, x1 - 0.6, 3): M.k = 0.75; M.cyl(shell, (xx, 2.15, 0), r * 1.03, 0.1, 'x', 24)     # bands
     M.k = 0.7; M.box('metal', (xc, 3.2, 0), (L - 0.6, 0.06, 0.7))                                        # walkway
     for xx in np.linspace(x0 + 0.4, x1 - 0.4, 4):
         for sz in (-1, 1): M.strut('metal', (xx, 3.2, sz * 0.35), (xx, 3.75, sz * 0.35), 0.025)
@@ -354,7 +386,7 @@ def missile(M, x, y, z, L, r, tilt=0.0, fins=True):
     a = np.linspace(0, 2 * np.pi, 14, endpoint=False)
     secs = [(-L / 2, r), (L / 2 - L * 0.16, r), (L / 2 - L * 0.08, r * 0.8), (L / 2 - L * 0.02, r * 0.4), (L / 2, r * 0.08)]
     for (u0, r0), (u1, r1) in zip(secs, secs[1:]):
-        M.hull('white', [P(u0, r0 * np.cos(t), r0 * np.sin(t)) for t in a] + [P(u1, r1 * np.cos(t), r1 * np.sin(t)) for t in a])
+        M.hull('missile', [P(u0, r0 * np.cos(t), r0 * np.sin(t)) for t in a] + [P(u1, r1 * np.cos(t), r1 * np.sin(t)) for t in a])
     M.k = 0.6; M.hull('dark', [P(-L / 2 - 0.05, r * 0.8 * np.cos(t), r * 0.8 * np.sin(t)) for t in a] + [P(-L / 2 + 0.02, r * np.cos(t), r * np.sin(t)) for t in a])
     if fins:
         for t in (0, np.pi / 2, np.pi, 3 * np.pi / 2):
@@ -759,7 +791,7 @@ def k_tank():
         for j, x in enumerate((-1.9, -1.1, -0.3)): T.k = 0.92 + 0.05 * j; T.box('body', (x, b + 0.42, sz * (1.47 - 0.02 * j)), (0.74, 0.5, 0.06))
         for k in range(3): T.k = 0.5; T.cyl('dark', (0.55, b + 0.52 + 0.1 * k, sz * (1.3 - 0.08 * k)), 0.06, 0.28, 'x', 6, tilt=0.5)  # smoke launchers
         T.k = 0.6; T.strut('dark', (-2.3, b + 0.72, sz * 0.9), (-2.4, b + 2.2, sz * 1.0), 0.012)                 # whip antennas
-    T.k = 0.85; T.box('canvas', (1.85, b + 0.36, 0), (0.6, 0.34, 0.42))                                            # the mantlet's cover
+    T.k = 0.85; T.box('tarp', (1.85, b + 0.36, 0), (0.6, 0.34, 0.42))                                            # the mantlet's cover
     T.k = 0.55; T.cyl('dark', (4.1, b + 0.38, 0), 0.085, 4.6, 'x', 10)                                             # the gun
     for a0, a1 in ((2.1, 3.3), (4.1, 5.4)): T.k = 0.85; T.cyl('body', ((a0 + a1) / 2, b + 0.38, 0), 0.115, a1 - a0, 'x', 10)  # thermal sleeve
     T.k = 0.8; T.cyl('body', (3.7, b + 0.38, 0), 0.155, 0.6, 'x', 12)                                              # fume extractor
@@ -774,7 +806,7 @@ def k_tank():
     T.k = 0.6; T.cyl('dark', (-1.4, b + 0.95, 0.9), 0.07, 0.6, 'x', 8, tilt=0.6)                                   # 60 mm mortar
     for x in (-2.6, -3.15): T.k = 0.6; T.strut('dark', (x, b + 0.3, -1.3), (x, b + 0.3, 1.3), 0.02); T.strut('dark', (x, b + 0.75, -1.3), (x, b + 0.75, 1.3), 0.02)  # bustle rack
     for sz in (-1, 1): T.k = 0.6; T.strut('dark', (-2.55, b + 0.75, sz * 1.3), (-3.15, b + 0.75, sz * 1.3), 0.02); T.strut('dark', (-2.55, b + 0.3, sz * 1.3), (-3.15, b + 0.3, sz * 1.3), 0.02)
-    T.k = 0.8; T.block('canvas', (-2.85, b + 0.5, 0.45), (0.5, 0.4, 0.8), 0.25); T.k = 0.95; T.block('olive', (-2.85, b + 0.45, -0.5), (0.45, 0.32, 0.6), 0.15)
+    T.k = 0.8; T.block('tarp', (-2.85, b + 0.5, 0.45), (0.5, 0.4, 0.8), 0.25); T.k = 0.95; T.block('olive', (-2.85, b + 0.45, -0.5), (0.45, 0.32, 0.6), 0.15)
     for z in np.linspace(-1.25, 1.25, 15):  # (the chains: balls on short strings under the back)
         T.k = 0.5; T.strut('dark', (-2.52, b + 0.27, z), (-2.52, b + 0.06, z), 0.01); ball(T, 'dark', (-2.52, b + 0.05, z), 0.035, 1.0, 5)
     for sz in (-1, 1):  # (details: bolts on the turret's modules, grab rails, the hull's rear lights, front flaps)
@@ -852,22 +884,22 @@ def soldier(kind, phase=None):
         b = a - knee_bend
         foot = knee + np.array((np.sin(b) * 0.45, -np.cos(b) * 0.45, 0)); foot[1] = max(foot[1], 0.06)
         M.k = 1.0; limb(M, 'body', hip, knee, 0.085, 0.07); limb(M, 'body', knee, foot + (0, 0.05, 0), 0.07, 0.055)
-        M.k = 0.55; ball(M, 'olive', knee + (0.05, -0.02, 0), 0.055, 1.2, 6)                                   # knee pad
+        M.k = 0.55; ball(M, 'kit', knee + (0.05, -0.02, 0), 0.055, 1.2, 6)                                   # knee pad
         M.k = 0.6; M.hull('dark', [tuple(foot + d) for d in ((-0.08, -0.06, -0.05), (-0.08, -0.06, 0.05), (0.17, -0.06, -0.05), (0.17, -0.06, 0.05), (-0.08, 0.06, -0.05), (-0.08, 0.06, 0.05), (0.1, 0.04, -0.05), (0.1, 0.04, 0.05))])  # boot
     # (the torso, a vest over it, the belt; the head, the helmet)
     ch = hip_y + 0.55
     M.k = 1.0; M.hull('body', [(x, y, z) for x in (-0.1, 0.1) for y in (hip_y - 0.05,) for z in (-0.17, 0.17)] + [(x, ch, z) for x in (-0.12, 0.12) for z in (-0.21, 0.21)])
-    M.k = 0.75 if kind != 'med' else 1.0; M.hull('olive' if kind != 'med' else 'white', [(x, y, z) for x in (-0.13, 0.14) for y in (hip_y + 0.12, ch - 0.05) for z in (-0.2, 0.2)])  # vest
+    M.k = 0.75 if kind != 'med' else 1.0; M.hull('kit' if kind != 'med' else 'white', [(x, y, z) for x in (-0.13, 0.14) for y in (hip_y + 0.12, ch - 0.05) for z in (-0.2, 0.2)])  # vest
     M.k = 0.55; M.box('dark', (0, hip_y + 0.03, 0), (0.24, 0.07, 0.36))
     if kind != 'med':
-        for z in (-0.1, 0, 0.1): M.k = 0.65; M.box('olive', (0.155, hip_y + 0.22, z), (0.05, 0.15, 0.085))     # magazine pouches
-    M.k = 0.7; M.cyl('olive', (-0.05, hip_y - 0.02, 0.2), 0.05, 0.14, 'y', 8)                                  # canteen
-    M.k = 0.6; M.box('olive', (-0.05, hip_y - 0.01, -0.2), (0.1, 0.12, 0.06))                                 # pouch
+        for z in (-0.1, 0, 0.1): M.k = 0.65; M.box('kit', (0.155, hip_y + 0.22, z), (0.05, 0.15, 0.085))     # magazine pouches
+    M.k = 0.7; M.cyl('kit', (-0.05, hip_y - 0.02, 0.2), 0.05, 0.14, 'y', 8)                                  # canteen
+    M.k = 0.6; M.box('kit', (-0.05, hip_y - 0.01, -0.2), (0.1, 0.12, 0.06))                                 # pouch
     M.k = 0.9; M.box('body', (0, ch + 0.01, 0), (0.18, 0.05, 0.26))                                            # collar
     if kind == 'inf': M.k = 0.5; M.strut('dark', (-0.25, ch - 0.02, -0.1), (-0.32, ch + 0.65, -0.12), 0.006)  # radio whip
-    M.k = 0.7; M.hull('olive', [(x, y, z) for x in (-0.3, -0.12) for y in (hip_y + 0.15, ch - 0.02) for z in (-0.15, 0.15)])  # backpack
+    M.k = 0.8; M.block('kit', (-0.2, (hip_y + 0.2 + ch - 0.04) / 2, 0), (0.16, ch - 0.04 - hip_y - 0.2, 0.26), 0.3)  # backpack (small, rounded)
     M.k = 1.0; limb(M, SKIN, (0, ch, 0), (0, ch + 0.08, 0), 0.05, 0.05)
-    head = np.array((0.02, ch + 0.2, 0)); M.k = 1.15; ball(M, SKIN, head, 0.11, 1.1)
+    head = np.array((0.02, ch + 0.2, 0)); M.k = 1.15; ball(M, SKIN, head, 0.11, 1.1); M.head = [float(v) for v in head + (0, 0.06, 0)] + [0.2]  # (the game paints the helmet's top in the side's colour, within this ball)
     if kind == 'commando':  # (a balaclava, a soft cap)
         M.k = 0.5; ball(M, 'dark', head + (-0.01, 0.01, 0), 0.115, 1.12); M.k = 1.0; M.box('glass', tuple(head + (0.1, 0.02, 0)), (0.02, 0.04, 0.14))
     else:
@@ -879,8 +911,8 @@ def soldier(kind, phase=None):
     sh = [np.array((0.0, ch - 0.04, z)) for z in (0.22, -0.22)]
     if kind in ('at', 'aa'):  # (a tube on the right shoulder, the hands on it)
         tube = (0.0, ch + 0.06, -0.16); L = 1.1 if kind == 'at' else 1.5
-        M.k = 1.0; M.cyl('olive' if kind == 'at' else 'dark', (tube[0] + (0.15 if kind == 'at' else 0.05), tube[1], tube[2]), 0.06 if kind == 'at' else 0.055, L, 'x', 8)
-        if kind == 'at': M.k = 0.9; M.cyl('olive', (tube[0] + 0.15 + L / 2 + 0.12, tube[1], tube[2]), 0.11, 0.3, 'x', 8, r2=0.03)  # the warhead
+        M.k = 1.0; M.cyl('kit' if kind == 'at' else 'dark', (tube[0] + (0.15 if kind == 'at' else 0.05), tube[1], tube[2]), 0.06 if kind == 'at' else 0.055, L, 'x', 8)
+        if kind == 'at': M.k = 0.9; M.cyl('kit', (tube[0] + 0.15 + L / 2 + 0.12, tube[1], tube[2]), 0.11, 0.3, 'x', 8, r2=0.03)  # the warhead
         else: M.k = 0.8; M.box('dark', (tube[0] + 0.2, tube[1] - 0.12, tube[2] + 0.02), (0.18, 0.12, 0.08))
         hands = [np.array((0.32, ch - 0.02, -0.12)), np.array((0.1, ch - 0.05, -0.1))]
     elif kind == 'med':  # (a medical bag in one hand, the other free)
@@ -922,6 +954,7 @@ KINDS = {'inf': k_soldier('inf'), 'at': k_soldier('at'), 'aa': k_soldier('aa'), 
          'mlrs': k_mlrs, 'dozer': k_dozer, 'tank': k_tank, 'jeep': k_jeep, 'drone': k_drone}
 
 if __name__ == '__main__':
+    Mesh.BEVEL, SMOOTH = 0.1, True  # (the units: bevelled boxes, smooth round things)
     for k in (sys.argv[1:] or KINDS):
         r = KINDS[k]()  # (parts, or (parts, extras) — the tank's track pitch)
         write(k, r[0], extras=r[1]) if isinstance(r, tuple) else write(k, r)

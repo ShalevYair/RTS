@@ -216,7 +216,7 @@ const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
   const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
   const clean = part === 'turret' || part.startsWith('spin') || !!(Sim.TYPES[type] && Sim.TYPES[type].air); // (no mud up there)
-  const head = MODELS[type].poses ? MODELS[type].size[1] * V3_HELMET : 0; // (a soldier: the helmet in the side's colour)
+  const H = MODELS[type].head, head = H ? `vec4(${H.map(v => v.toFixed(4)).join(', ')})` : ''; // (a soldier: the helmet in the side's colour — the ball round its head)
   const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), v3Paint3(clean, head, type.startsWith('b_')), 64);
   mesh.castShadow = mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
   mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3);
@@ -228,12 +228,12 @@ function v3Model(type, part, side) {
 // is (so it stays on the unit as it moves). Which scheme, pattern and seed come in the instance's colour: red = the tint,
 // green < 0 = -(pattern + seed), blue = the scheme (side × 4 + which). The model's own shading of its paint (panels a
 // shade lighter or darker) kept: aTeam = its brightness against the part's mean (0 = not paint). ----
-const V3_CAMO = 4, V3_SCHEMES = 4; // (patterns: 0 plain, 1 spots, 2 stripes, 3 squares; schemes a side)
+const V3_CAMO = 4, V3_SCHEMES = 4; // (patterns: 0 plain, 1 spots, 2 stripes, 3 woodland; schemes a side)
 // (army colours, not toy ones: ours olive, forest green, grey-green, sand-olive; theirs desert tan, earth brown,
 // khaki, grey — and which side, at a glance: a recognition panel across the roof in the side's colour, V3_PANEL)
 const V3_PAL = [ // (sRGB: base, dark, light — blue's four, then red's)
   ['#5c6638', '#30361c', '#868a58'], ['#43512f', '#232c18', '#6f7d4f'], ['#5d6656', '#30362c', '#8c9484'], ['#706a48', '#3c3824', '#9c9670'],
-  ['#a08a5c', '#5c4a2e', '#c8b484'], ['#7a5a3a', '#3e2c1a', '#a8865e'], ['#8c7e52', '#4e4428', '#b4a87c'], ['#6e6a62', '#3a3833', '#9a968c']];
+  ['#94805a', '#5c4a2e', '#b4a078'], ['#7a5a3a', '#3e2c1a', '#a0805a'], ['#857852', '#4e4428', '#a89c74'], ['#6e6a62', '#3a3833', '#928e84']]; // (the lights not near white: sand in the sun was)
 const V3_PANEL = ['#2d6be0', '#d8392b'], V3_PANEL_W = 0.07; // (blue, red; half its width, of the model's length)
 function v3CamoOf(u, c) {
   const h = (u.id * 0.6180339) % 1, p = Math.floor(h * 97) % V3_CAMO, sc = (u.side === 'red' ? V3_SCHEMES : 0) + Math.floor(((u.id * 0.7548777) % 1) * V3_SCHEMES);
@@ -244,14 +244,13 @@ function v3CamoOf(u, c) {
 const V3_SAT = '0.8', V3_MUD = 0.16, V3_MUD_COL = [0.36, 0.3, 0.21]; // (dust low down, not dark mud: the land's dry)
 // the units' paint (UNIT3D in ground3d.js — Poly Haven's green_metal_rust, its light and dark only): s — repeats to the model's length;
 // k — how strong (cloth: the soldiers); nk — its dents; camo — how far the pattern's colours stay apart; panel — how much of the side's colour in the roof's panel
-const V3_UNITT = { s: '2.6', k: '1.0', cloth: '0.3', nk: '0.8', camo: '0.6', panel: '0.6', edge: '0.8' };
-const V3_HELMET = 0.74; // (a soldier's helmet and shoulders: what faces up, above this of its height)
+const V3_UNITT = { s: '2.6', k: '1.0', cloth: '0.3', nk: '0.8', camo: '0.6', panel: '0.6' };
 function v3Paint3(clean, head, bld) {
   bld = bld && typeof BLD3D === 'object';
-  const k = (clean ? 'vcolC' : 'vcol') + (head ? 'H' + head.toFixed(3) : '') + (bld ? 'B' : '');
+  const k = (clean ? 'vcolC' : 'vcol') + (head ? 'H' + head : '') + (bld ? 'B' : '');
   if (!V3[k]) {
     V3[k] = v3Camo(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.18, envMapIntensity: V3_ENV }));
-    V3[k].defines = {}; if (!clean && !bld) V3[k].defines.V3_DIRTY = 1; // (no mud on a building: its bottom is the whole floor of its base) if (head) V3[k].defines.V3_HEAD = head.toFixed(4);
+    V3[k].defines = {}; if (!clean && !bld) V3[k].defines.V3_DIRTY = 1; if (head) V3[k].defines.V3_HEAD = head; // (no mud on a building: its bottom is the whole floor of its base)
     if (bld) { V3[k].defines.V3_BLD = 1; v3BldTex(); } else if (typeof UNIT3D === 'object') { V3[k].defines.V3_UNIT = 1; v3BldTex(); }
   }
   return V3[k];
@@ -312,13 +311,15 @@ function v3Camo(mat) {
         int b = int(vPat.z) * 3; vec3 c0 = v3Pal[b], c1 = v3Pal[b + 1], c2 = v3Pal[b + 2], q = vP3 + vPat.y * 17.0, c = c0;
         if (vPat.x > 0.5 && vPat.x < 1.5) { float n = v3n(q * 6.0) * 0.65 + v3n(q * 14.0) * 0.35; c = n < 0.4 ? c1 : n > 0.6 ? c2 : c0; }
         else if (vPat.x > 1.5 && vPat.x < 2.5) { float w = sin((vP3.x + vP3.z * 0.35 + vP3.y * 0.6) * 22.0 + v3n(q * 5.0) * 5.0); c = w > 0.35 ? c1 : w < -0.75 ? c2 : c0; }
-        else if (vPat.x > 2.5) { float n = v3h(floor(q * 20.0)) * 0.6 + v3n(q * 5.0) * 0.4; c = n < 0.38 ? c1 : n > 0.62 ? c2 : c0; }
+        else if (vPat.x > 2.5) { float n = v3n(q * 3.2) * 0.7 + v3n(q * 9.0) * 0.3, m = v3n(q * 4.1 + 9.0) * 0.75 + v3n(q * 11.0) * 0.25; c = n < 0.42 ? c1 : m > 0.6 ? c2 : c0; } // (woodland: big soft patches)
         c = mix(c0, c, ${V3_UNITT.camo}); // (the pattern's colours nearer each other: paint faded in the sun)
+        #ifndef V3_HEAD
         if (vN3.y > 0.55 && abs(vP3.x) < ${V3_PANEL_W}) c = mix(c0, v3Panel[vPat.z < ${V3_SCHEMES}.0 ? 0 : 1], ${V3_UNITT.panel}) / max(vTeam, 0.5);
+        #endif
         diffuseColor.rgb = c * vTeam * vTint;
       }
       #ifdef V3_HEAD
-      if (vPat.x > -0.5 && vP3.y > V3_HEAD && vN3.y > 0.6) diffuseColor.rgb = mix(diffuseColor.rgb, v3Panel[vPat.z < ${V3_SCHEMES}.0 ? 0 : 1] * 0.7 * vTint, 0.8);
+      if (vPat.x > -0.5 && distance(vP3, V3_HEAD.xyz) < V3_HEAD.w && vP3.y > V3_HEAD.y - V3_HEAD.w * 0.3 && vN3.y > 0.3) diffuseColor.rgb = mix(diffuseColor.rgb, v3Panel[vPat.z < ${V3_SCHEMES}.0 ? 0 : 1] * 0.55 * vTint, 0.55); // (a helmet cover in the side's colour, muted)
       #endif
       float v3g = v3n(vP3 * 9.0 + 3.1) * 0.6 + v3n(vP3 * 31.0) * 0.4, v3m = 0.0;
       diffuseColor.rgb = mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, ${V3_SAT}); // (paint a little faded)
@@ -356,8 +357,6 @@ function v3Camo(mat) {
           float uk = ${V3_UNITT.k};
         #endif
         diffuseColor.rgb *= mix(1.0, pow(max(d, 0.0), 1.3), uk);
-        float edge = smoothstep(0.08, 0.5, length(fwidth(vN3))); // (where the plates meet: the paint worn to the metal — every edge a fine light line)
-        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.5 + vec3(0.06, 0.055, 0.045), edge * ${V3_UNITT.edge} * (1.0 - smoothstep(0.0, 0.5, uk == ${V3_UNITT.cloth} ? 1.0 : 0.0)));
       }
       #endif
       #ifdef V3_DIRTY
@@ -418,7 +417,7 @@ function v3Geo(type, part, side) {
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const at = new Float32Array(n); // (its paint: where the camouflage goes — each point's brightness against the part's mean, so its panels keep their shades)
-    if (k === 'team') { let m = 0; for (let i = 0; i < n; i++) m += (u8[i * 12 + 9] + u8[i * 12 + 10] + u8[i * 12 + 11]) / 765; m = Math.max(0.01, m / n); for (let i = 0; i < n; i++) at[i] = Math.min(1.5, Math.max(0.45, (u8[i * 12 + 9] + u8[i * 12 + 10] + u8[i * 12 + 11]) / 765 / m)); }
+    if (k === 'team') { let m = 0; for (let i = 0; i < n; i++) m += (u8[i * 12 + 9] + u8[i * 12 + 10] + u8[i * 12 + 11]) / 765; m = Math.max(0.01, M.tm || m / n); for (let i = 0; i < n; i++) at[i] = Math.min(1.5, Math.max(M.tm ? 0.15 : 0.45, (u8[i * 12 + 9] + u8[i * 12 + 10] + u8[i * 12 + 11]) / 765 / m)); } // (M.tm: the mean before the baked shade in its gaps — tools/models.py — so the shade stays)
     g.setAttribute('aTeam', new THREE.BufferAttribute(at, 1));
     geo.push(g);
   }

@@ -119,6 +119,62 @@ def pack(v, Q=POS_Q):
     return base64.b64encode(b.tobytes()).decode()
 
 
+# ---- ambient occlusion, baked into the colours (units only): each point darker by how much of the sky round it the
+# model itself hides — the gaps between the wheels, under the turret's overhang, the joints of the plates. AO_RAYS
+# rays over its half-sphere, each counting to AO_FAR lengths (nearer = darker); AO_K how strong, AO_MIN the darkest;
+# a vehicle on the ground (not in the air) sees it under itself. Long triangles are cut first (AO_EDGE lengths at
+# most), or a big plate would be lit or dark only at its corners. ----
+AO_RAYS, AO_FAR, AO_K, AO_MIN, AO_EDGE = 64, 0.22, 1.0, 0.22, 0.1
+AIRBORNE = ('air', 'tanker', 'heli', 'gunship', 'lift', 'drone')
+def is_unit(name): return not re.match(r'(b_|tree|bush|rock|stone)', name)
+
+
+def split_long(p, n, c, emax):
+    """triangle soup (3k points): every triangle with a side over emax cut in two at its longest side, until none"""
+    for _ in range(8):
+        P = p.reshape(-1, 3, 3); e = np.stack([np.linalg.norm(P[:, (i + 1) % 3] - P[:, i], axis=1) for i in range(3)], 1)
+        k = e.argmax(1); big = e.max(1) > emax
+        if not big.any(): break
+        N, C = n.reshape(-1, 3, 3), c.reshape(-1, 3, 3)
+        keep = [a.reshape(-1, 3, 3)[~big] for a in (p, n, c)]
+        idx = np.where(big)[0]; kk = k[idx]
+        def cut(A, nrm=False):
+            A = A[idx]; a, b, d = A[np.arange(len(idx)), kk], A[np.arange(len(idx)), (kk + 1) % 3], A[np.arange(len(idx)), (kk + 2) % 3]
+            m = (a + b) / 2
+            if nrm: m = m / np.maximum(1e-9, np.linalg.norm(m, axis=1))[:, None]
+            return np.concatenate([np.stack([a, m, d], 1), np.stack([m, b, d], 1)])
+        p, n, c = (np.concatenate([keep[j], cut(A, j == 1)]).reshape(-1, 3) for j, A in enumerate((P, N, C)))
+    return p, n, c
+
+
+def occlusion(pts, nrm, mesh_p, L, ground):
+    """how open each point is to the sky round it (1 = open), against the triangles mesh_p (+ the ground at y=ground)"""
+    import trimesh
+    from trimesh.ray.ray_pyembree import RayMeshIntersector
+    tris = mesh_p.reshape(-1, 3, 3)
+    if ground is not None:
+        lo, hi = mesh_p.min(0) - L, mesh_p.max(0) + L; g = ground - 0.002 * L
+        tris = np.concatenate([tris, np.array([[[lo[0], g, lo[2]], [hi[0], g, hi[2]], [hi[0], g, lo[2]]], [[lo[0], g, lo[2]], [lo[0], g, hi[2]], [hi[0], g, hi[2]]]])])
+    m = trimesh.Trimesh(vertices=tris.reshape(-1, 3), faces=np.arange(len(tris) * 3).reshape(-1, 3), process=False)
+    R = RayMeshIntersector(m)
+    rng = np.random.default_rng(1); u = rng.random((AO_RAYS, 2))
+    # (cosine-weighted directions round +Z, turned to each normal)
+    r_, ph = np.sqrt(u[:, 0]), 2 * np.pi * u[:, 1]; D = np.c_[r_ * np.cos(ph), r_ * np.sin(ph), np.sqrt(1 - u[:, 0])]
+    nn = nrm / np.maximum(1e-9, np.linalg.norm(nrm, axis=1))[:, None]
+    a = np.where(np.abs(nn[:, :1]) > 0.9, np.array([[0, 1, 0]]), np.array([[1, 0, 0]]))
+    tx = np.cross(a, nn); tx /= np.maximum(1e-9, np.linalg.norm(tx, axis=1))[:, None]; ty = np.cross(nn, tx)
+    occ = np.zeros(len(pts))
+    for s in range(0, len(pts), 4000):
+        P, Nn, X, Y = pts[s:s + 4000], nn[s:s + 4000], tx[s:s + 4000], ty[s:s + 4000]
+        dirs = (X[:, None] * D[None, :, :1] + Y[:, None] * D[None, :, 1:2] + Nn[:, None] * D[None, :, 2:]).reshape(-1, 3)
+        org = np.repeat(P + Nn * 0.003 * L, AO_RAYS, 0)
+        tri, ray, loc = R.intersects_id(org, dirs, multiple_hits=False, return_locations=True)
+        hit = np.zeros(len(org)); d = np.linalg.norm(loc - org[ray], axis=1) / (AO_FAR * L)
+        hit[ray] = np.clip(1 - d, 0, 1) ** 0.7
+        occ[s:s + 4000] = hit.reshape(-1, AO_RAYS).mean(1)
+    return 1 - occ
+
+
 def bake(path):
     J, B = read_glb(path)
     mats = J.get('materials', [])
@@ -170,10 +226,30 @@ def bake(path):
         p0, p1 = skinned(J, B, tracks['L'][0], pose(J, B, fwd, 0)), skinned(J, B, tracks['L'][0], pose(J, B, fwd, T * 0.999))
         low = p0[:, 1] < p0[:, 1].min() + 0.15 * np.ptp(p0[:, 1])
         dx = np.abs(np.median((p1 - p0)[low], axis=0)); cycle = float(dx.max())
+    name = os.path.splitext(os.path.basename(path))[0]
+    tmean = {}  # (a part's paint, its mean brightness before the shade — three3d.js reads the camouflage's shades against it, `tm`)
+    if is_unit(name):  # (the model's own shade in its gaps — see occlusion)
+        allp = np.concatenate([v[0] for v in cat.values()] + [frames[s][0] for s in ('L', 'R') if s in frames])
+        L0 = max(np.ptp(allp[:, 0]), np.ptp(allp[:, 2])); air = name in AIRBORNE
+        groups = {}  # (a soldier's poses each shade only themselves; the rest — hull, turret, tracks — together)
+        for k in cat: groups.setdefault(k[0] if re.match(r'(pose|spin)\d+$|dead$', k[0]) else '', []).append(k)
+        for g, keys in groups.items():
+            if g == '' and not any(k[0] == 'pose0' for k in cat) and name != 'drone':  # (soldiers and the drone: tiny — their corners do)
+                for k in keys: cat[k] = split_long(*cat[k], AO_EDGE * L0)
+            mesh = np.concatenate([cat[k][0] for k in keys] + ([frames[s][0] for s in ('L', 'R') if s in frames] if g == '' else []))
+            ground = None if air or g == 'dead' else mesh[:, 1].min()
+            for k in keys:
+                p_, n_, c_ = cat[k]; ao = occlusion(p_, n_, mesh, L0, ground)
+                if k[1]: tmean[k[0]] = float(np.round(np.clip(c_, 0, 1) * 255).mean() / 255)
+                cat[k] = (p_, n_, c_ * np.maximum(AO_MIN, 1 - AO_K * (1 - ao))[:, None])
+            if g == '':
+                for s in ('L', 'R'):
+                    if s in frames:
+                        ao = occlusion(frames[s][0], frames[s + 'n'], mesh, L0, ground)
+                        frames[s + 'c'] = frames[s + 'c'] * np.maximum(AO_MIN, 1 - AO_K * (1 - ao))[:, None]
     hull = np.concatenate([v[0] for k, v in cat.items() if k[0] == 'hull'] + [frames[s][0] for s in ('L', 'R') if s in frames])
     gun = np.concatenate([v[0] for k, v in cat.items() if k[0] == 'turret']) if any(k[0] == 'turret' for k in cat) else None
     # the front: toward the gun's far end (on the long side), else +X — turned to +X
-    name = os.path.splitext(os.path.basename(path))[0]
     lo, hi = hull.min(0), hull.max(0); mid = (lo + hi) / 2
     if name in FRONT: ang = np.radians(FRONT[name])
     elif J.get('asset', {}).get('generator', '').startswith('tools/build_'): ang = 0.0  # (built in code: +X already)
@@ -204,6 +280,7 @@ def bake(path):
         if part == 'turret': q = q - piv
         n_ = turn(nr)
         out['parts'].setdefault(part, {})['team' if team else 'rest'] = pack(np.c_[q, n_, np.clip(col, 0, 1)], Q)
+        if team and part in tmean: out['parts'][part]['tm'] = round(tmean[part], 4)
     if frames:
         for side in ('L', 'R'):
             if side not in frames: continue
@@ -218,6 +295,8 @@ def bake(path):
     out['size'] = [1.0, round(float((hi[1] - lo[1]) / L), 4), round(float((hi[2] - lo[2]) / L), 4)]
     lights = J.get('asset', {}).get('extras', {}).get('lights')  # (lamps lit at night — tools/build_models.py `lamp`: [x, y, z, kind])
     if lights: out['lights'] = [[round(float(v), 4) for v in (turn(np.array(l[:3]) - mid) - ctr) / L] + [l[3]] for l in lights]
+    hd = J.get('asset', {}).get('extras', {}).get('head')  # (a soldier's head, where the game paints its helmet: [x, y, z, r])
+    if hd: out['head'] = [round(float(v), 4) for v in (turn(np.array(hd[:3]) - mid) - ctr) / L] + [round(hd[3] / L, 4)]
     tri = sum(len(v[0]) for v in cat.values()) // 3
     if frames: tri += sum(len(frames[s][0]) for s in ('L', 'R') if s in frames) // 3
     print(f'{name}: {tri} triangles, front turned {np.degrees(ang):.0f}°, size {out["size"]}, pivot {out.get("pivot")}' + (f', tracks {out["track"]}' if 'track' in out else ''))
