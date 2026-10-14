@@ -51,7 +51,8 @@ const CASES = {
 function run(name, seed = 3, T = +process.env.MOVE_T || 200) {
   rs = seed * 7919 + 1; JIT = 25;
   const s = field(seed); s.seed = seed; const groups = CASES[name](s);
-  if (process.env.OLD) s.oldMarch = s.oldSlots = true; // (OLD=1: the way it was — the march from their middle, places by the order they were made)
+  if (process.env.OLD) s.oldMarch = s.oldSlots = true;
+  if (process.env.ARRIVE) s.arriveMarch = true; // (ARRIVE=1: each straight for its place, getting there together — the march before the route) // (OLD=1: the way it was — the march from their middle, places by the order they were made)
   for (const [qs, x, y] of groups) Sim.formation(s, qs.map(q => q.id), 'hold', x, y, true);
   const all = groups.flatMap(g => g[0]), last = new Map(), still = new Map();
   for (const q of all) { const u = unitOf(s, q); last.set(q.id, { x: u.x, y: u.y, d: Math.hypot(u.x - slot(q).x, u.y - slot(q).y) }); }

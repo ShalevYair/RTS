@@ -18,7 +18,7 @@ const STR = {
   he: {
     title: 'המפקד', map: 'מפת הקרב', mini: 'מפה קטנה: לחץ כדי להסתכל שם', compass: 'מצפן: לחיצה מחזירה את המצלמה לצפון (גרירה בכפתור האמצעי מסובבת)',
     power: n => `העוצמה שלך מתוך כל הכוחות במפה. מתחת ל-${n}% — הפסד`, slots: 'מבנים: בנויים / מכסה. כל 🏕️ מוסיף 2', boost: 'הצד החלש מייצר מהר יותר',
-    hold: 'להחזיק', attack: 'לתקוף', retreat: 'לסגת',
+    hold: 'להחזיק', attack: 'לתקוף', retreat: 'לסגת', move: 'רק לנוע', moveOn: 'תנועה בלבד (M): נוסעים בלי לעצור לקרב', moveOff: 'לתקוף (A)', followOn: 'מצלמה אחרי היחידה (C או Esc ליציאה)', followOff: 'מצלמה רגילה',
     quit: 'יציאה', quitDone: 'המשחק נסגר. אפשר לסגור את הלשונית.', tipScore: 'ניקוד: כמה השמיד כל צד מהשני (חייל 100, ג׳יפ 250, טנק 500, מבנה 1000, המפקדה 5000). לא מכריע את המשחק.', tipHold: 'להחזיק (Q): ללכת למקום ולהגן עליו', tipAttack: 'לתקוף (A): לתפוס את האזור ולרדוף אחרי האויב', tipRetreat: 'לסגת (R): הביתה, להתרפא ולהתמלא',
     gfx: 'גרפיקה', gfxHi: 'רגילה', gfxLow: 'נמוכה', tipGfxHi: 'צללים, יום ולילה, גשם וערפל', tipGfxLow: 'מהיר יותר: בלי צללים, בלי יום ולילה, גשם וערפל (מהמשחק הבא), קרקע פשוטה',
     play: 'המשך (רווח)', fsName: 'מסך מלא', gear: 'הגדרות', fs: 'מסך מלא (F)', sqT: 'הכוחות', all: 'כל הכוחות יחד, במבנה (0)',
@@ -119,7 +119,7 @@ const STR = {
   en: {
     title: 'The Commander', map: 'Battle map', mini: 'Minimap: tap to look there', compass: 'Compass: click to face north again (a middle-button drag turns the camera)',
     power: n => `Your share of all the power on the map. Below ${n}% you lose`, slots: 'Buildings: built / limit. Each 🏕️ adds 2', boost: 'The weaker side builds faster',
-    hold: 'Hold', attack: 'Attack', retreat: 'Retreat',
+    hold: 'Hold', attack: 'Attack', retreat: 'Retreat', move: 'Move only', moveOn: 'Move only (M): they drive on without stopping to fight', moveOff: 'Attack (A)', followOn: 'Camera on the unit (C or Esc to leave)', followOff: 'Free camera',
     quit: 'Quit', quitDone: 'The game is closed. You can close this tab.', tipScore: 'Score: what each side has destroyed of the other (soldier 100, jeep 250, tank 500, building 1000, HQ 5000). It does not decide the game.', tipHold: 'Hold (Q): go there and defend it', tipAttack: 'Attack (A): take the area, chase the enemy', tipRetreat: 'Retreat (R): home, to heal and refill',
     gfx: 'Graphics', gfxHi: 'Normal', gfxLow: 'Low', tipGfxHi: 'Shadows, day and night, rain and fog', tipGfxLow: 'Faster: no shadows, no day and night, rain or fog (from the next game), plain ground',
     play: 'Go on (Space)', fsName: 'Full screen', gear: 'Settings', fs: 'Full screen (F)', sqT: 'Forces', all: 'All forces together, in formation (0)',

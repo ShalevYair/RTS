@@ -169,8 +169,9 @@ function tap(e) {
   if (sendCapture(hitPost(x, y))) return;
   // at an enemy: an attack on it, whatever the order button says
   const foe = selIds().length || sel === 'all' ? hitFoe(x, y) : null;
-  if (foe) { issue('attack', foe.x, foe.y, undefined, true); return; }
-  issue(mode, x, y);
+  // (Shift: queued — after where they're going now)
+  if (foe) { issue('attack', foe.x, foe.y, undefined, true, false, undefined, e.shiftKey); return; }
+  issue(mode, x, y, undefined, false, false, undefined, e.shiftKey);
 }
 // hover (mouse): the cursor says what a click would do, and a building's line shows by it after a moment
 const svgCur = (svg, hx, hy) => `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${hx} ${hy}, crosshair`;
@@ -190,7 +191,7 @@ const aimCur = col => Array.from({ length: AIM_FRAMES }, (_, i) => {
   const g = `<circle cx='28' cy='28' r='9'/>${[0, 90, 180, 270].map(arrow).join('')}`;
   return svgCur(`<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'><g stroke='#fff' stroke-width='4' stroke-linejoin='round' fill='#fff'>${g}</g><g stroke='${col}' stroke-width='1.6' stroke-linejoin='round' fill='${col}'><circle cx='28' cy='28' r='9' fill='none' stroke-width='2.4'/>${[0, 90, 180, 270].map(arrow).join('')}</g><circle cx='28' cy='28' r='2' fill='${col}'/></svg>`, 28, 28);
 });
-const AIM_GO = aimCur('#2e9e4f'), AIM_FOE = aimCur('#d8342c'), AIM_CAP = aimCur('#e0a800'); // (yellow: soldiers into a post, to take it)
+const AIM_GO = aimCur('#2e9e4f'), AIM_FOE = aimCur('#d8342c'), AIM_CAP = aimCur('#e0a800'), AIM_MOVE = aimCur('#2f7fd6'); // (yellow: soldiers into a post, to take it)
 // the cursor for where the mouse is (an array: an animated one)
 function cursorAt(x, y) {
   const picked = sel === 'all' || selIds().length > 0;
@@ -200,7 +201,7 @@ function cursorAt(x, y) {
   if (hitSquad(x, y) || hitNode(x, y, 'blue')) return rallyNode() && !hitNode(x, y, 'blue') ? AIM_GO : 'pointer';
   if (rallyNode()) return AIM_GO; // (a building of ours picked: a click says where its squads go)
   if (!picked) return ARROW_CUR;
-  return hitFoe(x, y) ? AIM_FOE : canTake(hitPost(x, y)) ? AIM_CAP : AIM_GO;
+  return hitFoe(x, y) ? AIM_FOE : canTake(hitPost(x, y)) ? AIM_CAP : mode === 'move' ? AIM_MOVE : AIM_GO; // (blue: only moving — M)
 }
 let curNow = null, lastMouse = null;
 // a production building of ours picked: a click on the map is its rally point
@@ -382,7 +383,7 @@ document.addEventListener('keydown', e => {
   // physical key codes, so the shortcuts also work on a Hebrew keyboard layout
   const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : /^(Digit|Numpad)\d$/.test(e.code) ? e.code.slice(-1) : e.key.toLowerCase();
   // keys for controls this level doesn't have yet do nothing
-  const need = /^\d$/.test(k) ? 'squads' : 'qar'.includes(k) ? 'orders' : { d: 'eye', b: 'fhq', g: 'build' }[k];
+  const need = /^\d$/.test(k) ? 'squads' : 'qarm'.includes(k) ? 'orders' : { d: 'eye', b: 'fhq', g: 'build' }[k];
   if (need && !uiHas(need)) return;
   // Ctrl + a number: what's picked becomes that group; the number alone: the button with that number (a second press
   // brings the camera there). Alt + a number: this view is saved as that point; Shift + it: back to it (field.js)
@@ -401,6 +402,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'h') toHq();
   else if (k === 't') keyDozer();
   else if (k === 'a') { mode = 'attack'; syncButtons(); }
+  else if (k === 'm') { mode = mode === 'move' ? 'attack' : 'move'; syncButtons(); toast(tr(mode === 'move' ? 'moveOn' : 'moveOff'), innerWidth / 2, innerHeight / 2, 1200); } // (only moving, M again: back to attacking)
   else if (k === 'r') issue('retreat');
   else if (k === ' ') { e.preventDefault(); if (!e.repeat) setPlaying(!playing); }
   else if (k === 'd') toggleEye();
@@ -411,6 +413,8 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'Home' && V3.on) v3OrbitReset();
   else if (e.key.startsWith('Arrow')) { e.preventDefault(); const d = 120; panBy(e.key === 'ArrowLeft' ? d : e.key === 'ArrowRight' ? -d : 0, e.key === 'ArrowUp' ? d : e.key === 'ArrowDown' ? -d : 0); }
   else if (e.key === '+' || e.key === '=' || e.key === '-') zoomAt(fit.w / 2, fit.top + fit.h / 2, e.key === '-' ? 1 / 1.25 : 1.25);
+  else if (k === 'c' && V3.on) { const id = oneSel() || (Array.isArray(sel) && sel[0]); if (V3.follow || id) { const on = id && !V3.follow && v3Follow(id); if (!on) v3Unfollow(); toast(tr(on ? 'followOn' : 'followOff'), innerWidth / 2, innerHeight / 2, 1200); } } // (the 3D view: the camera behind the picked unit)
+  else if (k === 'escape' && V3.follow) v3Unfollow();
   else if (k === 'escape') { eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; frontArmed = false; roadArmed = false; $('buildm').hidden = true; syncButtons(); closeMenu(); }
 });
 // H: the camera to our main HQ (before it stands: to the command tanks)

@@ -25,7 +25,7 @@ const Prof = (() => {
     'missileTick', 'visibility', 'think', 'updatePower', 'record', 'calls', 'deliver', 'controlNodes', 'weatherAt'];
   const UI = ['draw', 'drawGround', 'bgPaint', 'drawScenery', 'sceneryTick', 'drawGoneScenery', 'drawWater', 'drawScorch', 'drawTracks', 'drawFallen', 'drawDust',
     'drawUnits', 'drawGhosts', 'drawSmoke', 'drawFlashes', 'drawClouds', 'drawWeather', 'drawNightLit', 'drawFog', 'drawQuality', 'drawEnemyIntel',
-    'drawMarks', 'drawPosts', 'drawNodes', 'drawDozerJobs', 'drawBuildArea', 'drawBuildZone', 'drawMissiles', 'drawPicked', 'drawPings', 'drawMini',
+    'drawMarks', 'drawPosts', 'drawNodes', 'drawDozerJobs', 'drawBuildArea', 'drawBuildZone', 'drawMissiles', 'drawPicked', 'drawPings', 'drawRoutes', 'drawMini',
     'drawBox', 'updateHud', 'tickCursor', 'edgeScroll', 'coachTick', 'sunShadeTick', 'drawOutro'];
   const missing = [];
   for (const n of SIM) if (!wrap(n, 'sim.' + n)) missing.push(n);

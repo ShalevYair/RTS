@@ -79,8 +79,9 @@ const lineWidth = (sq, n) => (packed(sq, n) ? blockCols(sq.size) : sq.size) * sp
 // Far off (past MARCH_MIN), they go there in the formation: its middle moves from where they are at the slowest one's
 // pace (MARCH_PACE of it, after MARCH_WAIT s to form up), each squad keeping its place in it — not each straight to its
 // own spot, forming up only at the end.
-function formation(s, ids, type, x, y, quiet, fa, deep) {
+function formation(s, ids, type, x, y, quiet, fa, deep, opt = {}) {
   if (type === 'retreat') { let ok = false; for (const id of ids) ok = order(s, id, type, x, y, quiet) || ok; return ok; }
+  const move = !!opt.move; // (only moving: not stopping to fight on the way — see updateUnit)
   const rows = new Map(), qs = [];
   for (const id of ids) { const q = s.squads.find(k => k.id === id); if (q && !q.dead) { qs.push(q); const k = FORM_ROW[q.type]; if (!rows.has(k)) rows.set(k, []); rows.get(k).push(q); } }
   const ks = [...rows.keys()], k0 = Math.min(...ks), k1 = Math.max(...ks), mid = (k0 + k1) / 2;
@@ -92,7 +93,9 @@ function formation(s, ids, type, x, y, quiet, fa, deep) {
     const sx = us.reduce((a, u) => a + u.x, 0) / us.length, sy = us.reduce((a, u) => a + u.y, 0) / us.length;
     // (s.oldMarch: as before — the formation formed up round their middle, then moving from there; now each goes
     // straight for its own place there, and they get there together — `arrive`, worked out below)
-    if (Math.hypot(x - sx, y - sy) > MARCH_MIN) march = s.oldMarch ? { sx, sy, v: Math.min(...us.map(u => TYPES[u.type].speed)) * MARCH_PACE, t0: s.t + MARCH_WAIT } : { arrive: s.t };
+    // (s.arriveMarch: each straight for its place, all getting there together; now — the formation marches there,
+    // whole, along a route, folding into a column through a narrow way: march.js)
+    if (Math.hypot(x - sx, y - sy) > MARCH_MIN) march = s.oldMarch ? { sx, sy, v: Math.min(...us.map(u => TYPES[u.type].speed)) * MARCH_PACE, t0: s.t + MARCH_WAIT } : s.arriveMarch ? { arrive: s.t } : { lead: true };
     // (the player's: no arrow — the front faces the way they go, and stays so; far from where they are, else the enemy HQ)
     if (!Number.isFinite(fa) && qs.length && sameRules(s, qs[0].side)) {
       const e = hqOf(s, qs[0].side === 'blue' ? 'red' : 'blue') || s.bases[qs[0].side === 'blue' ? 'red' : 'blue'];
@@ -128,10 +131,10 @@ function formation(s, ids, type, x, y, quiet, fa, deep) {
     singles.forEach((q, i) => {
       const c = i % cols, r = Math.floor(i / cols);
       const depth = (k - mid) * gap - (r - (rws - 1) / 2) * sp + back(q), lat = at + (c + 0.5) * sp; est.push([q, depth, lat]);
-      ok = order(s, q.id, how(q), x, y, quiet, { depth, lat, fa, fixed: fixed(q), march, deep }) || ok;
+      ok = order(s, q.id, how(q), x, y, quiet, { depth, lat, fa, fixed: fixed(q), march, deep, move }) || ok;
     });
     if (singles.length) at += sw + SIDE_GAP;
-    for (const q of rest) { const w = lineWidth(q, n); est.push([q, (k - mid) * gap + back(q), at + w / 2]); ok = order(s, q.id, how(q), x, y, quiet, { depth: (k - mid) * gap + back(q), lat: at + w / 2, fa, fixed: fixed(q), march, deep }) || ok; at += w + SIDE_GAP; }
+    for (const q of rest) { const w = lineWidth(q, n); est.push([q, (k - mid) * gap + back(q), at + w / 2]); ok = order(s, q.id, how(q), x, y, quiet, { depth: (k - mid) * gap + back(q), lat: at + w / 2, fa, fixed: fixed(q), march, deep, move }) || ok; at += w + SIDE_GAP; }
   }
   // (together: when the slowest to its place, at MARCH_PACE of its speed, would be there — each goes at the pace that
   // gets it to its own place then: the near ones slower, none waiting for the rest at their middle)
@@ -142,6 +145,18 @@ function formation(s, ids, type, x, y, quiet, fa, deep) {
       for (const u of s.units) if (u.squad === q.id && !TYPES[u.type].air) T = Math.max(T, Math.hypot(u.x - px, u.y - py) / (TYPES[u.type].speed * MARCH_PACE));
     }
     march.arrive = s.t + T;
+  }
+  // (the march: its route from their middle, the formation's shape on it, and the pace of the slowest)
+  if (march && march.lead) {
+    const sx = us.reduce((a, u) => a + u.x, 0) / us.length, sy = us.reduce((a, u) => a + u.y, 0) / us.length;
+    const air = q => !!TYPES[q.type].air;
+    march.slots = est.map(([q, depth, lat]) => ({ id: q.id, depth, lat, air: air(q) }));
+    march.open = new Map(march.slots.map(t => [t.id, { depth: t.depth, lat: t.lat }]));
+    const gr = est.filter(([q]) => !air(q)), lats = gr.map(([, , lat]) => lat);
+    march.sp = Math.max(...gr.map(([q]) => spacing(q.type)), 20);
+    march.F = lats.length ? Math.max(...lats) - Math.min(...lats) + march.sp : 0;
+    march.v = Math.min(...us.map(u => TYPES[u.type].speed)) * MARCH_PACE; march.t0 = s.t + MARCH_WAIT; march.g = 0; march.fa = way;
+    marchPlan(s, march, us, sx, sy, x, y);
   }
   return ok;
 }
@@ -180,6 +195,12 @@ const turnTo = (a, b, k) => { const d = Math.atan2(Math.sin(b - a), Math.cos(b -
 // a squad in a formation: its spot moves with the way the formation faces (it turns toward a threat)
 function placeForm(s, sq, dt) {
   const o = sq.order, f = o.form;
+  // (marching along a route: its place in the moving formation — march.js; over, it's as any formation)
+  if (f.march && f.march.lead && f.march.done) f.march = null;
+  if (leadMarch(f)) {
+    marchTick(s, f.march, dt); const q = f.march.at[sq.id];
+    if (q) { let p = { x: q.x, y: q.y }; if (!TYPES[sq.type].air && lakeAt(s, p)) p = dryOf(s, p, 10); f.a = f.march.a; o.x = p.x; o.y = p.y; return; }
+  }
   f.a = f.a === undefined ? faceAt(s, sq.side, f, f.fa) : turnTo(f.a, faceAt(s, sq.side, f, f.fa), FACE_TURN * dt);
   const dx = Math.cos(f.a), dy = Math.sin(f.a), at = (x, y) => ({ x: clamp(x - dx * f.depth - dy * f.lat, 10, s.W - 10), y: clamp(y - dy * f.depth + dx * f.lat, 10, s.H - 10) });
   // (marching there: the formation's middle on its way, not yet where it's going)
@@ -208,7 +229,10 @@ function understood(s, sq, x, y) {
 // under fog an order is carried out "roughly" (a retreat home is always clear); `want` keeps what was asked
 function applyOrder(s, sq, type, x, y, quiet, form) {
   const p = friction(s) && type !== 'retreat' ? understood(s, sq, x, y) : { x, y }, off = Math.hypot(p.x - x, p.y - y);
-  sq.order = { type, x: p.x, y: p.y, r: ORDER_R[type], want: { x, y } };
+  // (move: only moving — not stopping to fight on the way, until there; a form with nothing else in it: none)
+  const move = !!(form && form.move) && type !== 'retreat';
+  if (form && form.depth === undefined && !Number.isFinite(form.fa)) form = null;
+  sq.order = { type, x: p.x, y: p.y, r: ORDER_R[type], want: { x, y }, move }; sq.orderAt = s.t;
   if (form && type !== 'retreat') { sq.order.form = { x: p.x, y: p.y, wx: x, wy: y, depth: form.depth || 0, lat: form.lat || 0, fa: form.fa, fixed: form.fixed, march: form.march, deep: form.deep }; placeForm(s, sq, 0); }
   sq.retreating = false; sq.arrived = false; sq.support = null;
   if (sq.side === 'blue' && friction(s) && type !== 'retreat') {

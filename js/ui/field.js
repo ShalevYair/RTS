@@ -64,7 +64,7 @@ let wxWas = { rain: false, fog: false };
 function drawWeather(c) {
   if (!s.extras) return;
   const w = Sim.weatherAt(s);
-  if (w.fog > 0.01) drawLowFog(c, w.fog);
+  if (w.fog > 0.01 && !V3.on) drawLowFog(c, w.fog); // (the 3D view: banks of it lying in the low ground — three3d.js v3FogBanks)
   if (w.rain > 0.01) drawRain(w.rain);
   // (a word when it starts)
   const r = w.rain > 0.5, f = w.fog > 0.5;
@@ -91,7 +91,7 @@ function drawLowFog(c, k) {
 function drawRain(k) {
   const c = ctx, W = cv.width, H = cv.height; c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
   c.fillStyle = `rgba(40,52,70,${(0.16 * k).toFixed(3)})`; c.fillRect(0, 0, W, H);
-  if (!reduceMotion) {
+  if (!reduceMotion && !V3.on) { // (the 3D view: real drops — three3d.js v3Weather)
     const t = performance.now() / 1000; c.strokeStyle = `rgba(205,218,235,${(0.5 * k).toFixed(3)})`; c.lineWidth = 1.2; c.beginPath();
     for (const d of rainDrops) { const y = ((d.y + t * d.v * 1.2) % 1) * (H + 40) - 20, x = ((d.x + t * 0.1) % 1) * W, L = 16 * d.l; c.moveTo(x, y); c.lineTo(x - L * 0.22, y + L); }
     c.stroke();

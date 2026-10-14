@@ -5,7 +5,7 @@ const { spawn } = require('child_process');
 const os = require('os'), path = require('path');
 // (long: whole games of the computer against itself, minutes each; their thresholds are about balance, not bugs)
 const LONG = ['map', 'missiles', 'styles', 'recon', 'ff', 'asks', 'arms', 'armsbench', 'bench'];
-const ALL = ['smoke', 'control', 'command', 'recon', 'ff', 'map', 'levels', 'lakes', 'care', 'form', 'supply', 'repair', 'units', 'intent', 'dozer', 'singles', 'lift', 'missiles', 'arty', 'commando', 'posts', 'jam', 'path', 'ground', 'roads', 'fuel', 'styles', 'asks', 'marks'];
+const ALL = ['smoke', 'control', 'command', 'recon', 'ff', 'map', 'levels', 'lakes', 'care', 'form', 'supply', 'repair', 'units', 'intent', 'dozer', 'singles', 'lift', 'missiles', 'arty', 'commando', 'posts', 'jam', 'path', 'ground', 'roads', 'fuel', 'styles', 'asks', 'marks', 'march'];
 const which = process.argv[2] || 'fast';
 const files = which === 'all' ? ALL : which === 'long' ? ALL.filter(f => LONG.includes(f)) : ALL.filter(f => !LONG.includes(f));
 const N = Math.max(1, Math.min(files.length, os.cpus().length - 1)), t0 = Date.now();

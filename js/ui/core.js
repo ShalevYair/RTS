@@ -108,6 +108,7 @@ function zoomAt(px, py, f) {
 // (the 3D view: zoom on the middle of the screen, and a pan up / down goes farther — the ground is seen slanting)
 // (turned: the screen's right and down along the camera's turn, V3.yaw)
 const panBy = (dx, dy) => {
+  if (V3.follow) v3Unfollow(true); // (the camera moved by hand: no longer following)
   if (V3.on) { dy /= Math.sin(V3.pitch); const c = Math.cos(V3.yaw), n = Math.sin(V3.yaw); [dx, dy] = [dx * c + dy * n, dy * c - dx * n]; }
   cam.x -= dx / view.css; cam.y -= dy / view.css; applyView();
 };
@@ -143,5 +144,6 @@ const ORDER_PATH = {
   attack: 'M8.1 -8.1L7.5 -4.2L-0.6 4.0L2.3 6.8L0.3 8.8L-2.9 5.5L-4.9 7.5L-4.1 8.3L-6.1 10.2L-10.2 6.1L-8.3 4.1L-7.5 4.9L-5.5 2.9L-8.8 -0.3L-6.8 -2.3L-4.0 0.6L4.2 -7.5L8.1 -8.1Z',
   retreat: 'M-10-2.5L-3-9.5V-5.5H2C7 -5.5 10-2 10 2.5V9H5.5V3C5.5 0.5 4-1 1.5-1H-3V4.5Z',
   support: 'M-2.5-9H2.5V-2.5H9V2.5H2.5V9H-2.5V2.5H-9V-2.5H-2.5Z',
+  move: 'M-9-8L1 0L-9 8L-5 0ZM0-8L10 0L0 8L4 0Z', // (only moving: a double chevron)
 };
 const orderSvg = k => `<svg class="ico" viewBox="-12 -12 24 24" aria-hidden="true"><path d="${ORDER_PATH[k]}" fill="currentColor"/></svg>`;

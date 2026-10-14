@@ -50,6 +50,12 @@ function drawGroundSoft(c) {
   }
   const cut = blob(k => k === Sim.GR_CUT, C * 0.8);
   if (cut) { c.globalAlpha = 0.75; c.fillStyle = dirt || '#6b5a3c'; c.fill(cut); }
+  // (burnt down — Sim fireTick: black ash, grey at its edge)
+  if (G.burnt && G.burnt.size) {
+    const ash = new Path2D(), rim2 = new Path2D(); let any = false;
+    for (const k of near) if (G.burnt.has(k)) { const x = (k % G.w + 0.5) * C + (grdRand(k, 4) - 0.5) * C * 0.4, y = (Math.floor(k / G.w) + 0.5) * C + (grdRand(k, 5) - 0.5) * C * 0.4; ash.moveTo(x + C, y); ash.arc(x, y, C * (0.8 + grdRand(k, 6) * 0.3), 0, Math.PI * 2); rim2.moveTo(x + C * 1.3, y); rim2.arc(x, y, C * 1.25, 0, Math.PI * 2); any = true; }
+    if (any) { c.globalAlpha = 0.35; c.fillStyle = '#6d6a64'; c.fill(rim2); c.globalAlpha = 0.85; c.fillStyle = '#1f1b17'; c.fill(ash); }
+  }
   // (roads: a gravel strip, a dark edge, from each square to its road neighbours — a diagonal only where the corner
   // isn't road already)
   const roads = near.filter(k => G.k[k] === Sim.GR_ROAD);

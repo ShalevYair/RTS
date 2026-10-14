@@ -39,7 +39,8 @@ function updateSquad(s, sq, dt, of) {
   if (sq.retreating && sq.strength >= 0.8 && atHome) {
     sq.retreating = false; sq.arrived = false; report(s, sq, 'התארגנו, חוזרים למשימה');
   }
-  if (!sq.arrived && !sq.retreating && !sq.support && (sq.order.type === 'retreat' ? atHome : dist(c, sq.order) < sq.order.r)) {
+  if (!sq.arrived && !sq.retreating && !sq.support && !leadMarch(sq.order.form) && (sq.order.type === 'retreat' ? atHome : dist(c, sq.order) < sq.order.r)) { // (marching: its place goes on with it — not there yet)
+    sq.order.move = false; // (only moving: there — it fights again)
     // (a bulldozer at its site says nothing: it just gets to work)
     sq.arrived = true; if (!(sq.type === 'dozer' && sq.jobAt)) { report(s, sq, sq.order.type === 'retreat' ? 'הגענו לבסיס' : 'הגענו ליעד'); sendReport(s, sq, 'ok'); }
   }
@@ -131,7 +132,7 @@ function underFire(s) {
   for (const u of s.units) {
     if (!(s.t - (u.shotAt ?? -99) < 1) || TYPES[u.type].air || !sameRules(s, u.side, 'fire')) continue;
     const sq = s.squads.find(q => q.id === u.squad), a = byId.get(u.shotBy);
-    if (!sq || sq.dead || !a || a.side === u.side || s.t - (sq.reactAt ?? -99) < REACT_EVERY || sq.retreating || sq.boarding || u.care || u.resup) continue;
+    if (!sq || sq.dead || !a || a.side === u.side || s.t - (sq.reactAt ?? -99) < REACT_EVERY || sq.retreating || sq.boarding || u.care || u.resup || (sq.order.move && !sq.arrived)) continue; // (only moving: on its way, whatever shoots at it)
     if (TYPES[u.type].care) {
       const h = hqOf(s, u.side); if (!h) continue;
       const d = dist(u, h), go = Math.min(FLEE_D, d - nodeR(h) - 30); if (go < 20) continue;
@@ -205,6 +206,9 @@ function updateUnit(s, u, sq, dt) {
     if (near && dist(u, near) > reach(near)) near = null; // (moved out of reach since)
   }
   if (noAmmo) { best = null; near = null; }
+  // (only moving, on its way: it shoots at what's in reach as it goes, but goes on — no turning off to it, no stopping)
+  const onlyMove = sq.order.move && !sq.arrived && !sq.retreating;
+  if (onlyMove) best = null;
   const bestR = best ? reach(best) : range, tgt = best && bd <= bestR ? best : near;
   // nothing else to shoot at: hit an enemy forward HQ or (AA only) a drone in range
   if (!tgt && !retreat && u.cd === 0 && !T.care && !T.stealth && !noAmmo) { // (a commando doesn't shoot at buildings: he blows them up)
@@ -239,11 +243,15 @@ function updateUnit(s, u, sq, dt) {
   const mine = sameRules(s, u.side, 'stand');
   if (best && (bd > bestR * 0.9 || (u.type === 'tank' && FOOT.includes(best.type) && (!mine || bd < CRUSH_GO)))) { tx = best.x; ty = best.y; }
   // (attacking, and shooting at something — a unit out of the leash, a building: it stands where it can, not on top of it)
-  else if (mine && u.engaged && !retreat && !T.air) return;
+  else if (mine && u.engaged && !retreat && !T.air && !onlyMove) return;
   else if (best) { if (T.air && !T.hover) circle(s, u, best.x, best.y, range * 0.6, dt); return; } // (aircraft wheel over what they shoot at; helicopters hover)
   else if (retreat) { tx = anchor.x + u.sx * 18; ty = anchor.y + u.sy * 18; }
   else if (T.air && !T.hover) { const sr = o.r * 0.55; circle(s, u, anchor.x + u.sx * sr, anchor.y + u.sy * sr, AIR_ORBIT, dt); return; }
-  else { const sp = spacing(u.type), g = (u.slot || 0) * sp, b = (u.row || 0) * sp, a = sq.face || 0; tx = anchor.x - Math.sin(a) * g - Math.cos(a) * b; ty = anchor.y + Math.cos(a) * g - Math.sin(a) * b; } // in the line (or block)
+  else { const sp = spacing(u.type), g = (u.slot || 0) * sp, b = (u.row || 0) * sp, a = sq.face || 0; tx = anchor.x - Math.sin(a) * g - Math.cos(a) * b; ty = anchor.y + Math.cos(a) * g - Math.sin(a) * b;
+    // (marching: a little ahead of its place, it doesn't drive back to it — it goes on only across, and lets its place come to it)
+    const mf = !best && !retreat && leadMarch(sq.order.form) && sq.order.form.march;
+    if (mf) { const hx = Math.cos(mf.a), hy = Math.sin(mf.a), al = (tx - u.x) * hx + (ty - u.y) * hy; if (al < 0 && al > -MARCH_AHEAD) { tx -= al * hx; ty -= al * hy; } } // (far ahead of it — out of its row, in the others' way: back into place)
+  } // in the line (or block)
   // (to their place: arrived — at it, or touching one of ours that has arrived there — it stands,
   // even pushed a little off it: units circling a crowded spot for ever, shoving one another, was the jam)
   if (sameRules(s, u.side, 'arrive') && !T.air && !best && !retreat && !s.noArrive && !(sq.order.form && sq.order.form.march && sq.order.form.march.arrive === undefined) && !takingPost(s, u, tx, ty) && arrivedAt(s, u, tx, ty, sq.order)) return; // (s.noArrive: off, to compare; marching: its place moves on — never 'arrived' on the way)

@@ -121,3 +121,35 @@ function groundSpeed(s, u, cls, vx, vy, d) {
   }
   return k;
 }
+// ---- woods on fire: a blast (FIRE_MIN and up — shells, rockets, bombs) landing in a wood may set its square alight
+// (FIRE_P, by how big; not in the rain); a square burns FIRE_T s, now and then setting the wood next to it alight
+// (FIRE_SPREAD a second, more downwind — WIND_FIRE), and burns out: cut down for good (GR_CUT — no cover any more, the
+// way through open), remembered as burnt (s.ground.burnt, for the picture). Soldiers in a burning square are hurt
+// (FIRE_DPS). At most FIRE_MAX burning at once. s.ground.fire: square → when it caught.
+const FIRE_MIN = 18, FIRE_P = 0.18, FIRE_T = 28, FIRE_SPREAD = 0.045, FIRE_MAX = 260, FIRE_DPS = 2;
+function fireTick(s, dt) {
+  const G = s.ground; if (!G || s.noFire) return;
+  const F = G.fire || (G.fire = new Map()), rain = s.extras ? weatherAt(s).rain : 0;
+  // (blasts landing now: their wait just run out)
+  for (const f of s.fx) {
+    if (f.lit || f.air || f.size < FIRE_MIN || (f.wait || 0) > 0) continue; f.lit = true;
+    const c = pathCell(G, f.x, f.y); if (G.k[c] !== GR_WOOD || F.has(c) || F.size >= FIRE_MAX || rain > 0.3) continue;
+    if (s.rand() < FIRE_P * Math.min(1.5, f.size / 40)) F.set(c, s.t);
+  }
+  if (!F.size) return;
+  // (once a second: spreading, burning out; the rain puts it out sooner)
+  G.fireIn = (G.fireIn || 0) - dt; if (G.fireIn > 0) return; G.fireIn = 1;
+  const wx = s.windX ?? 0.8, wy = s.windY ?? 0.3, out = [];
+  for (const [c, t0] of F) {
+    if (s.t - t0 > FIRE_T * (1 - rain * 0.6)) { out.push(c); continue; }
+    const i = c % G.w, j = Math.floor(c / G.w);
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= G.w || nj >= G.h) continue;
+      const n = nj * G.w + ni; if (G.k[n] !== GR_WOOD || F.has(n) || F.size >= FIRE_MAX) continue;
+      if (s.rand() < FIRE_SPREAD * (1 + 1.5 * Math.max(0, di * wx + dj * wy)) * (1 - rain)) F.set(n, s.t);
+    }
+  }
+  for (const c of out) { F.delete(c); cutWood(s, c); (G.burnt || (G.burnt = new Set())).add(c); }
+  // (soldiers in it)
+  for (const u of s.units) if (FOOT.includes(u.type) && F.has(pathCell(G, u.x, u.y))) u.hp -= FIRE_DPS;
+}

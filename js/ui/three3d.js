@@ -148,6 +148,7 @@ function v3ViewQuad() {
 const V3_TILT_MIN = 16 * Math.PI / 180, V3_TILT_MAX = 82 * Math.PI / 180, V3_TURN_PX = 0.006, V3_TILT_PX = 0.004;
 V3.yaw = 0; V3.pitch = V3_PITCH;
 function v3Orbit(dx, dy) {
+  if (V3.follow) V3.follow.free = performance.now() + V3_FOLLOW.free; // (following: the player looks round a while)
   V3.yaw = (V3.yaw - dx * V3_TURN_PX) % (2 * Math.PI);
   V3.pitch = Math.max(V3_TILT_MIN, Math.min(V3_TILT_MAX, V3.pitch + dy * V3_TILT_PX));
 }
@@ -746,7 +747,7 @@ function v3Rings(rings) {
 // of about its size that throws the sun's shadow (so a flat picture still stands). Drones: their picture up in the air,
 // turning slowly. ----
 const V3_BLD_K = 1.0; // (a building's model: its length, of its picture's)
-const V3_HURT = 0.6, V3_BURNT = 0.3, V3_RUIN = 0.3, V3_RUIN_H = 0.08, V3_RUBBLE = 44; // (hurt below this: darker, to V3_BURNT at nothing; a ruin: this dark, of its height)
+const V3_HURT = 0.6, V3_BURNT = 0.3, V3_RUIN = 0.3, V3_RUIN_H = 0.08, V3_RUBBLE = 44, V3_COLLAPSE = { t: 2.2, dust: 4.5, n: 26 }; // (hurt below this: darker, to V3_BURNT at nothing; a ruin: this dark, of its height)
 const V3_BLOCK = { hq: 0.9, fhq: 0.6, decoy: 0.9, tower: 3.2, antenna: 2.4, radar: 1.4, power: 1.1 }, V3_SITE = 0.3, V3_MEM = 0.55;
 function v3Building(kind, col, px) {
   const own = BUILDING_PIC[kind], bare = !!(own && sprite.img[own]), key = 'b:' + kind + col + px;
@@ -839,10 +840,13 @@ function v3Nodes(rings) {
   // (the ruins of buildings destroyed: the model, dark and low — unless a new one stands on it)
   for (const r of s.ruins || []) {
     if ((s.fog && !shownAt(r)) || s.nodes.some(n => n.kind !== 'drone' && Math.hypot(n.x - r.x, n.y - r.y) < Sim.STRUCTS[n.kind].r)) continue;
-    put(r.kind, colors[r.side], r.x, r.y, Sim.STRUCTS[r.kind].r, pxOf(r.kind), V3_RUIN, r.side, V3_RUIN_H);
+    // (just destroyed: it comes down — sinking and darkening over V3_COLLAPSE.t s, the heap growing, in a cloud of
+    // dust — v3Fx; then the ruin as it stays)
+    const age = s.t - r.t, k = age < V3_COLLAPSE.t ? 1 - (1 - Math.max(0, age) / V3_COLLAPSE.t) ** 2 : 1;
+    put(r.kind, colors[r.side], r.x, r.y, Sim.STRUCTS[r.kind].r, pxOf(r.kind), 0.75 + (V3_RUIN - 0.75) * k, r.side, 1 + (V3_RUIN_H - 1) * k);
     // (and over it a heap of debris: blocks of concrete, burnt beams, sheets of the roof — the same each frame, from where it stood)
     const R = Sim.STRUCTS[r.kind].r, g = v3E(r.x, r.y);
-    for (let i = 0; i < V3_RUBBLE && nr < 4000; i++) {
+    for (let i = 0; i < V3_RUBBLE * k && nr < 4000; i++) {
       const h = (j) => { const v = Math.sin(r.x * 12.9898 + r.y * 78.233 + i * 37.719 + j * 4.581) * 43758.5453; return v - Math.floor(v); };
       const a = h(1) * 6.28, d = Math.sqrt(h(2)) * R * 0.85, w = 2 + h(3) * R * 0.35, kind = h(4);
       o.position.set(r.x + Math.cos(a) * d, g + 0.8 + (1 - d / R) * R * 0.22 * h(5), r.y + Math.sin(a) * d * 0.8); // (heaped up in the middle)
@@ -978,6 +982,29 @@ function v3Fx() {
   // dust kicked up behind vehicles and soldiers (stride, as the flat map's drawDust)
   while (dust.length && s.t - dust[0].t > DUST_T) dust.shift();
   if (!lite) for (const p of dust) { const a = (s.t - p.t) / DUST_T; if (a >= 0 && a < 1) v3Dot(F.smoke, p.x, v3Gnd(p.x, p.y) + 1.5 + a * 3, p.y, p.r * (2.2 + a * 3.5), 0.8, 0.74, 0.6, p.a * (1 - a) * 0.9); }
+  v3FogBanks(F); // (the morning fog lying in the low ground)
+  // woods on fire (Sim fireTick): tongues of flame on each burning square, flickering, and a glow over it — the smoke
+  // is smokeTick's (both views)
+  const ft = performance.now() / 1000;
+  for (const p of firesOn(V3.box)) {
+    const g = v3Gnd(p.x, p.y), k = 1 - p.f * 0.55;
+    for (let i = 0; i < 4; i++) {
+      const ph = (ft * (1.3 + v3Rnd(p.c, i) * 0.8) + v3Rnd(p.c, i + 9)) % 1, x = p.x + (v3Rnd(p.c, i + 3) - 0.5) * 14, y = p.y + (v3Rnd(p.c, i + 5) - 0.5) * 14;
+      v3Dot(F.fire, x, g + 6 + ph * 28 * k, y, (11 + 9 * v3Rnd(p.c, i + 7)) * k * (1 - ph * 0.5), 1, 0.55 - ph * 0.25, 0.2, 0.85 * (1 - ph) * Math.min(1, ph * 6), ph * 3 + i, i & 3);
+    }
+    v3Dot(F.glow, p.x, g + 8, p.y, 34 * k, 1, 0.45, 0.12, 0.35 * (0.8 + 0.2 * Math.sin(ft * 11 + p.c)));
+  }
+  // a building coming down (v3Nodes: the ruin sinking): a cloud of dust rolling out from its foot, rising and thinning
+  for (const r of s.ruins || []) {
+    const age = s.t - r.t; if (age < 0 || age > V3_COLLAPSE.dust || (s.fog && !shownAt(r))) continue;
+    const R = Sim.STRUCTS[r.kind].r, g = v3Gnd(r.x, r.y), f = age / V3_COLLAPSE.dust;
+    for (let i = 0; i < V3_COLLAPSE.n; i++) {
+      const a = v3Rnd(r.x + r.y, i) * 6.28, d = R * (0.5 + 0.9 * Math.sqrt(f) * (0.6 + 0.6 * v3Rnd(r.y, i))), up = v3Rnd(r.x, i + 50) * R * 0.5 + age * 7;
+      v3Dot(F.smoke, r.x + Math.cos(a) * d, g + 2 + up, r.y + Math.sin(a) * d, R * (0.55 + 1.1 * f) * (0.7 + 0.6 * v3Rnd(r.x, i + 9)), 0.6, 0.56, 0.49, 0.62 * (1 - f) * Math.min(1, age * 4), a, i & 3);
+    }
+  }
+  // clods of earth off the tracks (addTrack: thrown back and up, falling) — dark, wet ones in the mud
+  if (!lite) { const now = performance.now(), dt = Math.min(0.1, (now - (V3.clodT || now)) / 1000) * (playing ? rate : 0); V3.clodT = now; clodTick(dt); for (const p of clods) v3Dot(F.smoke, p.x, v3Gnd(p.x, p.y) + 1 + p.z, p.y, p.r * 2.6, p.mud ? 0.1 : 0.2, p.mud ? 0.07 : 0.15, p.mud ? 0.04 : 0.09, 0.95, p.x * 3, (p.t * 7 | 0) % 4); }
   // lamps lit at night (the models' — tools/build_models.py `lamp`): a glow each, by its kind; a mast's red one blinks,
   // only some windows lit (the same ones — by where they are)
   const A = V3.lamps || [], nk = V3.nightK || 0, tt = performance.now() / 1000;
@@ -1344,11 +1371,11 @@ function v3Water() {
     g.setTransform(N / (2 * R), 0, 0, N / (2 * R), N / 2 - l.x * N / (2 * R), N / 2 - l.y * N / (2 * R)); g.fillStyle = '#fff'; g.fill(k.body);
     const mask = new THREE.CanvasTexture(c), geo = new THREE.PlaneGeometry(2 * R, 2 * R, 1, 1); geo.rotateX(-Math.PI / 2);
     const mat = v3Shaded(new THREE.MeshLambertMaterial({ color: V3_WATER.col, transparent: true, alphaMap: mask, depthWrite: false }));
-    const base = mat.onBeforeCompile;
+    const base = mat.onBeforeCompile; mat.userData.refOn = { value: 0 };
     mat.onBeforeCompile = sh => {
-      base(sh); sh.uniforms.v3T = V3.waterT; sh.uniforms.v3Sun = V3.sunDir;
+      base(sh); sh.uniforms.v3T = V3.waterT; sh.uniforms.v3Sun = V3.sunDir; sh.uniforms.v3Ref = V3R.tex; sh.uniforms.v3RefM = V3R.m; sh.uniforms.v3RefOn = mat.userData.refOn;
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vWY;').replace('#include <project_vertex>', '#include <project_vertex>\nvWY = (modelMatrix * vec4(transformed, 1.0)).y;');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float v3T; uniform vec3 v3Sun; varying float vWY; float v3dep;')
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float v3T; uniform vec3 v3Sun; varying float vWY; float v3dep; uniform sampler2D v3Ref; uniform mat4 v3RefM; uniform float v3RefOn;')
         .replace('#include <alphamap_fragment>', `float v3m = texture2D(alphaMap, vAlphaMapUv).g; v3dep = smoothstep(0.5, 1.0, v3m);
           if (v3m < 0.5) discard;
           diffuseColor.rgb = mix(diffuseColor.rgb * 1.8 + vec3(0.015, 0.018, 0.0), diffuseColor.rgb, v3dep); // (the shallows lighter, the bottom showing)
@@ -1363,6 +1390,11 @@ function v3Water() {
             vec3 v = normalize(cameraPosition - vec3(vV3.x, vWY, vV3.y));
             float fr = 0.02 + 0.98 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
             vec3 sky = mix(vec3(0.1, 0.17, 0.24), vec3(0.32, 0.42, 0.52), clamp(reflect(-v, n).y, 0.0, 1.0));
+            if (v3RefOn > 0.5) { // (what stands on the shore, upside down in it — v3Reflect: the scene from under the water's plane)
+              vec4 rc = v3RefM * vec4(vV3.x, vWY, vV3.y, 1.0); vec2 ru = rc.xy / rc.w * 0.5 + 0.5 + gr * 0.008;
+              vec3 rf = texture2D(v3Ref, clamp(ru, 0.001, 0.999)).rgb;
+              sky = mix(sky, rf, ${V3_REFLECT.k} * smoothstep(0.0, 0.04, min(min(ru.x, 1.0 - ru.x), min(ru.y, 1.0 - ru.y))));
+            }
             gl_FragColor.rgb = mix(gl_FragColor.rgb, sky * (1.0 - v3Night * 0.85), clamp(fr * 1.5 + 0.05, 0.0, 0.85));
             float sp = pow(max(dot(n, normalize(v3Sun + v)), 0.0), 220.0);
             gl_FragColor.rgb += vec3(1.0, 0.95, 0.85) * sp * 3.0 * (1.0 - v3Night);
@@ -1371,11 +1403,38 @@ function v3Water() {
             gl_FragColor.a = max(gl_FragColor.a, fr * 0.6 + sp);
           }`);
     };
-    mat.customProgramCacheKey = () => 'v3water2';
-    const m = new THREE.Mesh(geo, mat); m.position.set(l.x, v3E(l.x, l.y) + 0.5, l.y); m.renderOrder = 2;
+    mat.customProgramCacheKey = () => 'v3water3';
+    const m = new THREE.Mesh(geo, mat); m.position.set(l.x, v3E(l.x, l.y) + 0.5, l.y); m.renderOrder = 2; m.userData.lake = l;
     V3.scene.add(m); V3.water.meshes.push(m);
   }
   v3SunDir();
+}
+// ---- reflections in the water: the scene drawn once more from under the plane of the lake nearest the middle of
+// the screen (the camera mirrored in it; what's under the plane clipped off), small (V3_REFLECT.res of the screen),
+// into a picture the water samples where each of its points would be seen in that mirror (v3RefM), shaken by its
+// ripples. Only lakes at that height (within V3_REFLECT.dh) — others keep the sky's colour. Not when no lake is on
+// screen, in the low graphics, or the light mode. ----
+const V3_REFLECT = { res: 0.5, k: '0.85', dh: 4 };
+const V3R = { tex: { value: null }, m: { value: null }, rt: null, cam: null };
+function v3Reflect() {
+  const W = V3.water; if (!W || !W.meshes.length) return;
+  const off = () => { for (const m of W.meshes) m.material.userData.refOn.value = 0; };
+  if (gfxLow || lite >= 2) { off(); return; }
+  const B = V3.box, on = W.meshes.filter(m => { const l = m.userData.lake, R = Math.max(l.rx, l.ry) * 1.3; return B && l.x + R > B.x && l.x - R < B.x + B.w && l.y + R > B.y && l.y - R < B.y + B.h; });
+  if (!on.length) { off(); return; }
+  on.sort((a, b) => Math.hypot(a.position.x - cam.x, a.position.z - cam.y) - Math.hypot(b.position.x - cam.x, b.position.z - cam.y));
+  const h = on[0].position.y, r = V3.r, w = Math.max(64, Math.round(V3.w * V3_REFLECT.res)), hh = Math.max(64, Math.round(V3.h * V3_REFLECT.res));
+  if (!V3R.rt) { V3R.rt = new THREE.WebGLRenderTarget(w, hh, { type: THREE.HalfFloatType }); V3R.rt.texture.colorSpace = THREE.LinearSRGBColorSpace; V3R.cam = new THREE.PerspectiveCamera(); V3R.m.value = new THREE.Matrix4(); V3R.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); V3R.tex.value = V3R.rt.texture; }
+  if (V3R.rt.width !== w || V3R.rt.height !== hh) V3R.rt.setSize(w, hh);
+  // (the camera mirrored in the plane y = h: where it is, where it looks, and its up)
+  const C = V3.cam, M = V3R.cam, p = C.position, f = new THREE.Vector3(); C.getWorldDirection(f);
+  M.copy(C); M.position.set(p.x, 2 * h - p.y, p.z); M.up.set(0, 1, 0); M.lookAt(p.x + f.x, 2 * h - (p.y + f.y), p.z + f.z); M.updateMatrixWorld(); M.updateProjectionMatrix();
+  V3R.m.value.multiplyMatrices(M.projectionMatrix, M.matrixWorldInverse);
+  for (const m of W.meshes) { m.material.userData.refOn.value = Math.abs(m.position.y - h) < V3_REFLECT.dh ? 1 : 0; m.visible = false; }
+  const was = { clip: r.clippingPlanes, sh: r.shadowMap.autoUpdate, deco: V3.ground && V3.ground.visible };
+  V3R.plane.constant = -h + 0.3; r.clippingPlanes = [V3R.plane]; r.shadowMap.autoUpdate = false;
+  r.setRenderTarget(V3R.rt); r.render(V3.scene, M); r.setRenderTarget(null);
+  r.clippingPlanes = was.clip; r.shadowMap.autoUpdate = was.sh; for (const m of W.meshes) m.visible = true;
 }
 // (where the sun is, for the glint on the water)
 function v3SunDir() { V3.sunDir.value.copy(V3.sun.position).sub(V3.sun.target.position).normalize(); }
@@ -1385,7 +1444,7 @@ function v3SunDir() { V3.sunDir.value.copy(V3.sun.position).sub(V3.sun.target.po
 // Units and buildings over it, as on the flat map. Made again every V3_SHADE_MS. The sun and the sky dim at night. ----
 const V3_SHADE = 8, V3_SHADE_MS = 60, V3_GLOW = 0.18;
 const V3U = { v3Fog: { value: null }, v3Dark: { value: null }, v3Size: { value: null }, v3FogCol: { value: null }, v3Night: { value: 0 }, v3Lit: { value: 0 }, v3Deco: { value: null }, v3DecoBox: { value: null }, v3Time: { value: 0 },
-  v3Tg: { value: null }, v3Tg2: { value: null }, v3Ty: { value: null }, v3Td: { value: null }, v3Tr: { value: null }, v3Tm: { value: null }, v3Ng: { value: null }, v3Nd: { value: null }, v3Nr: { value: null }, v3GndOn: { value: 0 }, v3MacroLum: { value: 0.1 }, v3GLum: { value: null }, v3Meadow: { value: null } };
+  v3Tg: { value: null }, v3Tg2: { value: null }, v3Ty: { value: null }, v3Td: { value: null }, v3Tr: { value: null }, v3Tm: { value: null }, v3Ng: { value: null }, v3Nd: { value: null }, v3Nr: { value: null }, v3GndOn: { value: 0 }, v3MacroLum: { value: 0.1 }, v3GLum: { value: null }, v3Meadow: { value: null }, v3Wet: { value: 0 } };
 // ---- the ground: real textures (js/ui/ground3d.js — Poly Haven photos, CC0; tools/ground3d.py), each with its normal
 // map, picked from the map's picture: meadow where it's green, dry grass where yellow (and in wide drifts), earth where
 // brown, mud where dark brown, rock on the steep (slope0..1: 1 − the normal's up), the high (high0..1, world units) and
@@ -1481,7 +1540,7 @@ function v3Shaded(mat, deco) {
       #endif`).replace('#include <common>', `#include <common>
       float v3gh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       float v3gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(v3gh(i), v3gh(i + vec2(1, 0)), f.x), mix(v3gh(i + vec2(0, 1)), v3gh(i + vec2(1, 1)), f.x), f.y); }
-      varying vec2 vV3; uniform float v3GndOn; uniform float v3MacroLum; uniform vec3 v3GLum; uniform vec3 v3Meadow;
+      varying vec2 vV3; uniform float v3GndOn; uniform float v3MacroLum; uniform vec3 v3GLum; uniform vec3 v3Meadow; uniform float v3Wet;
       #ifdef V3_DECO
         uniform sampler2D v3Tg; uniform sampler2D v3Tg2; uniform sampler2D v3Ty; uniform sampler2D v3Td; uniform sampler2D v3Tr; uniform sampler2D v3Tm; uniform sampler2D v3Ng; uniform sampler2D v3Nd; uniform sampler2D v3Nr;
       #endif
@@ -1490,6 +1549,13 @@ function v3Shaded(mat, deco) {
       #endif
       uniform sampler2D v3Fog; uniform sampler2D v3Dark; uniform vec2 v3Size; uniform vec4 v3FogCol; uniform float v3Night; uniform float v3Lit; uniform sampler2D v3Deco; uniform vec4 v3DecoBox;`)
       .replace('#include <fog_fragment>', `vec2 v3uv = vec2(vV3.x / v3Size.x, 1.0 - vV3.y / v3Size.y);
+      #ifdef V3_DECO
+        if (v3Wet > 0.0) { // (the rain: the ground soaked darker, a wet sheen looking across it, puddles shining on the flat)
+          vec3 v3v = normalize(cameraPosition - vec3(vV3.x, vWH, vV3.y)); float fr = pow(1.0 - max(v3v.y, 0.0), 3.0);
+          float pud = smoothstep(0.7, 0.86, v3gn(vV3 * 0.06)) * smoothstep(0.95, 0.995, vWN.y);
+          gl_FragColor.rgb = gl_FragColor.rgb * (1.0 - 0.28 * v3Wet * (1.0 - pud * 0.5)) + v3Wet * (fr * 0.1 + pud * (0.04 + fr * 0.18)) * vec3(0.5, 0.58, 0.66) * (1.0 - v3Night * 0.8);
+        }
+      #endif
       if (v3Night > 0.0) { float d = texture2D(v3Dark, v3uv).a; gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.031, 0.055, 0.157), d * v3Night) + vec3(1.0, 0.67, 0.31) * (1.0 - d) * v3Lit; }
       if (v3FogCol.w > 0.0) gl_FragColor.rgb = mix(gl_FragColor.rgb, v3FogCol.rgb, texture2D(v3Fog, v3uv).a * v3FogCol.w);
       #ifdef V3_DECO
@@ -1498,7 +1564,7 @@ function v3Shaded(mat, deco) {
       #endif
       #include <fog_fragment>`);
   };
-  mat.customProgramCacheKey = () => 'v3shade' + (deco ? 'd' + Object.values(V3_GND).join() : ''); return mat;
+  mat.customProgramCacheKey = () => 'v3shade2' + (deco ? 'd' + Object.values(V3_GND).join() : ''); return mat;
 }
 // trees and bushes less low-poly: the leaves (the green points) lit as a soft round crown — the normal bent out from
 // the trunk and up, not each facet's own — with clumps of light and dark leaves, darker deep inside and low down,
@@ -1643,7 +1709,7 @@ function v3Deco() {
   if (s.fog) { if (Sim.friction(s)) drawQuality(g); drawEnemyIntel(g); drawMarks(g); }
   drawDozerJobs(g); drawBuildArea(g);
   for (const q of s.squads) if (q.side === 'blue' && !q.dead && !sqShown(q)) drawGuess(g, q, guessAt(q), isSel(q.id));
-  drawFront(g); drawPicked(g); drawDesignated(g); drawAsks(g); drawPings(g);
+  drawRoutes(g); drawFront(g); drawPicked(g); drawDesignated(g); drawAsks(g); drawPings(g);
   V3U.v3DecoBox.value.set(B.x, B.y, B.w, B.h); D.t.needsUpdate = true;
 }
 // ---- close up, the ground's small things: tufts of grass where the map is green, and pebbles where it's earth or
@@ -1733,10 +1799,71 @@ function v3SunBox(ty, vw) {
   const tx = W / N, ty2 = H / N, cx = Math.round((x0 + x1) / 2 / tx) * tx, cy = Math.round((y0 + y1) / 2 / ty2) * ty2;
   if (sc.left !== cx - W / 2 || sc.top !== cy + H / 2) { sc.left = cx - W / 2; sc.right = cx + W / 2; sc.bottom = cy - H / 2; sc.top = cy + H / 2; sc.near = 10; sc.far = 6000; sc.updateProjectionMatrix(); }
 }
+// ---- the weather in 3D (Sim weatherAt): rain as real drops — streaks falling through a box round what's on screen,
+// slanting with the wind, moved in their shader (V3_RAIN) — and the ground wet under it (v3Wet: darker, a sheen, puddles);
+// the morning fog as banks lying in the low ground (level under 1: as the flat map's drawLowFog), drifting slowly ----
+const V3_RAIN = { n: 3000, len: 10, h: 420, fall: 330, a: 0.5 };
+function v3Weather() {
+  const w = s.extras ? Sim.weatherAt(s) : { rain: 0, fog: 0 }, rain = gfxLow || reduceMotion ? 0 : w.rain;
+  V3U.v3Wet.value += ((w.rain > 0.05 ? Math.min(1, w.rain * 1.2) : 0) - V3U.v3Wet.value) * 0.02; // (wet slowly, dry slowly)
+  if (!V3.rain && rain > 0.01) {
+    const N = V3_RAIN.n, B = new Float32Array(N * 6), E = new Float32Array(N * 2), P = new Float32Array(N * 6);
+    for (let i = 0; i < N; i++) { const x = Math.random(), y = Math.random(), z = Math.random(); B.set([x, y, z, x, y, z], i * 6); E[i * 2 + 1] = 1; }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('aB', new THREE.BufferAttribute(B, 3)); g.setAttribute('aE', new THREE.BufferAttribute(E, 1));
+    const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { uC: { value: new THREE.Vector3() }, uS: { value: 1000 }, uT: { value: 0 }, uA: { value: 0 }, uW: { value: new THREE.Vector2() } },
+      vertexShader: `attribute vec3 aB; attribute float aE; uniform vec3 uC; uniform float uS, uT; uniform vec2 uW; varying float vE;
+        void main() { float H = ${V3_RAIN.h.toFixed(1)}, y = fract(aB.y - uT * ${V3_RAIN.fall.toFixed(1)} * (0.8 + 0.4 * aB.z) / H) * H;
+          vec3 p = vec3(uC.x + (aB.x - 0.5) * uS, uC.y + y + aE * ${V3_RAIN.len.toFixed(1)}, uC.z + (aB.z - 0.5) * uS);
+          p.xz += uW * (y + aE * ${V3_RAIN.len.toFixed(1)}) * 0.035; vE = aE; gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0); }`,
+      fragmentShader: `uniform float uA; varying float vE; void main() { gl_FragColor = vec4(0.78, 0.82, 0.88, uA * (0.35 + 0.65 * vE)); }` });
+    V3.rain = new THREE.LineSegments(g, m); V3.rain.frustumCulled = false; V3.rain.renderOrder = 5; V3.scene.add(V3.rain);
+  }
+  if (V3.rain) {
+    V3.rain.visible = rain > 0.01;
+    if (V3.rain.visible) { const U = V3.rain.material.uniforms, B = V3.box; U.uC.value.set(cam.x, v3E(cam.x, cam.y) - 20, cam.y); U.uS.value = B ? Math.min(1400, Math.max(B.w, B.h) * 0.8) : 1000; U.uT.value = performance.now() / 1000; U.uA.value = V3_RAIN.a * rain * (1 - (V3.nightK || 0) * 0.5); U.uW.value.set(WIND.x, WIND.y); }
+  }
+}
+// (the morning fog's banks: billboards over the low ground on screen, one every so far, drifting — v3Fx)
+function v3FogBanks(F) {
+  const w = s.extras ? Sim.weatherAt(s).fog : 0, B = V3.box; if (w < 0.02 || !B || !s.elev) return;
+  const st = Math.max(90, Math.max(B.w, B.h) / 30), t = performance.now() / 1000, i0 = Math.floor(B.x / st), j0 = Math.floor(B.y / st);
+  for (let i = i0; i <= i0 + Math.ceil(B.w / st); i++) for (let j = j0; j <= j0 + Math.ceil(B.h / st); j++) {
+    const r = v3Rnd(i * 7.3, j), x = (i + r) * st + Math.sin(t * 0.05 + r * 6) * 30, y = (j + v3Rnd(j * 3.1, i)) * st + Math.cos(t * 0.04 + r * 5) * 20;
+    if (x < 0 || y < 0 || x > s.W || y > s.H || Sim.levelAt(s, { x, y }) >= 1) continue;
+    v3Dot(F.smoke, x, v3Gnd(x, y) + 12 + r * 14, y, st * (1.6 + r * 0.9), 0.9, 0.92, 0.95, 0.3 * w * (1 - (V3.nightK || 0) * 0.6), r * 6, (i + j) & 3);
+  }
+}
+// ---- following one unit (C, 3D): the camera comes down low behind it and goes with it, turning as it turns (a few
+// seconds after the player turns the camera, it swings back behind); C again, Esc, moving the camera, or the unit
+// gone (the next of its squad, if any) — back as it was ----
+const V3_FOLLOW = { pitch: 0.5, zoom: 0.95, k: 2.2, turn: 1.4, ahead: 35, free: 3500 };
+function v3Follow(id) {
+  if (!V3.on) return false;
+  if (V3.follow) { v3Unfollow(); return false; }
+  const u = s.units.find(k => k.squad === id); if (!u) return false;
+  V3.follow = { u: u.id, sq: id, back: { pitch: V3.pitch, z: cam.z }, t: performance.now(), t0: performance.now() }; return true;
+}
+function v3Unfollow(stay) {
+  const f = V3.follow; if (!f) return; V3.follow = null;
+  if (!stay) { V3.pitch = f.back.pitch; cam.z = f.back.z; applyView(); }
+}
+function v3FollowTick() {
+  const f = V3.follow; if (!f) return;
+  const now = performance.now(), dt = Math.min(0.1, (now - (f.t || now)) / 1000); f.t = now;
+  let u = s.units.find(k => k.id === f.u);
+  if (!u) { u = s.units.find(k => k.squad === f.sq); if (u) f.u = u.id; else { v3Unfollow(true); return; } }
+  const k = 1 - Math.exp(-dt * V3_FOLLOW.k), hd = u.hd || 0;
+  cam.x += (u.x + Math.cos(hd) * V3_FOLLOW.ahead - cam.x) * k; cam.y += (u.y + Math.sin(hd) * V3_FOLLOW.ahead - cam.y) * k;
+  if (now - f.t0 < 2500) { cam.z += (zoomMax() * V3_FOLLOW.zoom - cam.z) * k; V3.pitch += (V3_FOLLOW.pitch - V3.pitch) * k; } // (coming down to it; then the wheel and the tilt are the player's)
+  // (behind it: the camera's way from the target is −the heading)
+  if (now > (f.free || 0)) { const want = Math.atan2(-Math.cos(hd), -Math.sin(hd)), d = Math.atan2(Math.sin(want - V3.yaw), Math.cos(want - V3.yaw)); V3.yaw += d * (1 - Math.exp(-dt * V3_FOLLOW.turn)); }
+  applyView();
+}
 // every frame, instead of the flat map
 function v3Draw() {
   V3U.v3Time.value = performance.now() / 1000;
   if (V3.of !== decor) { v3Ground(); for (const P of V3.pics.values()) { V3.scene.remove(P.mesh); P.mesh.dispose(); } V3.pics.clear(); }
+  v3FollowTick(); // (following one unit: C)
   const r = V3.r, st = stage.getBoundingClientRect(), w = Math.round(st.width), h = Math.round(st.height);
   if (V3.w !== w || V3.h !== h) { V3.w = w; V3.h = h; r.setSize(w, h, false); V3.cam.aspect = w / h; V3.cam.updateProjectionMatrix(); }
   // (the camera: over cam, as far off as shows the flat map's width at its middle)
@@ -1750,6 +1877,8 @@ function v3Draw() {
   V3.lamps = [];
   const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Falling(); v3Craters(); v3Water(); v3Trenches(); v3Tufts(vw); v3Shade(); v3Deco();
   for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; P.mesh.instanceColor.needsUpdate = true; }
+  v3Weather(); // (rain drops, the wet ground)
+  v3Reflect(); // (what's on the shore, in the water)
   if (v3PostWant()) v3PostRender(V3.scene, V3.cam, d); else r.render(V3.scene, V3.cam); // (post3d.js: AO, glow, grade)
   v3Info();
 }

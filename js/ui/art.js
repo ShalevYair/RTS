@@ -178,6 +178,7 @@ function smokeTick() {
     }
     for (const f of s.fallen) if (CAR.has(f.type) && s.t - f.t < 10 && (!s.fog || shownAt(f)) && Math.random() < dt * 5) puff(f.x, f.y - 2, true, 1.3);
     for (const u of s.units) if (u.dig > 0 && !u.dug && Math.random() < dt * 3 && (!s.fog || u.side === 'blue' || s.vis.blue.has(u.id))) { const p = u.type === 'tank' ? digger(u) : u; dust.push({ x: p.x + (Math.random() - 0.5) * 6, y: p.y + (Math.random() - 0.5) * 6, t: s.t, r: 2.2, a: 0.5 }); } // (digging in: earth thrown up)
+    for (const p of firesOn(v0)) if (Math.random() < dt * 1.6) puff(p.x + (Math.random() - 0.5) * 12, p.y - 6, true, 1.7); // (woods on fire: thick dark smoke)
     for (const r of s.ruins || []) { const a = s.t - r.t; if (a < RUIN_SMOKE && (!s.fog || shownAt(r)) && Math.random() < dt * 4 * (1 - a / RUIN_SMOKE)) puff(r.x + (Math.random() - 0.5) * 20, r.y - 4, true, 1.6); } // (a ruin smoulders, less and less)
     for (const n of s.nodes) {
       if (n.kind === 'drone' || !nodeShown(n)) continue;
@@ -196,6 +197,24 @@ function smokeTick() {
     }
   }
   for (let i = smoke.length - 1; i >= 0; i--) if (s.t - smoke[i].t > smoke[i].life || s.t < smoke[i].t) smoke.splice(i, 1);
+}
+// ---- woods on fire (Sim fireTick, s.ground.fire): each burning square, its middle and how far through it is ----
+function firesOn(v) {
+  const G = s.ground, F = G && G.fire; if (!F || !F.size) return [];
+  const out = [];
+  for (const [c, t0] of F) { const x = (c % G.w + 0.5) * G.C, y = (Math.floor(c / G.w) + 0.5) * G.C; if (v && (x < v.x - 60 || x > v.x + v.w + 60 || y < v.y - 80 || y > v.y + v.h + 60)) continue; if (s.fog && !shownAt({ x, y })) continue; out.push({ x, y, c, f: Math.min(1, (s.t - t0) / Sim.FIRE_T) }); }
+  return out;
+}
+// (flat: flames flickering on each burning square, over the woods)
+function drawFires(c) {
+  const L = firesOn(viewRect()); if (!L.length) return;
+  const t = performance.now() / 1000; c.save(); c.globalCompositeOperation = 'lighter';
+  for (const p of L) for (let i = 0; i < 3; i++) {
+    const h = Math.sin(p.c * 7.1 + i * 2.3), fl = 0.6 + 0.4 * Math.sin(t * 9 + p.c + i * 2), r = (5 + 3 * fl) * (1 - p.f * 0.6), x = p.x + h * 5, y = p.y + Math.cos(p.c + i) * 5;
+    const g = c.createRadialGradient(x, y, 0, x, y, r * 1.8); g.addColorStop(0, `rgba(255,220,120,${0.8 * fl})`); g.addColorStop(0.5, `rgba(255,120,30,${0.5 * fl})`); g.addColorStop(1, 'rgba(200,40,0,0)');
+    c.fillStyle = g; c.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
+  }
+  c.restore();
 }
 // ---- scorch marks: where shells and blasts landed, dark earth that fades over SCORCH_T s ----
 const scorch = [], SCORCH_T = 120, SCORCH_MAX = 300;
@@ -332,6 +351,7 @@ function nightLights() {
   // (our own units carry a little light: vehicles more than soldiers)
   for (const u of s.units) if (u.side === 'blue' && !Sim.TYPES[u.type].air && (!s.fog || shownAt(u))) lights.push([u.x, u.y, CAR.has(u.type) ? 28 : 16, 0.5]);
   for (const f of s.fallen) if (CAR.has(f.type) && s.t - f.t < 10 && (!s.fog || shownAt(f))) lights.push([f.x, f.y, 34, 0.7 * (1 - (s.t - f.t) / 10)]);
+  for (const p of firesOn(viewRect())) lights.push([p.x, p.y, 70, 0.8 * (1 - p.f * 0.5)]); // (woods on fire: an orange pool)
   for (const f of flares) { const p = flareAt(f); if (p.lit > 0.02) lights.push([p.x, p.y, FLARE.light * (0.75 + 0.25 * p.h / FLARE.h0), p.lit], [p.x, p.y, FLARE.light * 0.45, p.lit]); } // (flares: a wide pool, smaller as it comes down)
   return lights;
 }
@@ -497,7 +517,7 @@ const PING_MS = 650;
 function drawPings(c) {
   const now = performance.now(), px = 1 / view.css; pings = pings.filter(p => now - p.t < PING_MS);
   for (const p of pings) {
-    const f = (now - p.t) / PING_MS, d = (8 + 22 * (1 - f) * (1 - f)) * px, a = f < 0.7 ? 1 : (1 - f) / 0.3, col = p.foe ? '#e8392e' : p.cap ? '#f2c230' : '#34b35a';
+    const f = (now - p.t) / PING_MS, d = (8 + 22 * (1 - f) * (1 - f)) * px, a = f < 0.7 ? 1 : (1 - f) / 0.3, col = p.foe ? '#e8392e' : p.cap ? '#f2c230' : p.move ? '#3d8fe0' : '#34b35a';
     c.save(); c.translate(p.x, p.y); c.globalAlpha = a; c.lineJoin = 'round';
     for (let i = 0; i < 4; i++) {
       c.save(); c.rotate(Math.PI / 4 + i * Math.PI / 2); c.translate(d, 0);

@@ -862,6 +862,52 @@ function drawNodes(c) {
   if (!s.fog) return;
   for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id) && s.memNodes.blue[id].kind !== 'drone') drawStruct(c, { ...s.memNodes.blue[id], side: 'red' }, true); // (not a drone: it flies on)
 }
+// the picked squads' ways (not all of them): where each unit is going — round what's in the way (path.js) — or, a
+// march, the formation's route (march.js); and after it the points queued (Shift + click), numbered. Dashes that run
+// the way they go.
+const ROUTE_MAX = 60, ROUTE_NEAR = 36;
+function drawRoutes(c) {
+  const ids = sel === 'all' ? [] : selIds(); if (!ids.length) return;
+  const px = 1 / view.css, now = performance.now(), set = new Set(ids), marches = new Set(); let n = 0;
+  c.save(); c.lineCap = 'round'; c.lineJoin = 'round'; c.setLineDash([7 * px, 7 * px]); c.lineDashOffset = -now / 60 * px;
+  const line = (pts, a, col) => {
+    if (pts.length < 2) return;
+    c.beginPath(); c.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i].x, pts[i].y);
+    c.globalAlpha = a * 0.6; c.strokeStyle = 'rgba(10,20,30,.7)'; c.lineWidth = 4.2 * px; c.stroke();
+    c.globalAlpha = a; c.strokeStyle = col; c.lineWidth = 2.4 * px; c.stroke();
+  };
+  for (const id of ids) {
+    const q = s.squads.find(k => k.id === id); if (!q || q.dead || q.side !== 'blue' || !sqShown(q)) continue;
+    const o = q.order, f = o.form, col = o.move ? '#5aa8f0' : o.type === 'retreat' ? '#f0c040' : '#7fdc8c';
+    if (Sim.leadMarch(f)) {
+      const m = f.march; if (marches.has(m)) continue; marches.add(m);
+      const pts = [Sim.marchAt(m, m.g)]; for (let i = 1; i < m.pts.length; i++) if (m.cum[i] > m.g) pts.push(m.pts[i]);
+      line(pts, 0.85, col); continue;
+    }
+    for (const u of s.units) {
+      if (u.squad !== id || Sim.TYPES[u.type].air || ++n > ROUTE_MAX) continue;
+      const P = u.path, pts = [{ x: u.x, y: u.y }];
+      if (P) for (let i = P.i; i < P.pts.length; i++) pts.push(P.pts[i]); else pts.push({ x: o.x, y: o.y });
+      const e = pts[pts.length - 1]; if (Math.hypot(e.x - u.x, e.y - u.y) < ROUTE_NEAR || u.arr) continue;
+      line(pts, 0.6, col);
+    }
+  }
+  // (queued: from where they're going now, point to point, each numbered)
+  for (const w of s.ways || []) {
+    if (!w.ids.some(id => set.has(id))) continue;
+    const q0 = s.squads.find(k => k.id === w.ids[0]); if (!q0) continue;
+    const f = q0.order.form, a = f ? { x: f.wx ?? f.x, y: f.wy ?? f.y } : q0.order.want || q0.order;
+    line([a, ...w.pts], 0.75, '#e8eef4');
+    c.setLineDash([]);
+    w.pts.forEach((p, i) => {
+      c.globalAlpha = 0.95; c.fillStyle = p.move ? '#2f7fd6' : p.type === 'hold' ? '#3a9a55' : '#c0392b'; c.strokeStyle = '#fff'; c.lineWidth = 1.5 * px;
+      c.beginPath(); c.arc(p.x, p.y, 9 * px, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.fillStyle = '#fff'; c.font = `700 ${11 * px}px Rubik, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(i + 1), p.x, p.y + 0.5 * px);
+    });
+    c.setLineDash([7 * px, 7 * px]);
+  }
+  c.restore();
+}
 // our bulldozers' work lists: each site's place in its bulldozer's queue (a small number), a faint dotted line from a
 // bulldozer to the site it's driving to, and ⏸ over one the player sent elsewhere while it still has work
 const dozerComing = n => s.squads.some(q => q.side === n.side && q.type === 'dozer' && !q.dead && !q.paused && Sim.jobOf(s, q) === n);
@@ -1010,13 +1056,28 @@ function drawFallen(c) {
   c.globalAlpha = 1;
 }
 // tracks: vehicles leave faint marks in the ground as they drive, fading over TRACK_T s
-const tracks = [], TRACK_T = 8, TRACK_MAX = 1500, TRACK_BANDS = 6;
+const tracks = [], TRACK_T = 8, TRACK_MAX = 1500, TRACK_BANDS = 6, TRACK_MUD = 3;
 function addTrack(u, a) {
   if (!CAR.has(u.type)) return;
   const d = Math.hypot(u.x - (a.tx ?? u.x - 99), u.y - (a.ty ?? u.y - 99));
   if (d < 7) return;
-  a.tx = u.x; a.ty = u.y; tracks.push({ x: u.x, y: u.y, a: u.hd, t: s.t, w: u.type === 'tank' ? 0.55 : 0.45, k: SIZE[u.type] });
+  // (soft ground — mud, or anything in the rain: deep furrows, darker and lasting TRACK_MUD times as long; tracks on
+  // grass: the grass pressed flat, a pale stripe by each mark)
+  const mud = !!(s.ground && Sim.groundAt(s, u.x, u.y) === Sim.GR_MUD) || (s.extras && Sim.weatherAt(s).rain > 0.4), heavy = u.type === 'tank' || u.type === 'dozer' || u.type === 'how' || u.type === 'mlrs';
+  a.tx = u.x; a.ty = u.y; tracks.push({ x: u.x, y: u.y, a: u.hd, t: s.t, w: u.type === 'tank' ? 0.55 : 0.45, k: SIZE[u.type], mud, heavy });
   if (tracks.length > TRACK_MAX) tracks.splice(0, tracks.length - TRACK_MAX);
+  // (and clods of earth thrown up off the tracks / wheels behind it — more in mud: CLODS)
+  if (!lite && (heavy || mud)) for (let i = 0, n = (mud ? 3 : 1) * (heavy ? 1 : 0.5); i < n; i++) if (Math.random() < n / Math.ceil(n)) {
+    const sd = Math.random() < 0.5 ? -1 : 1, o = SIZE[u.type] * 0.5 * sd, back = SIZE[u.type] * 0.45, sp = 12 + Math.random() * 18;
+    clods.push({ x: u.x - Math.cos(u.hd) * back - Math.sin(u.hd) * o, y: u.y - Math.sin(u.hd) * back + Math.cos(u.hd) * o, vx: -Math.cos(u.hd) * sp + (Math.random() - 0.5) * 8, vy: -Math.sin(u.hd) * sp + (Math.random() - 0.5) * 8, vz: 10 + Math.random() * 14, z: 1, t: s.t, mud, r: 0.6 + Math.random() * 0.7 });
+  }
+  if (clods.length > CLODS) clods.splice(0, clods.length - CLODS);
+}
+const clods = [], CLODS = 300, CLOD_T = 1.2;
+// (each clod's arc: thrown back and up, falling under gravity, gone after CLOD_T s or once on the ground)
+function clodTick(dt) {
+  for (const p of clods) { p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vz -= 60 * dt; }
+  while (clods.length && (s.t - clods[0].t > CLOD_T || clods[0].z < 0)) clods.shift();
 }
 // dust: little clouds kicked up behind moving vehicles (fewer behind soldiers), swelling and fading in DUST_T s
 const dust = [], DUST_T = 0.9, DUST_MAX = 400;
@@ -1028,6 +1089,8 @@ function addDust(u, a, d) {
   if (dust.length > DUST_MAX) dust.splice(0, dust.length - DUST_MAX);
 }
 function drawDust(c) {
+  clodTick(playing ? rate / 60 : 0);
+  c.fillStyle = '#3a2a18'; for (const p of clods) { c.globalAlpha = 0.85; ring(p.x, p.y - p.z * 0.6, p.r); c.fill(); }
   while (dust.length && s.t - dust[0].t > DUST_T) dust.shift();
   c.fillStyle = DUST_COL;
   for (const p of dust) {
@@ -1038,19 +1101,24 @@ function drawDust(c) {
 }
 const DUST_COL = '#cbbd9c';
 function drawTracks(c) {
-  while (tracks.length && s.t - tracks[0].t > TRACK_T) tracks.shift();
+  while (tracks.length && s.t - tracks[0].t > TRACK_T * TRACK_MUD) tracks.shift();
   // (only those on the screen, and in TRACK_BANDS paths by how faded — one each, not a save / turn / restore for every
   // mark: with a big army this was the slowest thing drawn)
-  const vr = viewRect(), paths = [];
+  const vr = viewRect(), paths = [], deep = [], flat = [];
   for (const p of tracks) {
-    if (p.t > s.t || (vr && (p.x < vr.x - 20 || p.x > vr.x + vr.w + 20 || p.y < vr.y - 20 || p.y > vr.y + vr.h + 20))) continue;
-    const b = Math.min(TRACK_BANDS - 1, Math.floor((s.t - p.t) / TRACK_T * TRACK_BANDS)), P = paths[b] || (paths[b] = new Path2D());
+    const T = p.mud ? TRACK_T * TRACK_MUD : TRACK_T, age = s.t - p.t;
+    if (p.t > s.t || age > T || (vr && (p.x < vr.x - 20 || p.x > vr.x + vr.w + 20 || p.y < vr.y - 20 || p.y > vr.y + vr.h + 20))) continue;
+    const b = Math.min(TRACK_BANDS - 1, Math.floor(age / T * TRACK_BANDS)), L = p.mud ? deep : paths, P = L[b] || (L[b] = new Path2D());
     const ca = Math.cos(p.a) * 2.5, sa = Math.sin(p.a) * 2.5, o = p.w * p.k, ox = -Math.sin(p.a) * o, oy = Math.cos(p.a) * o;
     P.moveTo(p.x + ox - ca, p.y + oy - sa); P.lineTo(p.x + ox + ca, p.y + oy + sa);
     P.moveTo(p.x - ox - ca, p.y - oy - sa); P.lineTo(p.x - ox + ca, p.y - oy + sa);
+    if (!p.mud && p.heavy) { const F = flat[b] || (flat[b] = new Path2D()), k = o * 0.62, fx = -Math.sin(p.a) * k, fy = Math.cos(p.a) * k; F.moveTo(p.x + fx - ca, p.y + fy - sa); F.lineTo(p.x + fx + ca, p.y + fy + sa); F.moveTo(p.x - fx - ca, p.y - fy - sa); F.lineTo(p.x - fx + ca, p.y - fy + sa); }
   }
-  c.strokeStyle = colors.shadow; c.lineWidth = 2; c.lineCap = 'butt';
+  c.lineCap = 'butt';
+  c.strokeStyle = 'rgba(214,222,160,1)'; c.lineWidth = 2.6; flat.forEach((P, b) => { if (P) { c.globalAlpha = 0.22 * (1 - (b + 0.5) / TRACK_BANDS); c.stroke(P); } }); // (grass pressed flat)
+  c.strokeStyle = colors.shadow; c.lineWidth = 2;
   paths.forEach((P, b) => { if (P) { c.globalAlpha = 0.6 * (1 - (b + 0.5) / TRACK_BANDS); c.stroke(P); } });
+  c.strokeStyle = '#2b1d10'; c.lineWidth = 3.2; deep.forEach((P, b) => { if (P) { c.globalAlpha = 0.75 * (1 - (b + 0.5) / TRACK_BANDS); c.stroke(P); } }); // (furrows in the mud)
   c.globalAlpha = 1;
 }
 function drawGhosts(c) {
@@ -1194,7 +1262,7 @@ function draw() {
   }
   c.restore(); c.globalAlpha = 1;
   // units: exact picture without fog; under fog what we see where the picture is exact (see shownAt)
-  if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); tracks.length = 0; dust.length = 0; }
+  if (anim.s !== s) { anim.s = s; anim.walk.clear(); anim.last.clear(); tracks.length = 0; dust.length = 0; clods.length = 0; }
   if (!lite) { drawTracks(c); drawDust(c); } drawFallen(c); drawTrenches(c); // (the light mode: no tracks or dust)
   if (!s.fog) drawUnits(c, () => true);
   else { const whole = new Set(s.squads.filter(q => q.side === 'blue' && sqShown(q)).map(q => q.id)); drawUnits(c, u => (u.side === 'blue' ? whole.has(u.squad) : s.vis.blue.has(u.id)) && shownAt(u)); drawGhosts(c); }
@@ -1219,7 +1287,7 @@ function draw() {
       }
     }
   }
-  drawSmoke(c); drawFlashes(c); if (!lite) drawClouds(c); drawWeather(c); // (rain, the morning fog: field.js)
+  drawFires(c); drawSmoke(c); drawFlashes(c); if (!lite) drawClouds(c); drawWeather(c); // (rain, the morning fog: field.js)
   drawNightLit(c);
   if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); }
   drawPosts(c); drawNodes(c); drawPiles(c); drawDozerJobs(c); // (drawPiles: fuel barrels — fuelui.js)
@@ -1249,7 +1317,7 @@ function draw() {
     drawGuess(c, q, guessAt(q), on);
   }
   drawMissiles(c);
-  drawFront(c); drawPicked(c); drawDesignated(c); drawAsks(c); drawPings(c); // (the vignette: #vig, in CSS — a full-screen layer drawn every frame was slow)
+  drawRoutes(c); drawFront(c); drawPicked(c); drawDesignated(c); drawAsks(c); drawPings(c); // (the vignette: #vig, in CSS — a full-screen layer drawn every frame was slow)
 }
 // the front (🚩 set): a blue flag on a pole, a faint ring round it
 function drawFront(c) {

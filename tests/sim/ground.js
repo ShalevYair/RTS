@@ -82,4 +82,15 @@ const count = (s, kind) => s.ground.k.reduce((a, v) => a + (v === kind), 0);
   for (let c = 0; c < G.k.length && (!mud || !wood); c++) { const p = { x: (c % G.w + 0.5) * G.C, y: (Math.floor(c / G.w) + 0.5) * G.C }; if (G.k[c] === Sim.GR_MUD && !mud) mud = p; if (G.k[c] === Sim.GR_WOOD && !wood) wood = p; }
   ok(mud && Sim.groundBad(s, mud.x, mud.y, 21) && !Sim.groundBad(s, wood.x, wood.y, 5), 'mud is no place to build; a wood is');
 }
+{
+  // woods on fire (fireTick): a shell landing in a wood sets it alight, it spreads, burns out — cut, burnt, no cover
+  const s = Sim.extras(Sim.openField(Sim.create(2, 2400, 'normal', 1280))); s.bots = []; s.wxPlan = []; s.collapseAfter = Infinity;
+  const G = s.ground; let c0 = -1;
+  for (let c = 0; c < G.k.length; c++) if (G.k[c] === Sim.GR_WOOD && G.k[c + 1] === Sim.GR_WOOD && G.k[c - 1] === Sim.GR_WOOD) { c0 = c; break; }
+  const x = (c0 % G.w + 0.5) * G.C, y = (Math.floor(c0 / G.w) + 0.5) * G.C, r = s.rand; s.rand = () => 0;
+  s.fx.push({ x, y, life: 1, max: 1, size: 40 }); Sim.step(s, 1 / 30); s.rand = r; const lit = !!(G.fire && G.fire.has(c0)); G.fire = new Map([[c0, s.t]]); // (just the one: the rest from it)
+  ok(lit, 'a shell in a wood sets it alight');
+  let most = 0; for (let i = 0; i < 30 * (Sim.FIRE_T + 30); i++) { Sim.step(s, 1 / 30); most = Math.max(most, G.fire.size); }
+  ok(most > 1 && G.k[c0] === Sim.GR_CUT && G.burnt.has(c0), `it spread (${most} squares at once) and burnt out: ash, no wood`);
+}
 if (bad) process.exitCode = 1;

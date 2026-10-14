@@ -13,19 +13,25 @@ const orderSay = {};
 const replyOf = (type, foe) => foe ? 'attacking' : type === 'retreat' ? 'retreating' : type === 'hold' ? 'holding' : 'go';
 // fa: the way the front should face (a drag), else toward the enemy; foe: the order is at an enemy (a red mark); cap:
 // into a post, to take it (a yellow one)
-function issue(type, x, y, fa, foe, cap, deep) {
+// queue: Shift + click — after the point they're going to now (and those queued before), not instead (march.js);
+// type 'move' (M): only moving — they go on, firing as they pass, until there; then they hold
+function issue(type, x, y, fa, foe, cap, deep, queue) {
   const all = sel === 'all';
   // (everyone: not the bulldozers — they'd leave their sites for the front)
   const ids = all ? s.squads.filter(q => q.side === 'blue' && !q.dead && inAll(q)).map(q => q.id) : selIds();
   if (!ids.length) return; // nothing picked: nothing to order
   // several together (all, a group, a type, a rectangle): rows facing the enemy (tanks in front … medics and mechanics
   // at the back); one alone: its own line
-  let ok = false;
-  if (ids.length > 1) ok = Sim.formation(s, ids, type, x, y, true, fa, deep);
-  else for (const id of ids) ok = Sim.order(s, id, type, x, y, false, Number.isFinite(fa) ? { fa } : undefined) || ok;
+  let ok = false; const move = type === 'move'; if (move) type = 'hold';
+  if (queue && type !== 'retreat') ok = Sim.queueOrder(s, ids, type, x, y, fa, move);
+  else {
+    Sim.unqueue(s, ids); // (a new order: what was queued for them is dropped)
+    if (ids.length > 1) ok = Sim.formation(s, ids, type, x, y, true, fa, deep, { move });
+    else for (const id of ids) ok = Sim.order(s, id, type, x, y, false, Number.isFinite(fa) || move ? { fa, move } : undefined) || ok;
+  }
   if (ok && all) Sim.note(s, 'כל הכוחות: ' + (type === 'hold' ? 'מחזיקים עמדה' : type === 'attack' ? 'תוקפים את האזור' : 'נסוגים הביתה'));
   if (ok) {
-    if (type !== 'retreat') pings.push({ x, y, t: performance.now(), foe: !!foe, cap: !!cap }); // four arrows closing on the spot (yellow: into a post)
+    if (type !== 'retreat') pings.push({ x, y, t: performance.now(), foe: !!foe, cap: !!cap, move }); // four arrows closing on the spot (yellow: into a post; blue: only moving)
     const say = replyOf(type, foe); for (const id of ids) orderSay[id] = say;
     if (!Sim.friction(s)) Radio.hear({ kind: say, id: ids[Math.floor(Math.random() * ids.length)] });
   }
