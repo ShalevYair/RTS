@@ -1352,25 +1352,86 @@ function v3Falling() {
     f.m.position.set(f.x, v3Gnd(f.x, f.y) - sink * f.w * 0.5, f.y); f.m.quaternion.copy(q).multiply(qy); f.m.scale.set(f.w, f.w * f.tall, f.w);
   }
 }
-// ---- dug in (Sim digTick; the flat map's drawTrenches): a ring of earth round a soldier, open at his back; a longer
-// one round a tank's front and sides — rising as it's dug, staying where it was (s.trenches), the enemy's where seen ----
-const V3_TRENCH = { foot: [V3_MAN * 0.42, 0.55], tank: [0, 0.6] }, V3_TRENCH_COL = '#7a6444';
+// ---- dug in (Sim digTick, s.trenches): a soldier's foxhole — a ring of fresh earth, open at the back, a soft rounded
+// bank with a row of sandbags along its front and a dark pit inside; a tank's hull-down scrape — a U of earth round it,
+// higher at the front, sandbags on the front lip, its floor dark. Made once in code (v3TrenchGeo, one unit across;
+// vertex colours: dry earth on top, damp at the foot, khaki bags), one InstancedMesh for each, scaled per unit and
+// risen with the digging (f) ----
+const V3_TRENCH = { foot: [V3_MAN * 0.48, 0.62], tank: [0, 0.75] };
+const V3_TRENCH_COL = { dry: '#7a6247', damp: '#4b3b29', pit: '#1c150e', bag: '#8c8160', bag2: '#75694b' }; // (as the screen shows them: made linear in v3TrenchGeo)
+function v3TrenchGeo(tank) {
+  const P = [], C = [], I = [], tri = (a, b, c) => I.push(a, b, c), C0 = Object.fromEntries(Object.entries(V3_TRENCH_COL).map(([k, h]) => { const c = new THREE.Color(h); return [k, [c.r, c.g, c.b]]; }));
+  const vert = (x, y, z, col) => { P.push(x, y, z); C.push(...col); return P.length / 3 - 1; };
+  const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
+  let sd = tank ? 11 : 5; const R = () => (sd = sd * 16807 % 2147483647) / 2147483647;
+  // (the bank's path: a list of { x, z, nx, nz (outward), k (height there, 0–1) })
+  const path = [];
+  if (!tank) {
+    const a0 = Math.PI * 0.22, a1 = Math.PI * 1.78, N = 40; // (the gap at the back, −X)
+    for (let i = 0; i <= N; i++) { const t = i / N, a = Math.PI + a0 + (a1 - a0) * t, end = Math.min(1, Math.min(t, 1 - t) / 0.12); path.push({ x: Math.cos(a), z: Math.sin(a), nx: Math.cos(a), nz: Math.sin(a), k: end * end * (3 - 2 * end) * (0.85 + 0.15 * Math.cos(a)) }); }
+  } else {
+    // (a U: back-left, along the left side to the front, round the front, back along the right side; open behind)
+    const W = 0.62, F = 0.62, B = -0.75, rc = 0.3, pts = [];
+    for (let i = 0; i <= 10; i++) pts.push([B + (F - rc - B) * i / 10, -W, 0, -1]);
+    for (let i = 1; i < 8; i++) { const a = -Math.PI / 2 + Math.PI / 2 * i / 8; pts.push([F - rc + Math.cos(a) * rc, -W + rc + Math.sin(a) * rc, Math.cos(a), Math.sin(a)]); }
+    for (let i = 0; i <= 8; i++) pts.push([F, -W + rc + (2 * (W - rc)) * i / 8, 1, 0]);
+    for (let i = 1; i < 8; i++) { const a = Math.PI / 2 * i / 8; pts.push([F - rc + Math.cos(a) * rc, W - rc + Math.sin(a) * rc, Math.cos(a), Math.sin(a)]); }
+    for (let i = 0; i <= 10; i++) pts.push([F - rc - (F - rc - B) * i / 10, W, 0, 1]);
+    pts.forEach(([x, z, nx, nz], i) => { const t = i / (pts.length - 1), end = Math.min(1, Math.min(t, 1 - t) / 0.1), front = Math.max(0, (x - B) / (F - B)); path.push({ x, z, nx, nz, k: end * end * (3 - 2 * end) * (0.55 + 0.45 * front) }); });
+  }
+  // (the bank's cross-section: o = out from the path, h = up — inner foot, inner lip, crest, outer slope, outer foot)
+  const prof = [[-0.2, 0], [-0.1, 0.55], [0.0, 0.9], [0.1, 1], [0.24, 0.72], [0.42, 0.3], [0.62, 0]];
+  const rows = path.map(p => prof.map(([o, h], j) => {
+    const w = 1 + (R() - 0.5) * 0.18, y = h * p.k * (0.42 + (R() - 0.5) * 0.04), col = j === 0 || j === prof.length - 1 ? C0.damp : mix(C0.damp, C0.dry, Math.min(1, h * 1.2) * (0.85 + R() * 0.15));
+    return vert(p.x + p.nx * o * w * (tank ? 0.9 : 1), y, p.z + p.nz * o * w * (tank ? 0.9 : 1), col);
+  }));
+  for (let i = 0; i < rows.length - 1; i++) for (let j = 0; j < prof.length - 1; j++) { const a = rows[i][j], b = rows[i][j + 1], c = rows[i + 1][j], d = rows[i + 1][j + 1]; tri(a, c, b); tri(b, c, d); }
+  // (the pit: a dark floor inside, lighter at its rim)
+  if (!tank) {
+    const c = vert(0, 0.03, 0, C0.pit), N = 24, r0 = [];
+    for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2; r0.push(vert(Math.cos(a) * 0.82, 0.03, Math.sin(a) * 0.82, mix(C0.pit, C0.damp, 0.7))); }
+    for (let i = 0; i < N; i++) tri(c, r0[(i + 1) % N], r0[i]);
+  } else {
+    const q = [[-0.75, -0.52], [0.5, -0.52], [0.5, 0.52], [-0.75, 0.52]].map(([x, z], i) => vert(x, 0.03, z, i === 1 || i === 2 ? C0.pit : mix(C0.pit, C0.damp, 0.6)));
+    tri(q[0], q[2], q[1]); tri(q[0], q[3], q[2]);
+  }
+  // (sandbags along the front: rounded little blocks on the crest, two rows staggered)
+  const bag = (x, y, z, a, L, Wd, Ht, col) => {
+    const ca = Math.cos(a), sa = Math.sin(a), at = (u, v, w) => [x + u * ca - w * sa, y + v, z + u * sa + w * ca], k = 0.75; // (k: the top and the ends drawn in — a bag, not a brick)
+    const c8 = [[-L, 0, -Wd], [L, 0, -Wd], [L, 0, Wd], [-L, 0, Wd], [-L * k, Ht, -Wd * k], [L * k, Ht, -Wd * k], [L * k, Ht, Wd * k], [-L * k, Ht, Wd * k]].map(([u, v, w]) => vert(...at(u, v, w), mix(col, C0.pit, v ? 0 : 0.35)));
+    for (const [a1, b1, c1, d1] of [[4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]) { tri(c8[a1], c8[c1], c8[b1]); tri(c8[a1], c8[d1], c8[c1]); }
+  };
+  if (!tank) {
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 7 - r; i++) {
+      const a = -Math.PI * 0.42 + (Math.PI * 0.84) * (i + 0.5 + r * 0.5) / 7, rr = 0.98, x = Math.cos(a) * rr, z = Math.sin(a) * rr;
+      bag(x, 0.36 + r * 0.1, z, a + Math.PI / 2 + (R() - 0.5) * 0.25, 0.15, 0.08, 0.1, R() < 0.5 ? C0.bag : C0.bag2);
+    }
+  } else {
+    for (let r = 0; r < 2; r++) for (let i = 0; i < 8 - r; i++) {
+      const z = -0.48 + 0.96 * (i + 0.5 + r * 0.5) / 8;
+      bag(0.66, 0.4 + r * 0.09, z, Math.PI / 2 + (R() - 0.5) * 0.2, 0.07, 0.045, 0.085, R() < 0.5 ? C0.bag : C0.bag2);
+    }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.setIndex(I); g.computeVertexNormals();
+  return g;
+}
 function v3Trenches() {
   if (!V3.trench) {
-    const g = new THREE.TorusGeometry(1, 0.3, 5, 16, Math.PI * 1.5); g.rotateX(Math.PI / 2); g.rotateY(Math.PI * 0.75); // (lying flat, its gap at the back: −X)
-    V3.trench = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({ color: V3_TRENCH_COL, flatShading: true }), 512);
-    V3.trench.castShadow = V3.trench.receiveShadow = true; V3.trench.frustumCulled = false; V3.trench.count = 0; V3.scene.add(V3.trench);
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+    V3.trench = { foot: new THREE.InstancedMesh(v3TrenchGeo(false), m, 512), tank: new THREE.InstancedMesh(v3TrenchGeo(true), m, 128) };
+    for (const T of Object.values(V3.trench)) { T.castShadow = T.receiveShadow = true; T.frustumCulled = false; T.count = 0; V3.scene.add(T); }
   }
-  const T = V3.trench, o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), c = v3Tmp.tc || (v3Tmp.tc = new THREE.Color()), box = V3.box; let n = 0;
+  const o = v3Tmp.o || (v3Tmp.o = new THREE.Object3D()), c = v3Tmp.tc || (v3Tmp.tc = new THREE.Color()), box = V3.box, n = { foot: 0, tank: 0 };
   const put = (x, y, a, k, f) => {
-    if (n >= T.instanceMatrix.count || (box && (x < box.x - 40 || x > box.x + box.w + 40 || y < box.y - 40 || y > box.y + box.h + 40))) return;
-    const tank = k === 'tank', R = tank ? (SIZE.tank || 30) * (V3_LEN.tank || 1.6) * 0.55 : V3_TRENCH.foot[0], h = (tank ? V3_TRENCH.tank[1] : V3_TRENCH.foot[1]) * f;
-    o.position.set(x, v3Gnd(x, y) - 0.4, y); o.rotation.set(0, -a, 0); o.scale.set(R * (tank ? 1.15 : 1), R * h * 0.5, R * (tank ? 0.75 : 1)); o.updateMatrix();
-    T.setMatrixAt(n, o.matrix); T.setColorAt(n++, c.setScalar(0.85 + ((Math.abs(Math.round(x * 3.1 + y * 7.7)) % 9) / 30)));
+    const tank = k === 'tank', T = V3.trench[tank ? 'tank' : 'foot'], kk = tank ? 'tank' : 'foot';
+    if (n[kk] >= T.instanceMatrix.count || (box && (x < box.x - 40 || x > box.x + box.w + 40 || y < box.y - 40 || y > box.y + box.h + 40))) return;
+    const R = tank ? (SIZE.tank || 30) * (V3_LEN.tank || 1.6) * 0.62 : V3_TRENCH.foot[0], h = (tank ? V3_TRENCH.tank[1] : V3_TRENCH.foot[1]) * f;
+    o.position.set(x, v3Gnd(x, y) - 0.3, y); o.rotation.set(0, -a, 0); o.scale.set(R, R * h, R * (tank ? 0.8 : 1)); o.updateMatrix();
+    T.setMatrixAt(n[kk], o.matrix); T.setColorAt(n[kk]++, c.setScalar(0.88 + ((Math.abs(Math.round(x * 3.1 + y * 7.7)) % 9) / 36)));
   };
   for (const t of s.trenches || []) if (t.side === 'blue' || !s.fog || shownAt(t)) put(t.x, t.y, t.a, t.k, 1);
   for (const u of s.units) if (u.dig > 0 && !u.dug && (u.side === 'blue' || !s.fog || s.vis.blue.has(u.id))) put(u.x, u.y, u.hd || 0, u.type === 'tank' ? 'tank' : 'foot', u.dig);
-  T.count = n; T.instanceMatrix.needsUpdate = true; if (T.instanceColor) T.instanceColor.needsUpdate = true;
+  for (const k in V3.trench) { const T = V3.trench[k]; T.count = n[k]; T.instanceMatrix.needsUpdate = true; if (T.instanceColor) T.instanceColor.needsUpdate = true; }
 }
 // ---- water that moves: over each lake (its own outline — decor.lakes' body, as a mask) a see-through surface whose
 // ripples run and glint (a small shader on the light's own; the ground's fog and night over it — v3Shaded) ----
@@ -1817,7 +1878,7 @@ function v3SunBox(ty, vw) {
 // ---- the weather in 3D (Sim weatherAt): rain as real drops — streaks falling through a box round what's on screen,
 // slanting with the wind, moved in their shader (V3_RAIN) — and the ground wet under it (v3Wet: darker, a sheen, puddles);
 // the morning fog as banks lying in the low ground (level under 1: as the flat map's drawLowFog), drifting slowly ----
-const V3_RAIN = { n: 3000, len: 10, h: 420, fall: 330, a: 0.5 };
+const V3_RAIN = { n: 3000, len: 10, h: 420, fall: 330, a: 0.5, far: 1700 };
 function v3Weather() {
   const w = s.extras ? Sim.weatherAt(s) : { rain: 0, fog: 0, dust: 0 }, rain = gfxLow || reduceMotion ? 0 : w.rain;
   V3U.v3Wet.value += ((w.rain > 0.05 ? Math.min(1, w.rain * 1.2) : 0) - V3U.v3Wet.value) * 0.02; // (wet slowly, dry slowly)
@@ -1836,8 +1897,11 @@ function v3Weather() {
   v3DustWeather(gfxLow ? 0 : w.dust || 0);
   { const f = typeof boltFlash === 'function' ? boltFlash() : 0; // (a flash: the night lifted, the sky lit — for a moment)
     if (f) { V3U.v3Night.value *= 1 - V3_BOLT.flash * f; V3.sky.intensity += V3_SKY * Math.PI * 0.9 * f; if (V3.skyU) V3.skyU.night.value *= 1 - 0.35 * f; } }
+  // (zoomed far out: the drops' box round the middle covered a patch of the screen — then the flat map's streaks over all
+  // of it instead, drawRain; V3_RAIN.far: how wide a view the drops still fill)
+  V3.rainFar = !!V3.box && Math.max(V3.box.w, V3.box.h) > V3_RAIN.far;
   if (V3.rain) {
-    V3.rain.visible = rain > 0.01;
+    V3.rain.visible = rain > 0.01 && !V3.rainFar;
     if (V3.rain.visible) { const U = V3.rain.material.uniforms, B = V3.box; U.uC.value.set(cam.x, v3E(cam.x, cam.y) - 20, cam.y); U.uS.value = B ? Math.min(1400, Math.max(B.w, B.h) * 0.8) : 1000; U.uT.value = performance.now() / 1000; U.uA.value = V3_RAIN.a * rain * (1 - (V3.nightK || 0) * 0.5); U.uW.value.set(WIND.x, WIND.y); }
   }
 }

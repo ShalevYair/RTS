@@ -120,16 +120,29 @@ function mateAsks(s, side, mine, foes) {
 // an ask record, kind 'summon', askBusy) ----
 const SUMMON_HOT = 3, SUMMON_WAIT = 300, SUMMON_T = 240;
 const summonHot = (s, q) => s.t - q.lastContact < SUMMON_HOT || s.units.some(u => u.squad === q.id && u.engaged);
-function summon(s, side, ids, x, y) {
+function summon(s, side, ids, x, y, icon) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   const qs = ids.map(id => s.squads.find(q => q.id === id)).filter(q => q && !q.dead && !q.aboard && q.side === side);
+  for (const q of qs) q.told = true; // (sent: a truck stays where it's summoned — playerTrucks leaves it be)
   const now = qs.filter(q => !summonHot(s, q)), wait = qs.filter(q => summonHot(s, q));
   if (now.length > 1) formation(s, now.map(q => q.id), 'hold', x, y, true); else if (now.length) order(s, now[0].id, 'hold', x, y, true);
   s.summons = (s.summons || []).filter(w => !wait.some(q => q.id === w.id));
   for (const q of wait) s.summons.push({ id: q.id, x: Math.round(x), y: Math.round(y), t: s.t });
-  const theirs = qs.filter(q => askWho(s, q) === 'mate').map(q => q.id);
-  if (theirs.length && s.mate) (s.asks = s.asks || []).push({ id: s.askN = (s.askN || 0) + 1, side, from: 'me', kind: 'summon', x: Math.round(x), y: Math.round(y), t: s.t, keep: SUMMON_T, by: theirs, ok: true });
-  return { now: now.map(q => q.id), wait: wait.map(q => q.id) };
+  // (a record of it on the map, until SUMMON_T: what was summoned — a click on it calls it off, cancelAsk; the partner's
+  // squads in it stay on it, askBusy)
+  const a = { id: s.askN = (s.askN || 0) + 1, side, from: 'me', kind: 'summon', icon, x: Math.round(x), y: Math.round(y), t: s.t, keep: SUMMON_T, by: qs.map(q => q.id), sent: now.map(q => q.id), ok: true };
+  (s.asks = s.asks || []).push(a);
+  return { now: now.map(q => q.id), wait: wait.map(q => q.id), ask: a };
+}
+// an ask or a summons called off (a click on its mark): gone from the map; those sent stop where they are (hold there),
+// those still waiting for their fight to end aren't coming; the partner's squads are its own again
+function cancelAsk(s, id) {
+  const i = (s.asks || []).findIndex(a => a.id === id); if (i < 0) return false;
+  const a = s.asks[i]; s.asks.splice(i, 1);
+  if (s.summons) s.summons = s.summons.filter(w => !a.by.includes(w.id));
+  // (only those still on it — no order of their own since: within the time an order takes to arrive)
+  for (const sid of a.sent || a.by) { const q = s.squads.find(k => k.id === sid); if (q && !q.dead && (q.orderAt ?? -1) >= a.t - 0.01 && (q.orderAt ?? -1) <= a.t + 15) order(s, q.id, 'hold', Math.round(q.cx), Math.round(q.cy), true); }
+  return true;
 }
 // once a second: the summoned still fighting — those out of it now go (another order since: no longer summoned)
 function summonTick(s) {
@@ -138,7 +151,7 @@ function summonTick(s) {
     const q = s.squads.find(k => k.id === w.id);
     if (!q || q.dead || s.t - w.t > SUMMON_WAIT || (q.orderAt ?? -1) > w.t) return false;
     if (summonHot(s, q)) return true;
-    order(s, q.id, 'hold', w.x, w.y, true); return false;
+    order(s, q.id, 'hold', w.x, w.y, true); for (const a of s.asks || []) if (a.kind === 'summon' && a.by.includes(q.id) && a.sent) { a.sent.push(q.id); a.t2 = s.t; } return false;
   });
 }
 

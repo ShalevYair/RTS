@@ -1,4 +1,5 @@
 // Sim: fog of war — what each side can see and remembers
+const JEEP_CLEAR = 1; // (a recon jeep — the plain one, with machine guns — makes out in full all it sees, as a signals truck: its sight is smaller)
 // fog of war: a side only knows about enemy units it can currently see
 const seen = (s, side, u) => u.side === side || !s.fog || s.vis[side].has(u.id);
 // what a side believes about an enemy squad: live when seen, else its last sighting for MEMORY seconds
@@ -14,6 +15,7 @@ function clearAt(s, side, p) {
   const ds = DRONE_SIGHT * skySight(s, side); // (the dark and the rain: nearer)
   for (const n of s.nodes) if (n.side === side && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready && dist(n, p) <= ds) return true;
   for (const u of s.units) if (u.side === side && (u.type === 'radio' || u.type === 'commando') && dist(u, p) <= sightOf(s, u)) return true;
+  for (const u of s.units) if (u.side === side && u.type === 'jeep' && dist(u, p) <= sightOf(s, u) * JEEP_CLEAR) return true; // (a recon jeep: as a signals truck, nearer)
   return false;
 }
 // a commando is seen only up close: by a drone or a signals truck of the side, its units or buildings, or firing

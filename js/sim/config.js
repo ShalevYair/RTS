@@ -57,14 +57,14 @@ const LAKE_PAD = 20, LAKE_LOOK = 28;
 const TYPES = {
   inf:  { name: 'חי"ר',  hp: 60,  speed: 26, range: 50, dmg: 7,  cd: 0.8, sight: 115, r: 3, rein: 7, cost: 1 },
   tank: { name: 'טנקים', hp: 150, speed: 37, range: 75, dmg: 18, cd: 1.6, sight: 135, r: 13, rein: 12, cost: 2 },
-  air:  { name: 'מטוסים', hp: 90, speed: 80, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 9, rein: 15, air: true, ammo: 10, cost: 2 },
+  air:  { name: 'מטוסים', hp: 90, speed: 160, range: 95, dmg: 14, cd: 1.2, sight: 160, r: 9, rein: 15, air: true, ammo: 10, cost: 2 },
   // the tanker (fuel.js): doesn't fight; flies TANKER_T s on its own fuel, circling its place (new ones: tankerSpot,
   // between home and the middle), and fills the planes that come to it
-  tanker: { name: 'מטוסי תדלוק', hp: 120, speed: 70, range: 0, dmg: 0, cd: 1, sight: 160, r: 10, rein: 15, air: true, care: true, cost: 2 },
+  tanker: { name: 'מטוסי תדלוק', hp: 120, speed: 140, range: 0, dmg: 0, cd: 1, sight: 160, r: 10, rein: 15, air: true, care: true, cost: 2 },
   // (AA soldiers: missiles only at what flies; at the ground a rifle — gun: an infantryman's range and pace, half his
   // hitting power, hitting as infantry does, MULT.inf)
   aa:   { name: 'נ"מ',   hp: 70,  speed: 29, range: 120, dmg: 16, cd: 1.0, sight: 150, r: 3, rein: 9, cost: 1, gun: { range: 50, dmg: 3.5, cd: 0.8, as: 'inf' } },
-  jeep: { name: "ג'יפים", hp: 80,  speed: 60, range: 60,  dmg: 6,  cd: 0.7, sight: 170, r: 8, rein: 8, cost: 1 },
+  jeep: { name: "ג'יפי סיור", hp: 80,  speed: 60, range: 60,  dmg: 6,  cd: 0.7, sight: 170, r: 8, rein: 8, cost: 1 },
   // anti-tank soldiers: like AA, but their launcher is for armour
   at:   { name: 'נ"ט',   hp: 60,  speed: 27, range: 95, dmg: 26, cd: 2.0, sight: 125, r: 3, rein: 9, cost: 1 },
   // armed jeeps (twice as long to make): AA missiles or anti-tank missiles on the back
@@ -73,7 +73,7 @@ const TYPES = {
   // care squads: they don't fight (range 0); medics treat infantry and AA, mechanics repair jeeps and tanks
   med:  { name: 'חובשים', hp: 50,  speed: 30, range: 0,   dmg: 0,  cd: 1,   sight: 110, r: 3, rein: 8, cost: 1, care: true },
   mech: { name: 'מכונאים', hp: 80, speed: 45, range: 0,   dmg: 0,  cd: 1,   sight: 130, r: 7, rein: 8, cost: 1, care: true },
-  truck: { name: 'משאיות אספקה', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1,  sight: 120, r: 7, rein: 8, cost: 1, care: true },
+  truck: { name: 'משאיות תחמושת', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1,  sight: 120, r: 7, rein: 8, cost: 1, care: true },
   // fuel trucks (fuel.js): from a fuel station; they carry barrels to the front and to vehicles that ran dry
   fueltruck: { name: 'משאיות דלק', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1, sight: 120, r: 7, rein: 8, cost: 1, care: true },
   watertruck: { name: 'משאיות מים', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1, sight: 120, r: 7, rein: 8, cost: 1, care: true },
@@ -162,7 +162,7 @@ const TRAITS = {
 const ORDER_R = { hold: 60, attack: 100, retreat: 40 };
 const ORDER_NAME = { hold: 'מחזיק', attack: 'תוקף', retreat: 'נסוג', support: 'מסייע' };
 const BASE_HEAL = 10, HEAL_R = 70, REARM_TIME = 2.5;
-const AIR_ORBIT = 45, AIR_LEAD = 0.6; // aircraft circle: the ring round where they are sent, and how far ahead on it they steer
+const AIR_ORBIT = 65, AIR_LEAD = 0.6; // (65: at twice the speed, a ring of 45 was a spin) // aircraft circle: the ring round where they are sent, and how far ahead on it they steer
 // structures (DESIGN.md §3–4). Production buildings raise one squad each and refill it, one unit per `every` s.
 // r: its footprint's radius (nothing drives through it; the picture is about 2.4r across): the HQ the biggest, the
 // airfield as big, then the tank workshop, the jeep workshops / garage / depot, and the tents the smallest.
@@ -200,7 +200,7 @@ const STRUCTS = {
   airfield: { name: 'שדה תעופה',   icon: '🛫', hp: 600,  value: 8, unit: 'air',  build: 60, every: 120, size: 2, r: 45, cat: 'air' },
   tankerbase: { name: 'בסיס מטוסי תדלוק', icon: '🛩️', hp: 500, value: 5, unit: 'tanker', build: 60, every: 120, size: 2, keep: 2, max: 1, first: true, r: 40, cat: 'air', fuel: true }, // (fuel: only where there's fuel)
   garage:   { name: 'מוסך',        icon: '🛠️', hp: 400,  value: 3, unit: 'mech', build: 25, every: 30,  size: 2, r: 28, cat: 'service' },
-  depot:    { name: 'מחסן אספקה',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 28, cat: 'service' },
+  depot:    { name: 'מחסן תחמושת',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 28, cat: 'service' },
   // the fuel station (fuel.js): barrels into its yard, and up to `keep` fuel trucks
   fuelst:   { name: 'תחנת דלק', icon: '⛽', hp: 400, value: 3, unit: 'fueltruck', build: 40, every: 30, size: 1, keep: 4, r: 28, cat: 'service' },
   waterst:  { name: 'מתקן מים', icon: '💧', hp: 400, value: 3, unit: 'watertruck', build: 40, every: 120, size: 2, keep: 2, max: 2, free: true, first: true, r: 28, cat: 'service' }, // (shore: on a lake's bank)
@@ -327,7 +327,8 @@ const MARCH_MIN = 220, MARCH_PACE = 0.9, MARCH_WAIT = 2.5, MARCH_SLOW = 0.3, DEE
 const FRONT_NOT = ['ssm', 'dozer', 'tanker'];
 // under fire: a fighting unit of the player's goes at the shooter, one that doesn't falls back FLEE_D toward the HQ
 // (each squad once per REACT_EVERY s)
-const FLEE_D = 190, REACT_EVERY = 4;
+const TRUCK_SPREAD = 160; // (supply trucks: at least this apart where they wait — truckStation)
+const FLEE_D = 60, REACT_EVERY = 4; // (FLEE_D: a little — at 190 guns and trucks folded far back at every shot)
 const FORM_ROW = { commando: 2, ssm: 4, arrow: 4, dome: 4, lift: 4, heli: 1.5, gunship: 1.5, tank: 0, jeep: 1, tjeep: 1, ajeep: 1, air: 1.5, inf: 2, at: 2.5, aa: 3, med: 3.3, mech: 3.3, truck: 3.4, radio: 3.6, dozer: 4 };
 const SUPPORT_MAX = 30, CONTACT_MEMORY = 2, INITIATIVE_EVERY = 1.5, SUPPORT_R = 90;
 
@@ -434,7 +435,7 @@ const POSTS = {
   radar:     { name: 'רדאר',       icon: '📡', r: 26, n: [1, 1] },
   power:     { name: 'תחנת כוח',   icon: '⚡', r: 28, n: [1, 1] },
   fuel:      { name: 'תחנת דלק',   icon: '⛽', r: 24, n: [1, 1] },
-  supply:    { name: 'מחסן אספקה', icon: '📦', r: 24, n: [2, 4] },
+  supply:    { name: 'מחסן תחמושת', icon: '📦', r: 24, n: [2, 4] },
   hospital:  { name: 'בית חולים',  icon: '🏥', r: 26, n: [2, 4] },
   motorpool: { name: 'מוסך',       icon: '🛠️', r: 26, n: [2, 4] },
   tower:     { name: 'מגדל תצפית', icon: '🗼', r: 18, n: [2, 4], hill: true },

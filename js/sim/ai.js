@@ -39,7 +39,9 @@ function aiBuild(s, side, D, who) {
     if (f) for (let i = 0; i < 8; i++) { const a = Math.atan2(foe.y - f.y, foe.x - f.x) + (s.rand() - 0.5) * 2, r = roomPair(s, f.kind, 'decoy') + 5 + s.rand() * 50; if (build(s, side, 'decoy', f.x + Math.cos(a) * r, f.y + Math.sin(a) * r)) break; }
   }
   const asked = who && s.askMake && s.askMake[pk]; // (what the partner was asked for and has none of: what makes it, first — asks.js)
-  if (s.logi && may('depot')) aiSupply(s, side, asked);
+  if (s.logi && may('depot')) aiSupply(s, side, asked, who);
+  // (the partner: a fuel station and a water point before anything else — the player's vehicles and soldiers need them)
+  if (who === 'mate' && s.logi && may('fuelst') && (!alive(s, side, ['fuelst']).length || !alive(s, side, ['waterst']).length)) return;
   if (buildCount(s, side, who) >= buildLimit(s, side)) return;
   if (!D.smart && s.t - (s.lastBuild[pk] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
@@ -89,11 +91,11 @@ function aiCounter(s, side, may = () => true) {
 }
 // the supply buildings (s.logi; past the allowance): one of each as soon as there's an HQ — a water building on a lake's
 // bank in our control — then a second of each after AI_SUPPLY2 s
-function aiSupply(s, side, asked) {
+function aiSupply(s, side, asked, who) {
   if (s.t - (s.aiSupAt && s.aiSupAt[side] || -99) < 10) return;
   (s.aiSupAt = s.aiSupAt || {})[side] = s.t;
   const hq = hqOf(s, side); if (!hq || s.t < hq.ready) return;
-  for (const kind of ['waterst', 'depot', 'fuelst']) {
+  for (const kind of who === 'mate' ? ['fuelst', 'waterst', 'depot'] : ['waterst', 'depot', 'fuelst']) { // (the partner: fuel and water first)
     let want = (s.t - hq.ready > AI_SUPPLY2 ? 2 : 1) + (kind === asked ? 1 : 0); // (asked for and none to send: one more)
     // (fuel: a station for every FUEL_ST_PER vehicles of the whole side that burn it — the partner counts the player's too)
     if (kind === 'fuelst') want = Math.max(want, Math.ceil(s.units.filter(u => u.side === side && u.hp > 0 && u.fuel !== undefined && needsFuel(u.type)).length / FUEL_ST_PER));
@@ -156,8 +158,33 @@ function truckStation(s, sq, mine, k) {
   const want = q => { const m = s.units.filter(u => u.squad === q.id && C.who(u)); return m.reduce((a, u) => a + (u[C.key] ?? 1), 0) / (m.length || 1); };
   const needy = front.map(q => ({ q, w: want(q) })).filter(o => o.w < AI_NEED).sort((a, b) => a.w - b.w);
   front.sort((a, b) => Math.abs(a.cx - foe.x) - Math.abs(b.cx - foe.x));
-  const q = needy.length ? needy[k % needy.length].q : front[k % front.length], c = { x: q.cx, y: q.cy }, d = dist(c, home) || 1, back = Math.min(d, AI_TRUCK_BACK), G = 40;
+  // (spread: the k-th truck of the kind to the k-th of the squads — the neediest first, then from the front — that stand
+  // TRUCK_SPREAD apart; they all drove to the same few, side by side)
+  const cands = [...needy.map(o => o.q), ...front], P = [];
+  for (const c of cands) { if (P.every(p => Math.hypot(p.cx - c.cx, p.cy - c.cy) >= TRUCK_SPREAD)) P.push(c); if (P.length > k) break; }
+  const q = P[k % P.length], c = { x: q.cx, y: q.cy }, d = dist(c, home) || 1, back = Math.min(d, AI_TRUCK_BACK), G = 40;
   return { x: Math.round((c.x + (home.x - c.x) / d * back) / G) * G, y: Math.round((c.y + (home.y - c.y) / d * back) / G) * G };
+}
+// the player's supply trucks not sent anywhere (s.logi; told: the player's own order stands): every PLAYER_TRUCKS s, each
+// to a different spot behind the side's forces — the neediest first (truckStation), as the computer places its own —
+// rather than all to the front flag together
+const PLAYER_TRUCKS = 5;
+function playerTrucks(s) {
+  if (!s.logi || s.meBot || s.noAiSupply || s.t - (s.ptAt ?? -99) < PLAYER_TRUCKS) return; s.ptAt = s.t;
+  const team = s.squads.filter(q => q.side === 'blue' && !q.dead && !q.aboard && s.units.some(u => u.squad === q.id)), n = {};
+  for (const sq of team) {
+    if (!CARGO[sq.type] || sq.told || !ownSquad(s, sq) || s.units.some(u => u.squad === sq.id && u.refill)) continue;
+    const k = n[sq.type] = (n[sq.type] || 0) + 1, f = s.front && s.front.blue, p = f ? frontRing(f, k - 1, Object.keys(CARGO).indexOf(sq.type)) : truckStation(s, sq, team, k - 1);
+    if (Math.hypot(p.x - sq.order.x, p.y - sq.order.y) > 40) order(s, sq.id, 'hold', Math.round(p.x), Math.round(p.y), true);
+  }
+}
+// (a front set: there, each truck its own place round the flag — the first on it, the next six on a ring of
+// FRONT_RING, then a wider one; each kind turned a little, so the fuel and the water trucks don't share them)
+const FRONT_RING = 75;
+function frontRing(f, k, kind) {
+  if (!k) return { x: f.x + (kind - 1) * 25, y: f.y };
+  const ring = k <= 6 ? 1 : 2, n = ring === 1 ? 6 : 12, i = ring === 1 ? k - 1 : k - 7, a = (i % n) / n * Math.PI * 2 + kind * 0.5;
+  return { x: f.x + Math.cos(a) * FRONT_RING * ring, y: f.y + Math.sin(a) * FRONT_RING * ring };
 }
 // a squad's supply leash (s.logi): what keeps it going — fuel for vehicles, water for soldiers — comes from a loaded
 // truck or an HQ / forward HQ; null = nothing needed

@@ -20,8 +20,8 @@ const SUM_TREE = [
     { k: 'carers', pic: 'med', kids: [{ k: 'med', types: ['med'] }, { k: 'mech', types: ['mech'] }] },
     { k: 'radio', types: ['radio'] },
   ] },
-  { k: 'supply', pic: 'fueltruck', kids: [{ k: 'fuel', pic: 'fueltruck', types: ['fueltruck'], ask: 'fuel' }, { k: 'ammo', pic: 'truck', types: ['truck'], ask: 'ammo' }, { k: 'water', pic: 'watertruck', types: ['watertruck'], ask: 'water' }] },
-  { k: 'fire', ask: 'fire', emoji: '🎯' },
+  { k: 'supply', pic: 'fueltruck', kids: [{ k: 'fuel', pic: 'fueltruck', mark: 'fuel', types: ['fueltruck'], ask: 'fuel' }, { k: 'ammo', pic: 'truck', mark: 'shell', types: ['truck'], ask: 'ammo' }, { k: 'water', pic: 'watertruck', mark: 'water', types: ['watertruck'], ask: 'water' }] },
+  { k: 'fire', ask: 'fire', pic: 'mlrs', mark: 'target' },
   { k: 'build', ask: 'build', pic: 'dozer' },
 ];
 const SUM_HOLD_MS = 450, SUM_STEP_MS = 500, SUM_GAP = 60; // (SUM_GAP: px between the buttons round the ring)
@@ -40,10 +40,31 @@ function sumShown(n) {
   return !!n.ask && !!s.arms && Sim.canAsk(s, 'blue', 'me', n.ask) && (n.ask !== 'build' || !!(wheel && Sim.siteNear(s, 'blue', wheel.x, wheel.y))); // (build first: only by a site of ours)
 }
 // its picture: the unit itself, small, in our colour (cached)
+// (the trucks look alike: a big mark over each — a blue drop (water), an orange one (fuel), a shell (ammunition);
+// fire: a red sight over the guns)
 const sumPics = {};
-function sumPic(type) {
-  const key = type + colors.blue; if (sumPics[key]) return sumPics[key];
-  const c = document.createElement('canvas'); c.width = c.height = 64; drawSquadIcon(c, type); return (sumPics[key] = c.toDataURL());
+function sumPic(type, mark) {
+  const key = type + mark + colors.blue; if (sumPics[key]) return sumPics[key];
+  const c = document.createElement('canvas'); c.width = c.height = 64; drawSquadIcon(c, type);
+  if (mark) {
+    const g = c.getContext('2d'); g.save(); g.translate(14, -4); g.scale(0.72, 0.72); g.lineWidth = 3; // (up to the right, the truck still showing under it) g.strokeStyle = '#fff'; g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 4;
+    if (mark === 'water' || mark === 'fuel') { // (a drop: round below, a point on top)
+      g.beginPath(); g.moveTo(32, 6); g.bezierCurveTo(40, 20, 50, 30, 50, 40); g.arc(32, 40, 18, 0, Math.PI); g.bezierCurveTo(14, 30, 24, 20, 32, 6); g.closePath();
+      g.fillStyle = mark === 'water' ? '#2f8cff' : '#ff9a1f'; g.fill(); g.stroke();
+      g.shadowBlur = 0; g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.ellipse(25, 40, 4, 8, -0.4, 0, Math.PI * 2); g.fill();
+    } else if (mark === 'shell') { // (a brass case, a dark-green head)
+      g.translate(32, 33); g.rotate(-0.5);
+      g.beginPath(); g.rect(-9, -2, 18, 26); g.fillStyle = '#d9a640'; g.fill(); g.stroke();
+      g.beginPath(); g.moveTo(-9, -2); g.lineTo(-9, -12); g.quadraticCurveTo(0, -30, 9, -12); g.lineTo(9, -2); g.closePath(); g.fillStyle = '#4b5b34'; g.fill(); g.stroke();
+      g.shadowBlur = 0; g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(-9, 18, 18, 4);
+    } else if (mark === 'target') { // (a sight)
+      g.strokeStyle = '#ff3b30'; g.lineWidth = 4; g.beginPath(); g.arc(32, 32, 17, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); for (const [a, b, c2, d] of [[32, 6, 32, 22], [32, 42, 32, 58], [6, 32, 22, 32], [42, 32, 58, 32]]) { g.moveTo(a, b); g.lineTo(c2, d); } g.stroke();
+      g.fillStyle = '#ff3b30'; g.beginPath(); g.arc(32, 32, 3.5, 0, Math.PI * 2); g.fill();
+    }
+    g.restore();
+  }
+  return (sumPics[key] = c.toDataURL());
 }
 const sumName = n => Sim.TYPES[n.k] ? tn(n.k) : tr('sum_' + n.k);
 function openAskWheel(e, x, y) {
@@ -63,7 +84,7 @@ function wheelShow(nodes) {
   l.forEach((n, i) => {
     const a = -Math.PI / 2 + i * 2 * Math.PI / l.length, b = document.createElement('button'), cnt = n.types || n.kids ? sumCount(n) : null;
     b.className = 'sumBtn' + (n.kids ? ' topic' : '');
-    if (n.pic || n.types) { const im = document.createElement('img'); im.src = sumPic(n.pic || n.types[0]); im.alt = ''; b.appendChild(im); } else b.textContent = n.emoji || ASK_ICON[n.ask];
+    if (n.pic || n.types) { const im = document.createElement('img'); im.src = sumPic(n.pic || n.types[0], n.mark); im.alt = ''; b.appendChild(im); } else b.textContent = n.emoji || ASK_ICON[n.ask];
     if (cnt) { const g = document.createElement('span'); g.className = 'sumN'; g.textContent = cnt; b.appendChild(g); }
     b.dataset.tip = 'sum_' + n.k; b.tipText = () => sumName(n) + (cnt ? ' · ' + cnt + sumBusyNote(n) : '');
     b.setAttribute('aria-label', sumName(n));
@@ -86,9 +107,10 @@ function sumPress(n, b) {
   const shown = n.kids ? n.kids.filter(sumShown) : null;
   if (shown && shown.length === 1 && !shown[0].kids && n.k !== 'forces' && n.k !== 'supply') n = Object.assign({}, shown[0], { pic: shown[0].pic || n.pic }); // (a topic with one kind there: as that kind)
   const isTopic = !!(n.kids && n.kids.some(sumShown)), total = n.types || isTopic ? sumCount(n) : 0, badge = b.querySelector('.sumN');
-  if (!n.types && !isTopic) { const up = () => { removeEventListener('pointerup', up); closeAskWheel(); askAt(n.ask, wheel0().x, wheel0().y); }; addEventListener('pointerup', up); return; } // (an ask of the partner)
+  const { x, y } = wheel; // (the spot — taken before the wheel closes: after it, it was the middle of the screen, and a site asked for was never found)
+  if (!n.types && !isTopic) { const up = () => { removeEventListener('pointerup', up); closeAskWheel(); askAt(n.ask, x, y); }; addEventListener('pointerup', up); return; } // (an ask of the partner)
   if (n.k === 'forces' || n.k === 'supply' || !total) { // (forces, supplies: only a level; a kind of supply with none here: ask the partner, who builds it)
-    const up = () => { removeEventListener('pointerup', up); if (isTopic) { wheel.path.push(n); wheelShow(n.kids); } else if (n.ask) { closeAskWheel(); askAt(n.ask, wheel0().x, wheel0().y); } };
+    const up = () => { removeEventListener('pointerup', up); if (isTopic) { wheel.path.push(n); wheelShow(n.kids); } else if (n.ask) { closeAskWheel(); askAt(n.ask, x, y); } };
     addEventListener('pointerup', up); return;
   }
   const third = Math.max(1, Math.ceil(total / 3)), step = Math.max(1, Math.round(total / 7));
@@ -98,18 +120,17 @@ function sumPress(n, b) {
   const up = () => {
     removeEventListener('pointerup', up); clearTimeout(t0); clearInterval(wheel.timer);
     if (!held && isTopic) { wheel.path.push(n); wheelShow(n.kids); return; } // (a click on a topic: in)
-    const { x, y } = wheel0(); closeAskWheel(); summonAt(n, held ? count : third, x, y);
+    closeAskWheel(); summonAt(n, held ? count : third, x, y);
   };
   addEventListener('pointerup', up);
 }
-const wheel0 = () => wheel || { x: cam.x, y: cam.y };
 // send the n nearest units of the node's kinds (whole squads, the nearest first) to (x, y)
 function summonAt(n, want, x, y) {
   const qs = sumSquads(sumTypes(n)).sort((a, b) => Math.hypot(a.cx - x, a.cy - y) - Math.hypot(b.cx - x, b.cy - y)), ids = [];
   let got = 0; for (const q of qs) { if (got >= want) break; ids.push(q.id); got += sumUnits([q]); }
   const own = ids.filter(id => Sim.ownSquad(s, s.squads.find(q => q.id === id)));
   Sim.unqueue(s, own);
-  const r = Sim.summon(s, 'blue', ids, x, y); if (!r) return;
+  const r = Sim.summon(s, 'blue', ids, x, y, (n.pic || sumTypes(n)[0]) + (n.mark ? ':' + n.mark : '')); if (!r) return;
   pings.push({ x, y, t: performance.now() });
   const say = replyOf('hold'); for (const id of own) orderSay[id] = say;
   if (own.length && !Sim.friction(s)) Radio.hear({ kind: say, id: own[0] }); else if (!own.length) Radio.say(tr('askOk'));
@@ -136,6 +157,16 @@ function askTick() {
     feedAdd({ kind: 'ask', x: a.x, y: a.y, text: t }); Radio.say(t);
   }
 }
+// (a summons whose squads are all there (or gone), none still in a fight: its mark is off the map)
+const summonDone = a => s.t - a.t > 3 && !(s.summons || []).some(w => a.by.includes(w.id)) && a.by.every(id => { const q = s.squads.find(k => k.id === id); return !q || q.dead || (q.arrived && (q.orderAt ?? 0) >= a.t - 0.01) || (q.orderAt ?? 0) > a.t + 15; });
+// (a summons' mark: the picture of what was summoned, made once)
+const askImgs = {};
+function askImg(icon) { if (!askImgs[icon]) { const [t, m] = (icon || 'tank').split(':'), im = new Image(); im.src = sumPic(t, m); askImgs[icon] = im; } return askImgs[icon]; }
+// a click on a mark of ours on the map (an ask, a summons): called off — Sim.cancelAsk; the spot's within 16 px of it
+function askHit(x, y) {
+  if (!s.asks) return null; const r = 16 / view.css;
+  return s.asks.find(a => a.side === 'blue' && s.t - a.t < (a.keep || Sim.ASK_T) && !(a.kind === 'summon' && summonDone(a)) && Math.hypot(a.x - x, a.y - y) < r) || null;
+}
 // the asks still standing, on the ground: icon and a pulsing ring (blue ours, yellow the partner's)
 function drawAsks(c) {
   const px = 1 / view.css, now = performance.now() / 1000;
@@ -147,13 +178,14 @@ function drawAsks(c) {
   }
   if (!s.asks || !s.asks.length) return;
   for (const a of s.asks) {
-    const age = s.t - a.t; if (age >= Sim.ASK_T || a.side !== 'blue' || a.kind === 'summon') continue;
-    const fade = age > Sim.ASK_T - 10 ? (Sim.ASK_T - age) / 10 : 1, col = a.from === 'mate' ? '#f2c230' : '#4aa3ff', f = (now * 0.8) % 1;
+    const T = a.keep || Sim.ASK_T, age = s.t - a.t; if (age >= T || a.side !== 'blue' || (a.kind === 'summon' && summonDone(a))) continue;
+    const fade = age > T - 10 ? (T - age) / 10 : 1, col = a.from === 'mate' ? '#f2c230' : '#4aa3ff', f = (now * 0.8) % 1;
     c.save(); c.globalAlpha = fade * (1 - f) * 0.9; c.strokeStyle = col; c.lineWidth = 2.5 * px;
     c.beginPath(); c.arc(a.x, a.y, (14 + 26 * f) * px, 0, Math.PI * 2); c.stroke();
     c.globalAlpha = fade; c.fillStyle = 'rgba(15,18,24,.6)'; c.beginPath(); c.arc(a.x, a.y, 13 * px, 0, Math.PI * 2); c.fill();
     c.lineWidth = 2 * px; c.stroke();
-    c.font = `${15 * px}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(ASK_ICON[a.kind], a.x, a.y + px);
+    if (a.kind === 'summon') { const im = askImg(a.icon); if (im.complete && im.naturalWidth) c.drawImage(im, a.x - 12 * px, a.y - 12 * px, 24 * px, 24 * px); } // (summoned: the unit's own picture)
+    else { c.font = `${15 * px}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(ASK_ICON[a.kind], a.x, a.y + px); }
     c.restore();
   }
 }

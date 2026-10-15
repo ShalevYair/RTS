@@ -19,7 +19,7 @@ function dmg(spot, seed) {
   if (spot) mk(s, 'blue', 'commando', 1, 640, 330);
   Sim.order(s, s.squads[0].id, 'attack', 700, 320, true);
   const T0 = s.units.filter(u => u.squad === tk.id).reduce((a, u) => a + u.hp, 0);
-  step(s, 40);
+  step(s, 20); // (20: the aircraft fly twice as fast now — in 40 s both ways the tanks were all but gone)
   return T0 - s.units.filter(u => u.squad === tk.id).reduce((a, u) => a + Math.max(0, u.hp), 0);
 }
 let a = 0, b = 0; for (let i = 1; i <= 4; i++) { a += dmg(false, i * 7); b += dmg(true, i * 7); }

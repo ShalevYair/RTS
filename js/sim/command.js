@@ -83,7 +83,8 @@ function formation(s, ids, type, x, y, quiet, fa, deep, opt = {}) {
   if (type === 'retreat') { let ok = false; for (const id of ids) ok = order(s, id, type, x, y, quiet) || ok; return ok; }
   const move = !!opt.move; // (only moving: not stopping to fight on the way — see updateUnit)
   const rows = new Map(), qs = [];
-  for (const id of ids) { const q = s.squads.find(k => k.id === id); if (q && !q.dead) { qs.push(q); const k = FORM_ROW[q.type]; if (!rows.has(k)) rows.set(k, []); rows.get(k).push(q); } }
+  // (told: the player's order — formation is the UI's; a truck no longer goes where it's needed by itself, playerTrucks)
+  for (const id of ids) { const q = s.squads.find(k => k.id === id); if (q && !q.dead) { q.told = true; qs.push(q); const k = FORM_ROW[q.type]; if (!rows.has(k)) rows.set(k, []); rows.get(k).push(q); } }
   const ks = [...rows.keys()], k0 = Math.min(...ks), k1 = Math.max(...ks), mid = (k0 + k1) / 2;
   const gap = deep > 0 && k1 > k0 ? clamp(deep / (k1 - k0), DEEP_MIN, DEEP_MAX) : ROW_GAP;
   // (the march: from the middle of their ground units, at the slowest's pace)

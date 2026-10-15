@@ -319,20 +319,24 @@ def sign(M, mat, kind, c, s, side=None):
     if side is None: M.slab(mat, [(c[0] + x, c[2] - y) for x, y in P], c[1], c[1] + 0.03, 'xz')
     else: M.slab(mat, [(c[0] + x, c[1] + y) for x, y in P], c[2], c[2] + 0.03 * side, 'xy')
 
-def k_truck():  # ammunition / supply: a cargo bed under canvas on bows
-    M, f, hw, cx0 = truck(); x0, x1 = -3.45, cx0 - 0.15
-    bed_sides(M, x0, x1, hw)
-    a = np.linspace(0, np.pi, 9)
-    arch = [(1.75 + 0.75 * np.sin(t) * 1.0 + 0.0 * t, (hw - 0.02) * np.cos(t)) for t in a] + [(1.75, hw - 0.02), (1.75, -hw + 0.02)]
-    arch = [(y + 0.0, z) for y, z in arch]
-    M.k = 1.0; M.loft('tarp', [(x0, [(y + 0.25, z) for y, z in arch]), (x1, [(y + 0.25, z) for y, z in arch])])
-    for xx in np.linspace(x0 + 0.4, x1 - 0.3, 4):  # (the bows under it, showing as ridges)
-        M.k = 0.85; M.loft('tarp', [(xx - 0.05, [(y + 0.29, z * 1.01) for y, z in arch]), (xx + 0.05, [(y + 0.29, z * 1.01) for y, z in arch])])
-    M.k = 0.35; M.box('dark', (x0 - 0.02, 2.4, 0), (0.04, 1.0, hw * 1.4))                                  # the open back
-    for sz in (-1, 1): M.k = 0.8; M.box('tarp', (x0 + 0.5, 1.7, sz * (hw + 0.02)), (0.6, 0.4, 0.03))    # tie-down flaps
-    xm = (x0 + x1) / 2
-    sign(M, 'signammo', 'missile', (xm, 2.77, 0.0), 1.7)                                                  # on the canvas top
-    for sz in (-1, 1): sign(M, 'signammo', 'missile', (xm, 2.0, sz * (hw + 0.03)), 1.2, sz)             # and its sides
+def k_truck():  # ammunition: a square cargo box behind the cab — flat roof, ribbed sides, two doors at the back (it looked a tanker from above, under its arched canvas)
+    M, f, hw, cx0 = truck(); x0, x1 = -3.45, cx0 - 0.15; xm = (x0 + x1) / 2; L = x1 - x0
+    M.k = 0.9; M.box('body', (xm, 1.18, 0), (L, 0.14, hw * 2))                                               # the bed
+    y0, y1 = 1.25, 3.05; ym = (y0 + y1) / 2
+    M.k = 1.0; M.block('body', (xm, ym, 0), (L, y1 - y0, hw * 2 - 0.04), 0.06)                               # the box
+    M.k = 0.88; M.box('body', (xm, y1 + 0.04, 0), (L - 0.12, 0.06, hw * 2 - 0.2))                           # the roof panel
+    for sz in (-1, 1): M.k = 0.8; M.box('metal', (xm, y1 + 0.02, sz * (hw - 0.03)), (L, 0.07, 0.07))         # its rails
+    for xx in np.linspace(x0 + 0.25, x1 - 0.25, 7):                                                         # ribs down the sides and over the roof
+        for sz in (-1, 1): M.k = 0.82; M.box('body', (xx, ym, sz * (hw - 0.0)), (0.07, y1 - y0 - 0.1, 0.05))
+        M.k = 0.84; M.box('body', (xx, y1 + 0.03, 0), (0.07, 0.04, hw * 2 - 0.1))
+    for sz in (-1, 1): M.k = 0.75; M.box('body', (x0 - 0.01, ym, sz * 0.31), (0.05, y1 - y0 - 0.14, 0.6))   # the back doors
+    M.k = 0.4; M.box('dark', (x0 - 0.03, ym, 0), (0.03, y1 - y0 - 0.14, 0.03))                              # their seam
+    for sz in (-1, 1):
+        for yy in (y0 + 0.45, y1 - 0.45): M.k = 0.9; M.box('metal', (x0 - 0.04, yy, sz * 0.58), (0.03, 0.08, 0.16))   # hinges
+        M.k = 0.9; M.strut('metal', (x0 - 0.05, y0 + 0.2, sz * 0.12), (x0 - 0.05, y1 - 0.2, sz * 0.12), 0.025)       # lock bars
+    M.k = 0.85; M.box('metal', (x0 - 0.15, 1.0, 0), (0.25, 0.08, hw * 1.6))                                  # the step at the back
+    sign(M, 'signammo', 'missile', (xm, y1 + 0.08, 0.0), 1.7)                                                # on the roof
+    for sz in (-1, 1): sign(M, 'signammo', 'missile', (xm, ym, sz * (hw + 0.03)), 1.3, sz)                  # and its sides
     return [('hull', M, None)]
 
 def k_tanktruck(color):  # a fuel / water bowser: a tank with domed ends, bands, a walkway and a hose reel

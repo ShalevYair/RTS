@@ -21,6 +21,15 @@ function cardUnder(x, y) {
   const p = hitPost(x, y); return p ? { t: 'post', id: p.id } : null;
 }
 function cardAt(x, y) { card = cardUnder(x, y); cardT = 0; if (!card) $('infoCard').hidden = true; }
+function cardFor(c) { card = c; cardT = 0; }
+// a click on the card's picture: the camera to what it shows
+function cardWhere() {
+  if (!card || !s) return null;
+  if (card.t === 'sq') { const q = s.squads.find(k => k.id === card.id); return q && !q.dead ? (q.side === 'blue' ? pos(q) || { x: q.cx, y: q.cy } : { x: q.cx, y: q.cy }) : null; }
+  if (card.t === 'post') return (s.posts || []).find(p => p.id === card.id) || null;
+  return card.n || s.nodes.find(n => n.id === card.id) || null;
+}
+$('infoCard').querySelector('canvas').addEventListener('click', e => { e.stopPropagation(); const p = cardWhere(); if (p) lookAt(p.x, p.y); });
 function closeCard() { card = null; $('infoCard').hidden = true; }
 $('icClose').addEventListener('click', e => { e.stopPropagation(); closeCard(); });
 addEventListener('keydown', e => { if (e.key === 'Escape' && card) closeCard(); });
@@ -36,7 +45,7 @@ function cardPic(cv, kind, unit, col) {
 function cardTick(now) {
   if (!card || !s) return; if (now - cardT < CARD_MS) return; cardT = now;
   const el = $('infoCard'), bars = {}, desc = WIKI_UNIT[lang === 'en' ? 'en' : 'he'], descS = WIKI_STRUCT[lang === 'en' ? 'en' : 'he'];
-  let title = '', who = '', line = '', about = '', unit = null, kind = null, col = colors.blue;
+  let title = '', who = '', line = '', about = '', unit = null, kind = null, col = colors.blue, take = null;
   if (card.t === 'sq') {
     const q = s.squads.find(k => k.id === card.id), us = q ? s.units.filter(u => u.squad === q.id) : [];
     if (!q || q.dead || !us.length || (q.side === 'red' && s.fog && !us.some(u => s.vis.blue.has(u.id)))) return closeCard();
@@ -61,6 +70,7 @@ function cardTick(now) {
     const p = (s.posts || []).find(k => k.id === card.id); if (!p) return closeCard();
     kind = p.kind; col = p.side ? colors[p.side] : '#9a9a9a';
     title = pn(p.kind); who = tr(p.side === 'blue' ? 'pi_ours' : p.side === 'red' ? 'pi_theirs' : 'pi_free'); about = tr('fx_' + p.kind); line = p.side === 'blue' ? '' : tr('pi_take');
+    take = p.side !== 'blue' ? takers(p) : null;
   } else {
     const n = card.t === 'mem' ? card.n : s.nodes.find(k => k.id === card.id);
     if (!n || (card.t === 'node' && (n.hp <= 0 || !nodeShown(n)))) return closeCard();
@@ -75,5 +85,19 @@ function cardTick(now) {
   el.querySelector('.icLine').textContent = line; el.querySelector('.icDesc').textContent = about;
   el.querySelector('.icBars').innerHTML = CARD_BARS.filter(([k]) => bars[k] !== undefined).map(([k, ico]) => { const v = Math.max(0, Math.min(1, bars[k])); return `<div class="icBar"><span>${ico}</span><i style="--v:${(v * 100).toFixed(0)}%;--c:${v < 0.3 ? '#e04a3a' : v < 0.6 ? '#e8a530' : '#4cba5c'}"></i><small>${Math.round(v * 100)}%</small></div>`; }).join('');
   const cv = el.querySelector('canvas'), pk = (unit || kind) + col; if (cv.dataset.k !== pk) { cv.dataset.k = pk; cardPic(cv, kind, unit, col); }
+  // (a post not ours: 🚩 take it — the nearest soldier goes in (two, if it's the enemy's); without one, greyed, and why)
+  const tb = $('icTake'); tb.hidden = !take;
+  if (take) { tb.textContent = tr('takeIt'); tb.setAttribute('aria-disabled', String(!take.length)); tb.dataset.tip = take.length ? 'takeTip' : 'takeNone'; }
   el.hidden = false;
 }
+// the soldiers of ours (any of them, picked or not) nearest a post, as many as it takes
+function takers(p) {
+  const d = q => Math.hypot(q.cx - p.x, q.cy - p.y);
+  return s.squads.filter(q => q.side === 'blue' && !q.dead && !q.aboard && Sim.ownSquad(s, q) && Sim.CAPTURERS.includes(q.type) && s.units.some(u => u.squad === q.id)).sort((a, b) => d(a) - d(b)).slice(0, p.side ? 2 : 1);
+}
+$('icTake').addEventListener('click', e => {
+  e.stopPropagation(); const p = card && card.t === 'post' && (s.posts || []).find(k => k.id === card.id); if (!p) return;
+  const go = takers(p); if (!go.length) { toast(tr('takeNone'), e.clientX, e.clientY); return; }
+  for (const q of go) { Sim.unqueue(s, [q.id]); Sim.order(s, q.id, 'attack', p.x, p.y, true); orderSay[q.id] = 'go'; }
+  pings.push({ x: p.x, y: p.y, t: performance.now(), cap: true }); if (!Sim.friction(s)) Radio.hear({ kind: 'go', id: go[0].id }); cardT = 0;
+});

@@ -734,7 +734,7 @@ function clearEyes() {
   const ds = Sim.DRONE_SIGHT * Sim.skySight(s, 'blue');
   for (const n of s.nodes) if (n.side === 'blue' && n.kind === 'drone' && n.hp > 0 && s.t >= n.ready) eyes.l.push({ x: n.x, y: n.y, r2: ds * ds });
   // (a signals truck, and a commando — he sees round him as a drone does: as far as the dark and the weather let them)
-  for (const u of s.units) if (u.side === 'blue' && (u.type === 'radio' || u.type === 'commando')) { const r = Sim.TYPES[u.type].sight * Sim.envSight(s, u); eyes.l.push({ x: u.x, y: u.y, r2: r * r }); }
+  for (const u of s.units) if (u.side === 'blue' && (u.type === 'radio' || u.type === 'commando' || u.type === 'jeep')) { const r = Sim.TYPES[u.type].sight * Sim.envSight(s, u); eyes.l.push({ x: u.x, y: u.y, r2: r * r }); } // (the recon jeep too)
   return eyes.l;
 }
 const shownAt = p => !Sim.friction(s) || clearEyes().some(e => (e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= e.r2) || Sim.quality(s, 'blue', p) >= 1;

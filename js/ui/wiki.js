@@ -5,7 +5,7 @@ const WIKI_UNIT = {
     inf: 'חיילים עם רובים. זולים, יוצאים מהר, טובים נגד חיילים אחרים. חלשים מול טנקים.',
     at: 'חיילים עם טיל נגד רכבים. ההפתעה הכי רעה לטנק ולג׳יפ, חלשים נגד חיילים.',
     aa: 'חיילים עם טילי נ"מ. הם היחידים (עם ג׳יפי נ"מ) שפוגעים במטוסים וברחפנים.',
-    jeep: 'מהירים ורואים רחוק. טובים לסיור ולפשיטות, לא לקרב חזיתי.',
+    jeep: 'ג׳יפ סיור: מהיר, ומה שהוא רואה רואים במלואו (כמו משאית קשר, בטווח קצר יותר). טוב לסיור ולפשיטות, לא לקרב חזיתי.',
     ajeep: 'ג׳יפ עם טילי נ"מ: מגן על הכוחות מפני מטוסים ורחפנים, ובתנועה.',
     tjeep: 'ג׳יפ עם טיל נ"ט: צייד טנקים מהיר.',
     tank: 'השריון: חזק, איטי, דורס חיילים. נ"ט ומטוסים הם האויבים שלו.',
@@ -32,7 +32,7 @@ const WIKI_UNIT = {
     inf: 'Soldiers with rifles. Cheap, quick to make, good against other soldiers. Weak against tanks.',
     at: 'Soldiers with an anti-tank missile. The worst surprise for a tank or a jeep; weak against soldiers.',
     aa: 'Soldiers with anti-air missiles. They (and AA jeeps) are the only ones that hit aircraft and drones.',
-    jeep: 'Fast and far-seeing. Good for scouting and raids, not for a head-on fight.',
+    jeep: 'Recon jeep: fast, and all it sees is seen in full (as a signals truck, nearer). Good for scouting and raids, not for a head-on fight.',
     ajeep: 'A jeep with AA missiles: keeps aircraft and drones off the squads, on the move.',
     tjeep: 'A jeep with an anti-tank missile: a fast tank hunter.',
     tank: 'The armour: strong, slow, runs soldiers over. Anti-tank and aircraft are its enemies.',
@@ -101,7 +101,7 @@ const WIKI = {
     ['🚜', 'תמיכה ואספקה', `<h2>תמיכה ואספקה</h2>
       <h3>טרקטור 🚜</h3><p>בונה את המפקדה, פיקוד קדמי וכל מבנה — רק כשהוא עומד ליד האתר. בחר טרקטור ואז בנה, והוא ייסע. לחיצה על אתר בבנייה כשטרקטור נבחר שולחת אותו לשם. כל שתי דקות המפקדה שולחת עוד טרקטור (עד שלושה).</p>
       <h3>משאית קשר 📡</h3><p>רואה רחוק ונותנת שליטה סביבה. כל שתי דקות מגיעה עוד אחת (עד שלוש).</p>
-      <h3>תחמושת</h3><p>ליחידות יש מלאי יריות. כשנגמר, היחידה נוסעת לבד למשאית אספקה או למבנה, ולא יורה עד שהתמלאה.</p>
+      <h3>תחמושת</h3><p>ליחידות יש מלאי יריות. כשנגמר, היחידה נוסעת לבד למשאית תחמושת או למבנה, ולא יורה עד שהתמלאה.</p>
       <h3>טיפול ותיקון</h3><p>יחידה פצועה (נקודה כתומה או אדומה עליה) נשארת במקומה; חובש או מכונאי קרוב הולך אליה ומטפל בה. ליד מבנים שלך מתרפאים, ויחידות פנויות מתקנות מבנים פגועים.</p>
       <h3>רחפנים</h3><p>אחד חדש כל דקה. מטיסים מעל מקום כדי לראות ולשלוט שם, עד שנ"מ מפיל אותו.</p>`],
     ['⌨', 'מקשים', `<h2>מקשים</h2><ul>
@@ -109,7 +109,7 @@ const WIKI = {
       <li><kbd>G</kbd> בנייה · <kbd>B</kbd> פיקוד קדמי · <kbd>D</kbd> רחפן · <kbd>S</kbd> שקט אלחוטי · <kbd>P</kbd> שורה / קובייה</li>
       <li><kbd>L</kbd> לקשור / לפרק קבוצה · <kbd>Ctrl</kbd>+מספר קבוצה · <kbd>F</kbd> מסך מלא · <kbd>Esc</kbd> ביטול</li>
       <li><kbd>רווח</kbd> עצירה · <kbd>Alt</kbd>+מספר שמירת נקודה · <kbd>Shift</kbd>+מספר קפיצה אליה</li>
-      <li><kbd>Alt</kbd>+לחיצה על המפה: גלגל זימון — כוחות (לפי סוג) ואספקה לנקודה, שלך ושל השותף. לחיצה על סוג = שליש, הקרובים; החזקה = המספר עולה כל חצי שנייה, ושחרור שולח כמה שמוצג. נושא עם כמה סוגים (ג׳יפים, חיילים…): לחיצה פותחת אותו, החזקה = מכל הסוגים. מי שבקרב בא כשהקרב שלו נגמר (⏳).</li></ul>`],
+      <li><kbd>Alt</kbd>+לחיצה על המפה (או לחיצה שמאלית ארוכה כשלא נבחר כלום): גלגל זימון — כוחות (לפי סוג) ואספקה לנקודה, שלך ושל השותף. לחיצה על סוג = שליש, הקרובים; החזקה = המספר עולה כל חצי שנייה, ושחרור שולח כמה שמוצג. נושא עם כמה סוגים (ג׳יפים, חיילים…): לחיצה פותחת אותו, החזקה = מכל הסוגים. מי שבקרב בא כשהקרב שלו נגמר (⏳).</li></ul>`],
   ],
   en: [
     ['🎯', 'The goal', `<h2>The goal</h2>
@@ -154,7 +154,7 @@ const WIKI = {
       <li><kbd>G</kbd> build · <kbd>B</kbd> forward HQ · <kbd>D</kbd> drone · <kbd>S</kbd> radio silence · <kbd>P</kbd> line / block</li>
       <li><kbd>L</kbd> group / ungroup · <kbd>Ctrl</kbd>+number group · <kbd>F</kbd> full screen · <kbd>Esc</kbd> cancel</li>
       <li><kbd>Space</kbd> pause · <kbd>Alt</kbd>+number save a point · <kbd>Shift</kbd>+number jump there</li>
-      <li><kbd>Alt</kbd>+click on the map: the summon wheel — forces (by kind) and supplies to the spot, yours and your partner’s. A click on a kind = a third, the nearest; held = the number counts up every half second, and letting go sends that many. A topic of several kinds (jeeps, soldiers…): a click opens it, held = of all its kinds. Those fighting come when their fight is over (⏳).</li></ul>`],
+      <li><kbd>Alt</kbd>+click on the map (or a long left press with nothing picked): the summon wheel — forces (by kind) and supplies to the spot, yours and your partner’s. A click on a kind = a third, the nearest; held = the number counts up every half second, and letting go sends that many. A topic of several kinds (jeeps, soldiers…): a click opens it, held = of all its kinds. Those fighting come when their fight is over (⏳).</li></ul>`],
   ],
 };
 // the cards: every unit / building with its picture and the game's own numbers

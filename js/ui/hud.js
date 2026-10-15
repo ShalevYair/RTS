@@ -2,7 +2,7 @@
 // ---- selection & commands ----
 const blueIds = () => blueSquads().map(q => q.id);
 const selIds = () => sel === 'all' ? blueIds() : Array.isArray(sel) ? sel : sel ? [sel] : [];
-function select(id) { sel = id; selNode = null; syncButtons(); updateHud(); }
+function select(id) { sel = id; selNode = null; const one = Array.isArray(id) ? (id.length === 1 ? id[0] : null) : id; if (one && one !== 'all' && typeof cardFor === 'function') cardFor({ t: 'sq', id: one }); syncButtons(); updateHud(); } // (one squad picked — any way: its card at the bottom)
 // "yes, sir" from one of the picked squads
 const sayPicked = ids => { if (ids.length) Radio.hear({ kind: 'selected', id: ids[Math.floor(Math.random() * ids.length)] }); };
 // a squad picked on the map (or by its building): its whole group, if it's in one
@@ -70,7 +70,7 @@ function syncButtons() {
   $('fs').setAttribute('aria-pressed', String(fsOn()));
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
   document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.map === (hugeMap ? 'huge' : bigMap ? 'big' : 'small'))));
-  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye') || Sim.armSide(s, 'blue', 'drone') === 'mate'; $('fhq').hidden = !uiHas('fhq'); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); syncMic(); $('front').classList.toggle('set', !!(s.front && s.front.blue));
+  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye') || Sim.armSide(s, 'blue', 'drone') === 'mate'; $('fhq').hidden = !uiHas('fhq') || !fhqMine(); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); syncMic(); $('front').classList.toggle('set', !!(s.front && s.front.blue));
   $('fsRow').hidden = !fsCan() && !fsOn();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
   if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed) roadArmed = false; // (another thing armed: the road's off — roadui.js)
@@ -717,6 +717,8 @@ function placeHq(x, y) {
 }
 // the bulldozer picked (one squad of them), if any: it's the one that goes to build
 const pickedDozer = () => { const id = oneSel(); const q = id && s.squads.find(q => q.id === id); return q && q.type === 'dozer' ? q.id : undefined; };
+// (arms: the forward HQ only for the player whose arms have what builds it — its bulldozers are the partner's: not ours to place)
+const fhqMine = () => !s.arms || Sim.fhqBuilders(s).some(t => Sim.armSide(s, 'blue', t) !== 'mate');
 const fhqCrews = () => s.squads.filter(q => q.side === 'blue' && Sim.ownSquad(s, q) && Sim.canBuildFhq(s, q));
 function buildHere() {
   if (fhqArmed) { fhqArmed = false; syncButtons(); return; }

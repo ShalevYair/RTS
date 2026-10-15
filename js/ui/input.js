@@ -107,6 +107,7 @@ function tap(e) {
   if (hqArmed) { placeHq(x, y); return; }
   if (roadArmed) { placeRoad(x, y, e.shiftKey); return; } // (roadui.js)
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
+  { const a = askHit(x, y); if (a) { Sim.cancelAsk(s, a.id); toast(tr('askOff'), e.clientX, e.clientY, 1500); return; } } // (a click on an ask's / a summons' mark: called off)
   if (e.altKey && !lvl) { openAskWheel(e, x, y); return; } // (Alt + click: the wheel — forces and supplies here, asks of the partner; askui.js)
   cardAt(x, y); // (what's under the click: its card — infocard.js; bare ground closes it)
   selPost = hitPost(x, y); // (a post clicked: the ring of where it works, until the next click — field.js)
@@ -263,6 +264,14 @@ cv.addEventListener('pointerdown', e => {
       try { navigator.vibrate && navigator.vibrate(15); } catch (err) { /* no vibration */ }
     }, e.pointerType === 'mouse' ? MOUSE_HOLD_MS : HOLD_MS);
   }
+  // the left button held still with nothing picked: the Alt + click wheel there (summoning — askui.js)
+  if (e.pointerType === 'mouse' && e.button === 0 && free && sel === null && !lvl && touches.size === 1 && !e.altKey) {
+    const d = drag; d.hold = setTimeout(() => {
+      if (drag !== d || d.moved || !menu.hidden || s.over) return;
+      const ev = { clientX: d.x, clientY: d.y }, w = toWorld(ev); if (w.x < 0 || w.y < 0 || w.x > s.W || w.y > s.H) return;
+      d.wheel = true; openAskWheel(ev, w.x, w.y);
+    }, HOLD_MS);
+  }
 });
 cv.addEventListener('pointermove', e => {
   const p = touches.get(e.pointerId); if (!p) return;
@@ -275,7 +284,7 @@ cv.addEventListener('pointermove', e => {
     return;
   }
   const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
-  if (!drag) return;
+  if (!drag || drag.wheel) return; // (the wheel open under a held button: the pointer only goes to it)
   if (drag.face) { const r = cv.getBoundingClientRect(); faceDrag.x1 = e.clientX - r.left; faceDrag.y1 = e.clientY - r.top; return; }
   if (drag.turn) { drag.moved = true; v3Orbit(dx, dy); return; } // (the 3D view: the middle button turns and tilts the camera)
   if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_PX) { drag.moved = true; clearTimeout(drag.hold); if (!drag.box) panBy(e.clientX - drag.x - dx, e.clientY - drag.y - dy); }
@@ -297,6 +306,7 @@ function pickBox(b, shift) {
 const lift = e => { touches.delete(e.pointerId); if (drag) clearTimeout(drag.hold); if (!touches.size) drag = null; };
 cv.addEventListener('pointerup', e => {
   const d = drag, b = boxSel, f = faceDrag; lift(e); boxSel = null; faceDrag = null;
+  if (d && d.wheel) return; // (the wheel opened by holding: letting go leaves it open)
   if (d && d.face) {
     if (!menu.hidden || s.over) return;
     if (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) < DRAG_PX * 2) { if (d.right) unpick(); else tap(e); return; } // a plain right click: clear the pick; a hold: the order
