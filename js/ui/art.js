@@ -412,6 +412,7 @@ function drawGrade(c, W, H) {
 const sprite = { img: {}, pic: new Map() };
 // (the fuel truck: the supply truck's picture, with a tank drawn on its back — drawUnits)
 if (typeof SPRITES === 'object' && SPRITES.truck && !SPRITES.fueltruck) SPRITES.fueltruck = SPRITES.truck;
+if (typeof SPRITES === 'object') for (const [k, v] of Object.entries(HAUL_LIKE)) if (!SPRITES[k] && SPRITES[v]) SPRITES[k] = SPRITES[v];
 if (typeof SPRITES === 'object' && SPRITES.truck && !SPRITES.watertruck) SPRITES.watertruck = SPRITES.truck;
 // (the tanker: the plane's picture, a bit bigger — art/tanker.jpg if there's one)
 if (typeof SPRITES === 'object' && SPRITES.air && !SPRITES.tanker) SPRITES.tanker = SPRITES.air;
@@ -482,6 +483,7 @@ function drawShadowPic(c, k, x, y, w, h, rot, off) {
 // how long a unit's picture is on the map, in its size k (as long as the drawn glyph)
 // (soldiers: by how wide they are across the shoulders, SPRITE_ACROSS — a launcher makes one much longer than the next)
 const SPRITE_LEN = { commando: 1, ssm: 1.9, arrow: 1.9, dome: 1.9, lift: 2.1, heli: 1.9, gunship: 1.9, jeep: 1.75, ajeep: 1.8, tjeep: 1.85, truck: 1.85, mech: 2, fueltruck: 1.85, watertruck: 1.85, air: 2, tanker: 2, tank: 1.9, dozer: 1.9, radio: 1.9, inf: 1, at: 1, aa: 1, med: 1 }, TURRET_K = 0.95;
+for (const [k, v] of Object.entries(HAUL_LIKE)) if (SPRITE_LEN[k] === undefined && SPRITE_LEN[v] !== undefined) SPRITE_LEN[k] = SPRITE_LEN[v];
 const SPRITE_ACROSS = { commando: 1.9, inf: 1.9, at: 1.9, aa: 1.9, med: 1.9 };
 // a building's picture: art/b_<kind> (the fake HQ looks just like the real one; the armed jeeps' workshops, the jeeps')
 // (and the gunship's helipad, the attack helicopters' one, unless it has its own)

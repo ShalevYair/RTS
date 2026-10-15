@@ -24,9 +24,14 @@ const WIKI_UNIT = {
     mech: 'מכונאים: מתקנים רכבים פגועים, ומתקנים מבנים מהר.',
     truck: 'משאיות תחמושת: ממלאות תחמושת לכל מי שסביבן. כשהמטען נגמר נוסעות למחסן, מתמלאות וחוזרות. בלי פקודה — לחזית. רחוק מהן ומהמבנים — היריות יקרות יותר.',
     fueltruck: 'משאיות דלק: ממלאות דלק לכל רכב שסביבן — גם לרכב שנתקע בלי דלק, אם שולחים אליו משאית. כשהמטען נגמר נוסעות לתחנה, מתמלאות וחוזרות. בלי פקודה — לחזית.',
-    watertruck: 'משאיות מים: משקות את כל החיילים שסביבן. כשהמים נגמרים נוסעות למתקן המים, מתמלאות וחוזרות. בלי פקודה — לחזית.',
+    watertruck: 'משאיות מנות קרב: נותנות אוכל ומים לכל החיילים שסביבן. כשהמטען נגמר נוסעות למחסן מנות הקרב, מתמלאות מהמלאי וחוזרות. בלי פקודה — לחזית.',
     dozer: 'הטרקטור בונה הכל: המפקדה, פיקוד קדמי וכל מבנה. בונה רק כשהוא עומד ליד האתר; אם הוא זז — הבנייה נעצרת.',
     radio: 'משאית קשר: רואה רחוק מאוד (פי 3 מרחפן) ונותנת שליטה סביבה. יקרה — שמור עליה מאחורי הכוחות.',
+    oiltruck: 'מכליות נפט: נוסעות לבד מקידוח הנפט לבית הזיקוק. בלי פקודות. שמור עליהן: בלי נפט אין דלק.',
+    oretruck: 'משאיות עפרה: נוסעות לבד ממכרה הברזל למפעל הפלדה. בלי פקודות.',
+    cementtruck: 'מערבלי מלט: נוסעים לבד מהמחצבה למפעל הבטון. בלי פקודות. בלי בטון אין בנייה.',
+    bauxtruck: 'משאיות בוקסיט: נוסעות לבד מהמכרה למפעל האלומיניום. בלי פקודות.',
+    graintruck: 'משאיות תבואה: נוסעות לבד מהחווה למטבח השדה. בלי פקודות.',
   },
   en: {
     inf: 'Soldiers with rifles. Cheap, quick to make, good against other soldiers. Weak against tanks.',
@@ -54,14 +59,21 @@ const WIKI_UNIT = {
     watertruck: 'Water trucks: give water to all the soldiers round them. Empty, they drive to the water plant, fill up and come back. With no order — to the front.',
     dozer: 'The bulldozer builds everything: the HQ, forward HQs and every building. Only while it stands by the site; if it moves, the work stops.',
     radio: 'A signals truck: sees very far (3× a drone) and gives control around it. Precious — keep it behind the squads.',
+    oiltruck: 'Oil tankers: drive on their own from the well to the refinery. No orders. Guard them: no oil, no fuel.',
+    oretruck: 'Ore trucks: drive on their own from the iron mine to the steel mill. No orders.',
+    cementtruck: 'Cement mixers: drive on their own from the quarry to the concrete plant. No orders. No concrete, no building.',
+    bauxtruck: 'Bauxite trucks: drive on their own from the mine to the smelter. No orders.',
+    graintruck: 'Grain trucks: drive on their own from the farm to the field kitchen. No orders.',
   },
 };
 const WIKI_STRUCT = {
   he: { hq: 'המפקדה הראשית: לב השליטה. אם היא נופלת — הפסדת.', fhq: 'פיקוד קדמי: מרחיב את השליטה ואת השטח שאפשר לבנות בו, ומוסיף מקום למבנים.',
     tent: 'מגייס חי"ר.', atpost: 'מגייס לוחמי נ"ט.', aapost: 'מגייס לוחמי נ"מ.', jeepshop: 'מייצר ג׳יפים.', jeepaa: 'מייצר ג׳יפי נ"מ (לאט).', jeepat: 'מייצר ג׳יפי נ"ט (לאט).',
+    quarry: 'מחצבה על מרבץ מלט: מערבלים מובילים מלט למפעל הבטון.', concrete: 'מפעל בטון: כל המבנים צריכים אותו, והבנייה צורכת בטון.', oilwell: 'קידוח על שדה נפט: מכליות מובילות נפט לבית הזיקוק.', refinery: 'בית זיקוק: נפט ← דלק. תחנות הדלק צריכות אותו.', ironmine: 'מכרה על מרבץ ברזל: משאיות מובילות עפרה למפעל הפלדה.', steelmill: 'מפעל פלדה: עפרה ← פלדה. הסדנאות צריכות אותו.', farm: 'חווה על שדות: משאיות מובילות תבואה למטבח השדה.', kitchen: 'מטבח שדה: תבואה ← מנות קרב.', bauxmine: 'מכרה על מרבץ בוקסיט.', smelter: 'מפעל אלומיניום: בוקסיט ← אלומיניום, שורף דלק.', chemplant: 'מפעל כימיקלים: דלק ← חומר נפץ.',
     tankshop: 'מייצר טנקים.', howshop: 'מייצר תותחי 200 מ"מ.', mlrsshop: 'מייצר משגרי MLRS.', airfield: 'מייצר מטוסים, ושם הם מתחמשים.', tankerbase: 'מוציא 2 מטוסי תדלוק (השני אחרי 2 דק׳). אחד לצד.', clinic: 'מוציא חובשים.', garage: 'מוציא מכונאים.', fuelst: 'מוציא 2 משאיות דלק (השנייה אחרי 2 דק׳). עד 2 תחנות, מעבר למכסה.', waterst: 'מוציא 2 משאיות מים. רק על גדת אגם; חיילים לידו שותים. עד 2, מעבר למכסה.', depot: 'מוציא 2 משאיות תחמושת (השנייה אחרי 2 דק׳). עד 2, מעבר למכסה.', decoy: 'מפקדה מזויפת: בערפל האויב חושב שזו המפקדה שלך ותוקף אותה.' },
   en: { hq: 'The main HQ: the heart of command. If it falls, you lose.', fhq: 'A forward HQ: spreads control and the ground you may build on, and adds room for buildings.',
     tent: 'Raises infantry.', atpost: 'Raises anti-tank soldiers.', aapost: 'Raises anti-air soldiers.', jeepshop: 'Makes jeeps.', jeepaa: 'Makes AA jeeps (slowly).', jeepat: 'Makes AT jeeps (slowly).',
+    quarry: 'A quarry on lime: mixers haul cement to the concrete plant.', concrete: 'Concrete plant: every building needs it, and building uses concrete.', oilwell: 'A well on an oil field: tankers haul crude to the refinery.', refinery: 'Refinery: oil → fuel. Fuel stations need it.', ironmine: 'A mine on iron ore: trucks haul ore to the steel mill.', steelmill: 'Steel mill: ore → steel. The workshops need it.', farm: 'A farm on fields: trucks haul grain to the field kitchen.', kitchen: 'Field kitchen: grain → rations.', bauxmine: 'A mine on bauxite.', smelter: 'Aluminium smelter: bauxite → aluminium, burning fuel.', chemplant: 'Chemical plant: fuel → explosives.',
     tankshop: 'Makes tanks.', howshop: 'Makes 200 mm guns.', mlrsshop: 'Makes MLRS launchers.', airfield: 'Makes aircraft, and they rearm there.', tankerbase: 'Sends out 2 tankers (the second 2 min on). One a side.', clinic: 'Sends out medics.', garage: 'Sends out mechanics.', fuelst: 'Sends out 2 fuel trucks (the second 2 min on). Up to 2, past the allowance.', waterst: 'Sends out 2 water trucks. Only on a lake bank; soldiers by it drink. Up to 2, past the allowance.', depot: 'Sends out 2 ammunition trucks (the second 2 min on). Up to 2, past the allowance.', decoy: 'A fake HQ: under fog the enemy takes it for yours and attacks it.' },
 };
 // the pages: [icon, title, body]; a body is HTML, or a function making it (the cards)
@@ -99,6 +111,15 @@ const WIKI = {
       <h3>פקודות בקול 🎙</h3><p>לחץ על 🎙 מעל הכפתורים למטה משמאל — המיקרופון נשאר פתוח עד לחיצה נוספת, וכל משפט הוא פקודה: "טנקים לרדאר", "כוח 2 לנקודה 4", "חיילים להחזיק בבונקר", "כולם לסגת". <kbd>Alt</kbd>+מספר שומר את המסך כנקודה, <kbd>Shift</kbd>+מספר קופץ אליה. "לשם" = איפה שהעכבר. Chrome או Edge, עם אינטרנט. את המיקרופון מאשרים פעם אחת ב-"מיקרופון לפקודות" בתפריט הראשי; כשהמשחק נפתח דרך play.bat הדפדפן זוכר את האישור.</p>`],
     ['🪖', 'יחידות', () => wikiCards('unit')],
     ['🏗', 'מבנים', () => `<p>בונים מתפריט הבנייה 🏗 (<kbd>G</kbd>), רק איפה שהשטח ירוק. כל מבנה ייצור מקים כוח משלו וממלא אותו. הכוח הראשון יוצא מלא.</p>` + wikiCards('struct')],
+    ['🏭', 'שרשרת אספקה', `<h2>שרשרת אספקה</h2>
+      <p>לכל דבר במשחק יש מקור על המפה. על הקרקע יש <b>מרבצים</b>: מלט (אבנים לבנות), נפט (כתמים שחורים), ברזל (עפרה אדומה), שדות (פסים זהובים) ובוקסיט (עפר כתום). אחד מכל סוג ליד המפקדה, ועוד על המפה (העשירים ★ באמצע; בוקסיט עשיר — רק באמצע).</p>
+      <h3>בונים לפי הסדר</h3><p>כל מבנה פתוח רק אחרי מה שהוא צריך:</p>
+      <p>🪨 <b>מחצבת מלט</b> (על מרבץ מלט) ← 🏗️ <b>מפעל בטון</b> ← כל שאר המבנים.<br>🛢️ <b>קידוח נפט</b> ← 🏭 <b>בית זיקוק</b> ← ⛽ <b>תחנת דלק</b> ← כל מבנה שמייצר רכבים או כלי טיס.<br>⛏️ <b>מכרה ברזל</b> ← 🏭 <b>מפעל פלדה</b> ← סדנאות (טנקים, ג'יפים, תותחים, טילים) ומוסך.<br>🌾 <b>חווה</b> (על שדות) ← 🍲 <b>מטבח שדה</b> ← 🥫 <b>מחסן מנות קרב</b> (אוכל ומים לחיילים — במקום מתקן המים).<br>⛏️ <b>מכרה בוקסיט</b> ← 🏭 <b>מפעל אלומיניום</b> (שורף דלק) ← שדה התעופה והמנחתים.<br>🏭 בית זיקוק ← 🧪 <b>מפעל כימיקלים</b> (דלק ← חומר נפץ) ← 📦 מחסן התחמושת (גם מפעל פלדה).<br>💾 <b>מעבדת אלקטרוניקה</b> — מבנה ניטרלי באמצע המפה: מי שכובש אותה מקבל אלקטרוניקה.</p>
+      <h3>מי צורך מה</h3><p>טנק — פלדה. ג'יפ ומשאיות — פלדה וגומי (מבית הזיקוק). מטוס ומסוק — אלומיניום. משאית טילים, חץ, כיפת ברזל ורחפן — אלקטרוניקה. משאיות התחמושת מתמלאות בחומר נפץ ופלדה, משאיות מנות הקרב במנות, משאיות הדלק בדלק. חיילים לא צורכים כלום בייצור.</p>
+      <p>בתפריט "תעשייה" מה שעוד לא פתוח מעומעם, וכתוב מה הוא צריך קודם.</p>
+      <h3>איך זה זז</h3><p>כל מכרה שולח משאיות הובלה (מערבלי מלט, מכליות נפט, משאיות עפרה). הן נוסעות לבד מהמכרה למפעל, ואפשר לירות בהן, אז שמור עליהן. המפעל הופך את מה שהגיע ל<b>מלאי</b> של הצד (מתחת לפס העוצמה: 🧱 בטון · ⛽ דלק · 🔩 פלדה · 🛞 גומי · 🥫 מנות קרב · ✈️ אלומיניום · 💣 חומר נפץ · 💾 אלקטרוניקה).</p>
+      <p>הבנייה צורכת בטון: בלי בטון האתר עומד. כל טנק, ג'יפ או תותח צורך פלדה: בלי פלדה הסדנה מחכה. משאיות הדלק מתמלאות מהמלאי: בלי דלק הן מחכות בתחנה.</p>
+      <p>המכרות והמפעלים מחוץ למכסת המבנים. הם של התותחנים וההנדסה.</p>`],
     ['🚜', 'תמיכה ואספקה', `<h2>תמיכה ואספקה</h2>
       <h3>טרקטור 🚜</h3><p>בונה את המפקדה, פיקוד קדמי וכל מבנה — רק כשהוא עומד ליד האתר. בחר טרקטור ואז בנה, והוא ייסע. לחיצה על אתר בבנייה כשטרקטור נבחר שולחת אותו לשם. כל שתי דקות המפקדה שולחת עוד טרקטור (עד שלושה).</p>
       <h3>משאית קשר 📡</h3><p>רואה רחוק ונותנת שליטה סביבה. כל שתי דקות מגיעה עוד אחת (עד שלוש).</p>
@@ -145,6 +166,15 @@ const WIKI = {
       <h3>Spoken orders 🎙</h3><p>Click 🎙 above the bottom-left buttons — the microphone stays open until another click, and each sentence is an order: "tanks to the radar", "group 2 to point 4", "soldiers hold the bunker", "everyone retreat". <kbd>Alt</kbd>+number saves the view as a point, <kbd>Shift</kbd>+number jumps there. "There" = where the mouse is. Chrome or Edge, online.</p>`],
     ['🪖', 'Units', () => wikiCards('unit')],
     ['🏗', 'Buildings', () => `<p>Build from the build menu 🏗 (<kbd>G</kbd>), only where the ground is green. Each production building raises a squad of its own and keeps it full. The first squad comes out whole.</p>` + wikiCards('struct')],
+    ['🏭', 'Supply chain', `<h2>Supply chain</h2>
+      <p>Everything in the game comes from somewhere on the map. On the ground there are <b>deposits</b>: lime (white stones), oil (black pools), iron (red ore), fields (golden stripes) and bauxite (orange earth). One of each lies by your HQ; more are spread over the map (the rich ones ★ in the middle; rich bauxite only there).</p>
+      <h3>Build in order</h3><p>A building opens only once what it needs stands:</p>
+      <p>🪨 <b>Cement quarry</b> (on lime) → 🏗️ <b>Concrete plant</b> → every other building.<br>🛢️ <b>Oil well</b> → 🏭 <b>Refinery</b> → ⛽ <b>Fuel station</b> → anything that makes vehicles or aircraft.<br>⛏️ <b>Iron mine</b> → 🏭 <b>Steel mill</b> → the workshops (tanks, jeeps, guns, missiles) and the garage.<br>🌾 <b>Farm</b> (on fields) → 🍲 <b>Field kitchen</b> → 🥫 <b>Rations depot</b> (food and water for the soldiers — instead of the water plant).<br>⛏️ <b>Bauxite mine</b> → 🏭 <b>Aluminium smelter</b> (burns fuel) → the airfield and helipads.<br>🏭 Refinery → 🧪 <b>Chemical plant</b> (fuel → explosives) → 📦 the ammunition depot (with a steel mill).<br>💾 <b>Electronics lab</b> — a neutral post in the middle of the map: whoever takes it gets electronics.</p>
+      <h3>Who uses what</h3><p>A tank — steel. Jeeps and trucks — steel and rubber (from the refinery). Aircraft — aluminium. Missile trucks, Arrow, Iron Dome and drones — electronics. Ammunition trucks fill up with explosives and steel, ration trucks with rations, fuel trucks with fuel. Soldiers take nothing to make.</p>
+      <p>On the "Industry" menu what isn't open yet is dimmed, with what it needs first.</p>
+      <h3>How it moves</h3><p>Each mine sends out haulers (cement mixers, oil tankers, ore trucks). They drive on their own from the mine to the plant, and they can be shot: guard them. The plant turns what arrives into the side's <b>stock</b> (under the power bar: 🧱 concrete · ⛽ fuel · 🔩 steel · 🛞 rubber · 🥫 rations · ✈️ aluminium · 💣 explosives · 💾 electronics).</p>
+      <p>Building uses concrete: none, the site stands still. Each tank, jeep or gun uses steel: none, the workshop waits. Fuel trucks fill up from the stock: none, they wait at the station.</p>
+      <p>Mines and plants don't count in the building allowance. They're the artillery & engineering arm's.</p>`],
     ['🚜', 'Support and supply', `<h2>Support and supply</h2>
       <h3>Bulldozer 🚜</h3><p>Puts up the HQ, forward HQs and every building — only while it stands by the site. Pick a bulldozer, then build, and it drives there. Clicking a site with a bulldozer picked sends it there. Every two minutes the HQ sends another (up to three).</p>
       <h3>Signals truck 📡</h3><p>Sees far and gives control around it. Another comes every two minutes (up to three).</p>

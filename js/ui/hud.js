@@ -206,7 +206,7 @@ function showEnd() {
   }
 }
 // the key posts by the power bar: who holds the radar, the power station, the fuel station (no one's: not shown)
-const KEY_POSTS = ['radar', 'power', 'fuel']; let heldKey = '';
+const KEY_POSTS = ['radar', 'power', 'fuel', 'lab']; let heldKey = '';
 function syncHeld() {
   const of = side => (s.posts || []).filter(p => p.side === side && KEY_POSTS.includes(p.kind)).map(p => p.kind).sort((a, b) => KEY_POSTS.indexOf(a) - KEY_POSTS.indexOf(b));
   const b = of('blue'), r = of('red'), key = b.join() + '|' + r.join(); if (key === heldKey) return; heldKey = key;
@@ -225,7 +225,7 @@ function syncScore() {
   }
 }
 function updateHud() {
-  syncHeld(); syncScore();
+  syncHeld(); syncScore(); syncStock();
   // power share: the truth without fog; under fog the enemy side is only what we know of it
   const b = Math.round(100 * (s.fog ? believedShare() : Sim.share(s, 'blue')));
   $('pwB').style.width = b + '%'; $('power').classList.toggle('est', !!s.fog); $('power').style.setProperty('--lose', pctLose() + '%');
@@ -405,7 +405,9 @@ function believedShare() {
 // control is strong enough. The pages: BUILD_PAGES (a page's entries: buildings, or 'page:<name>' for a sub-page);
 // BUILD_UP: where ‹ goes back to.
 const BUILD_PAGES = {
-  root: ['page:tents', 'page:shops', 'page:air', 'page:service', 'page:supply'],
+  root: ['page:industry', 'page:energy', 'page:tents', 'page:shops', 'page:air', 'page:service', 'page:supply'],
+  industry: ['quarry', 'concrete', 'ironmine', 'steelmill', 'bauxmine', 'smelter'],
+  energy: ['oilwell', 'refinery', 'chemplant', 'farm', 'kitchen'], // (fuel, explosives and rations — econ.js) // (the supply chain — econ.js: past the allowance)
   air: ['airfield', 'tankerbase', 'page:helis'],
   helis: ['heliatk', 'heligun', 'helilift'],
   tents: ['tent', 'atpost', 'aapost', 'clinic', 'commandopost'],
@@ -416,11 +418,11 @@ const BUILD_PAGES = {
   supply: ['depot', 'fuelst', 'waterst'], // (the full game: past the allowance — 2 of each, apart from the rest)
   defense: ['arrowsite', 'domesite'],
 };
-const BUILD_UP = { tents: 'root', shops: 'root', service: 'root', supply: 'root', air: 'root', jeeps: 'shops', guns: 'shops', helis: 'air', defense: 'service' };
+const BUILD_UP = { industry: 'root', energy: 'root', tents: 'root', shops: 'root', service: 'root', supply: 'root', air: 'root', jeeps: 'shops', guns: 'shops', helis: 'air', defense: 'service' };
 // the column top left: the root page's kinds (aviation: the airfield and the helipads)
-const BUILD_CATS = ['tents', 'shops', 'air', 'service', 'supply'];
+const BUILD_CATS = ['industry', 'energy', 'tents', 'shops', 'air', 'service', 'supply'];
 // (the picture on a page's button)
-const PAGE_PIC = { supply: 'depot', tents: 'tent', shops: 'tankshop', jeeps: 'jeepshop', guns: 'howshop', service: 'garage', air: 'airfield', helis: 'heliatk', defense: 'arrowsite' };
+const PAGE_PIC = { industry: 'steelmill', energy: 'refinery', supply: 'depot', tents: 'tent', shops: 'tankshop', jeeps: 'jeepshop', guns: 'howshop', service: 'garage', air: 'airfield', helis: 'heliatk', defense: 'arrowsite' };
 let buildPage = 'root';
 // the drone and forward-HQ buttons: their icons from art/ (ICONS, white on clear) instead of the drawn ones
 for (const [id, k] of [['eye', 'drone'], ['fhq', 'fhq']]) {
@@ -462,11 +464,15 @@ function initBuildMenu() {
     b.addEventListener('click', () => showBuildPage(g));
     m.appendChild(b);
   }
-  for (const k of Sim.BUILDABLE) {
+  const IND = [...BUILD_PAGES.industry, ...BUILD_PAGES.energy];
+  for (const k of [...IND, ...Sim.BUILDABLE.filter(k => !IND.includes(k))]) { // (industry in its order: what's needed first, first)
     const b = document.createElement('button');
     b.dataset.build = k; b.dataset.tip = 'b_' + k; b.innerHTML = '<span></span><b></b><small></small>'; pic(b);
     if (k === 'decoy') { const i = document.createElement('i'); i.textContent = Sim.STRUCTS[k].badge; b.querySelector('span').appendChild(i); }
-    b.addEventListener('click', () => { buildArmed = k; m.hidden = true; hideTip(); syncButtons(); });
+    b.addEventListener('click', () => {
+      const nd = Sim.needsOf(s, 'blue', k); // (the supply chain: what has to stand first — a toast, not armed)
+      if (nd) { const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('needsWhy', sn(nd)), r.left - st.left + r.width / 2, r.top - st.top - 10); blink(b); return; }
+      buildArmed = k; m.hidden = true; hideTip(); syncButtons(); });
     m.appendChild(b);
   }
   // the kinds of building, top left, one under the other
@@ -474,7 +480,7 @@ function initBuildMenu() {
   for (const g of BUILD_CATS) {
     const b = document.createElement('button');
     b.dataset.cat = g; b.dataset.tip = 'bcat'; b.innerHTML = '<canvas width="96" height="96"></canvas><span></span>';
-    b.tipText = () => tr('bp_' + g) + ' · ' + tr('bpn_' + g) + ' · ' + tr('slotsLeft', g === 'supply' && freePage() ? supplyLeft() : Math.max(0, Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue', 'me')));
+    b.tipText = () => tr('bp_' + g) + ' · ' + tr('bpn_' + g) + ' · ' + tr('slotsLeft', freeCat(g) ? supplyLeft(g) : Math.max(0, Sim.buildLimit(s, 'blue') - Sim.buildCount(s, 'blue', 'me')));
     b.addEventListener('click', () => pickCat(g, b));
     cats.appendChild(b);
   }
@@ -485,7 +491,7 @@ function initBuildMenu() {
 function pickCat(g, b) {
   const m = $('buildm');
   if (s.hqPending && s.hqPending.blue) { blink($('hqb')); const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('why').nohq, r.right - st.left + 60, r.top - st.top + 20); return; }
-  if (g === 'supply' && freePage() ? !supplyLeft() : buildFull()) { blink(b); if (g !== 'supply' && !$('fhq').hidden) blink($('fhq')); return; } // (supply: its own allowance)
+  if (freeCat(g) ? !supplyLeft(g) : buildFull()) { blink(b); if (!freeCat(g) && !$('fhq').hidden) blink($('fhq')); return; } // (supply: its own allowance)
   const open = !m.hidden && m.dataset.open === g && buildPage === g; // (on one of its inner pages: back to its first)
   buildArmed = null; m.hidden = true; m.classList.remove('side');
   if (!open) {
@@ -500,11 +506,16 @@ function pickCat(g, b) {
 function syncCats() {
   const root = new Set(pageItems('root')), full = buildFull() || !!(s.hqPending && s.hqPending.blue), m = $('buildm');
   for (const b of document.querySelectorAll('[data-cat]')) {
-    const g = b.dataset.cat, f = g === 'supply' && freePage() ? !supplyLeft() || !!(s.hqPending && s.hqPending.blue) : full; // (supply: its own allowance)
+    const g = b.dataset.cat, f = freeCat(g) ? !supplyLeft(g) || !!(s.hqPending && s.hqPending.blue) : full; // (supply: its own allowance)
     b.hidden = !root.has('page:' + g);
     b.setAttribute('aria-disabled', String(f && !buildArmed));
     b.classList.toggle('can', !f && !buildArmed && m.hidden && !b.hidden && !!s.t); // (room to build: the halo)
     b.setAttribute('aria-expanded', String(!m.hidden && m.dataset.open === g || !!buildArmed && pageHas(g, buildArmed)));
+  }
+  // (the supply chain: a building whose turn hasn't come — dimmed, and what it waits for under its name)
+  if (!m.hidden) for (const b of m.querySelectorAll('[data-build]')) {
+    const nd = Sim.needsOf(s, 'blue', b.dataset.build), sm = b.querySelector('small'), txt = nd ? tr('needsItem', sn(nd)) : b.dataset.sm;
+    b.classList.toggle('locked', !!nd); if (sm && txt && sm.textContent !== txt) sm.textContent = txt;
   }
 }
 const pageHas = (g, k) => BUILD_PAGES[g].some(e => e.startsWith('page:') ? pageHas(e.slice(5), k) : e === k);
@@ -514,7 +525,9 @@ function nameBuildMenu() {
     const S = Sim.STRUCTS[b.dataset.build];
     b.querySelector('b').textContent = sn(b.dataset.build);
     const pic = b.querySelector('canvas'); if (pic) drawPic(pic, b.dataset.build);
-    b.querySelector('small').textContent = S.unit ? tr('buildItem', S.every, tn(S.unit)) : tr('decoyItem', Sim.DECOY_MAX);
+    const k = b.dataset.build, P = Sim.PLANT_OF[k];
+    b.dataset.sm = S.deposit ? tr('mineItem', tn(S.unit)) : P ? tr('plantItem', tr('good_' + P)) : S.unit ? tr('buildItem', S.every, tn(S.unit)) : tr('decoyItem', Sim.DECOY_MAX);
+    b.querySelector('small').textContent = b.dataset.sm;
   }
   for (const b of document.querySelectorAll('[data-cat]')) {
     const g = b.dataset.cat; b.querySelector('span').textContent = tr('bp_' + g);
@@ -528,7 +541,7 @@ function nameBuildMenu() {
   }
 }
 // what this game allows on a page (buildings, and sub-pages with anything allowed in them)
-const buildOk = k => Sim.armSide(s, 'blue', k) !== 'mate' && !(k === 'decoy' ? !!s.level : !!s.builds && !s.builds.includes(k)) && !(Sim.STRUCTS[k] && Sim.STRUCTS[k].fuel && !s.fuel); // (the tanker base: only where there's fuel)
+const buildOk = k => Sim.armSide(s, 'blue', k) !== 'mate' && !(Sim.STRUCTS[k] && Sim.STRUCTS[k].econ && !s.econ) && !(k === 'decoy' ? !!s.level : !!s.builds && !s.builds.includes(k)) && !(Sim.STRUCTS[k] && Sim.STRUCTS[k].fuel && !s.fuel); // (the tanker base: only where there's fuel)
 const pageItems = g => BUILD_PAGES[g].filter(e => e.startsWith('page:') ? pageItems(e.slice(5)).length > 0 : buildOk(e));
 // open a page (one with a single sub-page in it opens that one instead)
 function showBuildPage(g) {
@@ -552,8 +565,9 @@ function syncBuildMenu(fresh) {
 }
 const buildFull = () => Sim.buildCount(s, 'blue', 'me') >= Sim.buildLimit(s, 'blue');
 // the supply buildings (the full game): past the allowance, up to their own max of each — how many more we may lay
-const freePage = () => BUILD_PAGES.supply.some(k => Sim.specOf(s, k).free);
-const supplyLeft = () => BUILD_PAGES.supply.filter(buildOk).reduce((a, k) => { const sp = Sim.specOf(s, k); return a + (sp.free ? Math.max(0, (sp.max || 2) - s.nodes.filter(n => n.side === 'blue' && n.kind === k && n.hp > 0).length) : 0); }, 0);
+const freePage = (g = 'supply') => BUILD_PAGES[g].some(k => Sim.specOf(s, k).free);
+const freeCat = g => (g === 'supply' || g === 'industry' || g === 'energy') && freePage(g);
+const supplyLeft = (g = 'supply') => BUILD_PAGES[g].filter(buildOk).reduce((a, k) => { const sp = Sim.specOf(s, k); return a + (sp.free ? Math.max(0, (sp.max || 2) - s.nodes.filter(n => n.side === 'blue' && n.kind === k && n.hp > 0).length) : 0); }, 0);
 const blink = el => { el.classList.remove('blink'); void el.offsetWidth; el.classList.add('blink'); };
 // no free slot: the button is dimmed, and pressing it anyway flashes it and the way out: 🏕️
 function toggleBuild() {
@@ -570,9 +584,10 @@ $('bld').addEventListener('click', toggleBuild);
 const onScreen = (x, y) => worldToScr(x, y);
 // (with Shift: another of the same right after, while there's room for one)
 function placeBuilding(x, y, again) {
+  if (buildArmed && Sim.STRUCTS[buildArmed].deposit) ({ x, y } = snapMine(buildArmed, { x, y })); // (a mine: onto the deposit — econui.js)
   nag.built = s.t; // (laid one: no reminder for a minute)
   const why = Sim.buildCheck(s, 'blue', x, y, buildArmed);
-  if (why) { const p = onScreen(x, y); toast(tr('why')[why], p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y, pickedDozer());
+  if (why) { const p = onScreen(x, y), nd = why === 'needs' && Sim.needsOf(s, 'blue', buildArmed); toast(nd ? tr('needsWhy', sn(nd)) : tr('why')[why] || tr('why').bad, p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y, pickedDozer());
   const room = buildArmed === 'decoy' ? s.nodes.filter(n => n.side === 'blue' && n.kind === 'decoy' && n.hp > 0).length < Sim.DECOY_MAX : Sim.buildCount(s, 'blue', 'me') < Sim.buildLimit(s, 'blue');
   if (!why && !(again && room)) buildArmed = null;
   syncButtons(); updateHud();

@@ -37,6 +37,7 @@ function nodeInfo(n) {
   if (n.mem) { out.push(tr('ni_seen', Math.round(s.t - n.t))); return out.join(' · '); }
   if (n.side === 'blue' || !s.fog || Sim.idLevel(s, 'blue', n) >= 2) out.push(Math.max(1, Math.round(100 * n.hp / S.hp)) + '%');
   if (n.side !== 'blue') return out.join(' · ');
+  const el = econLine(n); if (el) out.push(el); // (the supply chain: a mine's yard, waiting for steel / concrete — econui.js)
   if (Sim.isSite(n) && s.t < n.ready) out.push(tr(n.working ? 'ni_site' : 'ni_wait', Math.round(100 * n.work / n.need)));
   else if (s.t < n.ready) out.push(tr('ni_build', Math.ceil(n.ready - s.t)));
   else if (S.upgrade && n.upg) out.push(tr('trophyOn', Math.ceil(n.upg.until - s.t)));
@@ -90,6 +91,7 @@ function squadInfo(q) {
   if (q.type === 'tanker' && q.side === 'blue') out.push(tr('ti_load', Math.round(us.reduce((a, u) => a + (u.load ?? Sim.TANKER_CAP) / Sim.TANKER_CAP, 0) / Math.max(1, us.length) * 100)));
   if (Sim.TRUCK_CAP[q.type] && q.side === 'blue') out.push(tr('ti_load', Math.round(us.reduce((a, u) => a + (u.load ?? Sim.TRUCK_CAP[q.type]) / Sim.TRUCK_CAP[q.type], 0) / Math.max(1, us.length) * 100)));
   if (us.length && us.every(u => u.dug)) out.push(tr('ti_dug')); else if (us.some(u => u.dig > 0 && !u.dug)) out.push(tr('ti_digging')); // (dug in: Sim digTick)
+  if (Sim.HAUL[q.type] && q.side === 'blue' && us[0]) out.push(tr('ti_load', Math.round((us[0].cargo || 0) / Sim.HAUL_CAP * 100))); // (a hauler: what it carries — econ.js)
   const role = (ROLE[lang] || ROLE.he)[q.type]; if (role) out.push(role);
   return out.join('\n');
 }
@@ -227,14 +229,15 @@ function hover(e) {
   // same one, gone when the mouse leaves it
   const q = !n && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed ? hitSquad(x, y) || hitMateSquad(x, y) || hitFoeSquad(x, y) : null; // (the partner's too: infocard.js)
   const pt = !n && !q ? hitPost(x, y) : null; // (a post: who holds it, what it gives)
-  const key = q ? 'q' + q : n ? (n.mem ? 'm' : '') + n.id : pt ? 'p' + pt.id : null;
+  const dp = !n && !q && !pt ? hitDeposit(x, y) : null; // (a deposit: what, and free or taken — econui.js)
+  const key = q ? 'q' + q : n ? (n.mem ? 'm' : '') + n.id : pt ? 'p' + pt.id : dp ? 'd' + dp.id : null;
   if (key === hoverNode) return;
   hoverNode = key; clearTimeout(hoverT); if (tipFor === 'node') hideTip();
-  if (n || q || pt) hoverT = setTimeout(() => {
+  if (n || q || pt || dp) hoverT = setTimeout(() => {
     if (hoverNode !== key || tour || tipFor === 'toast') return;
-    const r = cv.getBoundingClientRect(), sq = q && s.squads.find(k => k.id === q), at = sq ? guessAt(sq) || { x: sq.cx, y: sq.cy } : n || pt;
+    const r = cv.getBoundingClientRect(), sq = q && s.squads.find(k => k.id === q), at = sq ? guessAt(sq) || { x: sq.cx, y: sq.cy } : n || pt || dp;
     if (!at) return;
-    const p = worldToScr(at.x, at.y - 26); showTip(sq ? squadInfo(sq) : n ? nodeInfo(n) : postInfo(pt), { left: p.x + r.left, top: p.y + r.top, width: 0, height: 0 }); tipFor = 'node';
+    const p = worldToScr(at.x, at.y - 26); showTip(sq ? squadInfo(sq) : n ? nodeInfo(n) : pt ? postInfo(pt) : depInfo(dp), { left: p.x + r.left, top: p.y + r.top, width: 0, height: 0 }); tipFor = 'node';
   }, 400);
 }
 cv.addEventListener('pointermove', hover);

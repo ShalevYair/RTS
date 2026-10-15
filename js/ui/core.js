@@ -43,6 +43,9 @@ const WORLD_K = 1.5;
 const SIZE = Object.fromEntries(Object.entries({ commando: 5.5, how: 30, mlrs: 26, ssm: 24, arrow: 22, dome: 22, lift: 40, heli: 36, gunship: 34, inf: 5, aa: 5.5, at: 5.5, tank: 40, air: 42, tanker: 50, jeep: 26, ajeep: 26, tjeep: 26, med: 5, mech: 20, truck: 20, fueltruck: 20, watertruck: 20, dozer: 24, radio: 22 }).map(([k, v]) => [k, v / WORLD_K]));
 // vehicles (tracks, dust, wrecks)
 const CAR = new Set(['tank', 'jeep', 'ajeep', 'tjeep', 'mech', 'truck', 'fueltruck', 'watertruck', 'dozer', 'radio', 'ssm', 'arrow', 'dome', 'how', 'mlrs']);
+// (the supply chain's haulers — econ.js: drawn as the supply trucks they look like until they have their own)
+const HAUL_LIKE = { oiltruck: 'fueltruck', oretruck: 'truck', cementtruck: 'watertruck', bauxtruck: 'truck', graintruck: 'truck' };
+for (const [k, v] of Object.entries(HAUL_LIKE)) { TC[k] = TC[v]; SIZE[k] = SIZE[v]; CAR.add(k); }
 
 // ---- viewport: world is sized to the screen's aspect at game start; a camera (centre + zoom) looks at it ----
 // zoom 1 = the whole map fits; zooming in stops at ZOOM_PX screen px per world unit. The big map opens on our base at

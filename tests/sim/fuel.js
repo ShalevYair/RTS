@@ -11,7 +11,7 @@ const mk = (s, t, x, y, side = 'blue') => { const q = Sim._makeSquad(s, side, t,
 const unitOf = (s, q) => s.units.find(u => u.squad === q.id);
 // the full game's open field with our HQ up; fog off, the enemy idle and far; one lake (for water)
 function field(seed, lake) {
-  const s = Sim.openField(Sim.create(seed, 2400, 'normal', 1280, { singles: true })); s.bots = []; s.fog = false; s.night = false; s.collapseAfter = Infinity;
+  const s = Sim.openField(Sim.create(seed, 2400, 'normal', 1280, { singles: true })); s.econ = false; s.bots = []; s.fog = false; s.night = false; s.collapseAfter = Infinity;
   s.lakes = lake ? [{ x: 420, y: 900, rx: 90, ry: 60, a: 0 }] : []; s.hills = []; s.elev = null; s.posts = [];
   Sim.planHq(s, 'blue', 250, 640); step(s, 120, () => !s.hqPending.blue && s.nodes.some(n => n.side === 'blue' && n.kind === 'hq' && s.t >= n.ready));
   return s;
@@ -138,7 +138,7 @@ ok(Sim.needsWater('inf') && Sim.needsWater('commando') && Sim.needsWater('med') 
 {
   // arms: the computer partner (guns) builds a fuel station for every FUEL_ST_PER vehicles of the whole side — the
   // player's too (seed 41: an HQ in a corner, no room round it — the rest go by the side's other buildings)
-  let s = Sim.create(41, 2200, 'normal', Sim.H * 2, { singles: true }); Sim.extras(s); s = Sim.openField(s); s.fog = true;
+  let s = Sim.create(41, 2200, 'normal', Sim.H * 2, { singles: true }); Sim.extras(s); s = Sim.openField(s); s.econ = false; s.fog = true;
   Sim.setArms(s, ['armor', 'infantry']); s.meBot = true;
   for (let i = 0; i < 30 * 600 && !s.over; i++) Sim.step(s, 1 / 30);
   // (forty more tanks of the player's by the HQ: the partner should catch up — a station for every FUEL_ST_PER)

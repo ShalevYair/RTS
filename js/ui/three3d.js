@@ -22,7 +22,8 @@ function v3Toggle() {
   if (V3.loading) return; V3.loading = true; // (asked again while loading: once is enough — twice, its files were declared twice)
   // (the library, then the models — tools/models.py; without them, the pictures)
   const load = (src, next) => { const sc = document.createElement('script'); sc.src = src; sc.onload = next; sc.onerror = /models|ground3d/.test(src) ? next : () => toast('3D ✖', innerWidth / 2, 80, 3000); document.head.appendChild(sc); };
-  load('js/lib/three.min.js', () => load('js/ui/models.js', () => load('js/ui/ground3d.js', () => v3Show(true))));
+  const like = () => { if (typeof MODELS === 'object') for (const [k, v] of Object.entries(HAUL_LIKE)) if (!MODELS[k] && MODELS[v]) MODELS[k] = MODELS[v]; }; // (haulers without a model of their own: a supply truck's)
+  load('js/lib/three.min.js', () => load('js/ui/models.js', () => { like(); load('js/ui/ground3d.js', () => v3Show(true)); }));
 }
 function v3Show(on) {
   if (on && !V3.r) v3Init();
@@ -372,6 +373,7 @@ function v3Lay(x, y, hd, lift, w, h, ox, oy, out, sy = 1) {
 const V3_KICK = 0.07, V3_BLUR = 0.22; // (a gun's recoil: of the length, all the way back; a rotor disc's darkness)
 const V3_DRONE = 0.9, V3_DEAD = 0.7, V3_ROTOR = 14, V3_POS_Q = 16000, V3_MAN = 24, V3_STRIDE = 4; // (V3_MAN: a soldier's height, world units — taller than true to a tank, as on the flat map, or from above it was a dot; V3_STRIDE: the way it walks for each pose) // (a helicopter's rotor, radians a second)
 const V3_LEN = { tank: 1.75, jeep: 1.25, ajeep: 1.25, tjeep: 1.25, air: 1.3, tanker: 1.3, heli: 1.2, gunship: 1.2, lift: 1.3, how: 2.2, mlrs: 2.4, ssm: 2.6, arrow: 2.6, dome: 2.6, truck: 2.0, fueltruck: 2.0, watertruck: 2.0, radio: 1.9, mech: 2.0, dozer: 1.7 }, V3_TEAM = 0.38;
+for (const [k, v] of Object.entries(HAUL_LIKE)) V3_LEN[k] = V3_LEN[v];
 const v3HasModel = type => typeof MODELS === 'object' && !!MODELS[type];
 function v3Model(type, part, side) {
   const key = 'm:' + type + ':' + part + ':' + side; let P = V3.pics.get(key); if (P) return P;
@@ -1786,7 +1788,7 @@ function v3Deco() {
   if (!lite) { drawTracks(g); drawClouds(g, V3_CLOUDS); } drawWeather(g); if (s.extras) drawBoltFlat(g); // (tracks in the ground, clouds' shadows, the morning fog; rain — over the screen)
   v3Discs(g);
   if (s.fog) { if (Sim.friction(s)) drawQuality(g); drawEnemyIntel(g); drawMarks(g); }
-  drawDozerJobs(g); drawBuildArea(g);
+  drawDeposits(g); drawDozerJobs(g); drawBuildArea(g); // (deposits: econui.js)
   for (const q of s.squads) if (q.side === 'blue' && !q.dead && !sqShown(q)) drawGuess(g, q, guessAt(q), isSel(q.id));
   drawRoutes(g); drawFront(g); drawPicked(g); drawDesignated(g); drawAsks(g); drawPings(g);
   V3U.v3DecoBox.value.set(B.x, B.y, B.w, B.h); D.t.needsUpdate = true;

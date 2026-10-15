@@ -251,7 +251,7 @@ function glyph(c, type, x, y, k, fill, outline, hd = 0, aim = hd, lw = 1.2, step
     if (type === 'ssm') c.fillRect(-0.8 * k, -0.11 * k, 1.25 * k, 0.22 * k);
     else if (type === 'arrow') { c.fillRect(-0.75 * k, -0.3 * k, 1.1 * k, 0.16 * k); c.fillRect(-0.75 * k, 0.14 * k, 1.1 * k, 0.16 * k); }
     else for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { c.beginPath(); c.arc(-0.55 * k + i * 0.32 * k, -0.15 * k + j * 0.3 * k, 0.11 * k, 0, Math.PI * 2); c.fill(); }
-  } else if (type === 'truck' || type === 'fueltruck' || type === 'watertruck') {
+  } else if (type === 'truck' || type === 'fueltruck' || type === 'watertruck' || HAUL_LIKE[type]) {
     // supply truck: a cargo box behind a darker cab, with a crate mark
     c.rotate(hd); c.beginPath(); c.rect(-0.8 * k, -0.45 * k, 1.6 * k, 0.9 * k); paint();
     c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0.4 * k, -0.4 * k, 0.4 * k, 0.8 * k);
@@ -960,7 +960,7 @@ function drawBuildArea(c) {
   if (!buildArmed) return;
   drawBuildZone(c);
   // (the building at the pointer, in its size: faint where it can't go)
-  if (mouseAt) { const r = cv.getBoundingClientRect(), w = scrToWorld(mouseAt.x - r.left, mouseAt.y - r.top); c.globalAlpha = Sim.buildCheck(s, 'blue', w.x, w.y, buildArmed) ? 0.25 : 0.7; drawBuilding(c, buildArmed, colors.blue, w.x, w.y, pxOf(buildArmed)); c.globalAlpha = 1; }
+  if (mouseAt) { const r = cv.getBoundingClientRect(), w = snapMine(buildArmed, scrToWorld(mouseAt.x - r.left, mouseAt.y - r.top)); c.globalAlpha = Sim.buildCheck(s, 'blue', w.x, w.y, buildArmed) ? 0.25 : 0.7; drawBuilding(c, buildArmed, colors.blue, w.x, w.y, pxOf(buildArmed)); c.globalAlpha = 1; }
 }
 // where the armed building may go: a soft green wash. The screen's part of the map in BZ_CELLS cells across (finer
 // than before: zoomed in on a phone, 20-unit squares were big blocks), one pixel each, drawn scaled up smoothly — soft
@@ -1292,7 +1292,7 @@ function draw() {
   drawFires(c); drawSmoke(c); drawFlashes(c); if (!lite) drawClouds(c); drawWeather(c); // (rain, the morning fog: field.js)
   drawNightLit(c); if (s.extras) drawBoltFlat(c); // (lightning's flash, over the dark)
   if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); }
-  drawPosts(c); drawNodes(c); drawPiles(c); drawDozerJobs(c); // (drawPiles: fuel barrels — fuelui.js)
+  drawDeposits(c); drawPosts(c); drawNodes(c); drawPiles(c); drawDozerJobs(c); // (drawPiles: fuel barrels — fuelui.js)
   drawBuildArea(c);
   // our squads. Where the units themselves are drawn: their strength and ammunition over them, no badge. Where they
   // aren't (out of the exact picture under command friction): faint units where they probably are by now, and a

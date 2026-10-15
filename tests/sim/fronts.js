@@ -5,7 +5,7 @@ const assert = require('assert');
 const Sim = require('../load-sim.js')();
 const seed = +process.argv[2] || 41;
 let s = Sim.create(seed, 2200, 'normal', Sim.H * 2, { singles: true });
-Sim.extras(s); s = Sim.openField(s); s.fog = true; Sim.setArms(s, ['armor', 'infantry']); s.meBot = true;
+Sim.extras(s); s = Sim.openField(s); s.econ = false; s.fog = true; Sim.setArms(s, ['armor', 'infantry']); s.meBot = true;
 while (!s.over && s.t < 480) Sim.step(s, 1 / 30);
 const hq = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq'), X = hq.x + (s.W / 2 - hq.x) * 0.55;
 // (two lines across the map, ahead of the HQ: the top half and the bottom half — the bottom one bent)

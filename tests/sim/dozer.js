@@ -4,7 +4,7 @@
 const { Sim } = require('./bench.js');
 const ok = (c, m) => { console.log((c ? 'ok  ' : 'FAIL') + ' ' + m); if (!c) process.exitCode = 1; };
 const step = (s, sec) => { for (let i = 0; i < sec * 30; i++) Sim.step(s, 1 / 30); };
-const s = Sim.openField(Sim.create(10, 2000, 'normal', 1280)); s.bots = []; s.fog = false;
+const s = Sim.openField(Sim.create(10, 2000, 'normal', 1280)); s.econ = false; s.bots = []; s.fog = false;
 const dz = s.squads.find(q => q.side === 'blue' && q.type === 'dozer');
 ok(!Sim.canBuildFhq(s, dz), 'no forward HQ before the HQ');
 Sim.planHq(s, 'blue', 250, 640); step(s, 50);
@@ -34,7 +34,7 @@ step(s, 80);
 ok([a, b].every(n => s.t >= n.ready), 'then the rest, in order');
 {
   // the HQ hit: the nearest bulldozer (ours and the enemy's) leaves its work, mends it, and goes back to its list
-  const g = Sim.openField(Sim.create(11, 2000, 'normal', 1280)); g.bots = []; g.fog = false;
+  const g = Sim.openField(Sim.create(11, 2000, 'normal', 1280)); g.econ = false; g.bots = []; g.fog = false;
   Sim.planHq(g, 'blue', 250, 640); Sim.planHq(g, 'red', 1750, 640); step(g, 60);
   const hs = ['blue', 'red'].map(side => g.nodes.find(n => n.side === side && n.kind === 'hq'));
   ok(hs.every(h => h && g.t >= h.ready), 'both HQs up');
@@ -57,7 +57,7 @@ ok([a, b].every(n => s.t >= n.ready), 'then the rest, in order');
 }
 {
   // a second bulldozer out of the HQ: it takes every other waiting site — one at work on site 1 with 2…6 waiting: 2, 4, 6
-  const g = Sim.openField(Sim.create(12, 2000, 'normal', 1280)); g.bots = []; g.fog = false;
+  const g = Sim.openField(Sim.create(12, 2000, 'normal', 1280)); g.econ = false; g.bots = []; g.fog = false;
   Sim.planHq(g, 'blue', 250, 640); step(g, 50);
   const d1 = g.squads.find(q => q.side === 'blue' && q.type === 'dozer');
   const spots = [[400, 420], [400, 520], [400, 760], [400, 860], [480, 420], [480, 860]];

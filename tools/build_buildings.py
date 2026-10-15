@@ -783,6 +783,231 @@ def b_bunker(seed=34):
     return [('hull', M, None)]
 
 
+# ---- the supply chain (js/sim/econ.js): mines on their deposits, the plants that make the side's stock ----
+def pile(M, cx, cz, r, h, mat, n=14):
+    """a heap of loose stuff (ore, lime, gravel): a lumpy cone"""
+    a = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    pts = [(cx + r * M.r.uniform(0.85, 1.1) * np.cos(t), 0.0, cz + r * M.r.uniform(0.85, 1.1) * np.sin(t)) for t in a]
+    pts += [(cx + r * 0.5 * M.r.uniform(0.8, 1.2) * np.cos(t), h * M.r.uniform(0.6, 0.75), cz + r * 0.5 * M.r.uniform(0.8, 1.2) * np.sin(t)) for t in a[::2]]
+    pts += [(cx + M.r.uniform(-0.2, 0.2) * r, h, cz + M.r.uniform(-0.2, 0.2) * r)]
+    M.var(0.85, 1.1).hull(mat, pts); M.k = 1.0
+
+def conveyor(M, p0, p1, w=0.8):
+    """a belt on legs from p0 to p1 (x, y, z)"""
+    p0, p1 = np.asarray(p0, float), np.asarray(p1, float); d = p1 - p0; L = np.linalg.norm(d)
+    M.k = 0.9; M.strut('metal', p0, p1, w * 0.45); M.k = 0.5; M.strut('dark', p0 + (0, 0.35, 0), p1 + (0, 0.35, 0), w * 0.3)
+    for t in np.linspace(0.15, 0.85, max(2, int(L / 4))):
+        q = p0 + d * t; M.k = 0.9; M.strut('metal', np.array((q[0], 0, q[2])), q, 0.08)
+    M.k = 1.0
+
+def vtank(M, cx, cz, r, h, mat='tank', roof='cone'):
+    """a standing tank: walls, a low cone roof (or a flat one), seams, a ladder"""
+    M.k = 1.0; M.cyl(mat, (cx, h / 2, cz), r, h, 'y', 22)
+    M.k = 0.92
+    if roof == 'cone': M.cyl(mat, (cx, h + 0.35, cz), r, 0.7, 'y', 22, r2=r * 0.25)
+    else: M.cyl(mat, (cx, h + 0.05, cz), r, 0.1, 'y', 22)
+    for y in np.arange(0.6, h, 1.6): M.k = 0.8; M.cyl(mat, (cx, y, cz), r + 0.04, 0.08, 'y', 22)   # (seams)
+    M.k = 1.0; M.strut('metal', np.array((cx + r + 0.15, 0, cz - 0.3)), np.array((cx + r + 0.15, h, cz - 0.3)), 0.05); M.strut('metal', np.array((cx + r + 0.15, 0, cz + 0.3)), np.array((cx + r + 0.15, h, cz + 0.3)), 0.05)
+
+def b_oilwell(seed=40):
+    M = B(seed); L, W = 18, 15
+    M.pad(L, W, 'sand', 0.06)
+    M.k = 1.0; flat(M, -1.0, 0.5, 6.0, 4.0, 0.08, 'oil')                                                    # (the spill round the well)
+    # the pump jack: its frame, the samson post (an A), the walking beam, the horsehead over the well, the cranks
+    M.block('steel', (-1.0, 0.35, 0.0), (9.0, 0.5, 1.6), 0.05)
+    for sz in (-0.7, 0.7):
+        M.strut('steel', np.array((-2.8, 0.6, sz)), np.array((-1.2, 4.6, sz * 0.3)), 0.16); M.strut('steel', np.array((0.4, 0.6, sz)), np.array((-1.2, 4.6, sz * 0.3)), 0.16)
+    M.k = 1.0; M.block('body', (-1.0, 4.85, 0.0), (8.4, 0.55, 0.5), 0.05)
+    M.hull('body', [(3.0, 4.2, s) for s in (-0.45, 0.45)] + [(3.2, 5.8, s) for s in (-0.45, 0.45)] + [(4.0, 3.9, s) for s in (-0.45, 0.45)] + [(4.1, 5.4, s) for s in (-0.45, 0.45)])
+    M.strut('dark', np.array((3.9, 3.9, 0)), np.array((3.9, 0.7, 0)), 0.05)                                   # the rod into the well
+    M.k = 0.95; M.cyl('steel', (3.9, 0.55, 0), 0.45, 1.0, 'y', 10); M.box('steel', (3.9, 1.1, 0), (0.9, 0.12, 0.9))
+    for sz in (-1.0, 1.0): M.k = 0.7; M.block('dark', (-4.4, 1.6, sz), (2.2, 2.2, 0.35), 0.1)                 # counterweights
+    M.k = 0.85; M.block('olive', (-4.9, 0.9, 0.0), (1.8, 1.3, 1.4), 0.08); M.k = 1.0                            # the motor
+    M.strut('steel', np.array((-4.4, 1.6, -1.0)), np.array((-4.4, 4.7, -0.3)), 0.1); M.strut('steel', np.array((-4.4, 1.6, 1.0)), np.array((-4.4, 4.7, 0.3)), 0.1)
+    # two stock tanks, black with oil; a pipe from the well
+    for z in (-4.2, 4.2): vtank(M, -5.8, z, 1.9, 3.6, 'oil', 'flat')
+    M.strut('metal', np.array((3.9, 0.4, 0.4)), np.array((3.9, 0.4, 3.0)), 0.12); M.strut('metal', np.array((3.9, 0.4, 3.0)), np.array((-3.9, 0.4, 4.2)), 0.12)
+    hut(M, 5.5, -5.0, 3.2, 2.6, 2.4)
+    M.barrels(6.0, 4.5, 5, 'oil')
+    return [('hull', M, None)]
+
+def b_ironmine(seed=41):
+    M = B(seed); L, W = 20, 18
+    M.pad(L, W, 'sand', 0.06)
+    # the headframe over the shaft: a lattice tower, its back legs to the hoist house, two sheave wheels on top
+    lattice_tower(M, 1.0, 0.0, 13.0, 1.6, 0.9)
+    for sz in (-1.0, 1.0): M.strut('steel', np.array((-4.5, 0, sz * 1.2)), np.array((1.0, 12.5, sz * 0.7)), 0.18)
+    for sz in (-0.5, 0.5): M.k = 1.0; M.cyl('dark', (1.0, 13.6, sz), 1.2, 0.18, 'z', 18); M.cyl('warn', (1.0, 13.6, sz), 0.25, 0.3, 'z', 8)
+    M.k = 0.4; M.box('dark', (1.0, 0.1, 0.0), (2.6, 0.1, 2.6)); M.k = 1.0                                     # the shaft
+    M.block('concrete', (-6.0, 2.2, 0.0), (5.0, 4.4, 6.0), 0.04); M.roof(-6.0, 0.0, 5.0, 6.0, 4.4, 1.2, 0.3, 'body', 0.8, 'z')
+    M.windows(-7.5, -4.5, 2.6, 3.0, 2, 0.9, 0.8, 1)
+    # the ore: a bin on legs, a belt to it, heaps of red-brown ore
+    for u in (-0.9, 0.9):
+        for v in (-0.9, 0.9): M.strut('steel', np.array((6.0 + u, 0, -4.5 + v)), np.array((6.0 + u, 3.0, -4.5 + v)), 0.12)
+    M.k = 1.0; M.cyl('steel', (6.0, 4.0, -4.5), 1.6, 2.0, 'y', 4, r2=1.4)
+    conveyor(M, (2.0, 1.0, -1.5), (5.4, 5.0, -4.0))
+    pile(M, 6.5, 3.5, 3.2, 2.6, 'ore'); pile(M, 3.0, 6.0, 2.4, 1.8, 'ore'); pile(M, 7.5, -1.0, 1.6, 1.1, 'ore')
+    M.crates(-8.0, -6.5, 3, 1, 2, 0.8, 'wood').barrels(-2.5, 6.5, 3)
+    return [('hull', M, None)]
+
+def b_quarry(seed=42):
+    M = B(seed); L, W = 20, 18
+    M.pad(L, W, 'lime', 0.05)
+    # the face: stepped benches of pale rock at the back
+    for i, (x, h) in enumerate(((-8.0, 3.6), (-6.0, 2.4), (-4.2, 1.2))):
+        M.var(0.85, 1.0).block('lime', (x, h / 2, 0.0), (2.4, h, 15.0 - i * 1.5), 0.25)
+    # the crusher: a hopper on a frame, belts to the heaps; heaps of crushed lime; a loader
+    M.k = 1.0; M.block('steel', (0.5, 1.6, -3.0), (3.0, 3.2, 3.0), 0.06); M.cyl('body', (0.5, 4.2, -3.0), 2.0, 2.0, 'y', 4, r2=1.3)
+    conveyor(M, (2.0, 2.4, -3.0), (6.5, 5.0, -3.5)); conveyor(M, (2.0, 2.0, -2.0), (6.0, 4.0, 3.5))
+    pile(M, 7.5, -4.0, 3.0, 4.6, 'lime'); pile(M, 7.0, 4.0, 2.8, 3.8, 'lime'); pile(M, -1.5, 4.5, 2.0, 1.5, 'lime')
+    M.car(3.0, 6.5, 0.4, 5.0, 2.4, 'warn')
+    hut(M, 4.0, -7.0, 3.0, 2.4, 2.4)
+    return [('hull', M, None)]
+
+def b_refinery(seed=43):
+    M = B(seed); L, W = 28, 22
+    M.pad(L, W, 'concrete', 0.08).wall_ring(L, W, 6.0)
+    # the columns: tall, ringed, a ladder up each
+    for (x, z, r, h) in ((-6.0, -4.0, 1.3, 15.0), (-2.5, -4.5, 1.0, 12.0), (0.5, -4.0, 0.8, 9.5)):
+        M.k = 1.0; M.cyl('tank', (x, h / 2, z), r, h, 'y', 18); M.cyl('tank', (x, h + 0.5, z), r, 1.0, 'y', 18, r2=r * 0.35)
+        for y in np.arange(2.0, h, 2.6): M.k = 0.8; M.cyl('steel', (x, y, z), r + 0.25, 0.12, 'y', 18)
+        M.k = 1.0; M.strut('metal', np.array((x + r + 0.2, 0, z)), np.array((x + r + 0.2, h, z)), 0.05)
+    # the furnace (a box with a stack), a pipe rack across, tanks, a flare stack at the back corner
+    M.block('steel', (4.0, 2.5, -4.0), (4.5, 5.0, 3.0), 0.06); M.k = 0.85; M.cyl('steel', (5.2, 9.0, -4.0), 0.5, 8.0, 'y', 10); M.k = 1.0
+    for x in np.arange(-8.0, 8.5, 2.0):
+        for z in (-1.0, 0.6): M.strut('steel', np.array((x, 0, z)), np.array((x, 4.0, z)), 0.1)
+    for y, mat in ((4.0, 'metal'), (3.4, 'body'), (2.8, 'metal')):
+        for z in (-0.6, 0.2): M.k = 1.0; M.cyl(mat, (0.0, y, z), 0.18, 16.5, 'x', 8)
+    for (x, z, r) in ((-7.0, 5.5, 2.4), (-1.5, 5.5, 2.4), (4.0, 5.5, 2.0)): vtank(M, x, z, r, 3.4, 'tank')
+    M.strut('metal', np.array((11.0, 0, -8.5)), np.array((11.0, 17.0, -8.5)), 0.25); M.k = 1.0; M.cyl('warn', (11.0, 17.4, -8.5), 0.35, 0.8, 'y', 8)
+    for a in (0.5, 2.6, 4.7): M.strut('dark', np.array((11.0, 12.0, -8.5)), np.array((11.0 + 4.0 * np.cos(a), 0, -8.5 + 4.0 * np.sin(a))), 0.02)
+    hut(M, 9.0, 4.5, 4.0, 3.0, 2.8)
+    return [('hull', M, None)]
+
+def b_steelmill(seed=44):
+    M = B(seed); L, W = 30, 22
+    M.pad(L, W, 'concrete', 0.08)
+    # the hall: long, high, a gable roof in the side's colour
+    M.block('steel', (-2.0, 4.0, 2.5), (18.0, 8.0, 10.0), 0.03); M.roof(-2.0, 2.5, 18.0, 10.0, 8.0, 2.4, 0.4, 'body', 1.0)
+    M.windows(-9.0, 5.0, 6.0, 7.5, 7, 1.2, 1.0, 1)
+    M.roller(7.0, 2.6, 2.5, 4.0, 5.0)
+    # the blast furnace: a tall tapered stack in a frame, its hot-blast stoves beside it; chimneys
+    M.k = 1.0; M.cyl('steel', (-6.0, 5.0, -6.0), 2.2, 10.0, 'y', 18, r2=1.4); M.cyl('dark', (-6.0, 10.5, -6.0), 1.4, 1.0, 'y', 18, r2=0.9)
+    for u in (-2.4, 2.4):
+        for v in (-2.4, 2.4): M.strut('metal', np.array((-6.0 + u, 0, -6.0 + v)), np.array((-6.0 + u * 0.7, 11.0, -6.0 + v * 0.7)), 0.1)
+    for x in (-1.5, 1.5): M.k = 0.9; M.cyl('steel', (x, 6.0, -6.5), 1.3, 12.0, 'y', 16); M.cyl('steel', (x, 12.4, -6.5), 1.3, 0.8, 'y', 16, r2=0.2)
+    for x in (5.0, 7.5): M.k = 0.8; M.cyl('concrete', (x, 9.0, -7.5), 0.7, 18.0, 'y', 12); M.k = 0.35; M.cyl('dark', (x, 18.05, -7.5), 0.55, 0.1, 'y', 12)
+    pile(M, -11.0, -6.0, 2.8, 2.4, 'ore'); conveyor(M, (-9.5, 1.5, -6.0), (-7.5, 9.0, -6.0))
+    # steel out: coils and beams in the yard
+    for i in range(4): M.k = 1.0; M.cyl('steel', (10.5, 0.75, -2.0 + i * 1.7), 0.75, 1.3, 'z', 14)
+    for j in range(3): M.k = 0.9; M.box('steel', (11.5, 0.2 + j * 0.3, 5.5), (5.0, 0.25, 2.0))
+    return [('hull', M, None)]
+
+def b_concrete(seed=45):
+    M = B(seed); L, W = 24, 20
+    M.pad(L, W, 'concrete', 0.08)
+    # three cement silos on legs, cone bottoms, a walkway across their tops
+    for z in (-5.0, -1.5, 2.0):
+        M.k = 1.0; M.cyl('white', (-6.0, 8.0, z), 1.5, 7.0, 'y', 18); M.cyl('white', (-6.0, 3.6, z), 0.3, 1.8, 'y', 18, r2=1.5)
+        M.cyl('white', (-6.0, 11.7, z), 1.5, 0.4, 'y', 18, r2=1.0)
+        for u, v in ((-1.1, -1.1), (1.1, -1.1), (-1.1, 1.1), (1.1, 1.1)): M.strut('steel', np.array((-6.0 + u, 0, z + v)), np.array((-6.0 + u, 4.6, z + v)), 0.08)
+    M.k = 0.85; M.box('steel', (-6.0, 12.0, -1.5), (1.2, 0.15, 9.0))
+    # the mixing tower, a belt up to it from the gravel bins; gravel and sand heaps; a mixer truck under the tower
+    M.k = 1.0; M.block('body', (0.5, 5.0, -1.0), (4.0, 10.0, 4.0), 0.04); M.box('concrete', (0.5, 10.2, -1.0), (4.4, 0.4, 4.4))
+    M.windows(-0.8, 1.8, 8.0, 1.0, 2, 0.8, 0.8, 1)
+    M.strut('steel', np.array((-4.5, 10.5, -1.5)), np.array((-1.5, 9.0, -1.0)), 0.3)
+    conveyor(M, (8.0, 1.0, 5.0), (2.5, 8.0, 0.5))
+    for x in (6.0, 9.0): M.k = 0.85; M.block('concrete', (x, 0.9, 6.5), (2.8, 1.8, 0.3), 0.03)
+    pile(M, 6.0, 4.8, 1.5, 1.9, 'sand'); pile(M, 9.0, 4.8, 1.5, 1.9, 'concrete'); pile(M, 9.0, -6.5, 2.5, 2.0, 'lime')
+    M.car(5.5, -3.0, 0.0, 6.0, 2.4, 'warn'); M.k = 1.0; M.cyl('white', (4.5, 2.3, -3.0), 1.0, 2.6, 'x', 14, r2=0.6)
+    return [('hull', M, None)]
+
+def b_bauxmine(seed=46):
+    M = B(seed); L, W = 20, 18
+    M.pad(L, W, 'sand', 0.06)
+    # an open pit's edge: stepped benches of orange earth at the back; an excavator, a hopper and belts; heaps of bauxite
+    for i, (x, h) in enumerate(((-8.0, 3.0), (-6.2, 2.0), (-4.6, 1.0))): M.var(0.85, 1.0).block('bauxite', (x, h / 2, 0.0), (2.2, h, 15.0 - i * 1.5), 0.25)
+    M.k = 1.0; M.block('warn', (-2.0, 1.4, 4.0), (3.0, 1.6, 2.4), 0.12); M.block('dark', (-2.0, 0.4, 4.0), (3.4, 0.7, 2.8), 0.1)
+    M.strut('warn', np.array((-1.0, 2.0, 4.0)), np.array((-4.5, 4.2, 3.5)), 0.25); M.strut('warn', np.array((-4.5, 4.2, 3.5)), np.array((-6.0, 1.8, 3.0)), 0.2)
+    M.k = 1.0; M.block('steel', (1.5, 1.6, -3.5), (3.0, 3.2, 3.0), 0.06); M.cyl('body', (1.5, 4.2, -3.5), 2.0, 2.0, 'y', 4, r2=1.3)
+    conveyor(M, (3.0, 2.4, -3.5), (7.0, 4.6, -4.0))
+    pile(M, 7.5, -4.2, 3.0, 3.6, 'bauxite'); pile(M, 6.5, 3.5, 2.6, 2.6, 'bauxite'); pile(M, 2.0, 6.0, 1.6, 1.1, 'bauxite')
+    hut(M, 5.0, 7.0, 3.0, 2.4, 2.4)
+    return [('hull', M, None)]
+
+def b_smelter(seed=47):
+    M = B(seed); L, W = 30, 22
+    M.pad(L, W, 'concrete', 0.08)
+    # two long potline halls side by side, roof vents along their ridges; the carbon plant's stacks; alumina silos; ingots
+    for z in (-5.0, 1.5):
+        M.block('steel', (-2.0, 3.0, z), (20.0, 6.0, 5.0), 0.03); M.roof(-2.0, z, 20.0, 5.0, 6.0, 1.4, 0.3, 'body', 0.9)
+        for x in np.arange(-11.0, 8.5, 2.5): M.k = 0.7; M.box('steel', (x, 7.6, z), (1.2, 0.5, 1.0))
+    for x in (10.0, 12.5): M.k = 0.8; M.cyl('concrete', (x, 8.0, -6.5), 0.7, 16.0, 'y', 12); M.k = 0.35; M.cyl('dark', (x, 16.05, -6.5), 0.55, 0.1, 'y', 12)
+    for z in (4.0, 7.0): M.k = 1.0; M.cyl('white', (10.5, 4.5, z), 1.3, 6.0, 'y', 16); M.cyl('white', (10.5, 7.7, z), 1.3, 0.5, 'y', 16, r2=0.4)
+    for i in range(3):
+        for j in range(2): M.k = 0.95; M.box('metal', (-11.0 + i * 1.6, 0.3 + j * 0.4, 8.0), (1.2, 0.35, 3.0))
+    pile(M, -12.0, -8.0, 2.0, 1.6, 'bauxite')
+    return [('hull', M, None)]
+
+def b_farm(seed=48):
+    M = B(seed); L, W = 22, 20
+    # fields in rows (green crop and golden grain), a red barn, a silo, a tractor
+    for i in range(6):
+        mat = 'crop' if i % 2 else 'grain'
+        M.var(0.85, 1.05).box(mat, (-4.0, 0.12, -9.0 + i * 2.6), (13.5, 0.24, 2.3))
+        for k in range(8): M.var(0.8, 1.0).box(mat, (-10.0 + k * 1.7, 0.42, -9.0 + i * 2.6), (1.2, 0.35, 1.6))
+    M.k = 1.0; M.block('red', (7.5, 2.2, -3.0), (6.0, 4.4, 5.0), 0.04); M.roof(7.5, -3.0, 6.0, 5.0, 4.4, 1.8, 0.4, 'body', 0.9, 'z')
+    M.k = 0.4; M.box('dark', (10.53, 1.6, -3.0), (0.06, 3.0, 2.4)); M.k = 1.0
+    M.cyl('metal', (7.5, 4.0, 4.0), 1.5, 8.0, 'y', 18); M.cyl('metal', (7.5, 8.3, 4.0), 1.5, 0.6, 'y', 18, r2=0.3)
+    M.car(4.0, 7.5, 0.3, 3.4, 1.8, 'warn')
+    for (x, z) in ((10.0, 7.5), (9.0, 8.6), (10.6, 8.8)): M.k = 1.0; M.cyl('grain', (x, 0.6, z), 0.6, 1.2, 'x', 12)   # bales
+    return [('hull', M, None)]
+
+def b_kitchen(seed=49):
+    M = B(seed); L, W = 20, 16
+    M.pad(L, W, 'concrete', 0.08)
+    # a mess hall with a chimney, a big tent beside it, cooking stoves under an awning, crates of rations, water tanks
+    M.block('concrete', (-3.5, 1.8, -1.5), (8.0, 3.6, 6.0), 0.04); M.roof(-3.5, -1.5, 8.0, 6.0, 3.6, 1.4, 0.4, 'body', 0.9)
+    M.windows(-6.5, -0.5, 2.2, 1.5, 3, 0.9, 0.8, 1)
+    M.k = 0.8; M.cyl('metal', (-1.0, 6.0, -3.5), 0.3, 3.0, 'y', 8)
+    M.ridge_tent(4.0, -3.0, 7.0, 4.5)
+    canopy(M, 4.5, 3.5, 5.0, 4.0, 2.6)
+    for x in (3.0, 4.5, 6.0): M.k = 0.6; M.cyl('steel', (x, 0.7, 3.5), 0.45, 0.9, 'y', 12)
+    M.crates(-7.0, 5.0, 3, 2, 2, 0.8, 'olive')
+    for x in (-2.0, -0.5): M.k = 1.0; M.cyl('water', (x, 1.1, 5.0), 0.7, 2.2, 'y', 14)
+    return [('hull', M, None)]
+
+def b_chemplant(seed=50):
+    M = B(seed); L, W = 24, 20
+    M.pad(L, W, 'concrete', 0.08).wall_ring(L, W, 6.0)
+    # spheres on legs, reactor columns, a pipe rack, a stack; warning paint
+    for (x, z, r) in ((-6.0, -4.5, 2.2), (-6.0, 1.0, 2.2)):
+        a = np.linspace(0, 2 * np.pi, 16, endpoint=False); ph = np.linspace(-np.pi / 2, np.pi / 2, 9)
+        M.k = 1.0; M.hull('chem', [(x + r * np.cos(p) * np.cos(t), 3.2 + r * np.sin(p), z + r * np.cos(p) * np.sin(t)) for p in ph for t in a])
+        for t in a[::4]: M.strut('steel', np.array((x + r * 0.8 * np.cos(t), 0, z + r * 0.8 * np.sin(t))), np.array((x + r * 0.8 * np.cos(t), 2.6, z + r * 0.8 * np.sin(t))), 0.1)
+    for (x, z, h) in ((0.0, -5.0, 9.0), (2.0, -4.0, 7.0)):
+        M.k = 1.0; M.cyl('chem', (x, h / 2, z), 0.8, h, 'y', 14)
+        for y in np.arange(1.5, h, 2.0): M.k = 0.8; M.cyl('warn', (x, y, z), 0.85, 0.15, 'y', 14)
+    for x in np.arange(-3.0, 8.5, 2.0): M.strut('steel', np.array((x, 0, 0.5)), np.array((x, 3.2, 0.5)), 0.08)
+    for y, mat in ((3.2, 'metal'), (2.7, 'warn')): M.k = 1.0; M.cyl(mat, (2.5, y, 0.5), 0.15, 11.5, 'x', 8)
+    M.k = 0.8; M.cyl('concrete', (7.0, 6.0, -6.0), 0.5, 12.0, 'y', 10)
+    hut(M, 6.0, 5.0, 4.0, 3.0, 2.6); M.barrels(-8.0, 6.5, 5, 'warn')
+    return [('hull', M, None)]
+
+def b_lab(seed=51):  # (the neutral electronics lab: a low white block, dishes and antennas on its roof, a fenced yard)
+    M = B(seed); L, W = 22, 18
+    M.pad(L, W, 'concrete', 0.08)
+    M.block('white', (-2.0, 2.4, -1.0), (12.0, 4.8, 9.0), 0.04); M.k = 0.9; M.box('concrete', (-2.0, 4.95, -1.0), (12.3, 0.3, 9.3))
+    for y in (1.6, 3.6): M.windows(-7.0, 3.0, y, 3.5, 5, 1.1, 0.9, 1)
+    for (x, z, r) in ((-5.0, -3.0, 1.4), (0.5, -3.5, 1.0)):
+        M.k = 1.0; M.strut('metal', np.array((x, 5.1, z)), np.array((x, 6.3, z)), 0.1); M.cyl('white', (x, 6.6, z), r, 0.3, 'y', 18, r2=r * 0.3, tilt=0.6)
+    M.strut('metal', np.array((2.5, 5.1, 1.5)), np.array((2.5, 10.0, 1.5)), 0.06)
+    for k in range(6): M.k = 0.9; M.box('glass', (-6.0 + k * 1.6, 5.15, 2.0), (1.3, 0.06, 2.0), tilt=0.3)   # solar panels
+    for x in np.arange(-10.0, 10.5, 1.2): M.strut('metal', np.array((x, 0, 8.4)), np.array((x, 2.0, 8.4)), 0.03)
+    M.strut('metal', np.array((-10.0, 1.9, 8.4)), np.array((10.0, 1.9, 8.4)), 0.03)
+    M.car(7.5, 4.5, 0.0, 4.6, 2.0, 'white')
+    return [('hull', M, None)]
+
 KINDS = {'b_hq': b_hq, 'b_decoy': lambda: b_hq(1), 'b_fhq': b_fhq, 'b_tent': b_tent, 'b_atpost': b_atpost, 'b_aapost': b_aapost,
          'b_clinic': b_clinic, 'b_commandopost': b_commandopost, 'b_tankshop': b_tankshop, 'b_jeepshop': b_jeepshop,
          'b_jeepat': b_jeepat, 'b_jeepaa': b_jeepaa, 'b_garage': b_garage, 'b_depot': b_depot,
@@ -790,7 +1015,9 @@ KINDS = {'b_hq': b_hq, 'b_decoy': lambda: b_hq(1), 'b_fhq': b_fhq, 'b_tent': b_t
          'b_fuelst': b_fuelst, 'b_waterst': b_waterst, 'b_howshop': b_howshop, 'b_mlrsshop': b_mlrsshop, 'b_ssmshop': b_ssmshop,
          'b_arrowsite': b_arrowsite, 'b_domesite': b_domesite,
          'b_radar': b_radar, 'b_power': b_power, 'b_fuel': b_fuel, 'b_supply': b_supply, 'b_hospital': b_hospital,
-         'b_motorpool': b_motorpool, 'b_tower': b_tower, 'b_antenna': b_antenna, 'b_bunker': b_bunker}
+         'b_motorpool': b_motorpool, 'b_tower': b_tower, 'b_antenna': b_antenna, 'b_bunker': b_bunker,
+         'b_oilwell': b_oilwell, 'b_ironmine': b_ironmine, 'b_quarry': b_quarry, 'b_refinery': b_refinery, 'b_steelmill': b_steelmill, 'b_concrete': b_concrete,
+         'b_bauxmine': b_bauxmine, 'b_smelter': b_smelter, 'b_farm': b_farm, 'b_kitchen': b_kitchen, 'b_chemplant': b_chemplant, 'b_lab': b_lab}
 
 if __name__ == '__main__':
     for k in (['b_' + a.removeprefix('b_') for a in sys.argv[1:]] or KINDS):

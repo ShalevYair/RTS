@@ -146,6 +146,7 @@ const scanEvery = (s, u) => sameRules(s, u.side, 'scan') ? (s.lite ? 2 * SCAN_EV
 function updateUnit(s, u, sq, dt) {
   const T = TYPES[u.type];
   u.cd = Math.max(0, u.cd - dt); u.engaged = false; u.atDrone = false;
+  if (HAUL[u.type] && s.econ) { haulTick(s, u, sq, dt); return; } // (an oil tanker: its own round, well to refinery — econ.js)
   if (cargoOn(s, u.type) && truckTick(s, u, sq, dt)) return; // (a supply truck empty: to its building and back — fuel.js)
   const fueling = fuelUnit(s, u, sq, dt); // (low on fuel: off to fill up — planes: to a tanker, or back to the airfield, below)
   if (fueling && T.air) return; // (by a tanker, filling up)

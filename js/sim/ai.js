@@ -40,22 +40,29 @@ function aiBuild(s, side, D, who) {
   }
   const asked = who && s.askMake && s.askMake[pk]; // (what the partner was asked for and has none of: what makes it, first — asks.js)
   if (s.logi && may('depot')) aiSupply(s, side, asked, who);
+  if (s.econ && may('refinery')) aiEcon(s, side); // (the supply chain: wells and a refinery — econ.js)
   // (the partner: a fuel station and a water point before anything else — the player's vehicles and soldiers need them)
   if (who === 'mate' && s.logi && may('fuelst') && (!alive(s, side, ['fuelst']).length || !alive(s, side, ['waterst']).length)) return;
   if (buildCount(s, side, who) >= buildLimit(s, side)) return;
   if (!D.smart && s.t - (s.lastBuild[pk] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
-  let kind = asked && !LOGI_KINDS.includes(asked) && buildable(s, asked) ? asked : null, counter = false;
+  let kind = asked && !LOGI_KINDS.includes(asked) && buildable(s, asked, side) ? asked : null, counter = false;
   if (!kind) { kind = D.smart && !s.noCounter && s.style[side] === 'steady' ? aiCounter(s, side, may) : null; counter = !!kind; } // (what it has seen of the enemy first: an answer to it — the regular commander, who mixes; the others keep to their arm)
   const base = D.traits && s.style[side] === 'steady' && !s.level ? AI_PLAN_HARD : AI_STYLES[s.style[side]].plan;
   const plan = who ? byTurns(base.filter(may)) : base; // (hard, regular: everything; arms: what of it is this player's — the plan of the difficulty, as one player would, its arms in turn)
-  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[((s.plan[pk] || 0) + i) % plan.length]; if (buildable(s, k)) { kind = k; s.plan[pk] = (s.plan[pk] || 0) + i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
+  // (the supply chain: the next in the plan waits for what it needs — up to AI_NEED_WAIT s —, not skipped: skipped, the
+  // rest filled the allowance and the tank workshop never had room — econ.js)
+  if (!kind && s.econ) { const k = plan[(s.plan[pk] || 0) % plan.length], w = s.planWait || (s.planWait = {});
+    if (buildable(s, k) && needsOf(s, side, k)) { if (w[pk] == null || w[pk].k !== k) w[pk] = { k, t: s.t }; if (s.t - w[pk].t < AI_NEED_WAIT) return; } else w[pk] = null; }
+  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[((s.plan[pk] || 0) + i) % plan.length]; if (buildable(s, k, side)) { kind = k; s.plan[pk] = (s.plan[pk] || 0) + i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
   const anchors = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq').sort((a, b) => dist(a, goal) - dist(b, goal));
-  for (const a of anchors) for (let i = 0; i < 24; i++) {
+  // (the supply chain's plants and mines take room round the HQ: farther out too, and round the side's other buildings)
+  const more = s.econ && anchors.length ? s.nodes.filter(n => n.side === side && n.hp > 0 && n.kind !== 'hq' && n.kind !== 'fhq' && n.kind !== 'drone' && n.kind !== 'decoy').slice(-8) : [];
+  for (const a of [...anchors, ...more]) for (let i = 0; i < (s.econ ? 36 : 24); i++) {
     // (toward the enemy first; then all round it, a little farther — a crowded front left no room, and it stood stuck)
-    const wide = i >= 12, ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * (wide ? 2 * Math.PI : 2.4), r = roomPair(s, a.kind, kind) + 5 + s.rand() * (wide ? 180 : 110);
+    const wide = i >= 12, ang = Math.atan2(goal.y - a.y, goal.x - a.x) + (s.rand() - 0.5) * (wide ? 2 * Math.PI : 2.4), r = roomPair(s, a.kind, kind) + 5 + s.rand() * (wide ? (i >= 24 ? 320 : 180) : 110);
     const x = a.x + Math.cos(ang) * r, y = a.y + Math.sin(ang) * r;
     if (build(s, side, kind, x, y)) { if (kind === asked) { delete s.askMake[pk]; s.lastBuild[pk] = s.t; return; } if (counter) { s.aiCounter[side] = { kind, t: s.t }; (s.aiCounterLog = s.aiCounterLog || []).push({ side, kind, t: Math.round(s.t) }); } else s.plan[pk] = (s.plan[pk] || 0) + 1; s.lastBuild[pk] = s.t; (s.planMiss = s.planMiss || {})[side] = 0; return; }
   }
@@ -63,12 +70,12 @@ function aiBuild(s, side, D, who) {
   if (!anchors.length) return; // (nowhere to build from yet: not a miss)
   if (counter) { s.aiCounter[side] = { kind, t: s.t }; return; } // (no room for the answer: the plan, and try it again later)
   s.planMiss = s.planMiss || {}; s.planMiss[pk] = (s.planMiss[pk] || 0) + 1;
-  if (s.planMiss[pk] >= 3) { s.planMiss[pk] = 0; s.plan[pk] = (s.plan[pk] || 0) + 1; }
+  if (s.planMiss[pk] >= (s.econ ? 6 : 3)) { s.planMiss[pk] = 0; s.plan[pk] = (s.plan[pk] || 0) + 1; }
 }
 
 // what this game lets a side build of kind (tutorial levels: only some; fuel only where there's fuel; s.logi: the supply
 // buildings apart — aiSupply)
-const buildable = (s, k) => (!s.builds || s.builds.includes(k)) && (k !== 'fuelst' || s.fuel) && (!STRUCTS[k].fuel || s.fuel) && !(s.logi && LOGI_KINDS.includes(k));
+const buildable = (s, k, side) => !(side && needsOf(s, side, k)) && (!s.builds || s.builds.includes(k)) && (k !== 'fuelst' || s.fuel) && (!STRUCTS[k].fuel || s.fuel) && !(s.logi && LOGI_KINDS.includes(k));
 // building by what it sees (normal and hard; no cheating — only what it has made out, by type, over the last
 // AI_SEEN_T s): for each kind of enemy force (AI_THREATS) how many it has seen against how many of ours answer it; the
 // worst gap past AI_COUNTER_MIN units, and our answer under AI_COUNTER_K of theirs — one of its answering buildings
@@ -84,7 +91,7 @@ function aiCounter(s, side, may = () => true) {
   let worst = null, gap = 0;
   for (const c in theirs) { const g = theirs[c] - (ours[c] || 0) / AI_COUNTER_K; if (theirs[c] >= AI_COUNTER_MIN && g > gap) { gap = g; worst = c; } }
   if (!worst) return null;
-  const opts = AI_THREATS[worst].build.filter(k => may(k) && buildable(s, k) && (!STRUCTS[k].max || alive(s, side, [k]).length < STRUCTS[k].max));
+  const opts = AI_THREATS[worst].build.filter(k => may(k) && buildable(s, k, side) && (!STRUCTS[k].max || alive(s, side, [k]).length < STRUCTS[k].max));
   if (!opts.length) return null;
   const n = (s.aiCounterN = s.aiCounterN || {})[side + worst] = ((s.aiCounterN[side + worst] || 0) + 1);
   return opts[n % opts.length];
@@ -133,7 +140,10 @@ function aiForward(s, side, mine, setOrder) {
   spot = { x: Math.round(clamp(spot.x, 40, s.W - 40)), y: Math.round(clamp(spot.y, 40, s.H - 40)) };
   // (the front where we can build already — the squads waiting by the rally point —: a hill just past the edge of our
   // control, as before; without it, a side whose squads waited at home never set one up, and games dragged on)
-  const atFront = !(s.oldPlace === true || s.oldPlace === 'fhq') && !(quality(s, side, spot, true) >= BUILD_MIN_Q || Math.abs(spot.x - foe.x) < NODES.hq.r1 || threatAt(s, side, spot, AI_NEAR));
+  // (the supply chain: toward a free oil field first, while the side has fewer than AI_OIL_WELLS wells — econ.js)
+  const oil = alive(s, side, MINES).length < AI_MINES && aiDepSpot(s, side);
+  if (oil) spot = oil;
+  const atFront = !!oil || !(s.oldPlace === true || s.oldPlace === 'fhq') && !(quality(s, side, spot, true) >= BUILD_MIN_Q || Math.abs(spot.x - foe.x) < NODES.hq.r1 || threatAt(s, side, spot, AI_NEAR));
   const nodes = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq');
   const spots = atFront ? [spot] : s.hills.filter(h => quality(s, side, h, true) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
     nodes.some(n => dist(n, h) < nodeSpec(n.kind).r1 + AI_FHQ_REACH) && !threatAt(s, side, h, AI_NEAR));
@@ -432,6 +442,7 @@ function think(s, side, level, who) {
     if (raid.has(sq.id) || sq.boarding || sq.aboard) continue; // (a raid: the helicopter and its commandos — aiLift)
     if (s.aiFhq[side] && s.aiFhq[side].sq === sq.id) continue; // on its way to set up a forward HQ
     // support: bulldozers go where their sites are (on their own); signals trucks stay a little behind the squads
+    if (HAUL[sq.type]) continue; // (oil tankers: their own round — econ.js)
     if (TYPES[sq.type].support) { if (sq.type === 'radio') { const p = crowdStation(s, sq, team, radios++); setOrder(sq, 'hold', p.x, p.y); } continue; }
     if (sq.type === 'lift') { const h = homeOf(s, sq), off = (h.kind && STRUCTS[h.kind] ? STRUCTS[h.kind].r : 50) + 45; setOrder(sq, 'hold', Math.round(h.x), Math.round(h.y + (h.y < s.H / 2 ? off : -off))); continue; } // (a transport helicopter not on a raid: waits at home, beside its pad / the HQ, toward the middle — over it, the commandos couldn't reach it — aiLift)
     if (sq.type === 'tanker') { const p = tankerStation(s, sq, foes); setOrder(sq, 'hold', p.x, p.y); continue; }

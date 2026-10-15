@@ -17,6 +17,9 @@ MATS = {'body': [0.40, 0.40, 0.31], 'dark': [0.09, 0.09, 0.085], 'metal': [0.42,
         # (buildings)
         'concrete': [0.64, 0.62, 0.57], 'sand': [0.70, 0.61, 0.45], 'canvas': [0.43, 0.43, 0.30], 'tarp': [0.27, 0.28, 0.18], 'wood': [0.47, 0.35, 0.23],
         'olive': [0.33, 0.36, 0.24], 'asphalt': [0.22, 0.22, 0.21], 'red': [0.72, 0.12, 0.10], 'net': [0.30, 0.34, 0.21],
+        # (the supply chain: crude oil, iron ore, lime / cement, steel)
+        'oil': [0.035, 0.032, 0.03], 'ore': [0.40, 0.19, 0.11], 'lime': [0.82, 0.80, 0.73], 'steel': [0.30, 0.31, 0.33],
+        'bauxite': [0.62, 0.32, 0.18], 'grain': [0.80, 0.66, 0.30], 'crop': [0.42, 0.50, 0.20], 'chem': [0.78, 0.78, 0.74],
         # (the cargo's sign painted on a truck: a blue drop — water, an amber drop — fuel, a missile — ammunition)
         'signwater': [0.10, 0.42, 1.0], 'signfuel': [1.0, 0.55, 0.04], 'signammo': [0.95, 0.80, 0.10]}
 
@@ -951,9 +954,59 @@ def k_soldier(kind):
         return parts
     return make
 
+# ---- the supply chain's haulers (js/sim/econ.js): crude from the well, ore from the mine, cement from the quarry ----
+def k_oiltruck():  # a crude tanker: a black tank on the bed (oil-stained), bands, a walkway, a valve at the back
+    M, f, hw, cx0 = truck(); x0, x1 = -3.4, cx0 - 0.2; L = x1 - x0; xc = (x0 + x1) / 2; r = 1.0
+    M.k = 1.0; M.cyl('oil', (xc, 2.15, 0), r, L - 0.5, 'x', 24)
+    M.cyl('oil', (x1 - 0.12, 2.15, 0), r, 0.3, 'x', 24, r2=r * 0.7); M.cyl('oil', (x0 + 0.12, 2.15, 0), r * 0.7, 0.3, 'x', 24, r2=r)
+    for xx in np.linspace(x0 + 0.6, x1 - 0.6, 3): M.k = 1.0; M.cyl('body', (xx, 2.15, 0), r * 1.03, 0.14, 'x', 24)   # bands in the side's colour
+    M.k = 0.7; M.box('metal', (xc, 3.2, 0), (L - 0.6, 0.06, 0.7))
+    for xx in (xc - 0.8, xc + 0.8): M.k = 0.9; M.cyl('metal', (xx, 3.22, 0), 0.25, 0.12, 'y', 10)
+    M.k = 0.8; M.cyl('metal', (x0 - 0.1, 1.5, 0), 0.12, 0.4, 'x', 8); M.k = 0.7; M.box('dark', (xc, 1.2, 0), (L - 0.2, 0.2, hw * 1.7))
+    return [('hull', M, None)]
+
+def k_oretruck(load='ore'):  # a dump truck: a tipper body, sloped at the back, heaped with red-brown ore
+    M, f, hw, cx0 = truck(); x0, x1 = -3.45, cx0 - 0.2; L = x1 - x0; xc = (x0 + x1) / 2
+    M.k = 1.0; M.box('body', (xc, 1.25, 0), (L, 0.16, hw * 2))
+    for sz in (-1, 1): M.k = 0.92; M.box('body', (xc, 1.95, sz * (hw - 0.05)), (L, 1.3, 0.1))
+    M.k = 0.88; M.box('body', (x1 - 0.05, 2.2, 0), (0.1, 1.8, hw * 2)); M.box('body', (x0 + 0.05, 1.8, 0), (0.1, 1.0, hw * 2))
+    M.k = 1.0; M.box('body', (x1 + 0.35, 2.95, 0), (0.7, 0.08, hw * 2 - 0.2))                       # the guard over the cab
+    for xx in np.linspace(x0 + 0.3, x1 - 0.3, 5):
+        for sz in (-1, 1): M.k = 0.8; M.box('body', (xx, 1.95, sz * (hw + 0.02)), (0.08, 1.25, 0.05))
+    a = np.linspace(0, 2 * np.pi, 10, endpoint=False)                                                     # the load
+    M.k = 1.0; M.hull(load, [(xc + (L / 2 - 0.2) * np.cos(t), 2.3, (hw - 0.15) * np.sin(t)) for t in a] + [(xc + 0.6 * np.cos(t), 3.0, 0.5 * np.sin(t)) for t in a[::2]])
+    return [('hull', M, None)]
+
+def k_cementtruck():  # a mixer: a drum tilted up toward the back, a spiral band, the chute and hopper at the back
+    M, f, hw, cx0 = truck(); x0, x1 = -3.4, cx0 - 0.3; L = x1 - x0; xc = (x0 + x1) / 2
+    M.k = 0.7; M.box('dark', (xc, 1.2, 0), (L, 0.2, hw * 1.7))
+    M.k = 1.0; M.cyl('white', (xc + 0.2, 2.2, 0), 1.05, L * 0.55, 'x', 20, tilt=-0.18)
+    M.cyl('white', (x1 - 0.35, 2.05, 0), 0.75, 0.6, 'x', 20, r2=1.05, tilt=-0.18); M.cyl('white', (x0 + 0.55, 2.45, 0), 1.05, 0.9, 'x', 20, r2=0.45, tilt=-0.18)
+    for i, xx in enumerate(np.linspace(x0 + 0.9, x1 - 0.7, 5)): M.k = 1.0; M.cyl('body', (xx, 2.25 - (xx - xc) * 0.18, 0), 1.08, 0.12, 'x', 20, tilt=-0.18 + 0.25 * (i % 2 - 0.5))
+    M.k = 0.9; M.cyl('metal', (x0 + 0.05, 2.75, 0), 0.32, 0.4, 'y', 8, r2=0.18)                          # the hopper
+    M.strut('metal', (x0 + 0.05, 2.2, 0), (x0 - 0.7, 1.4, 0.3), 0.12)                                       # the chute
+    for sz in (-1, 1): M.strut('metal', (x1 - 0.2, 1.3, sz * 0.7), (x1 - 0.3, 2.3, sz * 0.5), 0.08); M.strut('metal', (x0 + 0.4, 1.3, sz * 0.7), (x0 + 0.5, 2.6, sz * 0.5), 0.08)
+    M.k = 1.0; M.cyl('water', (x1 + 0.1, 2.9, 0.0), 0.3, 1.2, 'z', 10)                                       # the water tank
+    return [('hull', M, None)]
+
+def k_bauxtruck(): return k_oretruck('bauxite')  # the ore dump truck, heaped with orange bauxite
+
+def k_graintruck():  # a grain truck: high slatted sides, a golden heap under a half-rolled tarp
+    M, f, hw, cx0 = truck(); x0, x1 = -3.45, cx0 - 0.2; L = x1 - x0; xc = (x0 + x1) / 2
+    M.k = 1.0; M.box('body', (xc, 1.25, 0), (L, 0.16, hw * 2))
+    for sz in (-1, 1):
+        for yy in (1.5, 1.9, 2.3): M.k = 0.85; M.box('wood', (xc, yy, sz * (hw - 0.04)), (L, 0.28, 0.07))
+    for xx in np.linspace(x0 + 0.1, x1 - 0.1, 6):
+        for sz in (-1, 1): M.k = 0.9; M.box('body', (xx, 1.9, sz * (hw + 0.01)), (0.08, 1.3, 0.06))
+    M.k = 0.88; M.box('body', (x1 - 0.05, 1.9, 0), (0.1, 1.3, hw * 2)); M.box('body', (x0 + 0.05, 1.9, 0), (0.1, 1.3, hw * 2))
+    a = np.linspace(0, 2 * np.pi, 10, endpoint=False)
+    M.k = 1.0; M.hull('grain', [(xc + (L / 2 - 0.2) * np.cos(t), 2.3, (hw - 0.15) * np.sin(t)) for t in a] + [(xc + 0.8 * np.cos(t), 2.85, 0.45 * np.sin(t)) for t in a[::2]])
+    M.k = 1.0; M.cyl('tarp', (x0 + 0.5, 2.6, 0), 0.25, hw * 2, 'z', 10)
+    return [('hull', M, None)]
+
 KINDS = {'inf': k_soldier('inf'), 'at': k_soldier('at'), 'aa': k_soldier('aa'), 'med': k_soldier('med'), 'commando': k_soldier('commando'),
          'air': k_air, 'tanker': k_tanker, 'heli': k_heli, 'gunship': k_gunship, 'lift': k_lift, 'ajeep': k_ajeep, 'tjeep': k_tjeep,
-         'truck': k_truck, 'fueltruck': lambda: k_tanktruck('tank'), 'watertruck': lambda: k_tanktruck('water'),
+         'truck': k_truck, 'oiltruck': k_oiltruck, 'oretruck': k_oretruck, 'cementtruck': k_cementtruck, 'bauxtruck': k_bauxtruck, 'graintruck': k_graintruck, 'fueltruck': lambda: k_tanktruck('tank'), 'watertruck': lambda: k_tanktruck('water'),
          'radio': k_radio, 'mech': k_mech, 'ssm': k_ssm, 'arrow': k_launcher(2, 2, 0.75), 'dome': k_launcher(3, 4, 0.6),
          'mlrs': k_mlrs, 'dozer': k_dozer, 'tank': k_tank, 'jeep': k_jeep, 'drone': k_drone}
 

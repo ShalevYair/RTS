@@ -67,7 +67,7 @@ ok(S.ssmshop.build === 180 && S.ssmshop.every === 120 && S.ssmshop.size === 1 &&
   // the HQ. Shot down AI_MISSILE_MISS times (Arrow) — it turns steady
   let s = Sim.create(311, 2200, 'normal', Sim.H * 2); Sim.extras(s); s = Sim.openField(s); s.fog = true; s.bots = ['blue', 'red']; s.style.red = 'missile';
   let far = 0, n = 0, works = 0; const shots = new Set();
-  while (!s.over && s.t < 900) {
+  while (!s.over && s.t < 1400) { // (the supply chain: the missile works stand after the concrete, steel and a fuel station — ~11 min, not ~6)
     Sim.step(s, 1 / 30);
     if (Math.abs(s.t % 30) < 1 / 30) { const hq = s.nodes.find(k => k.side === 'red' && k.kind === 'hq'); if (hq) for (const u of s.units) if (u.side === 'red' && !Sim.TYPES[u.type].care && !Sim.TYPES[u.type].air) { n++; if (Math.abs(u.x - hq.x) > 450) far++; } }
     works = Math.max(works, s.nodes.filter(k => k.side === 'red' && k.kind === 'ssmshop').length);

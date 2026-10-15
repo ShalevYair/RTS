@@ -10,7 +10,7 @@
 // where they're told — new ones to the front. Empty, a truck drives to its building, fills up there (TRUCK_REFILL s)
 // and goes back to its place (its order). Fuel stations, ammunition depots and water buildings: at most 2 of each,
 // past the building allowance; 2 trucks each (config.js).
-const needsFuel = type => !CARGO[type] && type !== 'dozer' && (TYPES[type].air || !FOOT.includes(type)); // (not the bulldozer: it builds everything — dry, out by a far site, a side stood still)
+const needsFuel = type => !CARGO[type] && !HAUL[type] && type !== 'dozer' && (TYPES[type].air || !FOOT.includes(type)); // (not the bulldozer: it builds everything — dry, out by a far site, a side stood still)
 const needsWater = type => FOOT.includes(type);
 const fuelT = type => type === 'tanker' ? TANKER_T : TYPES[type].air && !TYPES[type].hover ? FUEL_AIR : FUEL_T;
 const barrelsOf = type => FUEL_BARRELS[type] || 1;
@@ -58,15 +58,19 @@ const tankerOk = m => m.load > 0 && !m.rearm && m.fuel > 0.1;
 // goes where its squad's order says
 function truckTick(s, u, sq, dt) {
   const C = CARGO[u.type], cap = TRUCK_CAP[u.type];
-  if (u.load === undefined) u.load = cap;
+  if (u.load === undefined) u.load = takeFill(s, u.side, u.type, cap); // (the supply chain: a new truck's load out of the stock — econ.js REFILL)
   if (u.load <= 0.05) u.refill = true;
   if (!u.refill) return false;
   let st = null, bd = Infinity;
   for (const n of s.nodes) if (n.kind === C.station && n.side === u.side && n.hp > 0 && s.t >= n.ready) { const d = dist(u, n); if (d < bd) { bd = d; st = n; } }
   if (!st) return false; // (no building: it stays where it was told)
   if (bd > nodeR(st) + FUEL_R) { moveTo(s, u, st.x, st.y, 1, dt); return true; }
-  u.load = Math.min(cap, u.load + cap / TRUCK_REFILL * dt);
-  if (u.load >= cap) u.refill = false; // (full: back to its place — its order)
+  const add = Math.min(cap - u.load, cap / TRUCK_REFILL * dt);
+  const got = takeFill(s, u.side, u.type, add); u.load += got; // (the supply chain: out of the side's stock — none, it waits by its building)
+  u.dry = got < add * 0.5;
+  if (u.dry && u.side === 'blue' && s.t - ((s.dryNoteAt || {})[u.type] ?? -99) > 90) { (s.dryNoteAt = s.dryNoteAt || {})[u.type] = s.t; note(s, { fueltruck: 'אין דלק במלאי — משאיות הדלק מחכות בתחנה', watertruck: 'אין מנות קרב במלאי — המשאיות מחכות במחסן', truck: 'אין חומר נפץ או פלדה במלאי — משאיות התחמושת מחכות' }[u.type]); } // (the supply chain: say so, once in a while)
+  if (u.load >= cap - 0.01) u.load = cap;
+  if (u.load >= cap || (u.dry && u.load > cap * 0.4)) { u.refill = false; u.dry = false; } // (full — or a part when the stock ran out) // (full: back to its place — its order)
   return true;
 }
 // every tick: fuel burnt, soldiers' water, the trucks serving round them, the buildings' and HQs' slow fills
@@ -92,7 +96,7 @@ function fuelTick(s, dt) {
       u.water = Math.max(0, u.water - dt / WATER_T);
       if (!u.water) { u.hp -= THIRST * T.hp * dt; if (!u.thirstSaid && u.side === 'blue') { u.thirstSaid = true; const q = s.squads.find(q => q.id === u.squad); if (q) report(s, q, 'נגמרו המים'); } }
       else if (u.water > 0.05) u.thirstSaid = false;
-      if (s.nodes.some(n => n.kind === 'waterst' && n.side === u.side && n.hp > 0 && s.t >= n.ready && dist(n, u) <= nodeR(n) + WATER_NEAR)) u.water = Math.min(1, u.water + WATER_FILL * dt);
+      if (s.nodes.some(n => n.kind === 'waterst' && n.side === u.side && n.hp > 0 && s.t >= n.ready && dist(n, u) <= nodeR(n) + WATER_NEAR)) u.water = Math.min(1, u.water + takeFill(s, u.side, 'watertruck', Math.min(1 - u.water, WATER_FILL * dt))); // (by the rations depot: out of the stock)
     }
     if (s.logi && SUPPLY[u.type] && u.sup < 1 && hqNear(s, u)) u.sup = Math.min(1, u.sup + AMMO_HQ_RATE * dt); // (ammunition: slowly by an HQ)
   }
@@ -111,7 +115,7 @@ function fuelTick(s, dt) {
   // (the trucks: each fills what's round it, out of its load)
   for (const m of s.units) {
     const C = CARGO[m.type]; if (!C) continue;
-    if (m.load === undefined) m.load = TRUCK_CAP[m.type];
+    if (m.load === undefined) m.load = takeFill(s, m.side, m.type, TRUCK_CAP[m.type]);
     if (m.load <= 0 || m.refill) continue;
     for (const u of around(s, m.x, m.y, TRUCK_R)) {
       if (u === m || u.side !== m.side || u.hp <= 0 || !C.who(u) || dist(u, m) > TRUCK_R) continue;

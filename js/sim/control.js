@@ -57,7 +57,7 @@ function droneSupply(s, dt) {
     const D = s.drones[side];
     if (D.stock + dronesUp(s, side) >= N.max) { D.next = N.every; continue; }
     D.next -= dt;
-    if (D.next <= 0) { D.stock++; D.next = N.every; }
+    if (D.next <= 0) { if (!(s.econ && (stockOf(s, side).electronics || 0) < DRONE_KEEP + 1) && pay(s, side, DRONE_COST) === true) D.stock++; else D.next = 5; D.next = D.next <= 0 ? N.every : D.next; } // (the supply chain: a drone takes electronics — none, try again shortly)
   }
 }
 // a forward HQ is set up where the squad stands when the order reaches it (sent like any order)
@@ -73,7 +73,7 @@ const canBuildFhq = (s, sq) => !!sq && !sq.dead && fhqBuilders(s).includes(sq.ty
 // why a forward HQ can't go at (x, y): '' when it can; 'gap' on or by another building, 'bad' in a lake or off the map
 function fhqCheck(s, x, y) {
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 10 || y < 10 || x > s.W - 10 || y > s.H - 10 || lakeAt(s, { x, y }, LAKE_PAD) || groundBad(s, x, y, STRUCTS.fhq.r)) return 'bad';
-  return crowded(s, 'fhq', x, y) ? 'gap' : '';
+  return crowded(s, 'fhq', x, y) || onDeposit(s, 'fhq', x, y) ? 'gap' : ''; // (nor on an oil field: econ.js)
 }
 function buildFhq(s, squadId) {
   const sq = s.squads.find(q => q.id === squadId);
@@ -110,9 +110,10 @@ function fhqTrips(s) {
 // at: the spot it was sent to (else where the squad stands); queued: a bulldozer's site, after its other jobs
 function setUpFhq(s, sq, at, queued) {
   let p = at || { x: sq.cx, y: sq.cy };
-  if (crowded(s, 'fhq', p.x, p.y)) { // (set up where the squad stands — the computer's — on a building: the nearest free ground)
+  const bad = q => crowded(s, 'fhq', q.x, q.y) || onDeposit(s, 'fhq', q.x, q.y); // (nor on a free deposit: econ.js)
+  if (bad(p)) { // (set up where the squad stands — the computer's — on a building: the nearest free ground)
     let best = null;
-    for (let d = 20; d <= 240 && !best; d += 20) for (let a = 0; a < 2 * Math.PI && !best; a += 0.5) { const q = { x: clamp(p.x + Math.cos(a) * d, 20, s.W - 20), y: clamp(p.y + Math.sin(a) * d, 20, s.H - 20) }; if (!crowded(s, 'fhq', q.x, q.y) && !lakeAt(s, q)) best = q; }
+    for (let d = 20; d <= 240 && !best; d += 20) for (let a = 0; a < 2 * Math.PI && !best; a += 0.5) { const q = { x: clamp(p.x + Math.cos(a) * d, 20, s.W - 20), y: clamp(p.y + Math.sin(a) * d, 20, s.H - 20) }; if (!bad(q) && !lakeAt(s, q)) best = q; }
     if (best) p = best;
   }
   if (s.dozers) { const n = addStruct(s, sq.side, 'fhq', p.x, p.y); n.ready = Infinity; n.work = 0; n.need = NODES.fhq.warm; assignSite(s, sq, n, !queued); }

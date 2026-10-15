@@ -13,15 +13,16 @@ function extras(s) {
 // by the bases, POST_GAP apart.
 function makePosts(s) {
   const r = rng(s.seed ^ 0x1b873593), W = s.W, H = s.H, col = s.scale >= 4 ? 1 : 0, out = [];
-  const ok = (p, R) => p.x > R + 30 && p.x < W - R - 30 && p.y > R + 30 && p.y < H - R - 30 && !lakeAt(s, p, R + LAKE_PAD + 10) && out.every(o => dist(o, p) > POST_GAP + POSTS[o.kind].r + R);
+  const ok = (p, R, g = 1) => p.x > R + 30 && p.x < W - R - 30 && p.y > R + 30 && p.y < H - R - 30 && !lakeAt(s, p, R + LAKE_PAD + 10) && out.every(o => dist(o, p) > POST_GAP * g + POSTS[o.kind].r + R);
   const twin = p => ({ x: W - p.x, y: s.turn ? H - p.y : p.y });
   const add = (kind, p) => out.push({ id: 'p' + out.length, kind, x: Math.round(p.x), y: Math.round(p.y), side: null });
   for (const kind of Object.keys(POSTS)) {
     const P = POSTS[kind], n = P.n[col] * (s.scale >= 8 && P.n[col] > 1 ? 2 : 1), R = P.r; // (the 8× map: twice the huge one's pairs)
     if (n === 1) {
-      for (let i = 0; i < 300; i++) {
+      // (the centre line fills up — radar, power, fuel, the lab: past 300 tries, a little closer to the others)
+      for (let i = 0; i < 600; i++) {
         const mid = kind === 'radar' && i < 150, p = { x: W / 2 + (r() - 0.5) * 30, y: H * (mid ? 0.35 + r() * 0.3 : 0.1 + r() * 0.8) };
-        if (ok(p, R)) { add(kind, p); break; }
+        if (ok(p, R, i < 300 ? 1 : 0.5)) { add(kind, p); break; }
       }
       continue;
     }

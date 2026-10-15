@@ -115,7 +115,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 #power .pwbar{width:110px;height:10px;margin:0}
 #power.est .pwbar{opacity:.8}
 .pwbar.r::after{inset-inline-start:85%}
-.buildm{position:absolute;left:50%;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:6px;padding:8px;border-radius:12px;max-width:calc(100% - 16px)}
+.buildm{position:absolute;left:50%;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:6px;padding:8px;border-radius:12px;max-width:calc(100% - 16px);z-index:6}
 .buildm[hidden]{display:none}
 .buildm button{display:grid;justify-items:center;gap:1px;min-width:74px;padding:5px 8px;font-size:13px}
 .buildm button span{font-size:20px;line-height:1;position:relative}
@@ -575,3 +575,5 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 #intro.mainmenu #resume[hidden]{display:none}
 #intro.mainmenu #resume:hover{background:rgb(30 41 59 / .75)}
 #intro.mainmenu #resume small{font-size:12px;opacity:.75}
+.buildm button.locked{opacity:.5;filter:grayscale(.85)}.buildm button.locked small{color:#ffc2a8}
+.stock{position:absolute;top:calc(100% + 4px);left:50%;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto;font-size:13px;font-weight:600;color:#f3efe6;text-shadow:0 1px 2px rgb(0 0 0 / .8);white-space:nowrap}.stock[hidden]{display:none}.stock span.low{color:#ff8a70}

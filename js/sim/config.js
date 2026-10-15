@@ -76,7 +76,13 @@ const TYPES = {
   truck: { name: 'משאיות תחמושת', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1,  sight: 120, r: 7, rein: 8, cost: 1, care: true },
   // fuel trucks (fuel.js): from a fuel station; they carry barrels to the front and to vehicles that ran dry
   fueltruck: { name: 'משאיות דלק', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1, sight: 120, r: 7, rein: 8, cost: 1, care: true },
-  watertruck: { name: 'משאיות מים', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1, sight: 120, r: 7, rein: 8, cost: 1, care: true },
+  watertruck: { name: 'משאיות מנות קרב', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1, sight: 120, r: 7, rein: 8, cost: 1, care: true },
+  // the supply chain (econ.js): oil tankers haul crude from a well to the refinery on their own — no orders
+  oiltruck: { name: 'מכליות נפט', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1, sight: 120, r: 7, rein: 8, cost: 1, care: true },
+  oretruck: { name: 'משאיות עפרה', hp: 100, speed: 40, range: 0, dmg: 0, cd: 1, sight: 120, r: 8, rein: 8, cost: 1, care: true },
+  cementtruck: { name: 'מערבלי מלט', hp: 100, speed: 40, range: 0, dmg: 0, cd: 1, sight: 120, r: 8, rein: 8, cost: 1, care: true },
+  bauxtruck: { name: 'משאיות בוקסיט', hp: 100, speed: 40, range: 0, dmg: 0, cd: 1, sight: 120, r: 8, rein: 8, cost: 1, care: true },
+  graintruck: { name: 'משאיות תבואה', hp: 90, speed: 45, range: 0, dmg: 0, cd: 1, sight: 120, r: 7, rein: 8, cost: 1, care: true },
   // support (the full game): a bulldozer builds the HQ, forward HQs and every building (only while it stands by the
   // site); a signals truck sees far and gives control around it (NODES.radio). Neither fights; both come from the HQ.
   dozer: { name: 'טרקטורים', hp: 120, speed: 30, range: 0, dmg: 0, cd: 1, sight: 110, r: 9, rein: 8, cost: 1, care: true, support: true },
@@ -203,20 +209,33 @@ const STRUCTS = {
   depot:    { name: 'מחסן תחמושת',  icon: '📦', hp: 400,  value: 3, unit: 'truck', build: 25, every: 30, size: 2, r: 28, cat: 'service' },
   // the fuel station (fuel.js): barrels into its yard, and up to `keep` fuel trucks
   fuelst:   { name: 'תחנת דלק', icon: '⛽', hp: 400, value: 3, unit: 'fueltruck', build: 40, every: 30, size: 1, keep: 4, r: 28, cat: 'service' },
-  waterst:  { name: 'מתקן מים', icon: '💧', hp: 400, value: 3, unit: 'watertruck', build: 40, every: 120, size: 2, keep: 2, max: 2, free: true, first: true, r: 28, cat: 'service' }, // (shore: on a lake's bank)
+  waterst:  { name: 'מחסן מנות קרב', icon: '💧', hp: 400, value: 3, unit: 'watertruck', build: 40, every: 120, size: 2, keep: 2, max: 2, free: true, first: true, r: 28, cat: 'service' }, // (shore: on a lake's bank)
+  // the supply chain (econ.js; the full game, s.econ): an oil well on an oil field sends out tankers, and the refinery
+  // makes the side's fuel out of what they unload. Both past the building allowance (free)
+  oilwell:  { name: 'קידוח נפט', icon: '🛢️', hp: 350, value: 2, unit: 'oiltruck', build: 20, every: 90, size: 1, keep: 2, first: true, free: true, max: 12, r: 24, cat: 'supply', econ: true, deposit: 'oil' },
+  refinery: { name: 'בית זיקוק', icon: '🏭', hp: 600, value: 4, build: 35, free: true, max: 2, r: 34, cat: 'supply', econ: true },
+  ironmine: { name: 'מכרה ברזל', icon: '⛏️', hp: 400, value: 2, unit: 'oretruck', build: 20, every: 90, size: 1, keep: 2, first: true, free: true, max: 12, r: 26, cat: 'supply', econ: true, deposit: 'iron' },
+  steelmill: { name: 'מפעל פלדה', icon: '🏭', hp: 650, value: 4, build: 35, free: true, max: 2, r: 34, cat: 'supply', econ: true },
+  quarry:   { name: 'מחצבת מלט', icon: '🪨', hp: 400, value: 2, unit: 'cementtruck', build: 15, every: 90, size: 1, keep: 2, first: true, free: true, max: 12, r: 26, cat: 'supply', econ: true, deposit: 'lime' },
+  bauxmine: { name: 'מכרה בוקסיט', icon: '⛏️', hp: 400, value: 2, unit: 'bauxtruck', build: 25, every: 90, size: 1, keep: 2, first: true, free: true, max: 12, r: 26, cat: 'supply', econ: true, deposit: 'bauxite' },
+  smelter:  { name: 'מפעל אלומיניום', icon: '🏭', hp: 650, value: 4, build: 45, free: true, max: 2, r: 34, cat: 'supply', econ: true },
+  farm:     { name: 'חווה', icon: '🌾', hp: 300, value: 1, unit: 'graintruck', build: 15, every: 90, size: 1, keep: 2, first: true, free: true, max: 12, r: 26, cat: 'supply', econ: true, deposit: 'farm' },
+  kitchen:  { name: 'מטבח שדה', icon: '🍲', hp: 450, value: 3, build: 25, free: true, max: 2, r: 26, cat: 'supply', econ: true },
+  chemplant: { name: 'מפעל כימיקלים', icon: '🧪', hp: 550, value: 3, build: 40, free: true, max: 2, r: 28, cat: 'supply', econ: true },
+  concrete: { name: 'מפעל בטון', icon: '🏗️', hp: 550, value: 3, build: 25, free: true, max: 2, r: 30, cat: 'supply', econ: true },
   // a fake HQ: cheap, no slot, draws the enemy (under fog it passes for the HQ until made out closely)
   decoy:    { name: 'מפקדה מזויפת', icon: '🏰', hp: 250,  value: 0.5, build: 15, badge: '🎭', r: 48, cat: 'service' },
 };
 const PRODUCERS = Object.keys(STRUCTS).filter(k => STRUCTS[k].unit);
 // what the player can build: the producers and the fake HQ (at most DECOY_MAX standing, outside the slots; full game only)
-const BUILDABLE = [...PRODUCERS, 'decoy'], DECOY_MAX = 2;
+const BUILDABLE = [...PRODUCERS, 'decoy', 'refinery', 'steelmill', 'concrete', 'smelter', 'kitchen', 'chemplant'], DECOY_MAX = 2;
 // arms (DESIGN.md, "זרועות"): each player commands some of the four, the computer partner the rest (Sim.setArms);
 // which arm each building, and the unit it makes, is of. Not in it — the HQ, the forward HQs, the command tanks — both's
 const ARMS = {
   armor:    { name: 'שריון', icon: '🛡️', builds: ['tankshop', 'jeepshop', 'jeepat', 'jeepaa', 'garage'] },
   infantry: { name: 'חיל רגלים', icon: '🪖', builds: ['tent', 'atpost', 'aapost', 'commandopost', 'clinic'] },
   air:      { name: 'חיל האוויר', icon: '✈️', builds: ['airfield', 'tankerbase', 'heliatk', 'heligun', 'helilift', 'domesite', 'arrowsite'] },
-  guns:     { name: 'תותחנים והנדסה', icon: '💥', builds: ['howshop', 'mlrsshop', 'ssmshop', 'depot', 'fuelst', 'waterst', 'decoy'], also: ['dozer', 'radio', 'drone'] }, // (also: the bulldozers and signals trucks the HQ sends, the drones, the roads)
+  guns:     { name: 'תותחנים והנדסה', icon: '💥', builds: ['howshop', 'mlrsshop', 'ssmshop', 'depot', 'fuelst', 'waterst', 'decoy', 'oilwell', 'refinery', 'ironmine', 'steelmill', 'quarry', 'concrete', 'bauxmine', 'smelter', 'farm', 'kitchen', 'chemplant'], also: ['dozer', 'radio', 'drone'] }, // (also: the bulldozers and signals trucks the HQ sends, the drones, the roads)
 };
 const ARM_OF = {};
 for (const a in ARMS) for (const k of [...ARMS[a].builds, ...(ARMS[a].also || [])]) { ARM_OF[k] = a; if (STRUCTS[k] && STRUCTS[k].unit) ARM_OF[STRUCTS[k].unit] = a; }
@@ -231,7 +250,8 @@ const BUILD_ROOM = 1.66, roomOf = (s, k) => (STRUCTS[k] || STRUCTS.tent).r * (s.
 // is 2.4r across) and, round the bigger, free ground BUILD_FREE of its size: a base, not a crowded town. The ring of
 // BUILD_ROOM left a building next to a big one only ~0.3 of its size away)
 const BUILD_HALF = 1.2, BUILD_FREE = 0.5;
-const roomPair = (s, a, b) => { if (!s.dozers) return roomOf(s, a) + roomOf(s, b); const ra = (STRUCTS[a] || STRUCTS.tent).r, rb = (STRUCTS[b] || STRUCTS.tent).r; return BUILD_HALF * (ra + rb) + BUILD_FREE * 2 * BUILD_HALF * Math.max(ra, rb); };
+const roomPair = (s, a, b) => { if (!s.dozers) return roomOf(s, a) + roomOf(s, b); const ra = (STRUCTS[a] || STRUCTS.tent).r, rb = (STRUCTS[b] || STRUCTS.tent).r; if (STRUCTS[a] && STRUCTS[b] && STRUCTS[a].econ && STRUCTS[b].econ) return BUILD_HALF * (ra + rb) + 34; return BUILD_HALF * (ra + rb) + BUILD_FREE * 2 * BUILD_HALF * Math.max(ra, rb); };
+// (the supply chain's mines and plants are packed close — an industrial yard: with the free ground round each, they took the base; still a bulldozer's way between two — at +10 one stood wedged for good)
 const BUILD_MIN_Q = 0.5, BUILD_BASE = 2, BUILD_PER_NODE = 2, BUILD_GAP = 12, STRUCT_SIGHT = 240;
 // nothing drives through a building: ground units are kept its STRUCTS r from its centre.
 // Units keep UNIT_GAP between them. A tank that runs into enemy soldiers (FOOT) crushes them, CRUSH_DPS a second.
@@ -324,7 +344,7 @@ const SUPPORT_BACK = 50;
 // (together, far off: marching there in the formation — see formation; deep: the player's arrow, rows DEEP_MIN–DEEP_MAX apart)
 const MARCH_MIN = 220, MARCH_PACE = 0.9, MARCH_WAIT = 2.5, MARCH_SLOW = 0.3, DEEP_MIN = 20, DEEP_MAX = 260; // (MARCH_SLOW: the slowest pace one going together slows to, of its speed)
 // (the front: what never goes there — missile trucks fire from far behind)
-const FRONT_NOT = ['ssm', 'dozer', 'tanker'];
+const FRONT_NOT = ['ssm', 'dozer', 'tanker', 'oiltruck', 'oretruck', 'cementtruck', 'bauxtruck', 'graintruck'];
 // under fire: a fighting unit of the player's goes at the shooter, one that doesn't falls back FLEE_D toward the HQ
 // (each squad once per REACT_EVERY s)
 const TRUCK_SPREAD = 160; // (supply trucks: at least this apart where they wait — truckStation)
@@ -441,6 +461,7 @@ const POSTS = {
   tower:     { name: 'מגדל תצפית', icon: '🗼', r: 18, n: [2, 4], hill: true },
   antenna:   { name: 'אנטנת קשר',  icon: '📶', r: 18, n: [2, 4] },
   bunker:    { name: 'בונקר',      icon: '🧱', r: 20, n: [2, 4] },
+  lab:       { name: 'מעבדת אלקטרוניקה', icon: '💾', r: 26, n: [1, 1] }, // (the supply chain: its holder's electronics — econ.js)
 };
 // radar: its side's units see and shoot RADAR_K further · power station: its side's buildings produce POWER_K faster ·
 // fuel station: its side's vehicles go FUEL_K faster · supply depot / hospital / garage: within POST_R of its edge,
@@ -556,7 +577,7 @@ for (const k of ['how', 'mlrs']) {
 // the score (s.score): what a side destroyed of the enemy's — each unit by its kind (SCORE; else SCORE_UNIT), each
 // building SCORE_NODE (some their own, SCORE_NODES; half while it's still going up). Only kills: a unit lost to thirst
 // or pulled down by its own side gives nobody anything. The score doesn't decide the game — the HQ and the collapse do.
-const SCORE = { inf: 100, at: 120, aa: 120, med: 100, commando: 500, jeep: 250, ajeep: 300, tjeep: 300, tank: 500, air: 500, tanker: 400, heli: 500, gunship: 450, lift: 400, mech: 150, truck: 250, fueltruck: 250, watertruck: 250, dozer: 300, radio: 300, ssm: 400, arrow: 400, dome: 400, how: 450, mlrs: 450 };
+const SCORE = { inf: 100, at: 120, aa: 120, med: 100, commando: 500, jeep: 250, ajeep: 300, tjeep: 300, tank: 500, air: 500, tanker: 400, heli: 500, gunship: 450, lift: 400, mech: 150, truck: 250, fueltruck: 250, watertruck: 250, oiltruck: 250, oretruck: 250, cementtruck: 250, bauxtruck: 250, graintruck: 250, dozer: 300, radio: 300, ssm: 400, arrow: 400, dome: 400, how: 450, mlrs: 450 };
 const SCORE_UNIT = 100, SCORE_NODE = 1000, SCORE_NODES = { hq: 5000, fhq: 2000, decoy: 300, drone: 150 };
 // the AI builds by what it sees (ai.js aiCounter): each kind of enemy force — what it is, which of our units answer it,
 // and the buildings that make them
@@ -577,7 +598,7 @@ const ARTY_R = 2 * Math.max(...Object.values(TYPES).map(T => Math.max(T.range, T
 const ARTY_SETUP = 10, HOW_CD = 25, MLRS_CD = 45, ARTY_AREA = 50, MLRS_TANK = 0.15, HOW_NODE = 120, MLRS_NODE = 40, ARTY_FLIGHT = 2.5, ARTY_BACK = 160, MLRS_ROCKETS = 8;
 SHOT_TIME.how = SHOT_TIME.mlrs = ARTY_FLIGHT; IMPACT.how = { size: 28, life: 0.8 }; IMPACT.mlrs = { size: 14, life: 0.5 };
 SUPPLY.how = 12; SUPPLY.mlrs = 6;
-for (const k of ['fueltruck', 'watertruck']) {
+for (const k of ['fueltruck', 'watertruck', 'oiltruck', 'oretruck', 'cementtruck', 'bauxtruck', 'graintruck']) {
   for (const T of [CARER, UNIT_VALUE, MASS, FORM_ROW]) if (T.truck !== undefined) T[k] = T.truck;
   for (const a in MULT) MULT[a][k] = MULT[a].truck;
   MULT[k] = { ...MULT.truck };

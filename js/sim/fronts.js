@@ -11,7 +11,7 @@ const FRONT_DEPTH = { care: 110, radio: 150, dome: 150, truck: 170, arty: 230 };
 const FRONT_AA_R = 290, FRONT_AIR_R = 450, FRONT_AIR_BACK = 160; // (known enemy AA within this of a plane's spot: it waits back)
 // not on a front: the bulldozers (their sites), the missile and Arrow trucks (home), tankers, transport helicopters,
 // commandos (their own raids)
-const FRONT_SKIP = ['dozer', 'ssm', 'arrow', 'tanker', 'lift', 'commando'];
+const FRONT_SKIP = ['dozer', 'ssm', 'arrow', 'tanker', 'lift', 'commando', 'oiltruck', 'oretruck', 'cementtruck', 'bauxtruck', 'graintruck'];
 const FRONT_LINE_ORDER = ['tank', 'tjeep', 'at', 'jeep', 'inf', 'ajeep', 'aa']; // (the first row first)
 // what part of the army a squad is
 function frontRole(sq) {

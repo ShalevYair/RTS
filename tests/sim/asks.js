@@ -5,7 +5,7 @@ let bad = false;
 const ok = (c, m) => { if (!c) bad = true; console.log(c ? 'ok  ' : 'FAIL', m); };
 const step = (s, sec) => { for (let i = 0; i < 30 * sec; i++) Sim.step(s, 1 / 30); };
 let s = Sim.create(41, 2200, 'normal', Sim.H * 2, { singles: true }); Sim.extras(s); s = Sim.openField(s); s.fog = true;
-Sim.setArms(s, ['armor', 'infantry']); s.meBot = true;
+Sim.setArms(s, ['armor', 'infantry']); s.meBot = true; s.collapseAfter = Infinity; // (the game must last: the asks below come late)
 step(s, 600);
 const spot = { x: Math.round(s.W * 0.3), y: Math.round(s.H * 0.5) };
 const kinds = Sim.ASK_KINDS.filter(k => Sim.canAsk(s, 'blue', 'me', k));

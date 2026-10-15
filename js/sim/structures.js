@@ -31,6 +31,9 @@ function setArms(s, arms) { const a = (arms || []).filter(k => ARMS[k]); s.arms 
 // why a building can't go at (x, y): '' when it can; 'q' poor control, 'limit' no free slot, 'gap' too close, 'bad' bad input
 // (kind 'decoy': no slot, but at most DECOY_MAX of them)
 function buildCheck(s, side, x, y, kind) {
+  const S = STRUCTS[kind];
+  if (S && S.econ && !s.econ) return 'bad'; // (the supply chain: the full game only — econ.js)
+  if (S && S.deposit) { const d = freeDeposit(s, S.deposit, x, y); if (!d) return 'deposit'; x = d.x; y = d.y; } // (a well: on a free field of its kind)
   if (!Number.isFinite(x) || !Number.isFinite(y) || x < 20 || y < 20 || x > s.W - 20 || y > s.H - 20) return 'bad';
   if (s.hqPending && s.hqPending[side]) return 'nohq'; // (open field: the HQ first)
   if (STRUCTS[kind] && STRUCTS[kind].fuel && !s.fuel) return 'bad'; // (the tanker base: only where there's fuel)
@@ -38,9 +41,10 @@ function buildCheck(s, side, x, y, kind) {
   if (kind === 'decoy' ? alive(s, side, ['decoy']).length >= DECOY_MAX : !(STRUCTS[kind] && specOf(s, kind).free) && buildCount(s, side, kind) >= buildLimit(s, side)) return 'limit';
   if (quality(s, side, { x, y }, true) < BUILD_MIN_Q) return 'q'; // drones don't count
   if (lakeAt(s, { x, y }, LAKE_PAD) || groundBad(s, x, y, STRUCTS[kind] ? STRUCTS[kind].r : 20)) return 'bad';
-  if (crowded(s, kind, x, y)) return 'gap';
+  if (crowded(s, kind, x, y) || (S && onDeposit(s, kind, x, y))) return 'gap'; // (nothing else on a deposit)
   if (STRUCTS[kind] && STRUCTS[kind].shore && !onShore(s, x, y, STRUCTS[kind].r)) return 'shore'; // (a water building: on a lake's bank)
-  if (s.dozers && !dozers(s, side).length) return 'nodozer'; // (the full game: no bulldozer, no building)
+  if (s.dozers && !dozers(s, side).length) return 'nodozer';
+  if (needsOf(s, side, kind)) return 'needs'; // (the supply chain: what has to stand first — econ.js needsOf) // (the full game: no bulldozer, no building)
   return '';
 }
 // a building of this kind at (x, y) would stand on another one (footprints closer than BUILD_GAP)
@@ -48,14 +52,18 @@ const crowded = (s, kind, x, y) => s.nodes.some(n => n.kind !== 'drone' && n.hp 
 // want: the bulldozer asked to build it (else the nearest free one)
 function build(s, side, kind, x, y, want) {
   if (s.over || !BUILDABLE.includes(kind) || (s.builds && !s.builds.includes(kind)) || (kind === 'decoy' && s.level) || buildCheck(s, side, x, y, kind)) return false;
-  if (s.dozers) addSite(s, side, kind, x, y, STRUCTS[kind].build || 10, want); else addStruct(s, side, kind, x, y);
+  const d = STRUCTS[kind].deposit && freeDeposit(s, STRUCTS[kind].deposit, x, y); if (d) { x = d.x; y = d.y; } // (a well: right on its field)
+  const n = s.dozers ? addSite(s, side, kind, x, y, STRUCTS[kind].build || 10, want) : addStruct(s, side, kind, x, y);
+  if (d && n) n.dep = d.id;
   if (side === 'blue') note(s, `מתחילים לבנות ${STRUCTS[kind].name}`);
   return true;
 }
 
 // ---- support (the full game, s.dozers): bulldozers put up every building — only while one stands by the site —
 // and signals trucks see far and give control around them; the HQ sends out another of each now and then ----
+const botDozer = (s, sq) => (s.bots || []).includes(sq.side) || (sq.side === 'blue' && (s.meBot || (s.mate && armSide(s, 'blue', 'dozer') === 'mate')));
 const dozers = (s, side) => s.squads.filter(q => q.side === side && q.type === 'dozer' && !q.dead);
+const DOZER_STALL = 6;
 const isSite = n => Number.isFinite(n.work); // (a building the bulldozers put up: n.work of n.need seconds done)
 // a bulldozer's job now: the first building on its list still going up
 // (a road on the list — roads.js, ids 'r…' — is a job too, until it's all paved)
@@ -97,7 +105,8 @@ function dozerSpot(s, n) {
   const back = n.side === 'blue' ? 3 * Math.PI / 4 : Math.PI / 4, d = STRUCTS[n.kind].r + TYPES.dozer.r + 8;
   const at = a => ({ x: clamp(n.x + Math.cos(a) * d, 10, s.W - 10), y: clamp(n.y + Math.sin(a) * d, 10, s.H - 10) });
   let p = at(back);
-  for (const k of [0, 1, -1, 2, -2, 3, -3, 4]) { const q = at(back + k * Math.PI / 4); if (spotFree(s, n, q)) { p = q; break; } }
+  const ks = [0, 1, -1, 2, -2, 3, -3, 4], skip = n.dskip || 0; // (dskip: corners it couldn't get to — a post or a building in the way: the next ones round)
+  for (let i = 0; i < ks.length; i++) { const q = at(back + ks[(i + skip) % ks.length] * Math.PI / 4); if (spotFree(s, n, q)) { p = q; break; } }
   return (n.dspot = p);
 }
 // room there for the bulldozer: clear of every other building and post, and of the lakes
@@ -111,7 +120,7 @@ function dozerWork(s, dt) {
   for (const n of s.nodes) {
     if (!isSite(n) || n.hp <= 0 || s.t >= n.ready) continue;
     n.working = s.units.some(u => u.type === 'dozer' && u.side === n.side && u.still && dist(u, n) <= dozerR(n));
-    if (!n.working) continue;
+    if (!n.working || !siteConcrete(s, n, dt)) continue; // (the supply chain: only while there's concrete — econ.js)
     n.work += dt * (s.prodRate ? s.prodRate[n.side] : 1);
     if (n.work >= n.need) { n.ready = s.t; if (n.side === 'blue' && n.kind !== 'hq') note(s, `${STRUCTS[n.kind].name} מוכן`); }
   }
@@ -139,6 +148,8 @@ function dozerWork(s, dt) {
     const n = jobOf(s, sq);
     if (!n) { sq.jobAt = null; sq.idleSaid = false; continue; }
     // (stopped with work left: once it gets where it was sent, it says it's waiting)
+    // (the AI never stops a bulldozer on purpose: one sent off — to set up a forward HQ, to answer an ask — goes back to its list)
+    if (sq.paused && !sq.fhqAt && !sq.hqAt && botDozer(s, sq)) sq.paused = false;
     if (sq.paused) { if (sq.arrived && !sq.idleSaid) { sq.idleSaid = true; if (sq.side === 'blue') s.marks.push({ x: sq.cx, y: sq.cy, kind: 'dozerIdle', t: s.t, who: sq.name, id: sq.id }); } continue; }
     sq.idleSaid = false;
     if (sq.jobAt !== n.id) { goBuild(s, sq, n); continue; }
@@ -149,6 +160,10 @@ function dozerWork(s, dt) {
     if (o.type !== 'hold' || Math.hypot(w.x - p.x, w.y - p.y) > 2) { sq.paused = true; sq.jobAt = null; continue; }
     // (there, but stopped short of the site — orders are carried out roughly in the fog: the crew sees the site). Once
     // per site: pushed back by the building or others it would "arrive" again and again, several times a second
+    // (it stopped short of its corner and isn't working — "arrived" where it stalled, a post or a building in its way:
+    // after DOZER_STALL s, the next corner round. The AI's red bulldozer stood so by a bunker for ten minutes)
+    const du = s.units.find(u => u.squad === sq.id);
+    if (!n.road && sq.arrived && !n.working && du && Math.hypot(du.x - p.x, du.y - p.y) > 14 && !m) { if (sq.stallAt == null || sq.stallSite !== n.id) { sq.stallAt = s.t; sq.stallSite = n.id; } else if (s.t - sq.stallAt > DOZER_STALL) { n.dskip = (n.dskip || 0) + 1; n.dspot = null; sq.stallAt = null; goBuild(s, sq, n); continue; } } else sq.stallAt = null;
     const d = Math.hypot(sq.cx - n.x, sq.cy - n.y);
     if (!n.road && sq.arrived && !m && sq.nudged !== n.id && d > dozerR(n) - 6 && d < 140 + STRUCTS[n.kind].r) { sq.order.x = p.x; sq.order.y = p.y; sq.arrived = false; sq.nudged = n.id; }
   }
@@ -221,7 +236,7 @@ function hqCheck(s, side, x, y) {
 }
 // turn a normal opening into an open field: no HQ and no tent; a pair of command tanks by each side's edge
 function openField(s) {
-  s.fuel = true; s.water = true; s.logi = true; // (fuel, water, supply trucks: the full game — fuel.js)
+  s.fuel = true; s.water = true; s.logi = true; s.econ = true; // (fuel, water, supply trucks: the full game — fuel.js; the supply chain — econ.js)
   s.nodes = s.nodes.filter(n => n.kind !== 'hq' && n.kind !== 'tent');
   for (const q of s.squads) if (q.home && !s.nodes.some(n => n.id === q.home)) q.home = null;
   for (const side of ['blue', 'red']) {
@@ -320,6 +335,7 @@ function produceSquad(s, n, S, dt) {
   if (have >= sq.size) { n.prog = 0; return; }
   n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / everyOf(s, n.kind, S);
   if (S.first && !n.first) { n.first = true; n.prog = 1; }
+  if (n.prog >= 1 && !payUnit(s, n, S.unit, have || sq.born ? 1 : sq.size)) { n.prog = 1; return; } // (its steel first — econ.js)
   if (n.prog >= 1) {
     n.prog = 0; const k = have || sq.born ? 1 : sq.size;
     for (let i = 0; i < k; i++) { spawn(s, sq, n.x, n.y); s.stats.rein[n.side]++; }
@@ -406,6 +422,7 @@ function updateStructs(s, dt) {
     if (have >= (S.keep || BUILD_UNITS)) { n.prog = 0; continue; } // (a missile factory: one truck)
     if (S.first && !n.first) { n.first = true; n.prog = 1; } // (a supply building: its first truck at once)
     n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / everyOf(s, n.kind, S); // (a held power station: faster)
+    if (n.prog >= 1 && !payUnit(s, n, S.unit)) { n.prog = 1; continue; } // (the supply chain: its steel first — econ.js)
     if (n.prog >= 1) {
       n.prog = 0;
       const dir = n.side === 'blue' ? 1 : -1, k = 1;
