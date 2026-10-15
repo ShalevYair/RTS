@@ -108,7 +108,8 @@ const WIKI = {
       <li><kbd>1</kbd>–<kbd>9</kbd> בחירת סוג כוח · <kbd>0</kbd> כולם</li><li><kbd>A</kbd> לתקוף · <kbd>Q</kbd> להחזיק · <kbd>R</kbd> לסגת</li><li><kbd>H</kbd> המסך למפקדה · <kbd>T</kbd> טרקטור פנוי (שוב: המסך אליו)</li>
       <li><kbd>G</kbd> בנייה · <kbd>B</kbd> פיקוד קדמי · <kbd>D</kbd> רחפן · <kbd>S</kbd> שקט אלחוטי · <kbd>P</kbd> שורה / קובייה</li>
       <li><kbd>L</kbd> לקשור / לפרק קבוצה · <kbd>Ctrl</kbd>+מספר קבוצה · <kbd>F</kbd> מסך מלא · <kbd>Esc</kbd> ביטול</li>
-      <li><kbd>רווח</kbd> עצירה · <kbd>Alt</kbd>+מספר שמירת נקודה · <kbd>Shift</kbd>+מספר קפיצה אליה</li></ul>`],
+      <li><kbd>רווח</kbd> עצירה · <kbd>Alt</kbd>+מספר שמירת נקודה · <kbd>Shift</kbd>+מספר קפיצה אליה</li>
+      <li><kbd>Alt</kbd>+לחיצה על המפה: גלגל זימון — כוחות (לפי סוג) ואספקה לנקודה, שלך ושל השותף. לחיצה על סוג = שליש, הקרובים; החזקה = המספר עולה כל חצי שנייה, ושחרור שולח כמה שמוצג. נושא עם כמה סוגים (ג׳יפים, חיילים…): לחיצה פותחת אותו, החזקה = מכל הסוגים. מי שבקרב בא כשהקרב שלו נגמר (⏳).</li></ul>`],
   ],
   en: [
     ['🎯', 'The goal', `<h2>The goal</h2>
@@ -152,7 +153,8 @@ const WIKI = {
       <li><kbd>1</kbd>–<kbd>9</kbd> pick a kind · <kbd>0</kbd> all</li><li><kbd>A</kbd> attack · <kbd>Q</kbd> hold · <kbd>R</kbd> fall back</li><li><kbd>H</kbd> the camera to the HQ · <kbd>T</kbd> a free bulldozer (again: the camera to it)</li>
       <li><kbd>G</kbd> build · <kbd>B</kbd> forward HQ · <kbd>D</kbd> drone · <kbd>S</kbd> radio silence · <kbd>P</kbd> line / block</li>
       <li><kbd>L</kbd> group / ungroup · <kbd>Ctrl</kbd>+number group · <kbd>F</kbd> full screen · <kbd>Esc</kbd> cancel</li>
-      <li><kbd>Space</kbd> pause · <kbd>Alt</kbd>+number save a point · <kbd>Shift</kbd>+number jump there</li></ul>`],
+      <li><kbd>Space</kbd> pause · <kbd>Alt</kbd>+number save a point · <kbd>Shift</kbd>+number jump there</li>
+      <li><kbd>Alt</kbd>+click on the map: the summon wheel — forces (by kind) and supplies to the spot, yours and your partner’s. A click on a kind = a third, the nearest; held = the number counts up every half second, and letting go sends that many. A topic of several kinds (jeeps, soldiers…): a click opens it, held = of all its kinds. Those fighting come when their fight is over (⏳).</li></ul>`],
   ],
 };
 // the cards: every unit / building with its picture and the game's own numbers

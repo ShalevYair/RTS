@@ -524,6 +524,13 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 #askWheel{position:absolute;z-index:40;width:0;height:0;pointer-events:none}
 #askWheel button{pointer-events:auto;position:absolute;left:-19px;top:-19px;width:38px;height:38px;border:0;border-radius:50%;background:var(--frost,rgb(20 24 30 / .78));backdrop-filter:blur(6px);color:#fff;font-size:20px;line-height:38px;padding:0;cursor:pointer;box-shadow:0 2px 8px rgb(0 0 0 / .4);animation:askIn .14s ease-out both}
 #askWheel button:hover{filter:brightness(1.35);scale:1.12}
+#askWheel .sumBtn{left:-24px;top:-24px;width:48px;height:48px;display:flex;align-items:center;justify-content:center;user-select:none;touch-action:none}
+#askWheel .sumBtn img{width:40px;height:40px;pointer-events:none;-webkit-user-drag:none}
+#askWheel .sumBtn.topic{box-shadow:0 2px 8px rgb(0 0 0 / .4),inset 0 0 0 2px rgb(255 255 255 / .35)}
+#askWheel .sumBtn.hold{scale:1.18;box-shadow:0 0 0 3px #4aa3ff,0 2px 10px rgb(0 0 0 / .5)}
+#askWheel .sumN{position:absolute;right:-4px;bottom:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#1d2733;color:#fff;font:600 11px/18px var(--ui);text-align:center;pointer-events:none}
+#askWheel .sumN.on{background:#2f7de1;font-size:13px;height:20px;line-height:20px;min-width:22px}
+#askWheel .sumBack{left:-15px;top:-15px;width:30px;height:30px;font-size:20px;line-height:28px}
 @keyframes askIn{from{opacity:0;scale:.4}}
 
 /* ---- main menu, take 3: start, and under it the four arms as big tiles (two picked); the settings behind ⚙ ---- */

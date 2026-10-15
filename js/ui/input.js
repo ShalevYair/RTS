@@ -107,7 +107,7 @@ function tap(e) {
   if (hqArmed) { placeHq(x, y); return; }
   if (roadArmed) { placeRoad(x, y, e.shiftKey); return; } // (roadui.js)
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
-  if (e.altKey && s.arms) { openAskWheel(e, x, y); return; } // (arms: Alt + click — ask the partner for something here, askui.js)
+  if (e.altKey && !lvl) { openAskWheel(e, x, y); return; } // (Alt + click: the wheel — forces and supplies here, asks of the partner; askui.js)
   cardAt(x, y); // (what's under the click: its card — infocard.js; bare ground closes it)
   selPost = hitPost(x, y); // (a post clicked: the ring of where it works, until the next click — field.js)
   const hit = hitSquad(x, y);

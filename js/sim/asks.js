@@ -31,7 +31,7 @@ const siteNear = (s, side, x, y) => s.nodes.filter(n => n.side === side && n.hp 
 // a new ask from player `from` of the side; the computer partner answers the player's at once
 function ask(s, side, kind, x, y, from = 'me') {
   if (!ASK_KINDS.includes(kind) || !Number.isFinite(x) || !Number.isFinite(y)) return null;
-  s.asks = (s.asks || []).filter(a => s.t - a.t < (a.wait ? ASK_WAIT : ASK_T));
+  s.asks = (s.asks || []).filter(a => s.t - a.t < (a.wait ? ASK_WAIT : a.keep || ASK_T));
   const a = { id: s.askN = (s.askN || 0) + 1, side, from, kind, x: Math.round(x), y: Math.round(y), t: s.t, by: [], ok: false };
   s.asks.push(a);
   if (from === 'me' && s.mate && side === 'blue') answerAsk(s, a);
@@ -43,7 +43,7 @@ function ask(s, side, kind, x, y, from = 'me') {
 function answerAsk(s, a) {
   const who = a.from === 'me' ? 'mate' : 'me', p = { x: a.x, y: a.y };
   const near = l => l.sort((q, k) => Math.hypot(q.cx - a.x, q.cy - a.y) - Math.hypot(k.cx - a.x, k.cy - a.y));
-  const busy = new Set(); for (const b of s.asks) if (b !== a && s.t - b.t < ASK_T) for (const id of b.by) busy.add(id);
+  const busy = new Set(); for (const b of s.asks) if (b !== a && s.t - b.t < (b.keep || ASK_T)) for (const id of b.by) busy.add(id);
   const crews = near(askCrews(s, a.side, who, a.kind).filter(q => !busy.has(q.id)));
   const go = (q, type, x, y) => { if (order(s, q.id, type, Math.round(x), Math.round(y), true)) a.by.push(q.id); };
   if (CARGO[(ASK_BY[a.kind] || [])[0]]) {
@@ -91,7 +91,7 @@ function answerAsk(s, a) {
 // the squads on an answered ask still (think leaves them be)
 function askBusy(s, side) {
   const out = new Set();
-  for (const a of s.asks || []) if (a.side === side && s.t - a.t < ASK_T) for (const id of a.by) out.add(id);
+  for (const a of s.asks || []) if (a.side === side && s.t - a.t < (a.keep || ASK_T)) for (const id of a.by) out.add(id);
   return out;
 }
 // the computer partner asks the player (at most one of a kind every ASK_EVERY s): guarding, where its trucks, guns or
@@ -111,6 +111,35 @@ function mateAsks(s, side, mine, foes) {
     const q = mine.find(q => !TYPES[q.type].care && hot(q)), f = q && foes.find(({ k }) => Math.hypot(k.x - q.cx, k.y - q.cy) < AI_NEAR);
     if (f) put('fire', f.k.x, f.k.y);
   }
+}
+
+// ---- summoning (Alt + click, the wheel's forces and supplies): squads of the side — the player's and the partner's
+// alike — to a spot, to hold there. Those free go now, together (formation); those fighting (lastContact within
+// SUMMON_HOT s, or a unit firing) stay in their fight and go when it's over (s.summons, summonTick) — unless given
+// another order first, or after SUMMON_WAIT s. The partner's squads sent stay on it SUMMON_T s (think leaves them be:
+// an ask record, kind 'summon', askBusy) ----
+const SUMMON_HOT = 3, SUMMON_WAIT = 300, SUMMON_T = 240;
+const summonHot = (s, q) => s.t - q.lastContact < SUMMON_HOT || s.units.some(u => u.squad === q.id && u.engaged);
+function summon(s, side, ids, x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const qs = ids.map(id => s.squads.find(q => q.id === id)).filter(q => q && !q.dead && !q.aboard && q.side === side);
+  const now = qs.filter(q => !summonHot(s, q)), wait = qs.filter(q => summonHot(s, q));
+  if (now.length > 1) formation(s, now.map(q => q.id), 'hold', x, y, true); else if (now.length) order(s, now[0].id, 'hold', x, y, true);
+  s.summons = (s.summons || []).filter(w => !wait.some(q => q.id === w.id));
+  for (const q of wait) s.summons.push({ id: q.id, x: Math.round(x), y: Math.round(y), t: s.t });
+  const theirs = qs.filter(q => askWho(s, q) === 'mate').map(q => q.id);
+  if (theirs.length && s.mate) (s.asks = s.asks || []).push({ id: s.askN = (s.askN || 0) + 1, side, from: 'me', kind: 'summon', x: Math.round(x), y: Math.round(y), t: s.t, keep: SUMMON_T, by: theirs, ok: true });
+  return { now: now.map(q => q.id), wait: wait.map(q => q.id) };
+}
+// once a second: the summoned still fighting — those out of it now go (another order since: no longer summoned)
+function summonTick(s) {
+  if (!s.summons || !s.summons.length) return;
+  s.summons = s.summons.filter(w => {
+    const q = s.squads.find(k => k.id === w.id);
+    if (!q || q.dead || s.t - w.t > SUMMON_WAIT || (q.orderAt ?? -1) > w.t) return false;
+    if (summonHot(s, q)) return true;
+    order(s, q.id, 'hold', w.x, w.y, true); return false;
+  });
 }
 
 // ---- marking targets (arms, s.designate — DESIGN.md "סימון"): soldiers, commandos and drones mark what of the enemy
