@@ -174,19 +174,29 @@ function v3Screen(x, y) {
 // smoothly to each lake within V3_SHORE (cut into a hill, a lake was a pit with sheer walls — only the look: the
 // simulation keeps its heights, and changing them dragged the bot games out), and the buildings' pads (v3Pads) on top.
 // v3E — the height at any point, as shown: everything put on the ground stands on it
-const V3_SHORE = 160;
+// the bank is at least V3_SHORE wide and V3_SHORE_K × the hill's height there (so never steeper than ~2/V3_SHORE_K), and it
+// rises from the water at once and eases into the hill (q(2−q)); it was 160 wide and flat-steep-flat (smoothstep) — a
+// flat ring by the water, then a sheer jagged wall all round
+const V3_SHORE = 160, V3_SHORE_K = 3;
 function v3Heights() {
-  const E = s.elev, n = E.w * E.h, hg = new Float32Array(n), box = s.lakes.map(l => [l, Math.max(l.rx, l.ry) * 1.3 + V3_SHORE]);
+  const E = s.elev, n = E.w * E.h, hg = new Float32Array(n), far = Math.max(V3_SHORE, (HILL_LEVELS + 1) * V3_LV * V3_SHORE_K);
+  const box = s.lakes.map(l => [l, Math.max(l.rx, l.ry) * 1.3 + far]);
   for (let k = 0; k < n; k++) {
     let h = E.g[k] * V3_LV; if (!h) { hg[k] = 0; continue; }
-    const x = (k % E.w) * ELEV_CELL, y = Math.floor(k / E.w) * ELEV_CELL; let f = 1;
+    const x = (k % E.w) * ELEV_CELL, y = Math.floor(k / E.w) * ELEV_CELL, band = Math.max(V3_SHORE, h * V3_SHORE_K); let f = 1;
     for (const [l, R] of box) {
       if (Math.abs(x - l.x) >= R || Math.abs(y - l.y) >= R) continue;
-      const d = (Math.sqrt(Sim.lakeK(l, { x, y }, 4)) - 1) * Math.min(l.rx, l.ry); if (d < V3_SHORE) { const q = Math.max(0, d / V3_SHORE); f = Math.min(f, q * q * (3 - 2 * q)); }
+      const d = (v3LakeR(l, x, y, 4) - 1) * Math.min(l.rx, l.ry); if (d < band) { const q = Math.max(0, d / band); f = Math.min(f, q * (2 - q)); }
     }
     hg[k] = h * f;
   }
   V3.hg = hg; V3.hgv = hg.slice(); V3.hgOf = E;
+}
+// how far out of a lake's outline (1 = on it): as lakeK, but without its shortcut far out — past 1.5 radii it jumps
+// (d²/1.62), and the bank's slope jumped there: a fold in the ground all round each lake, half a radius out
+function v3LakeR(l, x, y, pad) {
+  const c = Math.cos(l.a), sn = Math.sin(l.a), dx = x - l.x, dy = y - l.y, u = (dx * c + dy * sn) / (l.rx + pad), v = (-dx * sn + dy * c) / (l.ry + pad);
+  return Math.hypot(u, v) / wobble(l.w, Math.atan2(v, u));
 }
 function v3E(x, y, bare) { // (bare: without the pads — what a building's own pad is worked out from)
   const E = s.elev, g = V3.hgOf === E && (bare ? V3.hg : V3.hgv); if (!g) return Sim.elevAt(s, { x, y }) * V3_LV;
@@ -288,13 +298,13 @@ function v3Paint() {
   if (R.shadeOf !== s.elev) ovPaint(); // (its shading worked out — drawTerrain would put it back otherwise)
   const keep = [bg.x0, bg.y0, bg.w, bg.h, bg.quick], shade0 = R.shade, cont0 = R.contours, none = document.createElement('canvas');
   none.width = none.height = 0;
-  bg.x0 = 0; bg.y0 = 0; bg.w = s.W; bg.h = s.H; bg.quick = false; bg.noScen = v3HasScen(); R.shade = { dark: none, lite: none }; R.contours = { cells: new Map(), n: 0 };
+  bg.x0 = 0; bg.y0 = 0; bg.w = s.W; bg.h = s.H; bg.quick = false; bg.noScen = v3HasScen(); bg.elev = { w: s.elev.w, h: s.elev.h, g: V3.hg.map(h => h / V3_LV) }; R.shade = { dark: none, lite: none }; R.contours = { cells: new Map(), n: 0 };
   try {
     g.fillStyle = colors.ground; g.fillRect(0, 0, w, h); g.setTransform(k, 0, 0, k, 0, 0);
     const grass = tilePat(g, 'grass1');
     if (grass) { g.fillStyle = grass; g.fillRect(0, 0, s.W, s.H); g.globalAlpha = GROUND_TINT; g.fillStyle = colors.ground; g.fillRect(0, 0, s.W, s.H); g.globalAlpha = 1; }
     drawTerrain(g, s.W, s.H, s.W / 2);
-  } finally { [bg.x0, bg.y0, bg.w, bg.h, bg.quick] = keep; bg.noScen = false; R.shade = shade0; R.contours = cont0; }
+  } finally { [bg.x0, bg.y0, bg.w, bg.h, bg.quick] = keep; bg.noScen = false; bg.elev = null; R.shade = shade0; R.contours = cont0; }
   return out;
 }
 // ---- the units ----

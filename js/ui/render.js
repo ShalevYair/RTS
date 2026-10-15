@@ -584,15 +584,17 @@ function drawTerrain(c, W, H, mid) {
   }
   // hills: the relief (colour by height, lit from the north-west) blends into the grass; then the contour lines,
   // every fifth a little stronger
-  const R = decor.hills, key = colors.tree + colors.ground + colors.grass2;
-  if (R.theme !== key) { R.relief = relief(s.elev); R.theme = key; }
+  // (bg.elev: the heights to colour by — the 3D picture's, v3Paint: the hills sinking to the lakes as shown; by the
+  // simulation's, a hill cut at the lake's ellipse left a hard ring of rock colour round each lake, read as a wall)
+  const R = decor.hills, EV = bg.elev || s.elev, key = colors.tree + colors.ground + colors.grass2;
+  if (R.theme !== key || R.reliefOf !== EV) { R.relief = relief(EV); R.theme = key; R.reliefOf = EV; }
   // (a new map: its shading now; a new sun: worked out over the next frames, see sunShadeTick)
   if (R.shadeOf !== s.elev) { R.shade = hillShade(s.elev); R.shadeOf = s.elev; R.sunKey = SUN.hill; R.job = null; R.done = { [SUN.hill]: R.shade }; }
   const rocky = tilePat(c, 'rocky');
   if (rocky) c.globalAlpha = RELIEF_OVER_TILES;
   drawGridPic(c, R.relief);
   c.globalAlpha = 1;
-  if (rocky && !bg.quick && !gfxLow) drawStony(c, rocky);
+  if (rocky && !bg.quick && !gfxLow) drawStony(c, rocky, EV);
   // (the light and shade over it all, the textures too)
   c.imageSmoothingEnabled = true;
   // (in the dark: no light, and the shade only faintly)

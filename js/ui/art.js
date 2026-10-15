@@ -615,8 +615,7 @@ function tilePat(c, k) {
 // stony ground over the hills: the texture where the land is high, stronger the higher (a mask from the height grid,
 // stretched smoothly like the relief), on a layer the size of the cache
 const stony = { cv: document.createElement('canvas'), mask: null, key: null };
-function drawStony(c, pat) {
-  const E = s.elev;
+function drawStony(c, pat, E = s.elev) {
   if (stony.key !== E) {
     stony.key = E; stony.mask = document.createElement('canvas'); stony.mask.width = E.w; stony.mask.height = E.h;
     const mc = stony.mask.getContext('2d'), img = mc.createImageData(E.w, E.h);
