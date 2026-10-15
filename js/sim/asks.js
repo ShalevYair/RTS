@@ -125,7 +125,8 @@ function summon(s, side, ids, x, y, icon) {
   const qs = ids.map(id => s.squads.find(q => q.id === id)).filter(q => q && !q.dead && !q.aboard && q.side === side);
   for (const q of qs) q.told = true; // (sent: a truck stays where it's summoned — playerTrucks leaves it be)
   const now = qs.filter(q => !summonHot(s, q)), wait = qs.filter(q => summonHot(s, q));
-  if (now.length > 1) formation(s, now.map(q => q.id), 'hold', x, y, true); else if (now.length) order(s, now[0].id, 'hold', x, y, true);
+  if (now.length > 1) formation(s, now.map(q => q.id), 'hold', x, y, true, undefined, undefined, { arrive: true }); else // (arrive: each straight from where it is to its place, all there at once)
+  if (now.length) order(s, now[0].id, 'hold', x, y, true);
   s.summons = (s.summons || []).filter(w => !wait.some(q => q.id === w.id));
   for (const q of wait) s.summons.push({ id: q.id, x: Math.round(x), y: Math.round(y), t: s.t });
   // (a record of it on the map, until SUMMON_T: what was summoned — a click on it calls it off, cancelAsk; the partner's

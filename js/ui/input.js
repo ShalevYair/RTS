@@ -108,6 +108,7 @@ function tap(e) {
   if (roadArmed) { placeRoad(x, y, e.shiftKey); return; } // (roadui.js)
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
   { const a = askHit(x, y); if (a) { Sim.cancelAsk(s, a.id); toast(tr('askOff'), e.clientX, e.clientY, 1500); return; } } // (a click on an ask's / a summons' mark: called off)
+  if (e.altKey && !lvl && performance.now() - wheelAt < DBL_MS && sumRepeat(x, y)) { wheelAt = 0; return; } // (Alt + double click: the last summons again, here)
   if (e.altKey && !lvl) { openAskWheel(e, x, y); return; } // (Alt + click: the wheel — forces and supplies here, asks of the partner; askui.js)
   cardAt(x, y); // (what's under the click: its card — infocard.js; bare ground closes it)
   selPost = hitPost(x, y); // (a post clicked: the ring of where it works, until the next click — field.js)

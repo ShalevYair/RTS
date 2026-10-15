@@ -109,7 +109,7 @@ const WIKI = {
       <li><kbd>G</kbd> בנייה · <kbd>B</kbd> פיקוד קדמי · <kbd>D</kbd> רחפן · <kbd>S</kbd> שקט אלחוטי · <kbd>P</kbd> שורה / קובייה</li>
       <li><kbd>L</kbd> לקשור / לפרק קבוצה · <kbd>Ctrl</kbd>+מספר קבוצה · <kbd>F</kbd> מסך מלא · <kbd>Esc</kbd> ביטול</li>
       <li><kbd>רווח</kbd> עצירה · <kbd>Alt</kbd>+מספר שמירת נקודה · <kbd>Shift</kbd>+מספר קפיצה אליה</li>
-      <li><kbd>Alt</kbd>+לחיצה על המפה (או לחיצה שמאלית ארוכה כשלא נבחר כלום): גלגל זימון — כוחות (לפי סוג) ואספקה לנקודה, שלך ושל השותף. לחיצה על סוג = שליש, הקרובים; החזקה = המספר עולה כל חצי שנייה, ושחרור שולח כמה שמוצג. נושא עם כמה סוגים (ג׳יפים, חיילים…): לחיצה פותחת אותו, החזקה = מכל הסוגים. מי שבקרב בא כשהקרב שלו נגמר (⏳).</li></ul>`],
+      <li><kbd>Alt</kbd>+לחיצה על המפה (או לחיצה שמאלית ארוכה כשלא נבחר כלום): גלגל זימון — כוחות (לפי סוג) ואספקה לנקודה, שלך ושל השותף. לחיצה על סוג = שליש, הקרובים; החזקה = המספר עולה כל חצי שנייה, ושחרור שולח כמה שמוצג. נושא עם כמה סוגים (ג׳יפים, חיילים…): לחיצה פותחת אותו, החזקה = מכל הסוגים. מי שבקרב בא כשהקרב שלו נגמר (⏳). העכבר על סוג = מי שיבוא מואר על המפה, ומתחת — בעוד כמה זמן. כולם מגיעים יחד. 👁 עיניים = משאית קשר, ג׳יפ סיור ורחפן; ✚ טיפול = חובש, מכונאי ומשאית מכל אספקה. <kbd>Alt</kbd>+לחיצה כפולה = הזימון האחרון שוב, בנקודה החדשה.</li></ul>`],
   ],
   en: [
     ['🎯', 'The goal', `<h2>The goal</h2>
@@ -154,7 +154,7 @@ const WIKI = {
       <li><kbd>G</kbd> build · <kbd>B</kbd> forward HQ · <kbd>D</kbd> drone · <kbd>S</kbd> radio silence · <kbd>P</kbd> line / block</li>
       <li><kbd>L</kbd> group / ungroup · <kbd>Ctrl</kbd>+number group · <kbd>F</kbd> full screen · <kbd>Esc</kbd> cancel</li>
       <li><kbd>Space</kbd> pause · <kbd>Alt</kbd>+number save a point · <kbd>Shift</kbd>+number jump there</li>
-      <li><kbd>Alt</kbd>+click on the map (or a long left press with nothing picked): the summon wheel — forces (by kind) and supplies to the spot, yours and your partner’s. A click on a kind = a third, the nearest; held = the number counts up every half second, and letting go sends that many. A topic of several kinds (jeeps, soldiers…): a click opens it, held = of all its kinds. Those fighting come when their fight is over (⏳).</li></ul>`],
+      <li><kbd>Alt</kbd>+click on the map (or a long left press with nothing picked): the summon wheel — forces (by kind) and supplies to the spot, yours and your partner’s. A click on a kind = a third, the nearest; held = the number counts up every half second, and letting go sends that many. A topic of several kinds (jeeps, soldiers…): a click opens it, held = of all its kinds. Those fighting come when their fight is over (⏳). The mouse on a kind = those who'd come lit on the map, and under it — how long. They all arrive together. 👁 Eyes = a signals truck, a recon jeep and a drone; ✚ Care = a medic, a mechanic and a truck of each supply. <kbd>Alt</kbd>+double click = the last summons again, at the new spot.</li></ul>`],
   ],
 };
 // the cards: every unit / building with its picture and the game's own numbers

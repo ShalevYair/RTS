@@ -21,11 +21,13 @@ const SUM_TREE = [
     { k: 'radio', types: ['radio'] },
   ] },
   { k: 'supply', pic: 'fueltruck', kids: [{ k: 'fuel', pic: 'fueltruck', mark: 'fuel', types: ['fueltruck'], ask: 'fuel' }, { k: 'ammo', pic: 'truck', mark: 'shell', types: ['truck'], ask: 'ammo' }, { k: 'water', pic: 'watertruck', mark: 'water', types: ['watertruck'], ask: 'water' }] },
+  { k: 'eyes', pic: 'jeep', mark: 'eye', each: ['radio', 'jeep'], drone: true }, // (eyes: a signals truck, a recon jeep and a drone — the nearest of each)
+  { k: 'care', pic: 'med', mark: 'cross', each: ['med', 'mech', 'fueltruck', 'truck', 'watertruck'] }, // (care: a medic, a mechanic, and a truck of each supply)
   { k: 'fire', ask: 'fire', pic: 'mlrs', mark: 'target' },
   { k: 'build', ask: 'build', pic: 'dozer' },
 ];
 const SUM_HOLD_MS = 450, SUM_STEP_MS = 500, SUM_GAP = 60; // (SUM_GAP: px between the buttons round the ring)
-let askSeen = 0, wheel = null;
+let askSeen = 0, wheel = null, wheelAt = 0, lastSum = null; // (wheelAt: when it opened, for Alt + double click — the last summons again; lastSum: what it was)
 // the squads of ours and the partner's of these kinds (not the bulldozers: their sites), and how many units in them
 function sumSquads(types) {
   return s.squads.filter(q => q.side === 'blue' && !q.dead && !q.aboard && types.includes(q.type) && (Sim.ownSquad(s, q) || s.mate) && s.units.some(u => u.squad === q.id));
@@ -33,8 +35,45 @@ function sumSquads(types) {
 const sumUnits = qs => { let n = 0; for (const q of qs) for (const u of s.units) if (u.squad === q.id) n++; return n; };
 const sumTypes = n => n.types || (n.kids || []).flatMap(sumTypes);
 // what a node of the tree offers now: forces / supplies by their count; an ask by whether the partner can
-const sumCount = n => n.types || n.kids ? sumUnits(sumSquads(sumTypes(n))) : 0;
+const sumCount = n => n.each ? sumEach(n, 0, 0).length : n.types || n.kids ? sumUnits(sumSquads(sumTypes(n))) : 0;
+// (eyes / care: one of each kind, the nearest to the spot; and the drone, if there's one in hand and the drones are ours)
+const sumDrone = n => !!n.drone && !!s.fog && s.drones.blue.stock > 0 && Sim.armSide(s, 'blue', 'drone') !== 'mate';
+function sumEach(n, x, y) {
+  const ids = [];
+  for (const t of n.each) { const q = sumSquads([t]).sort((a, b) => Math.hypot(a.cx - x, a.cy - y) - Math.hypot(b.cx - x, b.cy - y))[0]; if (q) ids.push(q.id); }
+  return ids;
+}
+// which squads a press would send: n units of the node's kinds (whole squads, the nearest first), or one of each
+function sumPick(n, want, x, y) {
+  if (n.each) return sumEach(n, x, y);
+  const qs = sumSquads(sumTypes(n)).sort((a, b) => Math.hypot(a.cx - x, a.cy - y) - Math.hypot(b.cx - x, b.cy - y)), ids = [];
+  let got = 0; for (const q of qs) { if (got >= want) break; ids.push(q.id); got += sumUnits([q]); }
+  return ids;
+}
+const sumThird = n => Math.max(1, Math.ceil(sumCount(n) / 3));
+// (when they'd be there: going together, the slowest to the spot at the march's pace — the aircraft at their own; those
+// fighting are left out, they come when it's over)
+function sumEta(ids, x, y) {
+  let T = 0, any = false;
+  for (const id of ids) {
+    const q = s.squads.find(k => k.id === id); if (!q || Sim.summonHot(s, q)) continue;
+    for (const u of s.units) if (u.squad === id) { const ty = Sim.TYPES[u.type]; any = true; T = Math.max(T, Math.hypot(u.x - x, u.y - y) / Math.max(1, ty.speed * (ty.air ? 1 : MARCH_PACE))); }
+  }
+  return any ? Math.round(T + (ids.length > 1 ? MARCH_WAIT : 0)) : null;
+}
+// the preview: the button the mouse is on — those it'd send lit on the map (drawAsks), and when they'd be there by it
+function sumHover(n, b, want) {
+  if (!wheel) return;
+  const ids = n ? sumPick(n, want ?? sumThird(n), wheel.x, wheel.y) : [];
+  wheel.hover = n ? new Set(ids) : null;
+  if (!n || !b) return;
+  let e = b.querySelector('.sumEta');
+  const t = sumEta(ids, wheel.x, wheel.y);
+  if (!e) { e = document.createElement('span'); e.className = 'sumEta'; b.appendChild(e); }
+  e.textContent = t === null ? '⏳' : t < 60 ? tr('etaS', t) : tr('etaM', Math.round(t / 60));
+}
 function sumShown(n) {
+  if (n.each) return sumEach(n, 0, 0).length > 0 || sumDrone(n);
   if (n.kids) return n.kids.some(sumShown);
   if (n.types && sumCount(n) > 0) return true;
   return !!n.ask && !!s.arms && Sim.canAsk(s, 'blue', 'me', n.ask) && (n.ask !== 'build' || !!(wheel && Sim.siteNear(s, 'blue', wheel.x, wheel.y))); // (build first: only by a site of ours)
@@ -57,6 +96,12 @@ function sumPic(type, mark) {
       g.beginPath(); g.rect(-9, -2, 18, 26); g.fillStyle = '#d9a640'; g.fill(); g.stroke();
       g.beginPath(); g.moveTo(-9, -2); g.lineTo(-9, -12); g.quadraticCurveTo(0, -30, 9, -12); g.lineTo(9, -2); g.closePath(); g.fillStyle = '#4b5b34'; g.fill(); g.stroke();
       g.shadowBlur = 0; g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(-9, 18, 18, 4);
+    } else if (mark === 'eye') { // (an eye)
+      g.beginPath(); g.moveTo(6, 32); g.quadraticCurveTo(32, 6, 58, 32); g.quadraticCurveTo(32, 58, 6, 32); g.closePath(); g.fillStyle = '#f4f6f8'; g.fill(); g.stroke();
+      g.shadowBlur = 0; g.fillStyle = '#2f8cff'; g.beginPath(); g.arc(32, 32, 11, 0, Math.PI * 2); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(32, 32, 5, 0, Math.PI * 2); g.fill();
+    } else if (mark === 'cross') { // (a red cross on white)
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(32, 32, 22, 0, Math.PI * 2); g.fill(); g.stroke(); g.shadowBlur = 0;
+      g.fillStyle = '#e0302a'; g.fillRect(27, 16, 10, 32); g.fillRect(16, 27, 32, 10);
     } else if (mark === 'target') { // (a sight)
       g.strokeStyle = '#ff3b30'; g.lineWidth = 4; g.beginPath(); g.arc(32, 32, 17, 0, Math.PI * 2); g.stroke();
       g.beginPath(); for (const [a, b, c2, d] of [[32, 6, 32, 22], [32, 42, 32, 58], [6, 32, 22, 32], [42, 32, 58, 32]]) { g.moveTo(a, b); g.lineTo(c2, d); } g.stroke();
@@ -71,7 +116,7 @@ function openAskWheel(e, x, y) {
   closeAskWheel();
   const st = $('stage').getBoundingClientRect(), w = document.createElement('div');
   w.id = 'askWheel'; w.style.left = (e.clientX - st.left) + 'px'; w.style.top = (e.clientY - st.top) + 'px';
-  wheel = { el: w, x, y, path: [], cx: e.clientX, cy: e.clientY };
+  wheel = { el: w, x, y, path: [], cx: e.clientX, cy: e.clientY }; wheelAt = performance.now();
   $('stage').appendChild(w);
   if (!wheelShow(SUM_TREE)) { closeAskWheel(); toast(tr('askNone'), e.clientX, e.clientY); }
 }
@@ -82,7 +127,7 @@ function wheelShow(nodes) {
   if (l.length === 1 && l[0].kids && wheel.path.length === 0 && l[0].k !== 'forces' && l[0].k !== 'supply') return wheelShow(l[0].kids);
   const R = Math.max(ASK_WHEEL_R, SUM_GAP * l.length / (2 * Math.PI)); // (more of them: a wider ring — never on top of each other)
   l.forEach((n, i) => {
-    const a = -Math.PI / 2 + i * 2 * Math.PI / l.length, b = document.createElement('button'), cnt = n.types || n.kids ? sumCount(n) : null;
+    const a = -Math.PI / 2 + i * 2 * Math.PI / l.length, b = document.createElement('button'), cnt = n.types || n.kids || n.each ? sumCount(n) : null;
     b.className = 'sumBtn' + (n.kids ? ' topic' : '');
     if (n.pic || n.types) { const im = document.createElement('img'); im.src = sumPic(n.pic || n.types[0], n.mark); im.alt = ''; b.appendChild(im); } else b.textContent = n.emoji || ASK_ICON[n.ask];
     if (cnt) { const g = document.createElement('span'); g.className = 'sumN'; g.textContent = cnt; b.appendChild(g); }
@@ -91,6 +136,7 @@ function wheelShow(nodes) {
     b.style.transform = `translate(${Math.cos(a) * R}px, ${Math.sin(a) * R}px)`;
     b.addEventListener('pointerdown', ev => { ev.stopPropagation(); ev.preventDefault(); sumPress(n, b); });
     b.addEventListener('click', ev => ev.stopPropagation());
+    if (n.types || n.kids || n.each) { b.addEventListener('pointerenter', () => sumHover(n, b)); b.addEventListener('pointerleave', () => { if (!b.classList.contains('hold')) sumHover(null); }); }
     w.appendChild(b);
   });
   if (wheel.path.length) {
@@ -107,7 +153,7 @@ function sumPress(n, b) {
   const shown = n.kids ? n.kids.filter(sumShown) : null;
   if (shown && shown.length === 1 && !shown[0].kids && n.k !== 'forces' && n.k !== 'supply') n = Object.assign({}, shown[0], { pic: shown[0].pic || n.pic }); // (a topic with one kind there: as that kind)
   const isTopic = !!(n.kids && n.kids.some(sumShown)), total = n.types || isTopic ? sumCount(n) : 0, badge = b.querySelector('.sumN');
-  const { x, y } = wheel; // (the spot — taken before the wheel closes: after it, it was the middle of the screen, and a site asked for was never found)
+  const { x, y } = wheel; if (n.each) { const up = () => { removeEventListener('pointerup', up); closeAskWheel(); summonEach(n, x, y); }; addEventListener('pointerup', up); return; } // (eyes / care: one press, one of each) (the spot — taken before the wheel closes: after it, it was the middle of the screen, and a site asked for was never found)
   if (!n.types && !isTopic) { const up = () => { removeEventListener('pointerup', up); closeAskWheel(); askAt(n.ask, x, y); }; addEventListener('pointerup', up); return; } // (an ask of the partner)
   if (n.k === 'forces' || n.k === 'supply' || !total) { // (forces, supplies: only a level; a kind of supply with none here: ask the partner, who builds it)
     const up = () => { removeEventListener('pointerup', up); if (isTopic) { wheel.path.push(n); wheelShow(n.kids); } else if (n.ask) { closeAskWheel(); askAt(n.ask, x, y); } };
@@ -115,7 +161,7 @@ function sumPress(n, b) {
   }
   const third = Math.max(1, Math.ceil(total / 3)), step = Math.max(1, Math.round(total / 7));
   let held = false, count = third;
-  const tick = () => { if (!held) { held = true; count = third; } else count = Math.min(total, (Math.floor(count / step) + 1) * step); if (badge) { badge.textContent = count; badge.classList.add('on'); } b.classList.add('hold'); };
+  const tick = () => { if (!held) { held = true; count = third; } else count = Math.min(total, (Math.floor(count / step) + 1) * step); if (badge) { badge.textContent = count; badge.classList.add('on'); } b.classList.add('hold'); sumHover(n, b, count); };
   const t0 = setTimeout(() => { tick(); wheel.timer = setInterval(tick, SUM_STEP_MS); }, SUM_HOLD_MS);
   const up = () => {
     removeEventListener('pointerup', up); clearTimeout(t0); clearInterval(wheel.timer);
@@ -126,8 +172,19 @@ function sumPress(n, b) {
 }
 // send the n nearest units of the node's kinds (whole squads, the nearest first) to (x, y)
 function summonAt(n, want, x, y) {
-  const qs = sumSquads(sumTypes(n)).sort((a, b) => Math.hypot(a.cx - x, a.cy - y) - Math.hypot(b.cx - x, b.cy - y)), ids = [];
-  let got = 0; for (const q of qs) { if (got >= want) break; ids.push(q.id); got += sumUnits([q]); }
+  const ids = sumPick(n, want, x, y), got = sumUnits(ids.map(id => s.squads.find(q => q.id === id)));
+  lastSum = { n, want };
+  sumSend(n, ids, got, x, y);
+}
+// eyes / care: the nearest one of each kind (and a drone up over the spot)
+function summonEach(n, x, y) {
+  const ids = sumEach(n, x, y), drone = sumDrone(n) && Sim.drone(s, 'blue', x, y);
+  lastSum = { n };
+  if (ids.length) sumSend(n, ids, ids.length, x, y); else if (drone) { pings.push({ x, y, t: performance.now() }); updateHud(); }
+}
+// Alt + double click: the last summons again, here
+function sumRepeat(x, y) { if (!lastSum) return false; if (lastSum.n.each) summonEach(lastSum.n, x, y); else summonAt(lastSum.n, lastSum.want, x, y); return true; }
+function sumSend(n, ids, got, x, y) {
   const own = ids.filter(id => Sim.ownSquad(s, s.squads.find(q => q.id === id)));
   Sim.unqueue(s, own);
   const r = Sim.summon(s, 'blue', ids, x, y, (n.pic || sumTypes(n)[0]) + (n.mark ? ':' + n.mark : '')); if (!r) return;
@@ -175,6 +232,14 @@ function drawAsks(c) {
     c.save(); c.font = `${13 * px}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.globalAlpha = 0.6 + 0.4 * Math.sin(now * 4);
     for (const w of s.summons) { const q = s.squads.find(k => k.id === w.id), p = q && pos(q); if (p) c.fillText('⏳', p.x, p.y - 22 * px); }
     c.restore();
+  }
+  // (the wheel's preview: those that'd come — a ring round each, and a faint line to the spot)
+  if (wheel && wheel.hover && wheel.hover.size) {
+    c.save(); c.strokeStyle = '#7fd0ff'; c.lineWidth = 2 * px; c.globalAlpha = 0.65 + 0.35 * Math.sin(now * 6);
+    for (const u of s.units) if (wheel.hover.has(u.squad)) { c.beginPath(); c.arc(u.x, u.y, 14 * px, 0, Math.PI * 2); c.stroke(); }
+    c.globalAlpha = 0.35; c.setLineDash([6 * px, 6 * px]); c.beginPath();
+    for (const id of wheel.hover) { const q = s.squads.find(k => k.id === id); if (q) { c.moveTo(q.cx, q.cy); c.lineTo(wheel.x, wheel.y); } }
+    c.stroke(); c.restore();
   }
   if (!s.asks || !s.asks.length) return;
   for (const a of s.asks) {

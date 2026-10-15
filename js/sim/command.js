@@ -96,7 +96,7 @@ function formation(s, ids, type, x, y, quiet, fa, deep, opt = {}) {
     // straight for its own place there, and they get there together — `arrive`, worked out below)
     // (s.arriveMarch: each straight for its place, all getting there together; now — the formation marches there,
     // whole, along a route, folding into a column through a narrow way: march.js)
-    if (Math.hypot(x - sx, y - sy) > MARCH_MIN) march = s.oldMarch ? { sx, sy, v: Math.min(...us.map(u => TYPES[u.type].speed)) * MARCH_PACE, t0: s.t + MARCH_WAIT } : s.arriveMarch ? { arrive: s.t } : { lead: true };
+    if (Math.hypot(x - sx, y - sy) > MARCH_MIN) march = opt.arrive ? { arrive: s.t } : s.oldMarch ? { sx, sy, v: Math.min(...us.map(u => TYPES[u.type].speed)) * MARCH_PACE, t0: s.t + MARCH_WAIT } : s.arriveMarch ? { arrive: s.t } : { lead: true };
     // (the player's: no arrow — the front faces the way they go, and stays so; far from where they are, else the enemy HQ)
     if (!Number.isFinite(fa) && qs.length && sameRules(s, qs[0].side)) {
       const e = hqOf(s, qs[0].side === 'blue' ? 'red' : 'blue') || s.bases[qs[0].side === 'blue' ? 'red' : 'blue'];
