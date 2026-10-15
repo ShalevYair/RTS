@@ -1435,7 +1435,7 @@ function v3Trenches() {
 }
 // ---- water that moves: over each lake (its own outline — decor.lakes' body, as a mask) a see-through surface whose
 // ripples run and glint (a small shader on the light's own; the ground's fog and night over it — v3Shaded) ----
-const V3_WATER = { col: '#0b2830', px: 256, blur: 10 };
+const V3_WATER = { col: '#0b2830', px: 256, blur: 10, fine: ['0.4', '1.4'] }; // (fine: world units a pixel spans — the ripples fade between)
 function v3Water() {
   if (V3.water && V3.water.of === decor) { V3.waterT.value = (performance.now() / 1000) % 1000; v3SunDir(); return; }
   if (V3.water) for (const m of V3.water.meshes) { V3.scene.remove(m); m.geometry.dispose(); m.material.alphaMap.dispose(); m.material.dispose(); }
@@ -1449,7 +1449,7 @@ function v3Water() {
     const mat = v3Shaded(new THREE.MeshLambertMaterial({ color: V3_WATER.col, transparent: true, alphaMap: mask, depthWrite: false }));
     const base = mat.onBeforeCompile; mat.userData.refOn = { value: 0 };
     mat.onBeforeCompile = sh => {
-      base(sh); sh.uniforms.v3T = V3.waterT; sh.uniforms.v3Sun = V3.sunDir; sh.uniforms.v3Ref = V3R.tex; if (!V3R.m.value) V3R.m.value = new THREE.Matrix4(); sh.uniforms.v3RefM = V3R.m; // (before the first reflection: a matrix — null, every frame threw and stopped) sh.uniforms.v3RefOn = mat.userData.refOn;
+      base(sh); sh.uniforms.v3T = V3.waterT; sh.uniforms.v3Sun = V3.sunDir; sh.uniforms.v3Ref = V3R.tex; if (!V3R.m.value) V3R.m.value = new THREE.Matrix4(); sh.uniforms.v3RefM = V3R.m; sh.uniforms.v3RefOn = mat.userData.refOn; // (before the first reflection: a matrix — null, every frame threw and stopped)
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vWY;').replace('#include <project_vertex>', '#include <project_vertex>\nvWY = (modelMatrix * vec4(transformed, 1.0)).y;');
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float v3T; uniform vec3 v3Sun; varying float vWY; float v3dep; uniform sampler2D v3Ref; uniform mat4 v3RefM; uniform float v3RefOn;')
         .replace('#include <alphamap_fragment>', `float v3m = texture2D(alphaMap, vAlphaMapUv).g; v3dep = smoothstep(0.5, 1.0, v3m);
@@ -1462,6 +1462,9 @@ function v3Water() {
             vec2 d1 = vec2(0.8, 0.6), d2 = vec2(-0.5, 0.86), d3 = vec2(0.97, -0.24);
             vec2 gr = d1 * cos(dot(p, d1) * 0.11 + t * 1.3) * 0.11 * 0.9 + d2 * cos(dot(p, d2) * 0.19 - t * 1.7) * 0.19 * 0.5 + d3 * cos(dot(p, d3) * 0.37 + t * 2.3) * 0.37 * 0.22;
             gr += vec2(v3gn(p * 0.21 + t * 0.3) - 0.5, v3gn(p * 0.23 - t * 0.27 + 7.0) - 0.5) * 0.35;
+            // (from far, a pixel spans several ripples: their slopes came out at random — the sun's glint and the foam lit
+            // here and there, the water white and mottled; they fade as a pixel grows past a ripple)
+            float rk = 1.0 - smoothstep(${V3_WATER.fine[0]}, ${V3_WATER.fine[1]}, length(fwidth(p))); gr *= rk;
             vec3 n = normalize(vec3(-gr.x * 0.6, 1.0, -gr.y * 0.6));
             vec3 v = normalize(cameraPosition - vec3(vV3.x, vWY, vV3.y));
             float fr = 0.02 + 0.98 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
@@ -1473,13 +1476,13 @@ function v3Water() {
             }
             gl_FragColor.rgb = mix(gl_FragColor.rgb, sky * (1.0 - v3Night * 0.85), clamp(fr * 1.5 + 0.05, 0.0, 0.85));
             float sp = pow(max(dot(n, normalize(v3Sun + v)), 0.0), 220.0);
-            gl_FragColor.rgb += vec3(1.0, 0.95, 0.85) * sp * 3.0 * (1.0 - v3Night);
-            float foam = (1.0 - smoothstep(0.52, 0.66, v3m)) * smoothstep(0.45, 0.8, v3gn(p * 0.18 + vec2(t * 0.4, -t * 0.3)));
+            sp *= rk; gl_FragColor.rgb += vec3(1.0, 0.95, 0.85) * sp * 3.0 * (1.0 - v3Night);
+            float foam = (1.0 - smoothstep(0.52, 0.66, v3m)) * mix(0.5, smoothstep(0.45, 0.8, v3gn(p * 0.18 + vec2(t * 0.4, -t * 0.3))), rk) * mix(0.5, 1.0, rk);
             gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.75, 0.78, 0.76) * (1.0 - v3Night * 0.8), foam * 0.45);
             gl_FragColor.a = max(gl_FragColor.a, fr * 0.6 + sp);
           }`);
     };
-    mat.customProgramCacheKey = () => 'v3water3';
+    mat.customProgramCacheKey = () => 'v3water4';
     const m = new THREE.Mesh(geo, mat); m.position.set(l.x, v3E(l.x, l.y) + 0.5, l.y); m.renderOrder = 2; m.userData.lake = l;
     V3.scene.add(m); V3.water.meshes.push(m);
   }

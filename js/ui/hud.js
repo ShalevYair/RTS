@@ -53,6 +53,35 @@ function reportTick() {
   const text = n === 1 ? tr('rep1_' + k, tn(ty)) : tr('repN_' + k, n, tn(ty));
   selfLast[k] = s.t; Radio.hear({ kind: 'rep_' + k, who: text, text, x, y, t: s.t }); feedAdd({ kind: 'report', x, y, text });
 }
+// each front reports on its own (fronts.js): contact (after FREP_QUIET s with none), pressure (FREP_LOSS lost within
+// FREP_WIN s — not again within FREP_GAP), and in position (FREP_READY of its fighters at their places, once per line
+// drawn). On the radio (recorded takes, else read aloud) and in the list, at the front's middle
+const FREP_EVERY = 2, FREP_QUIET = 30, FREP_LOSS = 3, FREP_WIN = 30, FREP_GAP = 45, FREP_READY = 0.8, FREP_AT = 50;
+let frepAt = 0, frepFor = null, frep = new Map();
+function frontReportTick() {
+  if (!s || lvl || s.over || !Sim.onFronts(s, 'blue') || (s.t - frepAt < FREP_EVERY && frepFor === s)) return;
+  if (frepFor !== s) { frepFor = s; frep = new Map(); } frepAt = s.t;
+  const alive = new Set(s.units.map(u => u.id));
+  s.fronts.blue.forEach((f, i) => {
+    const n = i + 1, g = Sim.frontGeo(s, 'blue', f), mid = Sim.frontAt(g, g.L / 2, 0);
+    let r = frep.get(f.id); if (!r) frep.set(f.id, r = { ids: new Set(), lost: [], contact: -1e9, press: -1e9, ready: null });
+    const qs = s.squads.filter(q => q.side === 'blue' && !q.dead && q.front === f.id), qid = new Set(qs.map(q => q.id));
+    const us = s.units.filter(u => qid.has(u.squad));
+    for (const id of r.ids) if (!alive.has(id)) r.lost.push(s.t); // (gone from the world: lost — not one moved to another front)
+    r.ids = new Set(us.map(u => u.id)); r.lost = r.lost.filter(t => s.t - t < FREP_WIN);
+    const say = (ev, text) => { Radio.play(ev, text); feedAdd({ kind: 'report', x: mid.x, y: mid.y, text }); };
+    const hot = qs.some(q => s.t - (q.lastContact ?? -1e9) < FREP_EVERY + 1);
+    if (r.lost.length >= FREP_LOSS && s.t - r.press >= FREP_GAP) { r.press = s.t; say('front_pressure', tr('frontPress', n, r.lost.length)); }
+    else if (hot && s.t - r.contact >= FREP_QUIET) say('front_contact', tr('frontContact', n));
+    if (hot) r.contact = s.t;
+    // (in position: the line as last drawn — f.t — once)
+    if (r.ready !== f.t && s.t - f.t > 5) {
+      const fight = us.filter(u => !Sim.TYPES[u.type].care && !Sim.TYPES[u.type].air); if (!fight.length) return;
+      const at = fight.filter(u => { const q = s.squads.find(q => q.id === u.squad), o = q && q.order; return o && Math.hypot(o.x - u.x, o.y - u.y) < FREP_AT; }).length;
+      if (at >= fight.length * FREP_READY) { r.ready = f.t; say('front_ready', tr('frontReady', n)); }
+    }
+  });
+}
 // a squad picked on the map (or by its building): its whole group, if it's in one
 function pickSquad(id) { const g = groupOf(id); select(g ? g.ids.slice() : id); sayPicked([id]); }
 // what the squads say back to an order: attacking (at an enemy), holding, falling back, else on the way. Under command
@@ -754,8 +783,7 @@ function armFront() {
 function frontDone(e) {
   const d = frontDraw; frontDraw = null; if (!d || d.pts.length < 2) return;
   const pts = d.pts.map(p => scrToWorld(p.x, p.y));
-  if ((s.fronts && s.fronts.blue || []).length >= Sim.FRONT_MAX) { toast(tr('frontMax', Sim.FRONT_MAX), e.clientX, e.clientY); return; }
-  const f = Sim.addFront(s, 'blue', pts); if (!f) { toast(tr('frontShort'), e.clientX, e.clientY); return; }
+  const f = Sim.addFront(s, 'blue', pts); // (near one — or three already: it takes the nearest one's place) if (!f) { toast(tr('frontShort'), e.clientX, e.clientY); return; }
   frontArmed = false; syncButtons();
 }
 // the front whose line is under the screen point (within FRONT_HIT pixels), or null

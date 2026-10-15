@@ -30,10 +30,10 @@ const path = require('path');
   await p.mouse.up(); await p.waitForTimeout(300);
   const out = await p.evaluate(async () => {
     const F = s.fronts && s.fronts.blue || [], f0 = F[0];
-    for (let i = 0; i < 30 * 150; i++) Sim.step(s, 1 / 30); cam.z = zoomMax() * 0.2; applyView();
+    const said = []; for (let i = 0; i < 30 * 150; i++) { Sim.step(s, 1 / 30); if (i % 30 === 0) { frontReportTick(); for (const e of document.querySelectorAll('#feed > *')) if (/חזית/.test(e.textContent) && !said.includes(e.textContent)) said.push(e.textContent); } } cam.z = zoomMax() * 0.2; applyView();
     await new Promise(r => setTimeout(r, 1200));
     const on = s.squads.filter(q => q.side === 'blue' && !q.dead && q.front);
-    return { fronts: F.length, pts: f0 && f0.pts.length, on: on.length, mate: on.filter(q => !Sim.ownSquad(s, q)).length, armed: frontArmed };
+    return { fronts: F.length, pts: f0 && f0.pts.length, on: on.length, mate: on.filter(q => !Sim.ownSquad(s, q)).length, armed: frontArmed, said, at: (() => { const fs = s.units.filter(u => { const q = s.squads.find(q => q.id === u.squad); return q && q.front && !Sim.TYPES[u.type].care && !Sim.TYPES[u.type].air; }); return fs.map(u => { const q = s.squads.find(q => q.id === u.squad), o = q.order; return Math.round(Math.hypot(o.x - u.x, o.y - u.y)); }).sort((a, b) => a - b).join(' '); })(), far: s.units.filter(u => { const q = s.squads.find(q => q.id === u.squad); return q && q.front && !Sim.TYPES[u.type].care && !Sim.TYPES[u.type].air && Math.hypot(q.order.x - u.x, q.order.y - u.y) > 300; }).map(u => { const q = s.squads.find(q => q.id === u.squad); return [u.type, Sim.ownSquad(s, q) ? 'me' : 'mate', Math.round(u.x), Math.round(u.y), 'o', Math.round(q.order.x), Math.round(q.order.y), q.order.type, 'f', u.fuel && u.fuel.toFixed(2), 'w', u.water && u.water.toFixed(2), 'sup', u.sup && u.sup.toFixed(2), u.path ? 'path' : '-', s.outbox.some(m => m.id === q.id) ? 'msg' : ''].join(' '); }) };
   });
   console.log('after', JSON.stringify(out));
   await p.screenshot({ path: path.join(__dirname, 'out', '3d', 'fronts_after.png') });

@@ -53,6 +53,15 @@ for (let i = 0; i < 90; i++) Sim.step(s, 1 / 30);
 assert.ok(!q.front, 'sent by hand: off the front');
 const ow = (s.outbox.find(m => m.id === q.id && m.kind === 'order') || q.order);
 assert.ok(Math.hypot((ow.want || ow).x - 100, (ow.want || ow).y - 100) < 30, 'its own order stands');
+// (drawn again near the first, 150 on: the same front moved — its number and its squads)
+{ const f0 = s.fronts.blue[0], n0 = on.filter(q => q.front === f0.id).length;
+  const f = Sim.addFront(s, 'blue', [{ x: X + 150, y: 80 }, { x: X + 190, y: s.H * 0.45 }]);
+  assert.equal(f, f0, 'near: the same front'); assert.equal(s.fronts.blue.length, 2); assert.equal(f.pts[0].x, Math.round(X + 150));
+  Sim.step(s, 1 / 30); assert.ok(s.squads.filter(q => q.front === f0.id).length >= n0 - 2, 'its squads stay with it');
+  // (a third far off: a new one; a fourth: takes the nearest one's place)
+  Sim.addFront(s, 'blue', [{ x: X - 400, y: 200 }, { x: X - 400, y: s.H - 200 }]); assert.equal(s.fronts.blue.length, 3);
+  const g = Sim.addFront(s, 'blue', [{ x: X - 300, y: 300 }, { x: X - 300, y: s.H - 300 }]); assert.equal(s.fronts.blue.length, 3); assert.equal(g, s.fronts.blue[2], 'a fourth: the nearest replaced');
+  Sim.removeFront(s, 'blue', g.id); }
 Sim.removeFront(s, 'blue', s.fronts.blue[0].id); assert.equal(s.fronts.blue.length, 1);
 for (let i = 0; i < 60; i++) Sim.step(s, 1 / 30);
 assert.ok(s.squads.filter(q => q.side === 'blue' && !q.dead && q.front).every(q => q.front === s.fronts.blue[0].id), 'one front left: all on it');

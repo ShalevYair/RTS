@@ -53,12 +53,18 @@ function frontProj(g, p) {
   }
   return best;
 }
-// the player's fronts: a new line (points along it, the way it was drawn), or one taken off
+// the player's fronts: a new line (points along it, the way it was drawn), or one taken off. Drawn near a front
+// (FRONT_NEAR on the whole) — or with FRONT_MAX of them already — it takes the nearest one's place: the same front
+// (number, colour, squads), its squads off to their places on the new line (that's how a front moves on)
+const FRONT_NEAR = 250;
 function addFront(s, side, pts) {
   s.fronts = s.fronts || {}; const F = s.fronts[side] = s.fronts[side] || [];
   pts = (pts || []).filter(p => Number.isFinite(p.x) && Number.isFinite(p.y)).map(p => ({ x: clamp(Math.round(p.x), 0, s.W), y: clamp(Math.round(p.y), 0, s.H) }));
-  if (pts.length < 2 || F.length >= FRONT_MAX) return null;
+  if (pts.length < 2) return null;
   let L = 0; for (let i = 1; i < pts.length; i++) L += dist(pts[i], pts[i - 1]); if (L < 40) return null;
+  const near = f => { const g = frontGeo(s, side, f); let e = 0; for (const p of pts) e += frontProj(g, p).e; return e / pts.length; };
+  const old = F.map(f => ({ f, e: near(f) })).sort((a, b) => a.e - b.e)[0];
+  if (old && (old.e < FRONT_NEAR || F.length >= FRONT_MAX)) { old.f.pts = pts; old.f.t = s.t; old.f.ready = false; s.frontAt = -99; return old.f; }
   s.frontSeq = (s.frontSeq || 0) + 1;
   const f = { id: s.frontSeq, pts, t: s.t }; F.push(f);
   if (s.front) s.front[side] = null; // (the old single flag: the lines take its place)
@@ -126,6 +132,7 @@ function frontTick(s) {
       const items = byRole[r], kind = r.startsWith('truck:') ? r.slice(6) : null;
       frontSplit(s, items, F, geo, r === 'line' || r === 'air' ? o => o.pw : () => 1, kind && NEED[kind] ? f => has(f, NEED[kind]) : null, rebal);
     }
+    frontRescue(s, side, byRole);
     for (const f of F) {
       const g = geo.get(f.id), line = (byRole.line || []).filter(o => o.q.front === f.id);
       // the fighters: rows along the line — the first-row kinds first — each squad as wide as its units, and in each
@@ -134,23 +141,23 @@ function frontTick(s) {
       const K = Math.max(1, Math.floor(g.L / FRONT_GAP)); let row = [], rows = [], used = 0;
       for (const o of line) { if (used + o.n > K && row.length) { rows.push(row); row = []; used = 0; } row.push(o); used += o.n; }
       if (row.length) rows.push(row);
-      let lag = 0, lagN = 0;
+      const lags = [];
       rows.forEach((row, ri) => {
         for (const o of row) o.a = frontProj(g, o.p).a;
         row.sort((a, b) => a.a - b.a);
         const n = row.reduce((a, o) => a + o.n, 0); let at = 0;
         for (const o of row) {
           const a = g.L * (at + o.n / 2) / n, d = ri * FRONT_ROW, c = frontAt(g, a, d); at += o.n;
-          const pr = frontProj(g, o.p); if (pr.d > d) { lag += pr.d - d; lagN++; }
+          if (!frontDry(s, o.q)) lags.push(Math.max(0, frontProj(g, o.p).d - d));
           frontOrder(s, o.q, 'hold', c.x, c.y);
         }
       });
-      lag = lagN ? lag / Math.max(lagN, line.length * 0.5) : 0; // (how far behind their places the fighters still are, on the whole)
+      lags.sort((a, b) => a - b); const lag = lags.length ? lags[lags.length >> 1] : 0; // (how far behind their places the fighters still are: the middle one — not those stuck dry far back)
       // the rest behind: each kind spread evenly along the line at its depth, and the supply that much further back
       // while the fighters are still on their way (it never runs ahead of them)
       for (const r of Object.keys(byRole)) {
         if (r === 'line' || r === 'air') continue;
-        const its = byRole[r].filter(o => o.q.front === f.id); if (!its.length) continue;
+        const its = byRole[r].filter(o => o.q.front === f.id && !o.q.rescue); if (!its.length) continue; // (off to one run dry: frontRescue)
         for (const o of its) o.a = frontProj(g, o.p).a;
         its.sort((a, b) => a.a - b.a);
         const base = FRONT_DEPTH[r.startsWith('truck:') ? 'truck' : r] || FRONT_DEPTH.care;
@@ -178,3 +185,29 @@ function frontTick(s) {
     }
   }
 }
+// a squad on a front run dry of what keeps it going: fuel (a vehicle), ammunition, water — it stands there, far from
+// the trucks behind the line
+const DRY = { fueltruck: u => needsFuel(u.type) && !TYPES[u.type].air && (u.fuel ?? 1) < 0.05, truck: u => !!SUPPLY[u.type] && u.sup !== undefined && u.sup < 0.05, watertruck: u => needsWater(u.type) && (u.water ?? 1) < 0.15 };
+const FULL = { fueltruck: u => (u.fuel ?? 1) > 0.9, truck: u => (u.sup ?? 1) > 0.9, watertruck: u => (u.water ?? 1) > 0.9 };
+const frontDry = (s, q) => s.units.some(u => u.squad === q.id && Object.values(DRY).some(f => f(u)));
+// a truck of the kind goes to it (the nearest with a load, no more than half a kind's trucks at once — the line still
+// served), stays till it's full, then back to its place on the line (FRONT_RESCUE s at most)
+const FRONT_RESCUE = 120;
+function frontRescue(s, side, byRole) {
+  const on = new Set(); for (const r of Object.keys(byRole)) for (const o of byRole[r]) on.add(o.q.id);
+  for (const kind of Object.keys(DRY)) {
+    const trucks = (byRole['truck:' + kind] || []).map(o => o.q);
+    for (const q of trucks) if (q.rescue) { const u = s.units.find(u => u.id === q.rescue.u); if (!u || FULL[kind](u) || s.t - q.rescue.t > FRONT_RESCUE) q.rescue = null; }
+    const dry = s.units.filter(u => u.side === side && on.has(u.squad) && DRY[kind](u)); if (!dry.length || !trucks.length) continue;
+    const tu = q => s.units.find(u => u.squad === q.id);
+    for (const u of dry) {
+      if (trucks.some(q => { const t = tu(q); return t && dist(t, u) < TRUCK_R * 0.9 || q.rescue && (() => { const v = s.units.find(v => v.id === q.rescue.u); return v && dist(v, u) < 150; })(); })) continue;
+      if (trucks.filter(q => q.rescue).length >= Math.max(1, Math.floor(trucks.length / 2))) break;
+      const free = trucks.filter(q => !q.rescue && tu(q) && !tu(q).refill && (tu(q).load ?? 1) > TRUCK_CAP[kind] * 0.3).sort((a, b) => dist(tu(a), u) - dist(tu(b), u))[0];
+      if (!free) break;
+      free.rescue = { u: u.id, t: s.t };
+    }
+    for (const q of trucks) if (q.rescue) { const u = s.units.find(u => u.id === q.rescue.u); if (u) frontOrder(s, q, 'hold', u.x, u.y); }
+  }
+}
+

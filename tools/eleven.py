@@ -92,6 +92,9 @@ LINES = {
     'mate_water': ["Partner here, we need water.", "Can you send water?", "Our troops are thirsty."],
     'mate_fire': ["Requesting fire support!", "[shouting] We need fire on our position!", "Can you hit them? We're in contact."],
     'mate_guard': ["[shouting] We're under fire, need cover!", "Protect our trucks!", "Need help here, they're on us!"],
+    'front_contact': ["Contact on the front!", "[shouting] Enemy on the line!", "We're engaging on the front."],
+    'front_pressure': ["[shouting] The front is under heavy pressure!", "We're taking losses on the line!", "Heavy pressure here, we need help!"],
+    'front_ready': ["In position on the line.", "The front is set.", "We're in position."],
   },
   'Hebrew': {
     'selected': ["כן, המפקדה.", "ממתינים לפקודות.", "כאן, מקשיבים.", "המפקדה, עבור.", "מוכנים.", "מה הפקודה?", "[tired] מה עכשיו?",
@@ -156,6 +159,9 @@ LINES = {
     'mate_water': ["כאן השותף, צריכים מים.", "אפשר לשלוח מים?", "החיילים שלנו צמאים."],
     'mate_fire': ["מבקשים סיוע באש!", "[shouting] צריכים אש על המקום שלנו!", "אפשר להפגיז אותם? אנחנו במגע."],
     'mate_guard': ["[shouting] יורים עלינו, צריכים חיפוי!", "תגנו על המשאיות שלנו!", "צריכים עזרה כאן, הם עלינו!"],
+    'front_contact': ["מגע בחזית!", "[shouting] אויב על הקו!", "נכנסנו למגע בחזית."],
+    'front_pressure': ["[shouting] החזית בלחץ כבד!", "יש לנו אבדות על הקו!", "לחץ כבד כאן, צריכים עזרה!"],
+    'front_ready': ["בעמדות על הקו.", "החזית ערוכה.", "אנחנו בעמדות."],
   },
 }
 HEATED = {'missile_incoming', 'attacking', 'under_attack', 'heavy_losses', 'friendly_fire', 'retreating', 'building_lost', 'base_attack', 'fhq_attack', 'hq_attack'}
