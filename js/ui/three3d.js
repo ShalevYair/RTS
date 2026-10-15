@@ -1449,7 +1449,7 @@ function v3Water() {
     const mat = v3Shaded(new THREE.MeshLambertMaterial({ color: V3_WATER.col, transparent: true, alphaMap: mask, depthWrite: false }));
     const base = mat.onBeforeCompile; mat.userData.refOn = { value: 0 };
     mat.onBeforeCompile = sh => {
-      base(sh); sh.uniforms.v3T = V3.waterT; sh.uniforms.v3Sun = V3.sunDir; sh.uniforms.v3Ref = V3R.tex; sh.uniforms.v3RefM = V3R.m; sh.uniforms.v3RefOn = mat.userData.refOn;
+      base(sh); sh.uniforms.v3T = V3.waterT; sh.uniforms.v3Sun = V3.sunDir; sh.uniforms.v3Ref = V3R.tex; if (!V3R.m.value) V3R.m.value = new THREE.Matrix4(); sh.uniforms.v3RefM = V3R.m; // (before the first reflection: a matrix — null, every frame threw and stopped) sh.uniforms.v3RefOn = mat.userData.refOn;
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vWY;').replace('#include <project_vertex>', '#include <project_vertex>\nvWY = (modelMatrix * vec4(transformed, 1.0)).y;');
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float v3T; uniform vec3 v3Sun; varying float vWY; float v3dep; uniform sampler2D v3Ref; uniform mat4 v3RefM; uniform float v3RefOn;')
         .replace('#include <alphamap_fragment>', `float v3m = texture2D(alphaMap, vAlphaMapUv).g; v3dep = smoothstep(0.5, 1.0, v3m);
@@ -2033,6 +2033,18 @@ function v3Draw() {
 // water / ammunition lights, ⟲, Trophy, reload, riders, the Star of David — by its own functions (drawStructInfo,
 // unitInfo, healthDot, fuelGauge) on the 2D canvas over the 3D one, placed for each so that its spot lands on the
 // screen where its model stands (and scaled as the ground is there)
+// a unit's bar on screen (px at dpr d): dark back, the health in green / yellow / orange / red, the enemy's edged red;
+// a rank over it as gold chevrons
+const V3_BAR = { h: 4, edge: 1 }, V3_BAR_FOOT = new Set(['inf', 'at', 'aa', 'med', 'commando']);
+function v3Bar(c, x, y, d, k, side, rank, w) {
+  c.setTransform(d, 0, 0, d, 0, 0); x /= d; y /= d;
+  const h = V3_BAR.h, L = x - w / 2;
+  c.fillStyle = 'rgba(10,12,16,.72)'; c.fillRect(L - 1, y - 1, w + 2, h + 2);
+  c.fillStyle = k < HURT_LOW ? '#e53935' : k < HURT_MID ? '#ff8f1f' : k < 0.97 ? '#e8d23b' : '#5fd35a'; c.fillRect(L, y, w * Math.max(0, Math.min(1, k)), h);
+  c.fillStyle = 'rgba(0,0,0,.35)'; for (let i = 1; i < 4; i++) c.fillRect(L + w * i / 4, y, 1, h); // (ticks: each a quarter)
+  if (side === 'red') { c.strokeStyle = '#ff5a4e'; c.lineWidth = 1; c.strokeRect(L - 1.5, y - 1.5, w + 3, h + 3); }
+  for (let i = 0; i < rank; i++) { const cy = y - 4 - i * 4; c.strokeStyle = '#ffcf3a'; c.lineWidth = 2; c.beginPath(); c.moveTo(x - 5, cy); c.lineTo(x, cy - 3); c.lineTo(x + 5, cy); c.stroke(); }
+}
 function v3Info() {
   const c = ctx, dpr = fit ? fit.dpr : 1, P = v3Tmp.ip || (v3Tmp.ip = new THREE.Vector3()), W = V3.w, H = V3.h;
   const scr = (x, y, h) => { P.set(x, v3E(x, y) + h, y).project(V3.cam); return [(P.x + 1) / 2 * W, (1 - P.y) / 2 * H, P.z]; };
@@ -2049,8 +2061,17 @@ function v3Info() {
   for (const u of s.units) {
     if (u.side !== 'blue' || (s.fog && !(whole.has(u.squad) && shownAt(u)))) continue;
     const T = Sim.TYPES[u.type]; if (!put(u.x, u.y, T.air ? V3_AIR - SIZE[u.type] * 0.6 : SIZE[u.type] * 0.35)) continue; // (an aircraft's marks: nearer its body — they float high over a big one)
-    unitInfo(c, u); healthDot(c, u); fuelGauge(c, u);
+    unitInfo(c, u); fuelGauge(c, u);
     if (sel !== 'all' && sel != null && isSel(u.squad) && hurtUnit(u)) starOfDavid(c, u.x, u.y - SIZE[u.type] * (T.air ? 1.2 : 1.05) - 9 / view.css);
+  }
+  // (a health bar over each unit that's hurt or under the mouse — ours, and the enemy's in sight; on the mouse's, the
+  // commander's rank too: modern RTS style, nothing over the healthy ones the rest of the time)
+  const hq = typeof hoverNode === 'string' && hoverNode[0] === 'q' ? hoverNode.slice(1) : null;
+  for (const u of s.units) {
+    const T = Sim.TYPES[u.type], k = u.hp / T.hp, on = u.squad === hq; if (k >= 0.97 && !on) continue;
+    if (u.side === 'blue' ? s.fog && !(whole.has(u.squad) && shownAt(u)) : s.fog && !s.vis.blue.has(u.id)) continue;
+    const h = T.air ? V3_AIR - SIZE[u.type] * 0.6 : SIZE[u.type] * 0.35; if (!put(u.x, u.y, h)) continue;
+    const a = scr(u.x, u.y, h); v3Bar(c, a[0] * dpr, (a[1] - SIZE[u.type] * (T.air ? 0.9 : 0.75) * V3.infoK - 11) * dpr, dpr, k, u.side, on ? Sim.rankOf(s.squads.find(q => q.id === u.squad) || {}) : 0, T.air || u.type === 'tank' ? 30 : V3_BAR_FOOT.has(u.type) ? 16 : 22);
   }
   c.restore(); c.setTransform(1, 0, 0, 1, 0, 0); V3.infoK = 0;
 }

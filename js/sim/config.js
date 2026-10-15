@@ -340,7 +340,7 @@ const DIFFS = {
   // fronts at once (AI_FRONT_N units a front at least)
   easy:   { name: 'קל',   every: 12, smart: false, traits: false, wave: null },
   normal: { name: 'רגיל', every: 8,  smart: true,  traits: false, wave: { n: 8, fronts: 1 } },
-  hard:   { name: 'קשה',  every: 5,  smart: true,  traits: true, mass: true, wave: { n: 10, fronts: 3 } },
+  hard:   { name: 'קשה',  every: 5,  smart: true,  traits: true, mass: true, wave: { n: 10, fronts: 3, march: true } }, // (march: hard's waves go as the player's do — formation, in step, a column through a narrow way)
 };
 const AI_NEAR = 170, AI_KEEP = 60, FIRE_REVEAL = 1, MEMORY = 20;
 // the AI's build plan (it cycles through it) and when a squad is fit to attack

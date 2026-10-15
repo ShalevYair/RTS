@@ -265,6 +265,8 @@ function aiWaves(s, side, key, W, ground, foes, structs) {
     if (there && !still) { const nx = pick(c, 1, A.waves.filter(o => o !== w && !o.over).map(o => o.to))[0] || pick(c, 1)[0]; if (nx) w.to = nx; else w.over = true; }
   }
   A.waves = A.waves.filter(w => !w.over);
+  // (hard: each wave marches there whole, in formation — like an army, not a swarm; again when its target changes)
+  if (W.march && !s.noAiMarch) for (const w of A.waves) { const k = w.to.x + ',' + w.to.y; if (w.formed !== k && w.ids.length > 1) { formation(s, w.ids, 'attack', w.to.x, w.to.y, true); w.formed = k; } }
   const inWave = new Map(); for (const w of A.waves) for (const id of w.ids) inWave.set(id, w.to);
   // a new wave: enough of them ready by the rally point (or a few, after a long wait)
   const ready = ground.filter(q => !inWave.has(q.id) && q.strength >= 0.6 && dist({ x: q.cx, y: q.cy }, rally) < AI_PUSH_R * 1.5);
@@ -439,7 +441,7 @@ function think(s, side, level, who) {
     if (D.smart && sq.strength < St.ready && !fighting) { const h = homeOf(s, sq); setOrder(sq, 'hold', h.x, h.y); continue; }
     if (W && !push && !TYPES[sq.type].air && sq.type !== 'commando' && !toPost.has(sq.id)) {
       const to = W.inWave.get(sq.id);
-      if (to) { setOrder(sq, 'attack', to.x, to.y); if (D.mass && friction(s)) silence(s, sq.id, dist(c, to) > AI_SILENT_R, true); continue; }
+      if (to) { const f = sq.order && sq.order.form; if (!(f && f.wx === to.x && f.wy === to.y && sq.order.type === 'attack')) setOrder(sq, 'attack', to.x, to.y); if (D.mass && friction(s)) silence(s, sq.id, dist(c, to) > AI_SILENT_R, true); continue; }
       // (not in one: an enemy by our buildings — the nearest; else wait at the rally point, side by side)
       const th = W.threats.filter(({ k }) => canHit(sq, k)).sort((a, b) => dist(c, a.k) - dist(c, b.k))[0];
       if (th) { setOrder(sq, 'attack', Math.round(th.k.x / 40) * 40, Math.round(th.k.y / 40) * 40); continue; }
