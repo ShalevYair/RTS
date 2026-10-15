@@ -201,6 +201,42 @@ const VOICES = {
   ],
   "intercepted": [
    "Speak/Hebrew/intercepted/A_1.mp3"
+  ],
+  "report_fuel": [
+   "Speak/Hebrew/report_fuel/A_1.mp3"
+  ],
+  "report_water": [
+   "Speak/Hebrew/report_water/A_1.mp3"
+  ],
+  "report_ammo": [
+   "Speak/Hebrew/report_ammo/A_1.mp3"
+  ],
+  "report_hurt": [
+   "Speak/Hebrew/report_hurt/A_1.mp3"
+  ],
+  "ask_ok": [
+   "Speak/Hebrew/ask_ok/A_1.mp3"
+  ],
+  "ask_none": [
+   "Speak/Hebrew/ask_none/A_1.mp3"
+  ],
+  "ask_making": [
+   "Speak/Hebrew/ask_making/A_1.mp3"
+  ],
+  "mate_fuel": [
+   "Speak/Hebrew/mate_fuel/A_1.mp3"
+  ],
+  "mate_ammo": [
+   "Speak/Hebrew/mate_ammo/A_1.mp3"
+  ],
+  "mate_water": [
+   "Speak/Hebrew/mate_water/A_1.mp3"
+  ],
+  "mate_fire": [
+   "Speak/Hebrew/mate_fire/A_1.mp3"
+  ],
+  "mate_guard": [
+   "Speak/Hebrew/mate_guard/A_1.mp3"
   ]
  }
 };
