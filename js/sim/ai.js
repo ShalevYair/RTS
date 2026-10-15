@@ -414,7 +414,9 @@ function think(s, side, level, who) {
   const fighters = mine.filter(q => !TYPES[q.type].care);
   const stayHome = !!St.home; // (missiles: a few squads keep home)
   if (can.build) aiSpecial(s, side, own);
-  const push = D.smart && !s.noAiPush && aiPush(s, side, fighters, structs, St); // (ahead: all together, one blow — not on easy)
+  // (the computer on fronts — fronts.js: lines of its own, moved on by how it stands; no last blow, the lines are it)
+  const onFr = side === 'red' && !s.level && !stayHome && !who && (s.aiFronts ?? D.fronts) && aiFronts(s, side, fighters, foes, structs);
+  const push = !onFr && D.smart && !s.noAiPush && aiPush(s, side, fighters, structs, St); // (ahead: all together, one blow — not on easy)
   // waves (normal, hard; not in the tutorial, not staying home): the ground fighters gather and go together — aiWaves
   const W = D.wave && !s.level && !stayHome && !s.noWaves ? aiWaves(s, side, side + (who || ''), D.wave, fighters.filter(q => !TYPES[q.type].air && q.type !== 'commando' && !(D.smart && q.strength < St.ready && s.t - q.lastContact >= CONTACT_MEMORY)), foes, structs) : null;
   let rallied = 0;

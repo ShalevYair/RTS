@@ -211,3 +211,42 @@ function frontRescue(s, side, byRole) {
   }
 }
 
+// ---- the computer on fronts (DIFFS[..].fronts; `s.aiFronts` = on for any level, false = off): its own lines across
+// the map, one per band of its height (AI_FR_N), each straight across the way to the enemy and moved on its own every
+// AI_FR_EVERY s — on by AI_FR_STEP when its fighters are in place and stronger than the enemy known before it by
+// AI_FR_GO, back when weaker than AI_FR_BACK of it; an enemy known by our buildings pulls its band's line back to
+// it. Not before AI_FR_MIN fighters (until then, as before). ----
+const AI_FR_N = 1, AI_FR_EVERY = 10, AI_FR_STEP = 250, AI_FR_GO = 1.0, AI_FR_BACK = 0.7, AI_FR_MIN = 8, AI_FR_START = 450, AI_FR_SEE = 500, AI_FR_LEN = 0.8, AI_FR_SHORT = 400;
+function aiFronts(s, side, fighters, foes, structs) {
+  const A = s.aiFr = s.aiFr || {}; let st = A[side];
+  if (!st && fighters.reduce((a, q) => a + q.count, 0) < AI_FR_MIN) return false;
+  const home = hqOf(s, side) || s.bases[side], dir = s.bases[foeOf(side)].x > home.x ? 1 : -1;
+  const far = dir > 0 ? s.W - 80 - home.x : home.x - 80;
+  if (!st) { st = A[side] = { at: -99, adv: Array(AI_FR_N).fill(Math.min(AI_FR_START, far)), ids: [] }; }
+  if (s.t - st.at < AI_FR_EVERY) return true; st.at = s.t;
+  s.fronts = s.fronts || {}; const F = s.fronts[side] = s.fronts[side] || [];
+  const band = s.H / AI_FR_N, mine = s.nodes.filter(n => n.side === side && n.hp > 0);
+  for (let i = 0; i < AI_FR_N; i++) {
+    // (one short line, at the nearest enemy building it knows — the force together, not spread thin)
+    const tgt = (structs || []).filter(n => Number.isFinite(n.x)).sort((a, b) => dist(a, home) - dist(b, home))[0];
+    const y0 = band * i, y1 = band * (i + 1), cy = AI_FR_N === 1 && tgt ? clamp(tgt.y, 200, s.H - 200) : (y0 + y1) / 2, half = AI_FR_N === 1 ? AI_FR_SHORT / 2 : band * AI_FR_LEN / 2;
+    let f = F.find(f => f.id === st.ids[i]);
+    const x = a => clamp(home.x + dir * a, 40, s.W - 40);
+    if (f) {
+      // (how it stands: our fighters on it, ready or not; the enemy known before it in its band)
+      const g = frontGeo(s, side, f), qs = s.squads.filter(q => q.side === side && !q.dead && q.front === f.id && !TYPES[q.type].care && !TYPES[q.type].air);
+      const P = qs.reduce((a, q) => a + frontPower(s, q), 0), us = s.units.filter(u => qs.some(q => q.id === u.squad));
+      const inPlace = us.filter(u => { const q = qs.find(q => q.id === u.squad); return q && q.order && Math.hypot(q.order.x - u.x, q.order.y - u.y) < 60; }).length >= us.length * 0.7;
+      let E = 0; for (const o of foes) { const k = o.k; if (k.y < y0 || k.y > y1) continue; const pr = frontProj(g, k); if (pr.d < 0 && pr.d > -AI_FR_SEE) E += (UNIT_VALUE[k.type] || 1.5) * (k.n || 1) * (k.strength ?? 1); }
+      if (P < E * AI_FR_BACK) st.adv[i] = Math.max(AI_FR_START * 0.6, st.adv[i] - AI_FR_STEP);
+      else if (inPlace && P >= Math.max(1, E * AI_FR_GO)) st.adv[i] = Math.min(far, st.adv[i] + AI_FR_STEP);
+    }
+    // (an enemy by our buildings in this band: the line back to it)
+    const near = foes.filter(o => o.k.y >= y0 && o.k.y <= y1 && mine.some(n => dist(n, o.k) < AI_DEFEND_R + nodeR(n)));
+    if (near.length) { const a = Math.min(...near.map(o => Math.abs(o.k.x - home.x))); st.adv[i] = Math.min(st.adv[i], Math.max(0, a - 60)); }
+    const pts = [{ x: x(st.adv[i]), y: clamp(cy - half, 30, s.H - 30) }, { x: x(st.adv[i]), y: clamp(cy + half, 30, s.H - 30) }];
+    if (f) { if (f.pts[0].x !== pts[0].x || f.pts[0].y !== pts[0].y) { f.pts = pts; f.t = s.t; } }
+    else { s.frontSeq = (s.frontSeq || 0) + 1; f = { id: s.frontSeq, pts, t: s.t }; F.push(f); st.ids[i] = f.id; }
+  }
+  return true;
+}
