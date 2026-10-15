@@ -4,7 +4,25 @@ const blueIds = () => blueSquads().map(q => q.id);
 const selIds = () => sel === 'all' ? blueIds() : Array.isArray(sel) ? sel : sel ? [sel] : [];
 function select(id) { sel = id; selNode = null; const one = Array.isArray(id) ? (id.length === 1 ? id[0] : null) : id; if (one && one !== 'all' && typeof cardFor === 'function') cardFor({ t: 'sq', id: one }); syncButtons(); updateHud(); } // (one squad picked — any way: its card at the bottom)
 // "yes, sir" from one of the picked squads
-const sayPicked = ids => { if (ids.length) Radio.hear({ kind: 'selected', id: ids[Math.floor(Math.random() * ids.length)] }); };
+// picked: a commander with a problem says it (fuel, water, ammunition, wounded — the most urgent over all those picked:
+// "2 of the tanks out of fuel"), on the radio and in the message list; else "yes, sir" as before (pickReport)
+const sayPicked = ids => { if (!ids.length) return; const r = pickReport(ids); if (r) { Radio.hear(r); feedAdd({ kind: 'report', x: r.x, y: r.y, text: r.text }); } else Radio.hear({ kind: 'selected', id: ids[Math.floor(Math.random() * ids.length)] }); };
+const REPORT_LOW = 0.2, REPORT_HURT = 0.6, REPORT_ORDER = ['fuel', 'water', 'ammo', 'hurt'];
+function pickReport(ids) {
+  const qs = ids.map(id => s.squads.find(q => q.id === id)).filter(q => q && !q.dead && q.side === 'blue' && Sim.ownSquad(s, q)), bad = { fuel: [], water: [], ammo: [], hurt: [] };
+  for (const q of qs) for (const u of s.units) if (u.squad === q.id) {
+    const T = Sim.TYPES[u.type];
+    if (s.logi && Sim.needsFuel(u.type) && (u.fuel ?? 1) < REPORT_LOW) bad.fuel.push(u);
+    if (s.logi && Sim.needsWater(u.type) && (u.water ?? 1) < REPORT_LOW) bad.water.push(u);
+    if (!T.care && !T.support && u.sup !== undefined && u.sup < REPORT_LOW) bad.ammo.push(u);
+    if (u.hp / T.hp < REPORT_HURT) bad.hurt.push(u);
+  }
+  const k = REPORT_ORDER.find(k => bad[k].length); if (!k) return null;
+  const us = bad[k], n = us.length, cnt = {}; for (const u of us) cnt[u.type] = (cnt[u.type] || 0) + 1;
+  const ty = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0], x = us.reduce((a, u) => a + u.x, 0) / n, y = us.reduce((a, u) => a + u.y, 0) / n;
+  const text = n === 1 && ids.length === 1 ? tr('rep1_' + k, tn(ty)) : tr('repN_' + k, n, tn(ty));
+  return { kind: 'rep_' + k, who: text, text, x, y, t: s.t };
+}
 // a squad picked on the map (or by its building): its whole group, if it's in one
 function pickSquad(id) { const g = groupOf(id); select(g ? g.ids.slice() : id); sayPicked([id]); }
 // what the squads say back to an order: attacking (at an enemy), holding, falling back, else on the way. Under command

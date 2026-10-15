@@ -10,7 +10,9 @@ EVENTS = ['selected', 'on_the_way', 'attacking', 'holding', 'retreating', 'in_po
           'base_attack', 'fhq_attack', 'hq_attack', 'drone_lost',
           'dozer_ready', 'dozer_idle', 'radio_ready', 'fhq_ready', 'drone_ready', 'place_hq', 'hq_ready',
           'took_radar', 'took_power', 'took_fuel', 'took_post', 'lost_post', 'can_build',
-          'missile_incoming', 'intercepted']
+          'missile_incoming', 'intercepted',
+          'report_fuel', 'report_water', 'report_ammo', 'report_hurt',
+          'ask_ok', 'ask_none', 'ask_making', 'mate_fuel', 'mate_ammo', 'mate_water', 'mate_fire', 'mate_guard']
 AUDIO = ('.mp3', '.wav', '.ogg', '.m4a')
 
 def build():

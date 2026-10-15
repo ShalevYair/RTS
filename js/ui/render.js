@@ -1362,6 +1362,33 @@ const SYMBOL_R = 9, SYMBOL_A = 0.5;
 // minimap (shown when the map doesn't fit on screen): terrain, our squads and structures, what we know of the
 // enemy, fresh reports, and the part on screen. Tap / drag it to look there.
 const MINI_W = 360;
+// the fighting of the last minute on the minimap: every shot our side knows of (ours, at us, or seen) warms its cell —
+// red where they're hitting us more, orange where we're hitting them; it cools over HEAT_T s. Faint, and full under
+// the mouse (#mini:hover)
+const HEAT_CELL = 160, HEAT_T = 60, HEAT_FULL = 25, HEAT_DIM = 0.7;
+let heat = null, heatFor = null, miniHot = false;
+function heatShot(sh) {
+  if (!s || sh.kind === 'arrow' || sh.kind === 'dome') return;
+  const ours = sh.side === 'blue', atUs = !ours && (!s.fog || s.units.some(u => u.side === 'blue' && Math.abs(u.x - sh.x2) < 12 && Math.abs(u.y - sh.y2) < 12));
+  if (!ours && !atUs && s.fog && !s.units.some(u => u.side === 'red' && s.vis.blue.has(u.id) && Math.abs(u.x - sh.x1) < 4 && Math.abs(u.y - sh.y1) < 4)) return; // (theirs, unseen and not at us: not known)
+  if (heatFor !== s) { heat = new Map(); heatFor = s; }
+  const k = Math.floor(sh.x2 / HEAT_CELL) * 4096 + Math.floor(sh.y2 / HEAT_CELL), c = heat.get(k) || { us: 0, them: 0, t: s.t, x: 0, y: 0, n: 0 };
+  heatCool(c); if (ours) c.them++; else c.us++;
+  c.x = (c.x * c.n + sh.x2) / (c.n + 1); c.y = (c.y * c.n + sh.y2) / (c.n + 1); c.n = Math.min(c.n + 1, 30); heat.set(k, c);
+}
+const heatCool = c => { const f = Math.exp(-(s.t - c.t) / (HEAT_T / 3)); c.us *= f; c.them *= f; c.t = s.t; };
+function drawHeat(c) {
+  if (!heat || heatFor !== s) return;
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (const [k, h] of heat) {
+    heatCool(h); const v = h.us + h.them; if (v < 0.3) { heat.delete(k); continue; }
+    const a = Math.min(1, v / HEAT_FULL) * (miniHot ? 1 : HEAT_DIM), r = Math.max(HEAT_CELL, s.W / 40) * (0.8 + Math.min(1, v / HEAT_FULL) * 0.7), bad = h.us / v;
+    const col = bad > 0.55 ? [255, 59, 48] : [255, 154, 31], g = c.createRadialGradient(h.x, h.y, 0, h.x, h.y, r);
+    g.addColorStop(0, `rgba(${col},${a.toFixed(3)})`); g.addColorStop(1, `rgba(${col},0)`); c.fillStyle = g; c.beginPath(); c.arc(h.x, h.y, r, 0, Math.PI * 2); c.fill();
+  }
+  c.restore();
+}
+$('mini').addEventListener('pointerenter', () => { miniHot = true; }); $('mini').addEventListener('pointerleave', () => { miniHot = false; });
 function drawMini() {
   const m = $('mini'), vr = viewRect(), all = !vr || (vr.w >= s.W - 1 && vr.h >= s.H - 1);
   m.hidden = all || !$('intro').hidden || !$('end').hidden;
@@ -1381,6 +1408,7 @@ function drawMini() {
     c.fillStyle = colors.water; for (const l of s.lakes) { c.beginPath(); c.ellipse(l.x, l.y, l.rx, l.ry, l.a, 0, Math.PI * 2); c.fill(); }
   }
   if (s.fog) { c.fillStyle = hexA(colors.blue, 0.12); for (const n of s.nodes) if (n.side === 'blue' && Sim.nodeSpec(n.kind) && s.t >= n.ready) { c.beginPath(); c.arc(n.x, n.y, Sim.nodeSpec(n.kind).r0, 0, Math.PI * 2); c.fill(); } }
+  drawHeat(c); // (where the fighting was in the last minute)
   const dot = (x, y, r, col, sq) => { c.fillStyle = col; c.beginPath(); if (sq) c.rect(x - r, y - r, 2 * r, 2 * r); else c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
   for (const n of s.nodes) if (nodeShown(n)) { if (n.kind === 'drone') { c.globalAlpha = 0.35; dot(n.x, n.y, 7, colors[n.side]); c.globalAlpha = 1; } else dot(n.x, n.y, 14, colors[n.side], true); }
   if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id) && s.memNodes.blue[id].kind !== 'drone') { c.globalAlpha = 0.5; const n = s.memNodes.blue[id]; dot(n.x, n.y, 14, colors.red, true); c.globalAlpha = 1; }

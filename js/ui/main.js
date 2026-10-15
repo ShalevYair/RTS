@@ -105,6 +105,7 @@ function frameBody(now) {
   for (const sh of s.shots) if (!sh.heard) {
     sh.heard = true; if (sfxOn && onScreen({ x: sh.x1, y: sh.y1 })) Music.shot(sh.kind, sh.x1 / s.W);
     fight.push(s.t); // (two sides: every shot is ours or at us)
+    heatShot(sh); // (the minimap's heat: render.js)
   }
   ambientTick(now, vr);
   // the music's mood: battle pieces once we're fighting (FIGHT_SHOTS shots in FIGHT_T s of game time),

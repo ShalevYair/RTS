@@ -190,7 +190,7 @@ function sumSend(n, ids, got, x, y) {
   const r = Sim.summon(s, 'blue', ids, x, y, (n.pic || sumTypes(n)[0]) + (n.mark ? ':' + n.mark : '')); if (!r) return;
   pings.push({ x, y, t: performance.now() });
   const say = replyOf('hold'); for (const id of own) orderSay[id] = say;
-  if (own.length && !Sim.friction(s)) Radio.hear({ kind: say, id: own[0] }); else if (!own.length) Radio.say(tr('askOk'));
+  if (own.length && !Sim.friction(s)) Radio.hear({ kind: say, id: own[0] }); else if (!own.length) Radio.play('ask_ok', tr('askOk'));
   feedAdd({ kind: 'ask', x, y, text: tr('sumSent', sumName(n), got) + (r.wait.length ? ' · ' + tr('sumBusy', sumUnits(r.wait.map(id => s.squads.find(q => q.id === id)))) : '') });
   updateHud();
 }
@@ -200,18 +200,18 @@ function askAt(kind, x, y) {
   const a = Sim.ask(s, 'blue', kind, x, y); if (!a) return;
   pings.push({ x, y, t: performance.now() });
   const said = a.ok ? tr('askOk') : a.make ? tr('askMake', sn(a.make)) : tr('askNo'); // (none, but it can be made: "we're building …")
-  Radio.say(said);
+  Radio.play(a.ok ? 'ask_ok' : a.make ? 'ask_making' : 'ask_none', said);
   feedAdd({ kind: 'ask', x, y, text: tr('askMine', ASK_ICON[kind] + ' ' + tr('ask_' + kind)) + ' · ' + said });
 }
 // every frame: the partner's new asks of us — in the list and on the radio
 function askTick() {
   if (!s || !s.asks) { askSeen = 0; return; }
   for (const a of s.asks) {
-    if (a.late && !a.saidLate && a.from === 'me') { a.saidLate = true; const t = tr('askMine', ASK_ICON[a.kind] + ' ' + tr('ask_' + a.kind)) + ' · ' + tr('askOk'); feedAdd({ kind: 'ask', x: a.x, y: a.y, text: t }); Radio.say(tr('askOk')); } // (built, and sent now)
+    if (a.late && !a.saidLate && a.from === 'me') { a.saidLate = true; const t = tr('askMine', ASK_ICON[a.kind] + ' ' + tr('ask_' + a.kind)) + ' · ' + tr('askOk'); feedAdd({ kind: 'ask', x: a.x, y: a.y, text: t }); Radio.play('ask_ok', tr('askOk')); } // (built, and sent now)
     if (a.id <= askSeen) continue; askSeen = a.id;
     if (a.from !== 'mate') continue;
     const t = tr('askMate', ASK_ICON[a.kind] + ' ' + tr('ask_' + a.kind));
-    feedAdd({ kind: 'ask', x: a.x, y: a.y, text: t }); Radio.say(t);
+    feedAdd({ kind: 'ask', x: a.x, y: a.y, text: t }); Radio.play('mate_' + a.kind, t);
   }
 }
 // (a summons whose squads are all there (or gone), none still in a fight: its mark is off the map)
