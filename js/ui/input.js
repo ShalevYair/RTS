@@ -103,7 +103,7 @@ function tap(e) {
   if (eyeArmed) { Sim.drone(s, 'blue', x, y); eyeArmed = s.drones.blue.stock > 0; syncButtons(); updateHud(); return; }
   if (buildArmed) { placeBuilding(x, y, e.shiftKey); return; }
   if (fhqArmed) { placeFhq(x, y); return; }
-  if (frontArmed) { placeFront(x, y); return; }
+  if (frontArmed) { frontTap(e); return; }
   if (hqArmed) { placeHq(x, y); return; }
   if (roadArmed) { placeRoad(x, y, e.shiftKey); return; } // (roadui.js)
   if (!$('buildm').hidden) { $('buildm').hidden = true; syncButtons(); return; }
@@ -255,7 +255,8 @@ cv.addEventListener('pointerdown', e => {
   try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
   const box = e.pointerType === 'mouse' && e.button === 0 && !eyeArmed && !buildArmed && !fhqArmed && !hqArmed && !frontArmed && !roadArmed;
   const free = !eyeArmed && !buildArmed && !fhqArmed && !hqArmed && !roadArmed;
-  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0, face: false, right: e.pointerType === 'mouse' && e.button === 2, turn: V3.on && e.pointerType === 'mouse' && e.button === 1 } : { moved: true };
+  drag = touches.size === 1 ? { x: e.clientX, y: e.clientY, moved: false, box, tapOk: e.button === 0, face: false, right: e.pointerType === 'mouse' && e.button === 2, turn: V3.on && e.pointerType === 'mouse' && e.button === 1, front: frontArmed && e.button === 0 } : { moved: true };
+  if (drag.front) { const r = cv.getBoundingClientRect(); frontDraw = { pts: [{ x: e.clientX - r.left, y: e.clientY - r.top }] }; } // (the fronts: a line dragged on the map — hud.js)
   // touch, or the left button with something picked: held still for a moment, the drag that follows sets a facing
   const mouseHold = e.pointerType === 'mouse' && e.button === 0 && free && sel !== null;
   if ((e.pointerType !== 'mouse' || mouseHold) && touches.size === 1 && free) {
@@ -287,7 +288,8 @@ cv.addEventListener('pointermove', e => {
   const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
   if (!drag || drag.wheel) return; // (the wheel open under a held button: the pointer only goes to it)
   if (drag.face) { const r = cv.getBoundingClientRect(); faceDrag.x1 = e.clientX - r.left; faceDrag.y1 = e.clientY - r.top; return; }
-  if (drag.turn) { drag.moved = true; v3Orbit(dx, dy); return; } // (the 3D view: the middle button turns and tilts the camera)
+  if (drag.turn) { drag.moved = true; v3Orbit(dx, dy); return; }
+  if (drag.front && frontDraw) { const r = cv.getBoundingClientRect(), q = { x: e.clientX - r.left, y: e.clientY - r.top }, l = frontDraw.pts[frontDraw.pts.length - 1]; if (Math.hypot(q.x - l.x, q.y - l.y) >= FRONT_PX) frontDraw.pts.push(q); if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_PX) drag.moved = true; return; } // (the 3D view: the middle button turns and tilts the camera)
   if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > DRAG_PX) { drag.moved = true; clearTimeout(drag.hold); if (!drag.box) panBy(e.clientX - drag.x - dx, e.clientY - drag.y - dy); }
   if (!drag.moved) return;
   if (drag.box) { const r = cv.getBoundingClientRect(); boxSel = { x0: drag.x - r.left, y0: drag.y - r.top, x1: e.clientX - r.left, y1: e.clientY - r.top }; }
@@ -308,6 +310,7 @@ const lift = e => { touches.delete(e.pointerId); if (drag) clearTimeout(drag.hol
 cv.addEventListener('pointerup', e => {
   const d = drag, b = boxSel, f = faceDrag; lift(e); boxSel = null; faceDrag = null;
   if (d && d.wheel) return; // (the wheel opened by holding: letting go leaves it open)
+  if (d && d.front) { if (d.moved) frontDone(e); else { frontDraw = null; tap(e); } return; }
   if (d && d.face) {
     if (!menu.hidden || s.over) return;
     if (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) < DRAG_PX * 2) { if (d.right) unpick(); else tap(e); return; } // a plain right click: clear the pick; a hold: the order
@@ -321,7 +324,7 @@ cv.addEventListener('pointerup', e => {
   if (d && d.right && !d.moved) { unpick(); return; }
   if (d && !d.moved && d.tapOk && e.isPrimary !== false) tap(e);
 });
-cv.addEventListener('pointercancel', e => { lift(e); boxSel = null; faceDrag = null; });
+cv.addEventListener('pointercancel', e => { lift(e); boxSel = null; faceDrag = null; frontDraw = null; });
 // right click: whatever was armed is dropped; else nothing is picked any more, and a second one picks them all
 // (in level 1, with no picking yet, it only drops)
 function unpick() {

@@ -173,7 +173,7 @@ function playerTrucks(s) {
   if (!s.logi || s.meBot || s.noAiSupply || s.t - (s.ptAt ?? -99) < PLAYER_TRUCKS) return; s.ptAt = s.t;
   const team = s.squads.filter(q => q.side === 'blue' && !q.dead && !q.aboard && s.units.some(u => u.squad === q.id)), n = {};
   for (const sq of team) {
-    if (!CARGO[sq.type] || sq.told || !ownSquad(s, sq) || s.units.some(u => u.squad === sq.id && u.refill)) continue;
+    if (!CARGO[sq.type] || sq.told || sq.front || !ownSquad(s, sq) || s.units.some(u => u.squad === sq.id && u.refill)) continue;
     const k = n[sq.type] = (n[sq.type] || 0) + 1, f = s.front && s.front.blue, p = f ? frontRing(f, k - 1, Object.keys(CARGO).indexOf(sq.type)) : truckStation(s, sq, team, k - 1);
     if (Math.hypot(p.x - sq.order.x, p.y - sq.order.y) > 40) order(s, sq.id, 'hold', Math.round(p.x), Math.round(p.y), true);
   }
@@ -386,7 +386,9 @@ function think(s, side, level, who) {
     const [a, b] = hqBand(s, side);
     for (let i = 0; i < 30; i++) if (planHq(s, side, a + s.rand() * (b - a), 60 + s.rand() * (s.H - 120))) break;
   }
-  const mine = s.squads.filter(q => q.side === side && !q.dead && !q.retreating && !(q.cmd && s.hqPending && s.hqPending[side]) && own(q));
+  const all = s.squads.filter(q => q.side === side && !q.dead && !q.retreating && !(q.cmd && s.hqPending && s.hqPending[side]) && own(q));
+  // (the player's fronts: the squads on them go where the fronts say, not the AI — fronts.js)
+  const mine = onFronts(s, side) ? all.filter(q => !q.front) : all;
   // (arms: the whole side's squads — the support (signals trucks, guns, supply trucks) stands behind the partner's
   // front too: a partner in air and artillery has no ground squads of its own, and its guns and trucks stayed home)
   const team = who ? s.squads.filter(q => q.side === side && !q.dead && !q.retreating && !(q.cmd && s.hqPending && s.hqPending[side])) : mine;
@@ -417,11 +419,11 @@ function think(s, side, level, who) {
   const W = D.wave && !s.level && !stayHome && !s.noWaves ? aiWaves(s, side, side + (who || ''), D.wave, fighters.filter(q => !TYPES[q.type].air && q.type !== 'commando' && !(D.smart && q.strength < St.ready && s.t - q.lastContact >= CONTACT_MEMORY)), foes, structs) : null;
   let rallied = 0;
   // posts: a squad of soldiers to each one we don't hold (they go on their own; the rest of think leaves them be)
-  const toPost = stayHome ? new Set() : aiPosts(s, side, mine, setOrder); // (staying home: no soldiers off to the posts)
+  const toPost = stayHome || onFronts(s, side) ? new Set() : aiPosts(s, side, mine, setOrder); // (fronts: the posts are taken from their own card — the player's call) // (staying home: no soldiers off to the posts)
   const raid = (D.traits || St.raids) && can.build ? aiLift(s, side, mine, structs) : new Set(); // (commando raids by helicopter)
   let nth = 0, radios = 0, arty = 0, arrows = 0, domes = 0; const trucks = {};
   const asked = askBusy(s, side); // (arms: sent to answer a partner's ask — on it for a while — asks.js)
-  if (who === 'mate') mateAsks(s, side, mine, foes);
+  if (who === 'mate') mateAsks(s, side, all, foes);
   for (const sq of mine) {
     if (toPost.has(sq.id) || asked.has(sq.id)) continue;
     if (sq.type === 'ssm' && sq.fire) continue; // (setting up to launch: it stays put)

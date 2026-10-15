@@ -118,7 +118,7 @@ function syncButtons() {
   $('fs').setAttribute('aria-pressed', String(fsOn()));
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
   document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.map === (hugeMap ? 'huge' : bigMap ? 'big' : 'small'))));
-  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye') || Sim.armSide(s, 'blue', 'drone') === 'mate'; $('fhq').hidden = !uiHas('fhq') || !fhqMine(); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); syncMic(); $('front').classList.toggle('set', !!(s.front && s.front.blue));
+  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye') || Sim.armSide(s, 'blue', 'drone') === 'mate'; $('fhq').hidden = !uiHas('fhq') || !fhqMine(); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); syncMic(); $('front').classList.toggle('set', !!(s.front && s.front.blue) || Sim.onFronts(s, 'blue'));
   $('fsRow').hidden = !fsCan() && !fsOn();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
   if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed) roadArmed = false; // (another thing armed: the road's off — roadui.js)
@@ -742,16 +742,39 @@ $('eye').addEventListener('click', toggleEye);
 // forward HQ: 🏕️, then a spot on the map; the selected jeep / tank squad (or the nearest one) drives there and sets it
 // up. With none that can, the squads that could blink (or nothing happens while waiting for the next one).
 let fhqArmed = false;
-// the front: 🚩, then a spot on the map — where everything new out of a building, or done being treated, goes.
-// 🚩 again while armed: no front
-let frontArmed = false;
+// the fronts: 🚩, then a line dragged on the map (straight or bent) — up to Sim.FRONT_MAX; the whole army goes to them
+// (fronts.js). Armed, a click on a line takes it off. 🚩 again: unarmed
+let frontArmed = false, frontDraw = null;
+const FRONT_COL = ['#4fa3ff', '#2fd1a6', '#c08cff'], FRONT_PX = 7, FRONT_HIT = 14;
 function armFront() {
-  if (frontArmed) { frontArmed = false; Sim.setFront(s, 'blue', null); syncButtons(); return; }
+  if (frontArmed) { frontArmed = false; syncButtons(); return; }
   frontArmed = true; eyeArmed = false; buildArmed = null; fhqArmed = false; hqArmed = false; $('buildm').hidden = true; syncButtons();
+}
+// the line being dragged (screen points): done — a front, if it's long enough and there's room for another
+function frontDone(e) {
+  const d = frontDraw; frontDraw = null; if (!d || d.pts.length < 2) return;
+  const pts = d.pts.map(p => scrToWorld(p.x, p.y));
+  if ((s.fronts && s.fronts.blue || []).length >= Sim.FRONT_MAX) { toast(tr('frontMax', Sim.FRONT_MAX), e.clientX, e.clientY); return; }
+  const f = Sim.addFront(s, 'blue', pts); if (!f) { toast(tr('frontShort'), e.clientX, e.clientY); return; }
+  frontArmed = false; syncButtons();
+}
+// the front whose line is under the screen point (within FRONT_HIT pixels), or null
+function frontHit(sx, sy) {
+  for (const f of s.fronts && s.fronts.blue || []) for (let i = 1; i < f.pts.length; i++) {
+    const a = worldToScr(f.pts[i - 1].x, f.pts[i - 1].y), b = worldToScr(f.pts[i].x, f.pts[i].y), dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy || 1;
+    const k = Math.max(0, Math.min(1, ((sx - a.x) * dx + (sy - a.y) * dy) / L2));
+    if (Math.hypot(sx - a.x - dx * k, sy - a.y - dy * k) < FRONT_HIT) return f;
+  }
+  return null;
+}
+// armed, a click: on a line — it's off; else how to draw one
+function frontTap(e) {
+  const r = cv.getBoundingClientRect(), f = frontHit(e.clientX - r.left, e.clientY - r.top);
+  if (f) { Sim.removeFront(s, 'blue', f.id); toast(tr('frontOff'), e.clientX, e.clientY, 1500); syncButtons(); return; }
+  toast(tr('frontHow'), e.clientX, e.clientY);
 }
 $('front').addEventListener('click', armFront);
 $('mic').addEventListener('click', () => micClick()); $('micBtn').addEventListener('click', () => micAsk(false));
-function placeFront(x, y) { Sim.setFront(s, 'blue', x, y); frontArmed = false; pings.push({ x, y, t: performance.now() }); syncButtons(); }
 // open field: 🏰, then a spot in our strip; the command tanks drive there and set the HQ up (armed at the start)
 let hqArmed = false, hqTold = false;
 const hqToPlace = () => !!(s.hqPending && s.hqPending.blue && !s.nodes.some(n => n.side === 'blue' && n.kind === 'hq') && Sim.cmdSquad(s, 'blue'));

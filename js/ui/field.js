@@ -313,6 +313,7 @@ function parseOrder(raw) {
     at = l.reduce((a, p) => dist2(p, mid) < dist2(a, mid) ? p : a); whereTxt = pn(kind); break;
   }
   if (!at && /מפקדה|בסיס|הביתה|headquarters|\bhq\b|\bbase\b|\bhome\b/.test(t)) { const h = s.nodes.find(n => n.side === 'blue' && n.kind === 'hq' && n.hp > 0); if (h) { at = h; whereTxt = sn('hq'); } }
+  if (!at && /חזית|front/.test(t) && Sim.onFronts(s, 'blue')) return { ok: true, ids, rejoin: true, txt: `${whoTxt} → ${tr('front')}` }; // (the fronts: back to them — fronts.js)
   if (!at && /חזית|front/.test(t)) { const f = s.front && s.front.blue; if (!f) return { why: tr('vNoFront') }; at = f; whereTxt = tr('front'); }
   if (!at && / (לשם|לכאן|כאן|שם|הנה) | there | here /.test(t)) { const m = lastMouse ? toWorld(lastMouse) : { x: cam.x, y: cam.y }; at = m; whereTxt = tr('vThere'); }
   if (!at && type !== 'retreat') return { why: tr('vWhere') };
@@ -334,6 +335,7 @@ function sendCapture(pt, type = 'attack') {
   return true;
 }
 function runOrder(r) {
+  if (r.rejoin) { Sim.toFront(s, r.ids === 'all' ? blueIds() : r.ids); talkSay('🎙 ' + r.txt, false); return; }
   sel = r.ids === 'all' ? 'all' : r.ids.length === 1 ? r.ids[0] : r.ids.slice(); selNode = null; syncButtons();
   if (r.type === 'retreat') issue('retreat'); else if (!(r.at.kind && Sim.POSTS[r.at.kind] && sendCapture(r.at, r.type))) issue(r.type, r.at.x, r.at.y);
   talkSay('🎙 ' + r.txt, false);

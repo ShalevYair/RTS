@@ -1321,8 +1321,41 @@ function draw() {
   drawMissiles(c);
   drawRoutes(c); drawFront(c); drawPicked(c); drawDesignated(c); drawAsks(c); drawPings(c); // (the vignette: #vig, in CSS — a full-screen layer drawn every frame was slow)
 }
-// the front (🚩 set): a blue flag on a pole, a faint ring round it
+// the fronts (fronts.js): each line in its colour on a dark edge, a soft band behind it (where the army stands), small
+// chevrons pointing ahead and its number at the start
+function drawFronts(c) {
+  const F = s.fronts && s.fronts.blue; if (!F || !F.length) return false;
+  const p = 1 / view.css; c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+  F.forEach((f, i) => {
+    const g = Sim.frontGeo(s, 'blue', f), col = FRONT_COL[i % FRONT_COL.length], path = () => { c.beginPath(); f.pts.forEach((q, j) => j ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); };
+    // (the band behind: the line moved back along its own normal, filled between)
+    c.globalAlpha = 0.13; c.fillStyle = col; c.beginPath(); f.pts.forEach((q, j) => j ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y));
+    for (let a = g.L; a >= 0; a -= Math.max(8, g.L / 40)) { const b = Sim.frontAt(g, a, 90); c.lineTo(b.x, b.y); }
+    { const b = Sim.frontAt(g, 0, 90); c.lineTo(b.x, b.y); } c.closePath(); c.fill();
+    c.globalAlpha = 0.55; c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 6 * p; path(); c.stroke();
+    c.globalAlpha = 0.95; c.strokeStyle = col; c.lineWidth = 3 * p; path(); c.stroke();
+    // (chevrons ahead: away from home)
+    c.lineWidth = 2 * p; const step = Math.max(60, 110 * p);
+    for (let a = step / 2; a < g.L; a += step) {
+      const o = Sim.frontAt(g, a, 0), b = Sim.frontAt(g, a, 1), nx = b.x - o.x, ny = b.y - o.y, tx = -ny, ty = nx, h = 9 * p;
+      c.beginPath(); c.moveTo(o.x - nx * 6 * p + tx * h, o.y - ny * 6 * p + ty * h); c.lineTo(o.x - nx * 15 * p, o.y - ny * 15 * p); c.lineTo(o.x - nx * 6 * p - tx * h, o.y - ny * 6 * p - ty * h); c.stroke();
+    }
+    const q = f.pts[0]; c.globalAlpha = 1; c.fillStyle = col; c.beginPath(); c.arc(q.x, q.y, 11 * p, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 1.5 * p; c.stroke();
+    c.fillStyle = '#08131f'; c.font = `700 ${13 * p}px Rubik, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(i + 1), q.x, q.y + 0.5 * p);
+  });
+  c.restore(); return true;
+}
+// the minimap: the front lines, thin
+function drawFrontsMini(c, k) {
+  const F = s.fronts && s.fronts.blue; if (!F) return;
+  c.save(); c.lineWidth = 2.2 / k; c.lineCap = 'round';
+  F.forEach((f, i) => { c.strokeStyle = FRONT_COL[i % FRONT_COL.length]; c.beginPath(); f.pts.forEach((q, j) => j ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.stroke(); });
+  c.restore();
+}
+// the front (🚩 set, no lines): a blue flag on a pole, a faint ring round it
 function drawFront(c) {
+  if (drawFronts(c)) return;
   const f = s.front && s.front.blue; if (!f) return;
   const p = 1 / view.css, wave = reduceMotion ? 0 : Math.sin(performance.now() / 300) * 2 * p;
   c.save(); c.globalAlpha = 0.35; c.strokeStyle = colors.blue; c.lineWidth = 2 * p; c.setLineDash([6 * p, 6 * p]); ring(f.x, f.y, 26 * p); c.stroke(); c.setLineDash([]);
@@ -1409,6 +1442,7 @@ function drawMini() {
   }
   if (s.fog) { c.fillStyle = hexA(colors.blue, 0.12); for (const n of s.nodes) if (n.side === 'blue' && Sim.nodeSpec(n.kind) && s.t >= n.ready) { c.beginPath(); c.arc(n.x, n.y, Sim.nodeSpec(n.kind).r0, 0, Math.PI * 2); c.fill(); } }
   drawHeat(c); // (where the fighting was in the last minute)
+  drawFrontsMini(c, k);
   const dot = (x, y, r, col, sq) => { c.fillStyle = col; c.beginPath(); if (sq) c.rect(x - r, y - r, 2 * r, 2 * r); else c.arc(x, y, r, 0, Math.PI * 2); c.fill(); };
   for (const n of s.nodes) if (nodeShown(n)) { if (n.kind === 'drone') { c.globalAlpha = 0.35; dot(n.x, n.y, 7, colors[n.side]); c.globalAlpha = 1; } else dot(n.x, n.y, 14, colors[n.side], true); }
   if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id) && s.memNodes.blue[id].kind !== 'drone') { c.globalAlpha = 0.5; const n = s.memNodes.blue[id]; dot(n.x, n.y, 14, colors.red, true); c.globalAlpha = 1; }
@@ -1433,6 +1467,12 @@ function drawMini() {
 
 // the selection rectangle while it's being drawn (screen pixels)
 function drawBox() {
+  if (frontDraw && fit && frontDraw.pts.length > 1) { // (a front being dragged: the line so far)
+    const c = ctx, n = (s.fronts && s.fronts.blue || []).length, col = FRONT_COL[n % FRONT_COL.length];
+    c.save(); c.setTransform(fit.dpr, 0, 0, fit.dpr, 0, 0); c.lineCap = 'round'; c.lineJoin = 'round';
+    const path = () => { c.beginPath(); frontDraw.pts.forEach((q, j) => j ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); };
+    c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 7; path(); c.stroke(); c.strokeStyle = col; c.lineWidth = 3.5; path(); c.stroke(); c.restore();
+  }
   if (faceDrag && fit) {
     const f = faceDrag, c = ctx, a = Math.atan2(f.y1 - f.y0, f.x1 - f.x0), L = Math.hypot(f.x1 - f.x0, f.y1 - f.y0);
     c.save(); c.setTransform(fit.dpr, 0, 0, fit.dpr, 0, 0); c.strokeStyle = colors.blue; c.fillStyle = colors.blue; c.lineWidth = 3; c.lineCap = 'round';
