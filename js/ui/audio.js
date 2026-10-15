@@ -310,6 +310,36 @@ const Music = (() => {
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.09, t + 0.4); g.gain.setValueAtTime(0.09, t + SIREN_T - 0.6); g.gain.linearRampToValueAtTime(0.0001, t + SIREN_T);
     o.connect(f); o2.connect(f); f.connect(g).connect(sfxBus); o.start(t); o2.start(t); o.stop(t + SIREN_T + 0.05); o2.stop(t + SIREN_T + 0.05);
   }
+  // thunder: after `wait` s (the light first, the sound by how far), a crack when near (near 0..1), then a rumble
+  // rolling a few seconds — lowpassed noise swelling and falling in bursts
+  function thunder(wait, near, xFrac) {
+    if (!ac || ac.state !== 'running' || sfxVol <= 0) return;
+    const t = ac.currentTime + Math.max(0, wait), dur = 2.6 + Math.random() * 1.8, j = 0.85 + Math.random() * 0.3;
+    let out = sfxBus;
+    if (ac.createStereoPanner) { const pan = ac.createStereoPanner(); pan.pan.value = Math.max(-1, Math.min(1, ((Number(xFrac) || 0.5) * 2 - 1) * 0.6)); pan.connect(sfxBus); out = pan; }
+    if (near > 0.35) {
+      const src = ac.createBufferSource(), f = ac.createBiquadFilter(), e = ac.createGain(); src.buffer = noise;
+      f.type = 'highpass'; f.frequency.value = 900; e.gain.setValueAtTime(0.0001, t); e.gain.linearRampToValueAtTime(0.35 * near, t + 0.01); e.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+      src.connect(f).connect(e).connect(out); src.start(t, Math.random()); src.stop(t + 0.4);
+    }
+    const src = ac.createBufferSource(), f = ac.createBiquadFilter(), e = ac.createGain(); src.buffer = noise; src.loop = true; src.playbackRate.value = 0.5 * j;
+    f.type = 'lowpass'; f.frequency.setValueAtTime(260 + 500 * near, t); f.frequency.exponentialRampToValueAtTime(90, t + dur);
+    const g = 0.25 + 0.4 * near; e.gain.setValueAtTime(0.0001, t);
+    let at = t; for (let i = 0; i < 4; i++) { const k = 1 - i / 4; at += 0.12 + Math.random() * dur / 5; e.gain.linearRampToValueAtTime(g * k * (0.7 + Math.random() * 0.3), at); at += 0.1 + Math.random() * 0.4; e.gain.linearRampToValueAtTime(g * k * 0.35, at); }
+    e.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f).connect(e).connect(out); src.start(t, Math.random()); src.stop(t + dur + 0.1);
+  }
+  // the wind of a dust storm (k 0..1): a loop of noise through a band that sweeps slowly, howling a little
+  let windN = null;
+  function wind(k) {
+    if (!ac || ac.state !== 'running') return;
+    if (!windN) {
+      const src = ac.createBufferSource(), f = ac.createBiquadFilter(), e = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain();
+      src.buffer = noise; src.loop = true; f.type = 'bandpass'; f.Q.value = 3; f.frequency.value = 420; lfo.frequency.value = 0.13; lg.gain.value = 220;
+      lfo.connect(lg).connect(f.frequency); e.gain.value = 0; src.connect(f).connect(e).connect(sfxBus); src.start(); lfo.start(); windN = e;
+    }
+    windN.gain.setTargetAtTime(sfxVol > 0 ? 0.22 * k : 0, ac.currentTime, 0.8);
+  }
   // ---- the battlefield's hum, all the time (ambient): engines (a low rumble), tracks (a clanking), rotors (a beat),
   // jets (a roar), feet (a soft patter) — each a loop of noise (and an oscillator under the engines) through its filter,
   // its loudness set a few times a second from what moves near the middle of the screen (main.js: ambientTick), panned
@@ -376,7 +406,7 @@ const Music = (() => {
     ({ ac, master, sfxBus, leadBus, lowBus, delay, noise } = keep); nextSong(keep.song);
     return { name: SONGS[k].name, rate, data: Array.from(buf.getChannelData(0), v => Math.max(-32768, Math.min(32767, Math.round(v * 32767)))) };
   }
-  return { start, stop, unlock, setVolume, setSfxVolume, boom, shot, squelch, siren, ambient, _debug: { render, playAll, tones, song: () => song.name, next: () => { nextSong(); return song.name; }, voices: () => voices } };
+  return { start, stop, unlock, setVolume, setSfxVolume, boom, shot, squelch, siren, ambient, thunder, wind, _debug: { render, playAll, tones, song: () => song.name, next: () => { nextSong(); return song.name; }, voices: () => voices } };
 })();
 // ---- the soundtrack: recorded pieces (music/) — last stand on the main menu (at once, a quick fade in; tried as the page
 // loads, else at the first tap); in the game calm pieces while it's quiet

@@ -60,17 +60,69 @@ function postInfo(p) {
 // ---- the weather ----
 const RAIN_N = 260, rainDrops = Array.from({ length: RAIN_N }, () => ({ x: Math.random(), y: Math.random(), l: 0.6 + Math.random() * 0.8, v: 0.75 + Math.random() * 0.5 }));
 const fogMask = { of: null, cv: document.createElement('canvas') };
-let wxWas = { rain: false, fog: false };
+let wxWas = { rain: false, fog: false, dust: false };
 function drawWeather(c) {
   if (!s.extras) return;
   const w = Sim.weatherAt(s);
   if (w.fog > 0.01 && !V3.on) drawLowFog(c, w.fog); // (the 3D view: banks of it lying in the low ground — three3d.js v3FogBanks)
   if (w.rain > 0.01) drawRain(w.rain);
+  if (w.dust > 0.01) drawDust(w.dust);
+  boltTick(w.rain); // (its flash: drawBoltFlat, over the night)
   // (a word when it starts)
-  const r = w.rain > 0.5, f = w.fog > 0.5;
+  const r = w.rain > 0.5, f = w.fog > 0.5, d = w.dust > 0.5;
   if (playing && r && !wxWas.rain) toast(tr('wx_rain'), innerWidth / 2, 110, 3500);
   if (playing && f && !wxWas.fog) toast(tr('wx_fog'), innerWidth / 2, 110, 3500);
-  wxWas = { rain: r, fog: f };
+  if (playing && d && !wxWas.dust) toast(tr('wx_dust'), innerWidth / 2, 110, 3500);
+  wxWas = { rain: r, fog: f, dust: d };
+}
+// a dust storm: the light brown and dim, and (the flat map) dust streaming across the screen with the wind, in gusts —
+// the 3D view: the haze brown and close, clouds of it rolling over the ground (three3d.js v3Weather, v3DustClouds)
+const DUST_N = 220, dustMotes = Array.from({ length: DUST_N }, () => ({ x: Math.random(), y: Math.random(), l: 0.5 + Math.random(), v: 0.6 + Math.random() * 0.8, a: 0.3 + Math.random() * 0.7 }));
+function drawDust(k) {
+  const c = ctx, W = cv.width, H = cv.height, t = performance.now() / 1000, gust = 0.75 + 0.25 * Math.sin(t * 0.7) * Math.sin(t * 0.23 + 1);
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = `rgba(150,112,62,${((V3.on ? 0.16 : 0.32) * k * gust).toFixed(3)})`; c.fillRect(0, 0, W, H);
+  if (!reduceMotion) {
+    const wl = Math.hypot(WIND.x, WIND.y) || 1, dx = WIND.x / wl, dy = WIND.y / wl;
+    c.lineCap = 'round'; c.lineWidth = Math.max(1.2, W / 900);
+    for (const m of dustMotes) {
+      const p = (m.x + t * 0.35 * m.v * gust) % 1, x = p * (W + 200) - 100, y = ((m.y + Math.sin(t * 0.9 + m.x * 20) * 0.01) % 1) * H, L = 30 * m.l * gust;
+      c.strokeStyle = `rgba(214,182,128,${(0.35 * k * m.a).toFixed(3)})`; c.beginPath(); c.moveTo(x, y); c.lineTo(x - dx * L, y - dy * L); c.stroke();
+    }
+  }
+  c.restore();
+}
+// ---- lightning (rain at night; only the look and the sound): now and then a strike somewhere about the screen — the
+// screen flashing twice, white light round where it hit (3D: the bolt itself and a real light, three3d.js v3Bolt),
+// and its thunder after the light, by how far (BOLT). bolt = { x, y, t0 (ms), seed, near }
+const BOLT = { every: 9, night: 0.45, life: 450, far: 2400, sound: 1.6 };
+let bolt = null, boltNext = 0;
+function boltTick(rain) {
+  const now = performance.now(), k = Sim.nightAt(s);
+  if (bolt && now - bolt.t0 > BOLT.life) bolt = null;
+  if (!playing || rain < 0.4 || k < BOLT.night || !s.night || gfxLow) { boltNext = 0; return; }
+  if (!boltNext) { boltNext = now + (2 + Math.random() * BOLT.every) * 1000; return; }
+  if (now < boltNext) return;
+  boltNext = now + (BOLT.every * (0.4 + Math.random() * 1.2) / rain) * 1000;
+  const vr = viewRect(); if (!vr) return;
+  const cx = vr.x + vr.w / 2, cy = vr.y + vr.h / 2, a = Math.random() * 6.28, r = Math.random() ** 0.7 * Math.max(vr.w, vr.h) * 0.9;
+  const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r, d = Math.hypot(x - cx, y - cy), near = Math.max(0, 1 - d / BOLT.far);
+  bolt = { x, y, t0: now, seed: Math.random() * 1000, near };
+  Music.thunder(d / BOLT.far * BOLT.sound + 0.15, near, (x - vr.x) / vr.w);
+}
+// how bright the flash is now (0..1): two quick pulses and a tail
+function boltFlash() {
+  if (!bolt || reduceMotion) return 0;
+  const t = (performance.now() - bolt.t0) / BOLT.life, p = v => Math.max(0, 1 - Math.abs(v) * 9);
+  return Math.min(1, p(t - 0.06) + 0.8 * p(t - 0.3) + 0.25 * Math.max(0, 1 - t)) * (0.45 + 0.55 * bolt.near);
+}
+// (the screen, and the ground round the strike — c: the map, or in 3D the picture laid on the ground)
+function drawBoltFlat(c) {
+  const f = boltFlash(); if (!f) return;
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = `rgba(150,170,210,${((V3.on ? 0.12 : 0.32) * f).toFixed(3)})`; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore();
+  c.save(); c.globalCompositeOperation = 'lighter'; const g = c.createRadialGradient(bolt.x, bolt.y, 0, bolt.x, bolt.y, 260);
+  g.addColorStop(0, `rgba(235,240,255,${(0.75 * f).toFixed(3)})`); g.addColorStop(1, 'rgba(200,215,255,0)'); c.fillStyle = g; c.beginPath(); c.arc(bolt.x, bolt.y, 260, 0, 6.29); c.fill(); c.restore();
 }
 // the morning fog: white over the plain, thinning up the hills' sides (a picture of the height grid, made once a map)
 function drawLowFog(c, k) {

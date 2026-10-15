@@ -353,6 +353,7 @@ function nightLights() {
   for (const f of s.fallen) if (CAR.has(f.type) && s.t - f.t < 10 && (!s.fog || shownAt(f))) lights.push([f.x, f.y, 34, 0.7 * (1 - (s.t - f.t) / 10)]);
   for (const p of firesOn(viewRect())) lights.push([p.x, p.y, 70, 0.8 * (1 - p.f * 0.5)]); // (woods on fire: an orange pool)
   for (const f of flares) { const p = flareAt(f); if (p.lit > 0.02) lights.push([p.x, p.y, FLARE.light * (0.75 + 0.25 * p.h / FLARE.h0), p.lit], [p.x, p.y, FLARE.light * 0.45, p.lit]); } // (flares: a wide pool, smaller as it comes down)
+  if (!V3.on) { const f = boltFlash(); if (f) lights.push([bolt.x, bolt.y, 900, f], [bolt.x, bolt.y, 300, f]); } // (lightning: the night lifts round the strike for a moment — the 3D view lifts all of it: a pool this wide was cut off at the map's edge)
   return lights;
 }
 

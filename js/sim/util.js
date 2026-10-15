@@ -1,8 +1,10 @@
 // Sim: small helpers shared by every part of the simulation
 function rng(seed) {
   let a = seed >>> 0;
-  return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  const f = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  f.state = v => (v === undefined ? a : (a = v | 0)); // (where it is — a saved game takes it with it: saveState)
+  return f;
 }
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 // a building's footprint radius (0 for anything else): distances to a building count from its edge

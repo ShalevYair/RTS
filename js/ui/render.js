@@ -1290,7 +1290,7 @@ function draw() {
     }
   }
   drawFires(c); drawSmoke(c); drawFlashes(c); if (!lite) drawClouds(c); drawWeather(c); // (rain, the morning fog: field.js)
-  drawNightLit(c);
+  drawNightLit(c); if (s.extras) drawBoltFlat(c); // (lightning's flash, over the dark)
   if (s.fog) { drawFog(); if (Sim.friction(s)) drawQuality(c); drawEnemyIntel(c); drawMarks(c); }
   drawPosts(c); drawNodes(c); drawPiles(c); drawDozerJobs(c); // (drawPiles: fuel barrels — fuelui.js)
   drawBuildArea(c);

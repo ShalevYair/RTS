@@ -558,3 +558,9 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 .infoCard .icLine:empty,.infoCard .icDesc:empty{display:none}
 .infoCard .icDesc{margin:0;font-size:12.5px;opacity:.85}
 .infoCard #icClose{position:absolute;top:4px;inset-inline-end:6px;width:26px;height:26px;font-size:14px;background:none;border:0;color:inherit;opacity:.7}
+
+/* a saved game: "go on" under start (save.js) */
+#intro.mainmenu #resume{margin:10px auto 0;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:200px;padding:8px 22px;border-radius:999px;border:1px solid rgb(255 255 255 / .35);background:rgb(15 23 42 / .55);color:#fff;font:500 16px/1.2 var(--ui);backdrop-filter:blur(6px);cursor:pointer}
+#intro.mainmenu #resume[hidden]{display:none}
+#intro.mainmenu #resume:hover{background:rgb(30 41 59 / .75)}
+#intro.mainmenu #resume small{font-size:12px;opacity:.75}

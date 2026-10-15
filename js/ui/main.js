@@ -1,6 +1,8 @@
 // UI: new game and the main loop
-function newGame(skipIntro) {
+function newGame(skipIntro, saved) {
   const seed = (Date.now() % 1e6) | 0;
+  // (saved: a game saved before — save.js — its state as it was, and the UI round it below)
+  if (saved) s = Sim.loadState(saved.s); else
   // big: 2× wide and 2× high, never narrower than 2000 (a phone held upright would get a thin strip)
   // (the player's units: each its own squad — singles)
   if (lvl) s = Sim.level(lvl, seed, worldWidth(), { singles: true });
@@ -18,7 +20,7 @@ function newGame(skipIntro) {
     Sim.setArms(s, myArms); // (arms: the computer partner plays the rest of blue)
   }
   // the low graphics: no day and night, no rain or morning fog in this game at all (both sides alike)
-  if (gfxLow) { s.night = false; s.wxPlan = []; lite = Math.max(lite, 1); }
+  if (gfxLow && !saved) { s.night = false; s.wxPlan = []; lite = Math.max(lite, 1); }
   // the big map opens zoomed in on our base; the small one shows it all
   cam = s.H > Sim.H ? { x: 0, y: s.H / 2, z: -1 } : { x: s.W / 2, y: s.H / 2, z: 1 };
   // the tutorial: close in on our forces (TUT_PX), a little toward the enemy — not the whole map, where the units were
@@ -37,6 +39,7 @@ function newGame(skipIntro) {
   if (s.extras) Sim.setRoads(s, decor.roads);
   views = {}; wxWas = { rain: false, fog: false };
   Sim.setCover(s, decor.rocks.items.filter(it => it.t === 'tree').map(it => (it.r = it.s * 0.4, it))); sel = 'all'; selNode = null; selPost = null; nag.at = nag.built = nag.fhq = 0; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();
+  if (saved) { const u = saved.ui; cam = u.cam; groups = u.groups || []; nextGroup = u.nextGroup || 1; views = u.views || {}; if (s.arms) myArms = s.arms.slice(); for (const i of u.gone || []) if (decor.rocks.items[i]) decor.rocks.items[i].gone = 1; }
   $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
   $('end').hidden = true; $('share').textContent = tr('share'); outro = null; $('outro').hidden = true; try { $('outroVid').pause(); } catch (e) { /* no video */ }
   applyUi(); resize(); syncButtons(); updateHud(); if (!skipIntro) showIntro(true);
@@ -61,7 +64,8 @@ const AMB_MS = 120, AMB_N = { engine: 6, track: 3, rotor: 2, jet: 2, feet: 10 },
 let ambAt = 0;
 function ambientTick(now, vr) {
   if (now - ambAt < AMB_MS) return; const dt = (now - ambAt) / 1000; ambAt = now;
-  if (!sfxOn || !playing || !vr || outro || !$('intro').hidden || !$('end').hidden) { Music.ambient(null); return; }
+  if (!sfxOn || !playing || !vr || outro || !$('intro').hidden || !$('end').hidden) { Music.ambient(null); Music.wind(0); return; }
+  Music.wind(s.extras ? Sim.weatherAt(s).dust : 0); // (a dust storm's wind)
   const cx = vr.x + vr.w / 2, cy = vr.y + vr.h / 2, R = Math.max(vr.w, vr.h) * 0.6, near = Math.max(0.25, Math.min(1, 900 / vr.w)); // (zoomed in: louder)
   const sum = { engine: 0, track: 0, rotor: 0, jet: 0, feet: 0 }; let px = 0, pw = 0, sp = 0, sn = 0;
   const seen = new Set();

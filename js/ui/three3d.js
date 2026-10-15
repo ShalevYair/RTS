@@ -119,12 +119,15 @@ function v3Sky(d) {
   u.sunDir.value.copy(V3.sunV); u.night.value = k; u.gold.value = gold;
   u.zen.value.copy(C.zen).lerp(C.pink, gold * 0.25).lerp(C.nzen, Math.min(1, k * 1.3)); u.hor.value.copy(C.hor).lerp(C.gold, gold * 0.75).lerp(C.nhor, k * k);
   u.sunCol.value.set('#fff2dc').lerp(v3Tmp.sunG || (v3Tmp.sunG = new THREE.Color(V3_SUN_GOLD)), gold);
+  // (a dust storm: the sky and the haze brown, the haze close — v3Weather dims the sun)
+  const dw = s.extras ? Sim.weatherAt(s).dust : 0;
+  if (dw > 0.001) { const dc = v3Tmp.dustC || (v3Tmp.dustC = new THREE.Color(V3_DUST.col)); u.hor.value.lerp(dc, V3_DUST.hor * dw); u.zen.value.lerp(dc, V3_DUST.zen * dw); u.sunCol.value.lerp(dc, 0.5 * dw); }
   V3.gold = gold;
   if (V3.farHills) V3.farHills.material.color.set(V3_FAR_COL).lerp(u.hor.value, 0.62 + 0.25 * k);
   V3.skyDome.position.copy(V3.cam.position); V3.skyDome.scale.setScalar(V3.cam.far * 0.8);
   // (the haze: the horizon's colour, from a little past the middle of the view)
   // (Three mixes the fog in after the tone mapping and the sRGB: its colour given as the horizon's comes out on the screen)
-  const f = V3.scene.fog; v3Screened(u.hor.value, f.color); f.near = d * V3_HAZE; f.far = d * 2.6 + 900;
+  const f = V3.scene.fog; v3Screened(u.hor.value, f.color); f.near = d * V3_HAZE * (1 - (1 - V3_DUST.near) * dw); f.far = (d * 2.6 + 900) * (1 - (1 - V3_DUST.far) * dw);
 }
 // ---- for the minimap (render.js drawMini): the ground's picture, small (once a map), and the ground under the screen's
 // corners (the top ones held to the map's reach — over the horizon, the sky's ray ran off to the plain) ----
@@ -969,6 +972,7 @@ function v3FxInit() {
   for (let i = 0; i < V3_BLAST_LIGHTS; i++) { const L = new THREE.PointLight('#ffa050', 0, 1, 1.2); V3.scene.add(L); V3.blastLights.push(L); }
   V3.flareLights = []; // (the flares' cold white light: the nearest few to the middle of the screen)
   for (let i = 0; i < V3_FLARE.n; i++) { const L = new THREE.PointLight('#e9eeff', 0, V3_FLARE.dist, 1); V3.scene.add(L); V3.flareLights.push(L); }
+  V3.boltLight = new THREE.PointLight('#dfe8ff', 0, V3_BOLT.dist, 1); V3.scene.add(V3.boltLight); // (lightning's light: v3BoltFx)
 }
 // (flares in 3D: n lights, each this bright at its brightest and reaching dist; the glow's size)
 const V3_FLARE = { n: 3, k: 120, dist: 700, glow: 20 };
@@ -993,6 +997,7 @@ function v3Fx() {
   while (dust.length && s.t - dust[0].t > DUST_T) dust.shift();
   if (!lite) for (const p of dust) { const a = (s.t - p.t) / DUST_T; if (a >= 0 && a < 1) v3Dot(F.smoke, p.x, v3Gnd(p.x, p.y) + 1.5 + a * 3, p.y, p.r * (2.2 + a * 3.5), 0.8, 0.74, 0.6, p.a * (1 - a) * 0.9); }
   v3FogBanks(F); // (the morning fog lying in the low ground)
+  v3DustClouds(F); v3BoltFx(F); // (a dust storm rolling over the ground; a lightning strike)
   // woods on fire (Sim fireTick): tongues of flame on each burning square, flickering, and a glow over it — the smoke
   // is smokeTick's (both views)
   const ft = performance.now() / 1000;
@@ -1714,7 +1719,7 @@ function v3Deco() {
   const D = V3.deco, g = D.g, B = V3.box = v3DecoBox(), kx = V3_DECO / B.w, ky = V3_DECO / B.h;
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, V3_DECO, V3_DECO);
   g.setTransform(kx, 0, 0, ky, -B.x * kx, -B.y * ky);
-  if (!lite) { drawTracks(g); drawClouds(g, V3_CLOUDS); } drawWeather(g); // (tracks in the ground, clouds' shadows, the morning fog; rain — over the screen)
+  if (!lite) { drawTracks(g); drawClouds(g, V3_CLOUDS); } drawWeather(g); if (s.extras) drawBoltFlat(g); // (tracks in the ground, clouds' shadows, the morning fog; rain — over the screen)
   v3Discs(g);
   if (s.fog) { if (Sim.friction(s)) drawQuality(g); drawEnemyIntel(g); drawMarks(g); }
   drawDozerJobs(g); drawBuildArea(g);
@@ -1814,7 +1819,7 @@ function v3SunBox(ty, vw) {
 // the morning fog as banks lying in the low ground (level under 1: as the flat map's drawLowFog), drifting slowly ----
 const V3_RAIN = { n: 3000, len: 10, h: 420, fall: 330, a: 0.5 };
 function v3Weather() {
-  const w = s.extras ? Sim.weatherAt(s) : { rain: 0, fog: 0 }, rain = gfxLow || reduceMotion ? 0 : w.rain;
+  const w = s.extras ? Sim.weatherAt(s) : { rain: 0, fog: 0, dust: 0 }, rain = gfxLow || reduceMotion ? 0 : w.rain;
   V3U.v3Wet.value += ((w.rain > 0.05 ? Math.min(1, w.rain * 1.2) : 0) - V3U.v3Wet.value) * 0.02; // (wet slowly, dry slowly)
   if (!V3.rain && rain > 0.01) {
     const N = V3_RAIN.n, B = new Float32Array(N * 6), E = new Float32Array(N * 2), P = new Float32Array(N * 6);
@@ -1828,10 +1833,78 @@ function v3Weather() {
       fragmentShader: `uniform float uA; varying float vE; void main() { gl_FragColor = vec4(0.78, 0.82, 0.88, uA * (0.35 + 0.65 * vE)); }` });
     V3.rain = new THREE.LineSegments(g, m); V3.rain.frustumCulled = false; V3.rain.renderOrder = 5; V3.scene.add(V3.rain);
   }
+  v3DustWeather(gfxLow ? 0 : w.dust || 0);
+  { const f = typeof boltFlash === 'function' ? boltFlash() : 0; // (a flash: the night lifted, the sky lit — for a moment)
+    if (f) { V3U.v3Night.value *= 1 - V3_BOLT.flash * f; V3.sky.intensity += V3_SKY * Math.PI * 0.9 * f; if (V3.skyU) V3.skyU.night.value *= 1 - 0.35 * f; } }
   if (V3.rain) {
     V3.rain.visible = rain > 0.01;
     if (V3.rain.visible) { const U = V3.rain.material.uniforms, B = V3.box; U.uC.value.set(cam.x, v3E(cam.x, cam.y) - 20, cam.y); U.uS.value = B ? Math.min(1400, Math.max(B.w, B.h) * 0.8) : 1000; U.uT.value = performance.now() / 1000; U.uA.value = V3_RAIN.a * rain * (1 - (V3.nightK || 0) * 0.5); U.uW.value.set(WIND.x, WIND.y); }
   }
+}
+// ---- a dust storm (Sim weatherAt .dust, only round noon): the haze brown and close (v3Sky), the sun dimmed, clouds
+// of dust rolling over the ground with the wind (v3DustClouds) and fine streaks of it blowing past (V3.dust, in its
+// shader like the rain). Lightning (field.js bolt, rain at night): the bolt as a chain of glows from the cloud down,
+// branching, a real light at it, the night and the sky lifted for the flash (v3BoltFx, v3Weather) ----
+const V3_DUST = { col: '#b38a55', hor: 0.85, zen: 0.65, near: 0.3, far: 0.7, sun: 0.5, n: 2200, len: 18, h: 140, speed: 150, a: 0.3, cloud: 0.3 };
+const V3_BOLT = { h: 1100, dist: 2600, light: 6000, glow: 9, step: 4, flash: 0.6 };
+function v3DustWeather(dw) {
+  if (!V3.dust && dw > 0.01) {
+    const N = V3_DUST.n, B = new Float32Array(N * 6), E = new Float32Array(N * 2), P = new Float32Array(N * 6);
+    for (let i = 0; i < N; i++) { const x = Math.random(), y = Math.random(), z = Math.random(); B.set([x, y, z, x, y, z], i * 6); E[i * 2 + 1] = 1; }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('aB', new THREE.BufferAttribute(B, 3)); g.setAttribute('aE', new THREE.BufferAttribute(E, 1));
+    const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { uC: { value: new THREE.Vector3() }, uS: { value: 1000 }, uT: { value: 0 }, uA: { value: 0 }, uD: { value: new THREE.Vector2(1, 0) } },
+      vertexShader: `attribute vec3 aB; attribute float aE; uniform vec3 uC; uniform float uS, uT; uniform vec2 uD; varying float vE, vF;
+        void main() { float sp = ${V3_DUST.speed.toFixed(1)} * (0.6 + 0.8 * aB.z), al = (fract(aB.x + uT * sp / uS) - 0.5) * uS, ac = (aB.z - 0.5) * uS;
+          vec2 q = uC.xz + uD * (al + aE * ${V3_DUST.len.toFixed(1)}) + vec2(-uD.y, uD.x) * ac; float y = uC.y + aB.y * aB.y * ${V3_DUST.h.toFixed(1)} + sin(uT * 2.0 + aB.x * 40.0) * 4.0;
+          vE = aE; vF = 1.0 - abs(al / uS) * 2.0; gl_Position = projectionMatrix * viewMatrix * vec4(q.x, y, q.y, 1.0); }`,
+      fragmentShader: `uniform float uA; varying float vE, vF; void main() { gl_FragColor = vec4(0.78, 0.66, 0.47, uA * vF * (0.25 + 0.75 * vE)); }` });
+    V3.dust = new THREE.LineSegments(g, m); V3.dust.frustumCulled = false; V3.dust.renderOrder = 5; V3.scene.add(V3.dust);
+  }
+  if (V3.dust) {
+    V3.dust.visible = dw > 0.01 && !reduceMotion;
+    if (V3.dust.visible) { const U = V3.dust.material.uniforms, B = V3.box, wl = Math.hypot(WIND.x, WIND.y) || 1; U.uC.value.set(cam.x, v3E(cam.x, cam.y), cam.y); U.uS.value = B ? Math.min(1600, Math.max(B.w, B.h) * 0.9) : 1000; U.uT.value = performance.now() / 1000; U.uA.value = V3_DUST.a * dw; U.uD.value.set(WIND.x / wl, WIND.y / wl); }
+  }
+  if (dw > 0.001) V3.sun.intensity *= 1 - V3_DUST.sun * dw;
+}
+// (the dust's clouds: big soft puffs over the ground on screen, a grid of them carried along the wind — each fading in
+// and out as it goes through its cell, so none pops)
+function v3DustClouds(F) {
+  const w = s.extras ? Sim.weatherAt(s).dust : 0, B = V3.box; if (w < 0.02 || !B || reduceMotion || gfxLow) return;
+  const st = Math.max(120, Math.max(B.w, B.h) / 14), t = performance.now() / 1000, wl = Math.hypot(WIND.x, WIND.y) || 1, dx = WIND.x / wl, dy = WIND.y / wl;
+  const i0 = Math.floor(B.x / st) - 1, j0 = Math.floor(B.y / st) - 1;
+  for (let i = i0; i <= i0 + Math.ceil(B.w / st) + 2; i++) for (let j = j0; j <= j0 + Math.ceil(B.h / st) + 2; j++) {
+    const r = v3Rnd(i * 5.7, j * 1.3), ph = (t * V3_DUST.speed * 0.45 / st + r) % 1, go = (ph - 0.5) * st * 2;
+    const x = (i + 0.5) * st + dx * go + (v3Rnd(j, i) - 0.5) * st * 0.6, y = (j + 0.5) * st + dy * go + (r - 0.5) * st * 0.6;
+    if (x < -100 || y < -100 || x > s.W + 100 || y > s.H + 100) continue;
+    v3Dot(F.smoke, x, v3Gnd(Math.max(0, Math.min(s.W, x)), Math.max(0, Math.min(s.H, y))) + 18 + r * 40, y, st * (1.4 + r), 0.72, 0.58, 0.38, V3_DUST.cloud * w * Math.sin(ph * Math.PI) * (1 - (V3.nightK || 0) * 0.5), r * 6 + t * 0.2, (i + j) & 3);
+  }
+}
+// (the bolt: a jagged channel from the cloud to the strike, and two or three branches off it — made once per strike)
+function v3BoltPath(b) {
+  let sd = Math.floor(b.seed * 9973) % 2147483647 || 7; const R = () => (sd = sd * 16807 % 2147483647) / 2147483647;
+  const g = v3Gnd(Math.max(0, Math.min(s.W, b.x)), Math.max(0, Math.min(s.H, b.y))), top = g + V3_BOLT.h, N = 24, main = [];
+  let x = b.x + (R() - 0.5) * 300, y = b.y + (R() - 0.5) * 300;
+  for (let i = 0; i <= N; i++) { const k = i / N; main.push([x + (b.x - x) * k * k, top - (top - g) * k, y + (b.y - y) * k * k]); x += (R() - 0.5) * 90; y += (R() - 0.5) * 90; }
+  main[N] = [b.x, g, b.y];
+  const out = [[main, 1]];
+  for (let n = 0; n < 3; n++) {
+    const at = 3 + Math.floor(R() * (N - 10)), p = main[at], br = [p], a = R() * 6.28, L = 4 + Math.floor(R() * 6);
+    let [px, ph, py] = p; for (let i = 0; i < L; i++) { px += Math.cos(a) * 30 + (R() - 0.5) * 50; py += Math.sin(a) * 30 + (R() - 0.5) * 50; ph -= (top - g) / N * (0.7 + R() * 0.6); br.push([px, ph, py]); }
+    out.push([br, 0.45]);
+  }
+  return out;
+}
+function v3BoltFx(F) {
+  const f = typeof boltFlash === 'function' ? boltFlash() : 0; if (V3.boltLight) V3.boltLight.intensity = 0;
+  if (!f || !bolt) return;
+  const P = bolt.path || (bolt.path = v3BoltPath(bolt));
+  for (const [pts, w] of P) for (let i = 1; i < pts.length; i++) {
+    const [ax, ah, ay] = pts[i - 1], [bx, bh, by] = pts[i], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bh - ah, by - ay) / V3_BOLT.step));
+    for (let k = 0; k < n; k++) { const q = k / n; v3Dot(F.glow, ax + (bx - ax) * q, ah + (bh - ah) * q, ay + (by - ay) * q, V3_BOLT.glow * w, 0.82, 0.88, 1, Math.min(1, f * 1.4) * w); }
+  }
+  const g = P[0][0][P[0][0].length - 1];
+  v3Dot(F.glow, g[0], g[1] + 10, g[2], 160 * f, 0.8, 0.86, 1, 0.6 * f); // (where it struck)
+  if (V3.boltLight) { V3.boltLight.position.set(g[0], g[1] + 320, g[2]); V3.boltLight.intensity = V3_BOLT.light * f * (0.5 + 0.5 * bolt.near); }
 }
 // (the morning fog's banks: billboards over the low ground on screen, one every so far, drifting — v3Fx)
 function v3FogBanks(F) {

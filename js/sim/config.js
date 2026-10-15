@@ -416,6 +416,10 @@ const NIGHT_LEVELS = [0, 0.25, 0.5, 0.75, 1, 0.75, 0.5, 0.25], NIGHT_STEP = 60, 
 // is), eased in and out over WX_FADE s; it all adds up with the night. Per day (8 minutes): rain with chance WX_RAIN_P,
 // WX_RAIN_T s long; morning fog with chance WX_FOG_P, from the first light for WX_FOG_T s
 const WX_K = 0.2, WX_FADE = 20, WX_RAIN_P = 0.45, WX_RAIN_T = [90, 180], WX_FOG_P = 0.6, WX_FOG_T = 150;
+// a dust storm: only round noon (the light's two brightest steps either side of it — with the night on), never with
+// rain; per day with chance WX_DUST_P, WX_DUST_T s long; WX_DUST_K off sight, range and the hits everywhere (in the air
+// too), and no dust trail gives a vehicle away in it (intel.js)
+const WX_DUST_P = 0.3, WX_DUST_T = [70, 120], WX_DUST_K = 0.3;
 // roads (s.extras): a vehicle on a road goes ROAD_FAST faster (the roads come from the UI's map, Sim.setRoads) — 1 now:
 // the dirt roads drawn on the map are no faster (the player's call)
 const ROAD_FAST = 1, ROAD_CELL = 64;

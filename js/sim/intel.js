@@ -78,7 +78,7 @@ function visibility(s) {
       }
       else if (q.dead) delete s.mem[side][q.id];
       // not seen, but its vehicles raise dust within DUST_SEE of our eyes: "something moves" there
-      else if (s.fog && q.side !== side && DUSTY.includes(q.type)) {
+      else if (s.fog && q.side !== side && DUSTY.includes(q.type) && !(s.extras && weatherAt(s).dust > 0.5)) { // (in a dust storm: no trail to see)
         let x = 0, y = 0, n = 0;
         for (const e of of.get(q.id) || []) if (s.t - (e.dustAt ?? -9) < 0.5 && (near(e, DUST_SEE) || s.nodes.some(k => k.side === side && k.hp > 0 && k.kind !== 'decoy' && dist(k, e) <= DUST_SEE))) { x += e.x; y += e.y; n++; }
         if (n) {
