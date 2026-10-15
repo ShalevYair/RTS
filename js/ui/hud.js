@@ -23,6 +23,36 @@ function pickReport(ids) {
   const text = n === 1 && ids.length === 1 ? tr('rep1_' + k, tn(ty)) : tr('repN_' + k, n, tn(ty));
   return { kind: 'rep_' + k, who: text, text, x, y, t: s.t };
 }
+// unasked, in the fight: a unit of ours that newly runs low (fuel, water, ammunition below REPORT_LOW) or is badly hurt
+// (below SELF_HURT) is said once — the most urgent kind, everyone near it of that kind in one line ("3 of the tanks out
+// of fuel"), on the radio and in the list; again only after it got back above SELF_OK. Every SELF_EVERY s of game time,
+// at most one line, and the same kind not again within SELF_GAP s (full game, our squads — not the partner's)
+const SELF_EVERY = 2, SELF_GAP = 20, SELF_HURT = 0.35, SELF_OK = 0.5, SELF_R = 400;
+let selfAt = 0, selfFor = null, selfSaid = new Map(), selfLast = {};
+function reportTick() {
+  if (!s || lvl || s.over || s.t - selfAt < SELF_EVERY && selfFor === s) return;
+  if (selfFor !== s) { selfFor = s; selfSaid = new Map(); selfLast = {}; }
+  selfAt = s.t;
+  const own = new Set(s.squads.filter(q => q.side === 'blue' && !q.dead && Sim.ownSquad(s, q)).map(q => q.id)), news = { fuel: [], water: [], ammo: [], hurt: [] };
+  for (const u of s.units) {
+    if (u.side !== 'blue' || !own.has(u.squad)) continue;
+    const T = Sim.TYPES[u.type], lv = {
+      fuel: s.logi && Sim.needsFuel(u.type) ? u.fuel ?? 1 : 1, water: s.logi && Sim.needsWater(u.type) ? u.water ?? 1 : 1,
+      ammo: !T.care && !T.support && u.sup !== undefined ? u.sup : 1, hurt: u.hp / T.hp };
+    let said = selfSaid.get(u.id);
+    for (const k of REPORT_ORDER) {
+      const low = k === 'hurt' ? SELF_HURT : REPORT_LOW;
+      if (said && said.has(k)) { if (lv[k] > SELF_OK) said.delete(k); continue; }
+      if (lv[k] < low) news[k].push(u);
+    }
+  }
+  const k = REPORT_ORDER.find(k => news[k].length && s.t - (selfLast[k] ?? -Infinity) >= SELF_GAP); if (!k) return;
+  const u0 = news[k][0], us = news[k].filter(u => Math.hypot(u.x - u0.x, u.y - u0.y) < SELF_R), n = us.length, cnt = {};
+  for (const u of us) { cnt[u.type] = (cnt[u.type] || 0) + 1; if (!selfSaid.has(u.id)) selfSaid.set(u.id, new Set()); selfSaid.get(u.id).add(k); }
+  const ty = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0], x = us.reduce((a, u) => a + u.x, 0) / n, y = us.reduce((a, u) => a + u.y, 0) / n;
+  const text = n === 1 ? tr('rep1_' + k, tn(ty)) : tr('repN_' + k, n, tn(ty));
+  selfLast[k] = s.t; Radio.hear({ kind: 'rep_' + k, who: text, text, x, y, t: s.t }); feedAdd({ kind: 'report', x, y, text });
+}
 // a squad picked on the map (or by its building): its whole group, if it's in one
 function pickSquad(id) { const g = groupOf(id); select(g ? g.ids.slice() : id); sayPicked([id]); }
 // what the squads say back to an order: attacking (at an enemy), holding, falling back, else on the way. Under command
