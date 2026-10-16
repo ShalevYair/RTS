@@ -487,6 +487,9 @@ const UNCLEAR_Q = 0.5, UNCLEAR_K = 0.5;
 const HQ_BAND = 0.2, HQ_WARM = 20, CMD_TANKS = 2;
 // the player's buildings (singles): one unit out at a time, and at most BUILD_UNITS alive from each building
 const BUILD_UNITS = 4;
+// with the supply chain (s.econ) no building's forces have a cap: it goes on while there's stock — the deposits run out,
+// they set how big an army is; what's too strong is made dearer (UNIT_COST, econ.js), not fewer. Still capped (`keep`):
+// the supply and haul trucks — logistics, not forces
 // the HQ under FIX_AT of its health: the nearest bulldozer with nothing to build (or under FIX_BUSY, the nearest) mends it, DOZER_FIX hp/s (one the player sends elsewhere
 // isn't sent again for FIX_SKIP s)
 const FIX_AT = 0.85, FIX_BUSY = 0.5, DOZER_FIX = 8, FIX_SKIP = 60, FIX_QUIET = 6; // (FIX_QUIET: mending only once nothing has hit it that long)

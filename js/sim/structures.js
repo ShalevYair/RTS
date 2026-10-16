@@ -323,16 +323,20 @@ function repair(s, n, S, idle, dt) {
   }
   if (k) { n.hp = Math.min(S.hp, n.hp + k * REPAIR_RATE * dt); n.fixing = true; }
 }
-// the AI's buildings: one squad each, raised whole and then refilled one unit at a time
+// no cap on what comes out of this building (the supply chain: the stock is the limit)
+const uncapped = (s, kind) => !!s.econ && !!STRUCTS[kind].unit && !STRUCTS[kind].econ && !LOGI_KINDS.includes(kind);
+// the AI's buildings: one squad each, raised whole and then refilled one unit at a time (uncapped: a full squad — the
+// next one, one unit at a time; the full one keeps its home but no more reinforcements)
 function produceSquad(s, n, S, dt) {
   if (!n.squad) {
     const dir = n.side === 'blue' ? 1 : -1, sq = makeSquad(s, n.side, S.unit, n.id, n.x + dir * (nodeR(n) + 30), n.y);
     n.squad = sq.id; sq.dead = true; // empty until the first unit comes out
+    if (n.raised) sq.born = true; // (uncapped, the next squad: one unit at a time, not a full one at once)
   }
   const sq = s.squads.find(q => q.id === n.squad);
   if (!sq || s.noReinforce) return;
   const have = s.units.filter(u => u.squad === sq.id).length;
-  if (have >= sq.size) { n.prog = 0; return; }
+  if (have >= sq.size) { n.prog = 0; if (uncapped(s, n.kind)) { n.squad = null; n.raised = true; } return; }
   n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / everyOf(s, n.kind, S);
   if (S.first && !n.first) { n.first = true; n.prog = 1; }
   if (n.prog >= 1 && !payUnit(s, n, S.unit, have || sq.born ? 1 : sq.size)) { n.prog = 1; return; } // (its steel first — econ.js)
@@ -419,7 +423,7 @@ function updateStructs(s, dt) {
     n.squads = (n.squads || []).filter(id => s.squads.some(q => q.id === id && !q.dead && q.home === n.id));
     if (s.noReinforce) continue;
     const have = n.squads.length;
-    if (have >= (S.keep || BUILD_UNITS)) { n.prog = 0; continue; } // (a missile factory: one truck)
+    if (have >= (S.keep || (uncapped(s, n.kind) ? Infinity : BUILD_UNITS))) { n.prog = 0; continue; } // (a missile factory: one truck; the supply chain — no cap on fighters)
     if (S.first && !n.first) { n.first = true; n.prog = 1; } // (a supply building: its first truck at once)
     n.prog += dt * (1 + boost(s, n.side)) * (s.prodRate ? s.prodRate[n.side] : 1) * postK(s, n.side, 'power', POWER_K) / everyOf(s, n.kind, S); // (a held power station: faster)
     if (n.prog >= 1 && !payUnit(s, n, S.unit)) { n.prog = 1; continue; } // (the supply chain: its steel first — econ.js)

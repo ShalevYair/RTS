@@ -34,10 +34,13 @@ const DEP_KINDS = {
 // the fuel for the trucks); the lab: electronics a second to whoever holds it
 const PLANT_ALSO = { refinery: { rubber: 0.7 } }, CHEM_RATE = 0.08, CHEM_KEEP = 30, ELEC_RATE = 0.05;
 // what each unit out of a building takes from the stock (the haulers nothing: else the chain could stall for good)
-const UNIT_COST = { tank: { steel: 8 }, jeep: { steel: 2, rubber: 2 }, ajeep: { steel: 3, rubber: 2 }, tjeep: { steel: 3, rubber: 2 },
-  how: { steel: 6 }, mlrs: { steel: 5, rubber: 1 }, ssm: { steel: 4, rubber: 1, electronics: 4 }, arrow: { steel: 3, rubber: 1, electronics: 3 }, dome: { steel: 3, rubber: 1, electronics: 3 },
-  mech: { steel: 1, rubber: 1 }, truck: { rubber: 1 }, fueltruck: { rubber: 1 }, watertruck: { rubber: 1 },
-  air: { alu: 6, steel: 1 }, tanker: { alu: 6 }, heli: { alu: 4, steel: 1 }, gunship: { alu: 4, steel: 1 }, lift: { alu: 4 } };
+// (no cap on forces — what's strong is dear instead: the guns (one workshop did 85–90% of the kills), commandos, missiles;
+// soldiers rations, the AT/AA ones' missiles explosives — with no cap on a tent, free soldiers came out for good)
+const UNIT_COST = { inf: { rations: 2 }, at: { rations: 2, explosives: 1 }, aa: { rations: 2, explosives: 1 }, med: { rations: 4 }, commando: { rations: 6, explosives: 3 },
+  tank: { steel: 8 }, jeep: { steel: 2, rubber: 2 }, ajeep: { steel: 3, rubber: 2 }, tjeep: { steel: 3, rubber: 2 },
+  how: { steel: 12, explosives: 4 }, mlrs: { steel: 10, rubber: 1, explosives: 4 }, ssm: { steel: 6, rubber: 1, electronics: 6 }, arrow: { steel: 3, rubber: 1, electronics: 3 }, dome: { steel: 3, rubber: 1, electronics: 3 },
+  mech: { steel: 2, rubber: 2 }, truck: { rubber: 1 }, fueltruck: { rubber: 1 }, watertruck: { rubber: 1 },
+  air: { alu: 6, steel: 1 }, tanker: { alu: 10 }, heli: { alu: 4, steel: 1 }, gunship: { alu: 4, steel: 1 }, lift: { alu: 4 } };
 // what one of a truck's fulls takes from the stock as it fills up at its building
 const REFILL = { fueltruck: { fuel: 1 }, watertruck: { rations: 1 }, truck: { explosives: 0.6, steel: 0.3 } };
 // (a drone: one electronics, and only past DRONE_KEEP in stock — the missiles first: the drones took it all, and no

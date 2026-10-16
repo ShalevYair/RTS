@@ -45,7 +45,7 @@ function nodeInfo(n) {
   else if (S.unit) {
     if (S.upgrade && s.trophy && s.trophy.blue) out.push(tr('trophyHas'));
     const have = s.units.filter(u => { const q = s.squads.find(k => k.id === u.squad); return q && (q.home === n.id); }).length;
-    out.push(have >= (s.singles ? Sim.BUILD_UNITS : S.size) ? tr('ni_full') : tr('ni_next', tn(S.unit), Math.max(1, Math.ceil((1 - (n.prog || 0)) * S.every))));
+    out.push(have >= (Sim.uncapped(s, n.kind) ? Infinity : s.singles ? Sim.BUILD_UNITS : S.size) ? tr('ni_full') : tr('ni_next', tn(S.unit), Math.max(1, Math.ceil((1 - (n.prog || 0)) * S.every))));
   }
   return out.join(' · ');
 }
