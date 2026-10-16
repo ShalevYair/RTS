@@ -18,8 +18,8 @@ function depShapes(d) {
   depLook.set(d.id, L); return L;
 }
 // the deposits on the map (under the buildings): a soft patch, then its blobs / stones; free ones of the armed mine's
-// kind with a pulsing green ring
-function drawDeposits(c) {
+// kind with a pulsing green ring (marks: only those and the icon — the 3D view lays the deposits themselves, v3Deposits)
+function drawDeposits(c, marks) {
   if (!s.deposits) return;
   const vr = viewRect(), R = Sim.DEP_R, arm = buildArmed && Sim.STRUCTS[buildArmed] && Sim.STRUCTS[buildArmed].deposit;
   for (const d of s.deposits) {
@@ -27,8 +27,8 @@ function drawDeposits(c) {
     const C = DEP_COL[d.kind], dry = Sim.depDry(d), full = d.amount ? Math.max(0, d.left) / d.amount : 1;
     c.save(); c.translate(d.x, d.y); c.globalAlpha = dry ? 0.25 : 0.45 + 0.55 * full; // (fades as it runs out; dry — a faint scar)
     const g = c.createRadialGradient(0, 0, 0, 0, 0, R * 1.25); g.addColorStop(0, C[1] + 'aa'); g.addColorStop(0.7, C[1] + '55'); g.addColorStop(1, C[1] + '00');
-    c.fillStyle = g; c.beginPath(); c.arc(0, 0, R * 1.25, 0, Math.PI * 2); c.fill();
-    for (const [i, b] of depShapes(d).entries()) {
+    if (!marks) { c.fillStyle = g; c.beginPath(); c.arc(0, 0, R * 1.25, 0, Math.PI * 2); c.fill(); }
+    if (!marks) for (const [i, b] of depShapes(d).entries()) {
       if (i / depShapes(d).length > Math.max(0.25, full)) break; // (fewer stones / pools as it empties)
       c.fillStyle = C[b.c];
       if (d.kind === 'farm') { c.save(); c.rotate(b.a); c.fillRect(b.x - b.r * 1.6, b.y - 0.9, b.r * 3.2, 1.8); c.restore(); }

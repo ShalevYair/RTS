@@ -1278,7 +1278,7 @@ function v3Scenery() {
   const sq = (x, y) => Math.floor(x / V3_CHUNK) + ',' + Math.floor(y / V3_CHUNK);
   if (scen.dead && scen.of === decor) for (; sc.dead < scen.dead.length; sc.dead++) {
     const it = scen.dead[sc.dead]; sc.todo.add(sq(it.x, it.y));
-    if (it.t === 'tree' && !gfxLow) { const L = V3_SCEN.tree; v3FallStart(L[it.v % L.length], it.x, it.y, (it.v % 628) / 100, it.s * V3_SCEN_K.tree); } // (it falls: v3Falling)
+    if (it.t === 'tree' && !gfxLow && !it.quiet) { const L = V3_SCEN.tree; v3FallStart(L[it.v % L.length], it.x, it.y, (it.v % 628) / 100, it.s * V3_SCEN_K.tree); } // (it falls: v3Falling)
   }
   const G = s.ground; if (G) for (; sc.cut < G.cut.length; sc.cut++) {
     const k = G.cut[sc.cut]; sc.todo.add(sq((k % G.w + 0.5) * G.C, (Math.floor(k / G.w) + 0.5) * G.C));
@@ -1327,6 +1327,113 @@ function v3Craters() {
     o.position.set(c.x, v3E(c.x, c.y), c.y); o.quaternion.copy(q); o.rotateY(c.a); o.scale.set(c.r, c.r, c.r); o.updateMatrix(); C.setMatrixAt(i, o.matrix);
   });
   C.count = L.length; C.instanceMatrix.needsUpdate = true;
+}
+// ---- the deposits (V3_DEP; DEP3D in ground3d.js — Poly Haven, CC0): each a patch of its own ground lying on the land
+// (tarred gravel for oil, red stony mud for iron, pale pebbles for lime, orange earth for bauxite, furrows for the
+// fields), soft and ragged at the edge; on it what's there to dig — stones (the marble rock, tinted per kind), black
+// glossy pools of oil that show the sky, rows of ripe wheat. Fewer as it runs out; a dry one — a faint scar; a mine on
+// it — only the patch round the building. ----
+const V3_DEP = { r: 1.55, tile: 34, rich: 1.15, stones: 18, rock: [4.5, 11], pools: 7, rows: 11, wheat: 1.1,
+  tint: { lime: [0.95, 0.93, 0.88], iron: [0.5, 0.2, 0.12], bauxite: [0.92, 0.5, 0.28], oil: [0.16, 0.15, 0.14] }, ground: { lime: [0.92, 0.9, 0.85], iron: [1, 0.92, 0.88], bauxite: [1.05, 0.95, 0.85], oil: [0.6, 0.6, 0.6], farm: [1.0, 0.9, 0.62] } };
+function v3DepTex(k, n) {
+  const key = 'depT' + k + n; if (V3[key] !== undefined) return V3[key];
+  const src = typeof DEP3D === 'object' && DEP3D[k] && DEP3D[k][n]; if (!src) return (V3[key] = null);
+  const t = new THREE.Texture(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = n === 'd' ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = 4;
+  const im = new Image(); im.onload = () => { t.image = im; t.needsUpdate = true; }; im.src = src; return (V3[key] = t);
+}
+const v3DepHash = d => { let h = 0; for (const ch of d.id + d.kind) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296; }; };
+// a stone: a lumpy ball, flat underneath (a few shapes, each laid many times)
+function v3StoneGeo(seed) {
+  const g = new THREE.IcosahedronGeometry(1, 2), p = g.attributes.position; let h = seed * 7919 + 13;
+  const r = () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296; }, bumps = [...Array(6)].map(() => [r() * 2 - 1, r() * 2 - 1, r() * 2 - 1, 0.15 + r() * 0.25]);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i); let k = 1;
+    for (const [bx, by, bz, a] of bumps) k += a * Math.max(0, x * bx + y * by + z * bz) ** 2 - a * 0.4;
+    k *= 0.9 + 0.08 * Math.sin(x * 9 + seed) * Math.sin(z * 7 - seed);
+    p.setXYZ(i, x * k * (1 + seed % 2 * 0.25), Math.max(-0.25, y * k * 0.62), z * k);
+  }
+  g.computeVertexNormals(); return g;
+}
+// a patch's ground: rings from the middle to its ragged edge, on the land (v3E — a mine's pad too)
+function v3DepPatch(d, rnd) {
+  const R = Sim.DEP_R * V3_DEP.r * (d.rich > 1.5 ? V3_DEP.rich : 1), NR = 9, NA = 40, pos = [], uv = [], col = [], idx = [], ph = [rnd() * 6, rnd() * 6, rnd() * 6];
+  const fa = d.kind === 'farm' ? v3DepHash(d)() * Math.PI : 0, fc = Math.cos(fa), fs = Math.sin(fa); // (a field: its furrows along its wheat rows — the same angle as v3Deposits)
+  const UV = (x, y) => uv.push((x * fc + y * fs) / V3_DEP.tile, (-x * fs + y * fc) / V3_DEP.tile);
+  pos.push(d.x, v3E(d.x, d.y) + 0.25, d.y); UV(d.x, d.y); col.push(1, 1, 1, 1);
+  for (let j = 1; j <= NR; j++) for (let i = 0; i < NA; i++) {
+    const a = i / NA * Math.PI * 2, wob = 1 + 0.16 * Math.sin(a * 3 + ph[0]) + 0.1 * Math.sin(a * 5 + ph[1]) + 0.06 * Math.sin(a * 11 + ph[2]), q = j / NR, rr = R * q * wob;
+    const x = d.x + Math.cos(a) * rr, y = d.y + Math.sin(a) * rr;
+    pos.push(x, v3E(x, y) + 0.25, y); UV(x, y);
+    col.push(1, 1, 1, q < 0.55 ? 1 : Math.max(0, 1 - (q - 0.55) / 0.45) ** 1.6);
+  }
+  for (let i = 0; i < NA; i++) idx.push(0, 1 + (i + 1) % NA, 1 + i);
+  for (let j = 1; j < NR; j++) for (let i = 0; i < NA; i++) { const a = 1 + (j - 1) * NA + i, b = 1 + (j - 1) * NA + (i + 1) % NA; idx.push(a, b, a + NA, b, b + NA, a + NA); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4)); g.setIndex(idx);
+  g.computeVertexNormals(); g.userData.a0 = col.filter((_, i) => i % 4 === 3); return g;
+}
+function v3Deposits() {
+  if (!s.deposits) return;
+  if (!V3.dep || V3.dep.of !== s) {
+    if (V3.dep) { for (const p of V3.dep.patches.values()) { V3.scene.remove(p); p.geometry.dispose(); p.material.dispose(); } }
+    if (!V3.depInst) { // (the stones ×4 shapes, the pools, the wheat — one instanced mesh each, for every deposit)
+      const stone = () => v3Shaded(new THREE.MeshStandardMaterial({ map: v3DepTex('rock', 'd'), normalMap: v3DepTex('rock', 'n'), roughness: 0.88, metalness: 0, envMapIntensity: V3_ENV }));
+      const pool = new THREE.MeshStandardMaterial({ color: 0x020202, roughness: 0.18, metalness: 0, envMapIntensity: 0.45, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+      const wheat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+      const cg = new THREE.CircleGeometry(1, 20); cg.rotateX(-Math.PI / 2);
+      const wg = new THREE.BoxGeometry(1, 1, 1); wg.translate(0, 0.5, 0); const wc = []; for (let i = 0; i < wg.attributes.position.count; i++) { const t = wg.attributes.position.getY(i); wc.push(0.14 + 0.3 * t, 0.08 + 0.17 * t, 0.015 + 0.02 * t); } wg.setAttribute('color', new THREE.Float32BufferAttribute(wc, 3));
+      V3.depInst = [0, 1, 2, 3].map(k => new THREE.InstancedMesh(v3StoneGeo(k + 1), stone(), 900)).concat([new THREE.InstancedMesh(cg, v3Shaded(pool), 300), new THREE.InstancedMesh(wg, v3Shaded(wheat), 2400)]);
+      V3.depInst.forEach((m, i) => { m.count = 0; m.castShadow = i !== 4; m.receiveShadow = true; m.frustumCulled = false; V3.scene.add(m); });
+      V3.depInst[4].renderOrder = 2;
+    }
+    V3.dep = { of: s, patches: new Map(), inst: V3.depInst, sig: '', pad: null };
+  }
+  const D = V3.dep;
+  // (the patches: made once each — again when the pads under them move)
+  if (D.pad !== V3.padSig) { for (const p of D.patches.values()) { V3.scene.remove(p); p.geometry.dispose(); p.material.dispose(); } D.patches.clear(); D.pad = V3.padSig; D.sig = ''; }
+  for (const d of s.deposits) if (!D.patches.has(d.id)) {
+    const G = V3_DEP.ground[d.kind] || [1, 1, 1], m = v3Shaded(new THREE.MeshStandardMaterial({ map: v3DepTex(d.kind, 'd'), normalMap: v3DepTex(d.kind, 'n'), color: new THREE.Color(G[0], G[1], G[2]), vertexColors: true, transparent: true, depthWrite: false, roughness: 0.95, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, envMapIntensity: V3_ENV * 0.5 }));
+    const p = new THREE.Mesh(v3DepPatch(d, v3DepHash(d)), m); p.receiveShadow = true; p.renderOrder = 1; V3.scene.add(p); D.patches.set(d.id, p); D.sig = '';
+  }
+  // (what's on them: laid again only when one changes — runs lower, dries, gets a mine)
+  const state = d => { const full = d.amount ? Math.max(0, d.left) / d.amount : 1, dry = Sim.depDry(d), taken = !dry && s.nodes.some(n => n.hp > 0 && n.dep === d.id); return [d, full, dry, taken, dry ? 'x' : (taken ? 't' : '') + Math.ceil(full * 16)]; };
+  const S = s.deposits.map(state), sig = S.map(x => x[4]).join(); if (sig === D.sig) return; D.sig = sig;
+  const I = D.inst, n = I.map(() => 0), o = v3Tmp.dep || (v3Tmp.dep = new THREE.Object3D()), c = new THREE.Color(); // (its own: the wheat turns it in 'YXZ')
+  for (const [d, full, dry, taken] of S) {
+    const p = D.patches.get(d.id), ca = p.geometry.attributes.color, a0 = p.geometry.userData.a0, k = dry ? 0.35 : 0.6 + 0.4 * full;
+    for (let i = 0; i < ca.count; i++) ca.setW(i, a0[i] * k); ca.needsUpdate = true;
+    if (dry || taken) continue;
+    const rnd = v3DepHash(d), R = Sim.DEP_R * (d.rich > 1.5 ? V3_DEP.rich : 1), keep = Math.max(0.25, full);
+    if (d.kind === 'farm') { // (rows of wheat across the field, fewer as it's reaped)
+      const a = rnd() * Math.PI, ca2 = Math.cos(a), sa = Math.sin(a), N = V3_DEP.rows, w = R * 1.9 / N;
+      for (let j = 0; j < N; j++) {
+        if (j / N > keep || n[5] >= 2400) break;
+        const off = (j - (N - 1) / 2) * w, len = 2 * Math.sqrt(Math.max(0, (R * 1.05) ** 2 - off * off)); if (len < 6) continue;
+        const NS = Math.max(1, Math.round(len / 7)), sl = len / NS; // (in short pieces, each at the land's height there — a field on a slope)
+        for (let q = 0; q < NS && n[5] < 2400; q++) {
+          const along = -len / 2 + (q + 0.5) * sl, x = d.x - sa * off + ca2 * along, y = d.y + ca2 * off + sa * along;
+          const h1 = v3E(x - ca2 * sl / 2, y - sa * sl / 2), h2 = v3E(x + ca2 * sl / 2, y + sa * sl / 2); // (tilted along the slope: level, one end was buried)
+          o.position.set(x, (h1 + h2) / 2 - 0.15, y); o.rotation.set(0, -a, Math.atan2(h2 - h1, sl), 'YXZ'); o.scale.set(sl * 1.15, V3_DEP.wheat * (0.75 + 0.5 * rnd()), w * 0.38); o.updateMatrix(); I[5].setMatrixAt(n[5], o.matrix); const v = 0.85 + 0.25 * rnd(); I[5].setColorAt(n[5]++, c.setRGB(v, v * (0.95 + 0.1 * rnd()), v));
+        }
+      }
+      continue;
+    }
+    if (d.kind === 'oil') { // (black pools)
+      for (let j = 0; j < V3_DEP.pools; j++) {
+        const ang = rnd() * Math.PI * 2, q = Math.sqrt(rnd()) * R * 0.8, r0 = 5 + rnd() * 8, x = d.x + Math.cos(ang) * q, y = d.y + Math.sin(ang) * q, sq = 0.55 + 0.3 * rnd(), ro = rnd() * 6.28;
+        if (j / V3_DEP.pools > keep || n[4] >= 300) continue;
+        o.position.set(x, v3E(x, y) + 0.35, y); o.rotation.set(0, ro, 0, 'XYZ'); o.scale.set(r0, 1, r0 * sq); o.updateMatrix(); I[4].setMatrixAt(n[4]++, o.matrix);
+      }
+    }
+    const T = V3_DEP.tint[d.kind] || [1, 1, 1], N = d.kind === 'oil' ? 5 : V3_DEP.stones;
+    for (let j = 0; j < N; j++) { // (stones — the big ones near the middle)
+      const ang = rnd() * Math.PI * 2, q = Math.sqrt(rnd()) * R * 0.95, big = 1 - q / R, sz = V3_DEP.rock[0] + (V3_DEP.rock[1] - V3_DEP.rock[0]) * (0.3 * rnd() + 0.7 * big * rnd()), v = Math.floor(rnd() * 4), x = d.x + Math.cos(ang) * q, y = d.y + Math.sin(ang) * q, sh = 0.85 + 0.25 * rnd();
+      const rx = (rnd() - 0.5) * 0.4, ry = rnd() * 6.28, rz = (rnd() - 0.5) * 0.4, kx = 0.8 + 0.4 * rnd(), kz = 0.8 + 0.4 * rnd();
+      if (j / N > keep || n[v] >= 900) continue;
+      o.position.set(x, v3E(x, y) + sz * 0.1, y); o.rotation.set(rx, ry, rz, 'XYZ'); o.scale.set(sz * kx, sz, sz * kz); o.updateMatrix();
+      I[v].setMatrixAt(n[v], o.matrix); I[v].setColorAt(n[v]++, c.setRGB(T[0] * sh, T[1] * sh, T[2] * sh));
+    }
+  }
+  I.forEach((m, i) => { m.count = n[i]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
 }
 // ---- trees that fall (V3_FALL_T): crushed by a tank or cleared for a building (scenKill) or a wood cut (s.ground.cut)
 // — the tree topples away from what pushed it, bounces once, lies a while and sinks into the ground ----
@@ -1788,7 +1895,7 @@ function v3Deco() {
   if (!lite) { drawTracks(g); drawClouds(g, V3_CLOUDS); } drawWeather(g); if (s.extras) drawBoltFlat(g); // (tracks in the ground, clouds' shadows, the morning fog; rain — over the screen)
   v3Discs(g);
   if (s.fog) { if (Sim.friction(s)) drawQuality(g); drawEnemyIntel(g); drawMarks(g); }
-  drawDeposits(g); drawDozerJobs(g); drawBuildArea(g); // (deposits: econui.js)
+  drawDeposits(g, true); drawDozerJobs(g); drawBuildArea(g); // (deposits: econui.js)
   for (const q of s.squads) if (q.side === 'blue' && !q.dead && !sqShown(q)) drawGuess(g, q, guessAt(q), isSel(q.id));
   drawRoutes(g); drawFront(g); drawPicked(g); drawDesignated(g); drawAsks(g); drawPings(g);
   V3U.v3DecoBox.value.set(B.x, B.y, B.w, B.h); D.t.needsUpdate = true;
@@ -2027,7 +2134,7 @@ function v3Draw() {
   sceneryTick(); groundTick(); // (as the flat map's frame: what's cleared, run over, cut)
   for (const P of V3.pics.values()) P.n = 0;
   V3.lamps = [];
-  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Falling(); v3Craters(); v3Water(); v3Trenches(); v3Tufts(vw); v3Shade(); v3Deco();
+  const rings = v3Units(); v3Nodes(rings); v3Rings(rings); v3Fx(); v3Scenery(); v3Falling(); v3Craters(); v3Deposits(); v3Water(); v3Trenches(); v3Tufts(vw); v3Shade(); v3Deco();
   for (const P of V3.pics.values()) { P.mesh.count = P.n; P.mesh.instanceMatrix.needsUpdate = true; P.mesh.instanceColor.needsUpdate = true; }
   v3Weather(); // (rain drops, the wet ground)
   v3Reflect(); // (what's on the shore, in the water)

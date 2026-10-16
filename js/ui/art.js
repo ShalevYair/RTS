@@ -660,6 +660,7 @@ function scenKill(it) { it.gone = performance.now(); scen.dead.push(it); if (it.
 function sceneryTick() {
   if (!decor || !sprite.img.d_tree1) return;
   const now = performance.now(); if (now < scen.next) return; scen.next = now + 120;
+  for (const d of s.deposits || []) if (!scen.seen.has('d' + d.id)) { scen.seen.add('d' + d.id); scenNear(d.x, d.y, Sim.DEP_R * 2.1, it => { it.quiet = true; it.gone = -1e9; scen.dead.push(it); scen.redo.push(it); }); } // (no trees on a deposit — gone from the start, no fall)
   for (const n of s.nodes) if (!scen.seen.has(n.id) && n.kind !== 'drone' && nodeShown(n)) { scen.seen.add(n.id); scenNear(n.x, n.y, Sim.STRUCTS[n.kind].r * 1.5 + 18, scenKill); }
   for (const u of s.units) if (u.type === 'tank' && (u.side === 'blue' || !s.fog || s.vis.blue.has(u.id))) scenNear(u.x, u.y, SIZE.tank * 0.75, scenKill);
   // (the ground there is painted again, at most twice a second: only the tiles it was in)
