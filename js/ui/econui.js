@@ -72,17 +72,17 @@ const STOCK_SVG = {
   tree: '<path d="M8 1.5l4.5 6h-2l3 4.5H2.5l3-4.5h-2z" fill="#3f8f4a" stroke="#1d4a24"/><rect x="7" y="12" width="2" height="3" fill="#6b4a2a"/>',
 };
 const stockSvg = g => `<svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true">${STOCK_SVG[g]}</svg>`;
-// the stock under the power bar: a picture and a number for each good, its own tooltip (what it is, where it comes
+// the stock, top right beside the minimap: a picture and a number for each good, its own tooltip (what it is, where it comes
 // from, what takes it); built once, the numbers changed in place (the tooltips stay on their spans)
 function syncStock() {
   const el = $('stockB'); if (!el) return;
   const on = !!s.econ && !!s.stock; el.hidden = !on; if (!on) return;
+  el.classList.toggle('nomini', $('mini').hidden); // (beside the minimap — at the corner when there's none)
   const st = Sim.stockOf(s, 'blue'), v = STOCK_SHOW.map(([g]) => Math.floor(st[g] || 0));
   if (el.dataset.lang !== lang) { // (the spans, once — again when the language changes)
     el.dataset.lang = lang; el.dataset.k = '';
-    el.innerHTML = STOCK_SHOW.map(([g]) => `<span class="sg" data-tip="stock" data-g="${g}">${stockSvg(g)}<b></b></span>`).join('') + `<span class="techB" data-tip="stock">${stockSvg('tree')}</span>`; // (the tree: the tech tree — a click anywhere on the stock opens it, techui.js)
+    el.innerHTML = STOCK_SHOW.map(([g]) => `<span class="sg" data-tip="stock" data-g="${g}">${stockSvg(g)}<b></b></span>`).join(''); // (a click anywhere on it: the tech tree, techui.js)
     for (const sp of el.querySelectorAll('.sg')) { const g = sp.dataset.g, low = STOCK_SHOW.find(x => x[0] === g)[2]; sp.tipText = () => { const n = Math.floor(Sim.stockOf(s, 'blue')[g] || 0); return tr('good_' + g) + ': ' + n + (n < low ? ' · ' + tr('stockLow') : '') + ' — ' + tr('gt_' + g); }; }
-    el.querySelector('.techB').tipText = () => tr('techTitle') + ' (K)';
   }
   const key = v.join('|'); if (el.dataset.k === key) return; el.dataset.k = key;
   el.querySelectorAll('.sg').forEach((sp, j) => { sp.querySelector('b').textContent = v[j]; sp.classList.toggle('low', v[j] < STOCK_SHOW[j][2]); });

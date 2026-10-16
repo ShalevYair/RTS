@@ -576,11 +576,13 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 #intro.mainmenu #resume:hover{background:rgb(30 41 59 / .75)}
 #intro.mainmenu #resume small{font-size:12px;opacity:.75}
 .buildm button.locked{opacity:.5;filter:grayscale(.85)}.buildm button.locked small{color:#ffc2a8}
-.stock{position:absolute;top:calc(100% + 4px);left:50%;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto;font-size:13px;font-weight:600;color:#f3efe6;text-shadow:0 1px 2px rgb(0 0 0 / .8);white-space:nowrap}.stock[hidden]{display:none}.stock span.low{color:#ff8a70}
+.stock{position:absolute;top:10px;right:222px;z-index:2;display:grid;grid-template-columns:repeat(4,auto);direction:ltr;gap:4px;pointer-events:auto;font-size:13px;font-weight:600;color:#f3efe6;text-shadow:0 1px 2px rgb(0 0 0 / .8);white-space:nowrap}.stock[hidden]{display:none}.stock span.low{color:#ff8a70}
 
 /* the tech tree (techui.js): columns in the reading direction, lines from what's needed to what needs it */
 .stock{cursor:pointer}.stock .techB{opacity:.9;margin-inline-start:2px}
-.stock .sg,.stock .techB{display:inline-flex;align-items:center;gap:3px;padding:1px 5px 1px 3px;border-radius:9px;background:rgb(0 0 0 / .32)}.stock svg{display:block;filter:drop-shadow(0 1px 1px rgb(0 0 0 / .7))}.stock .sg.low{background:rgb(140 30 20 / .45)}.stock .sg:hover,.stock .techB:hover{background:rgb(255 255 255 / .16)}
+.stock.nomini{right:10px}@media (max-width:560px){.stock{right:10px;top:46px;max-width:calc(100vw - 70px)}}
+.techBtn{margin-top:10px;display:flex;flex-direction:column;align-items:center;width:78px;padding:4px 0;background:none;border:0;border-radius:12px;color:#fff;font:500 11px Rubik,sans-serif;text-shadow:0 1px 2px rgb(0 0 0 / .85);cursor:pointer}.techBtn[hidden]{display:none}.techBtn:hover{background:var(--soft)}.techBtn svg{filter:drop-shadow(0 2px 3px rgb(0 0 0 / .5))}
+.stock .sg,.stock .techB{display:inline-flex;align-items:center;justify-content:space-between;gap:3px;padding:1px 5px 1px 3px;border-radius:9px;background:rgb(0 0 0 / .32)}.stock svg{display:block;filter:drop-shadow(0 1px 1px rgb(0 0 0 / .7))}.stock .sg.low{background:rgb(140 30 20 / .45)}.stock .sg:hover,.stock .techB:hover{background:rgb(255 255 255 / .16)}
 .techTree{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgb(0 0 0 / .45);padding:16px}
 .techTree[hidden]{display:none}
 .techTree .tbox{position:relative;max-width:min(1180px,100%);max-height:100%;overflow:auto;padding:16px 18px 18px;border-radius:14px;background:var(--frost);color:var(--frost-ink);backdrop-filter:blur(10px)}
