@@ -59,13 +59,33 @@ const depLeft = d => d.amount ? (Sim.depDry(d) ? tr('depDry') : tr('depLeft', Ma
 const depInfo = d => tr('dep_' + d.kind) + (d.rich > 1.5 ? ' ★' : '') + ' · ' + (Sim.depDry(d) ? tr('depDry') : (Sim.freeDeposit(s, d.kind, d.x, d.y) ? tr('depFree') : tr('depTaken')) + ' · ' + depLeft(d));
 // the stock by the power bar (ours) — red when nearly out
 const STOCK_SHOW = [['concrete', '🧱', 10], ['fuel', '⛽', 20], ['steel', '🔩', 8], ['rubber', '🛞', 4], ['rations', '🥫', 20], ['alu', '✈️', 6], ['explosives', '💣', 6], ['electronics', '💾', 3]];
+// each good's little picture (16×16 SVG, its own colours — the emoji were a mix of styles and hard to tell apart small)
+const STOCK_SVG = {
+  concrete: '<rect x="1.5" y="5" width="13" height="8" rx="1" fill="#a9a59c" stroke="#5d5a54"/><path d="M1.5 9h13M5.5 5v4M10.5 9v4" stroke="#5d5a54" fill="none"/><path d="M3 3.5h10l1.5 1.5h-13z" fill="#cdc9bf"/>',
+  fuel: '<path d="M4 3h6l3 3v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" fill="#d9822b" stroke="#6b3a10"/><path d="M5 6l5 5M10 6l-5 5" stroke="#6b3a10" stroke-width="1.2"/><rect x="5" y="1" width="3" height="2.2" rx=".5" fill="#6b3a10"/>',
+  steel: '<path d="M2 3h12v2.5H9.5v5H14V13H2v-2.5h4.5v-5H2z" fill="#9fb0c0" stroke="#3e4b57"/><path d="M2.5 3.6h11" stroke="#e6eef5" stroke-width=".8"/>',
+  rubber: '<circle cx="8" cy="8" r="6.5" fill="#232323" stroke="#000"/><circle cx="8" cy="8" r="3" fill="#8a8a8a" stroke="#3a3a3a"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="#555" stroke-width="1.1"/>',
+  rations: '<rect x="2" y="4" width="12" height="9" rx="1" fill="#6f7a3a" stroke="#333a17"/><rect x="2" y="4" width="12" height="2.5" fill="#86924a"/><path d="M5.5 8.5h5v2h-5z" fill="#e8dfb8"/>',
+  alu: '<path d="M1.5 11l3-6h7l3 6z" fill="#d7dde3" stroke="#69737d"/><path d="M4.5 5h7l3 6H1.5" fill="none"/><path d="M5 6l-1.8 4" stroke="#fff" stroke-width=".9"/>',
+  explosives: '<rect x="3" y="5" width="3" height="9" rx="1" fill="#c8322a" stroke="#5e1410"/><rect x="6.5" y="5" width="3" height="9" rx="1" fill="#c8322a" stroke="#5e1410"/><rect x="2.5" y="8" width="7.5" height="1.6" fill="#3b2a1a"/><path d="M8 5c1-2 3-2 4-3.5" stroke="#3b2a1a" fill="none"/><circle cx="12.6" cy="1.8" r="1.3" fill="#ffd34d"/>',
+  electronics: '<rect x="4" y="4" width="8" height="8" rx="1" fill="#2c6b3f" stroke="#123020"/><rect x="6" y="6" width="4" height="4" fill="#1a1a1a"/><path d="M5.5 4V1.8M8 4V1.8M10.5 4V1.8M5.5 12v2.2M8 12v2.2M10.5 12v2.2M4 5.5H1.8M4 8H1.8M4 10.5H1.8M12 5.5h2.2M12 8h2.2M12 10.5h2.2" stroke="#d8b25a" stroke-width="1.1"/>',
+  tree: '<path d="M8 1.5l4.5 6h-2l3 4.5H2.5l3-4.5h-2z" fill="#3f8f4a" stroke="#1d4a24"/><rect x="7" y="12" width="2" height="3" fill="#6b4a2a"/>',
+};
+const stockSvg = g => `<svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true">${STOCK_SVG[g]}</svg>`;
+// the stock under the power bar: a picture and a number for each good, its own tooltip (what it is, where it comes
+// from, what takes it); built once, the numbers changed in place (the tooltips stay on their spans)
 function syncStock() {
   const el = $('stockB'); if (!el) return;
   const on = !!s.econ && !!s.stock; el.hidden = !on; if (!on) return;
   const st = Sim.stockOf(s, 'blue'), v = STOCK_SHOW.map(([g]) => Math.floor(st[g] || 0));
+  if (el.dataset.lang !== lang) { // (the spans, once — again when the language changes)
+    el.dataset.lang = lang; el.dataset.k = '';
+    el.innerHTML = STOCK_SHOW.map(([g]) => `<span class="sg" data-tip="stock" data-g="${g}">${stockSvg(g)}<b></b></span>`).join('') + `<span class="techB" data-tip="stock">${stockSvg('tree')}</span>`; // (the tree: the tech tree — a click anywhere on the stock opens it, techui.js)
+    for (const sp of el.querySelectorAll('.sg')) { const g = sp.dataset.g, low = STOCK_SHOW.find(x => x[0] === g)[2]; sp.tipText = () => { const n = Math.floor(Sim.stockOf(s, 'blue')[g] || 0); return tr('good_' + g) + ': ' + n + (n < low ? ' · ' + tr('stockLow') : '') + ' — ' + tr('gt_' + g); }; }
+    el.querySelector('.techB').tipText = () => tr('techTitle') + ' (K)';
+  }
   const key = v.join('|'); if (el.dataset.k === key) return; el.dataset.k = key;
-  el.innerHTML = STOCK_SHOW.map(([g, i, low], j) => `<span class="${v[j] < low ? 'low' : ''}">${i}${v[j]}</span>`).join('') + '<span class="techB">🌳</span>'; // (🌳: the tech tree — a click anywhere on the stock opens it, techui.js)
-  el.tipText = () => tr('stockTip', STOCK_SHOW.map(([g, i], j) => `${i} ${tr('good_' + g)} ${v[j]}`).join(' · '));
+  el.querySelectorAll('.sg').forEach((sp, j) => { sp.querySelector('b').textContent = v[j]; sp.classList.toggle('low', v[j] < STOCK_SHOW[j][2]); });
 }
 // a hauler's / mine's / plant's state for tooltips and the info card
 function econLine(o) {

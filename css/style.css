@@ -580,6 +580,7 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 
 /* the tech tree (techui.js): columns in the reading direction, lines from what's needed to what needs it */
 .stock{cursor:pointer}.stock .techB{opacity:.9;margin-inline-start:2px}
+.stock .sg,.stock .techB{display:inline-flex;align-items:center;gap:3px;padding:1px 5px 1px 3px;border-radius:9px;background:rgb(0 0 0 / .32)}.stock svg{display:block;filter:drop-shadow(0 1px 1px rgb(0 0 0 / .7))}.stock .sg.low{background:rgb(140 30 20 / .45)}.stock .sg:hover,.stock .techB:hover{background:rgb(255 255 255 / .16)}
 .techTree{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgb(0 0 0 / .45);padding:16px}
 .techTree[hidden]{display:none}
 .techTree .tbox{position:relative;max-width:min(1180px,100%);max-height:100%;overflow:auto;padding:16px 18px 18px;border-radius:14px;background:var(--frost);color:var(--frost-ink);backdrop-filter:blur(10px)}
