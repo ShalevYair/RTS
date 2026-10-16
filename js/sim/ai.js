@@ -153,13 +153,16 @@ function aiForward(s, side, mine, setOrder, D = {}) {
   const spots = atFront ? [spot] : s.hills.filter(h => quality(s, side, h, true) < BUILD_MIN_Q && Math.abs(h.x - foe.x) > NODES.hq.r1 &&
     nodes.some(n => dist(n, h) < nodeSpec(n.kind).r1 + AI_FHQ_REACH) && !threatAt(s, side, h, AI_NEAR));
   let best = null, bs = Infinity;
-  for (const q of mine) if (fhqBuilders(s).includes(q.type) && q.strength >= AI_READY && !(q.type === 'dozer' && (jobOf(s, q) || q.hqAt))) for (const h of spots) {
+  // (hard, toward a deposit: a busy bulldozer too, and the site next on its list — the bulldozers were never free, and
+  // the deposits ran out with two forward HQs up)
+  const rush = !!oil && D.deps;
+  for (const q of mine) if (fhqBuilders(s).includes(q.type) && q.strength >= AI_READY && !(q.type === 'dozer' && ((!rush && jobOf(s, q)) || q.hqAt))) for (const h of spots) {
     const sc = dist({ x: q.cx, y: q.cy }, h) + (atFront ? 0 : 0.5 * Math.abs(h.x - foe.x));
     if (sc < bs) { bs = sc; best = { sq: q.id, hill: { x: h.x, y: h.y } }; }
   }
   if (!best) return;
   // (with support: a site on that bulldozer's list; it gets there on its own)
-  if (s.dozers) { planFhq(s, best.sq, best.hill.x, best.hill.y); return; }
+  if (s.dozers) { if (planFhq(s, best.sq, best.hill.x, best.hill.y) && rush) { const f = s.nodes.filter(n => n.side === side && n.kind === 'fhq' && n.hp > 0 && s.t < n.ready).pop(); if (f) jobSoon(s, f); } return; }
   s.aiFhq[side] = { ...best, until: s.t + AI_FHQ_TRIP };
   const h = best.hill; setOrder(s.squads.find(q => q.id === best.sq), 'hold', h.x, h.y);
 }
