@@ -51,6 +51,7 @@ for f in sorted(os.listdir(os.path.join(ROOT, 'art', 'Background'))) if os.path.
 SHADOW_K = 0
 
 def cut(im, bg):
+    if im.mode == 'RGBA' and im.getextrema()[3][0] < 255: return im  # (already see-through: a picture taken of a 3D model — tools/modelpics.js)
     im = im.convert('RGBA'); W, H = im.size; px = im.load()
     def grey(p): r, g, b, _ = p; return max(r, g, b) - min(r, g, b) < 16
     if bg == 'checker': is_bg = lambda p: grey(p) and 140 <= p[0] <= 240
