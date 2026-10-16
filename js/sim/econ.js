@@ -44,6 +44,12 @@ const REFILL = { fueltruck: { fuel: 1 }, watertruck: { rations: 1 }, truck: { ex
 // missile truck came out; HQ_ELEC: an HQ's trickle, so a side without the lab isn't left with none for good)
 const DRONE_COST = { electronics: 1 }, DRONE_KEEP = 6, HQ_ELEC = 0.01;
 const DEP_POOR = 1, DEP_RICH = 2.2, AI_MINES = 7, AI_NEED_WAIT = 480;
+// a deposit runs out: what's in it (d.amount, d.left) = a mine's rate on it for DEP_LIFE seconds — a rich one DEP_RICH_LIFE
+// times as long (on top of the faster rate: 3.3× what a poor one holds). Then its mine stands dry (n.dry), its haulers go
+// to another mine of the kind, and the AI looks for a fresh deposit
+const DEP_LIFE = 1200, DEP_RICH_LIFE = 1.5;
+const depAmount = (kind, rich) => Math.round(DEP_KINDS[kind].rate * rich * DEP_LIFE * (rich > DEP_POOR ? DEP_RICH_LIFE : 1));
+const depDry = d => d.left !== undefined && d.left <= 0;
 // what stands first (besides the concrete plant, which every building but these needs)
 const NEEDS = { concrete: ['quarry'], steelmill: ['ironmine'], refinery: ['oilwell'], smelter: ['bauxmine'], kitchen: ['farm'], chemplant: ['refinery'],
   airfield: ['smelter'], tankerbase: ['refinery', 'smelter'], heliatk: ['smelter'], heligun: ['smelter'], helilift: ['smelter'],
@@ -91,7 +97,7 @@ function makeDeposits(s) {
   const twin = p => ({ x: W - p.x, y: s.turn ? H - p.y : p.y });
   const ok = p => p.x > 60 && p.x < W - 60 && p.y > 60 && p.y < H - 60 && !lakeAt(s, p, DEP_R + LAKE_PAD + 10) && !groundBad(s, p.x, p.y, DEP_R) && openAround(s, p, DEP_CLEAR) &&
     (s.posts || []).every(o => dist(o, p) > POSTS[o.kind].r + DEP_R + 60) && out.every(o => dist(o, p) > DEP_R * 2 + 120);
-  const add = (kind, p, rich) => out.push({ id: 'd' + out.length, kind, x: Math.round(p.x), y: Math.round(p.y), rich });
+  const add = (kind, p, rich) => out.push({ id: 'd' + out.length, kind, x: Math.round(p.x), y: Math.round(p.y), rich, amount: depAmount(kind, rich), left: depAmount(kind, rich) });
   for (const [kind, D] of Object.entries(DEP_KINDS)) for (const [n, x0, x1, rich] of [[D.near * k, HQ_BAND * 0.6, HQ_BAND + 0.08, DEP_POOR], [D.mid * k, 0.32, 0.44, DEP_RICH]]) {
     for (let j = 0; j < n; j++) for (let i = 0; i < 300; i++) {
       // (spread over the height: the j-th of n in its band of it)
@@ -113,24 +119,30 @@ function homeField(s, side) {
     const p = { x: Math.round(hq.x + Math.cos(a) * R), y: Math.round(hq.y + Math.sin(a) * R) }, well = DEP_KINDS[kind].well;
     if (p.x < 60 || p.x > s.W - 60 || p.y < 60 || p.y > s.H - 60 || lakeAt(s, p, DEP_R + LAKE_PAD + 10) || groundBad(s, p.x, p.y, DEP_R) || (i < 250 && !openAround(s, p, DEP_CLEAR))) continue;
     if (s.nodes.some(n => n.hp > 0 && n.kind !== 'drone' && dist(n, p) < roomPair(s, n.kind, well) + 4) || s.deposits.some(d => dist(d, p) < DEP_R * 2 + 70) || (s.posts || []).some(o => dist(o, p) < POSTS[o.kind].r + DEP_R + 40)) continue;
-    s.deposits.push({ id: 'd' + s.deposits.length, kind, x: p.x, y: p.y, rich: DEP_POOR, home: side }); break;
+    s.deposits.push({ id: 'd' + s.deposits.length, kind, x: p.x, y: p.y, rich: DEP_POOR, home: side, amount: depAmount(kind, DEP_POOR), left: depAmount(kind, DEP_POOR) }); break;
   }
   (s.homeDep = s.homeDep || {})[side] = true;
 }
 // the AI's forward HQ toward a deposit: a free one on our half it can't build on yet, safe, within reach of its HQs — a
 // spot by it (toward home), so the deposit falls in what the forward HQ opens for building. null: none
-function aiDepSpot(s, side) {
+// bold (hard): anywhere on the map, not just our half — the rich ones and the kinds we have no live mine of first; the
+// deposits run out, and normal stays home and dries up
+function aiDepSpot(s, side, bold) {
   if (!s.econ || !s.deposits) return null;
   const home = hqOf(s, side) || s.bases[side], foe = s.bases[foeOf(side)];
   const nodes = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq');
-  const d = s.deposits.filter(d => freeDeposit(s, d.kind, d.x, d.y) && Math.abs(d.x - home.x) < Math.abs(d.x - foe.x) && quality(s, side, d, true) < BUILD_MIN_Q && !threatAt(s, side, d, AI_NEAR) &&
-    nodes.some(n => dist(n, d) < nodeSpec(n.kind).r1 + AI_FHQ_REACH)).sort((a, b) => dist(a, home) - dist(b, home))[0];
+  const have = k => s.nodes.some(n => n.side === side && n.hp > 0 && !n.dry && n.kind === DEP_KINDS[k].well);
+  const score = d => bold ? dist(d, home) / d.rich * (have(d.kind) ? 1 : 0.5) : dist(d, home);
+  const d = s.deposits.filter(d => freeDeposit(s, d.kind, d.x, d.y) && (bold || Math.abs(d.x - home.x) < Math.abs(d.x - foe.x)) && quality(s, side, d, true) < BUILD_MIN_Q && !threatAt(s, side, d, AI_NEAR) &&
+    nodes.some(n => dist(n, d) < nodeSpec(n.kind).r1 + AI_FHQ_REACH)).sort((a, b) => score(a) - score(b))[0];
   if (!d) return null;
   const k = dist(d, home) || 1;
   return { x: Math.round(d.x + (home.x - d.x) / k * 110), y: Math.round(d.y + (home.y - d.y) / k * 110) };
 }
-// the deposit of this kind under (x, y) with no building on it yet (a mine: its centre snaps to it)
-const freeDeposit = (s, kind, x, y) => (s.deposits || []).find(d => d.kind === kind && Math.hypot(d.x - x, d.y - y) <= DEP_SNAP && !s.nodes.some(n => n.hp > 0 && n.dep === d.id));
+// the deposit of this kind under (x, y) with no building on it yet and something left in it (a mine: its centre snaps to it)
+const freeDeposit = (s, kind, x, y) => (s.deposits || []).find(d => d.kind === kind && !depDry(d) && Math.hypot(d.x - x, d.y - y) <= DEP_SNAP && !s.nodes.some(n => n.hp > 0 && n.dep === d.id));
+// a mine still digging (not on a deposit that ran out)
+const mineLive = n => !n.dry;
 // a building that isn't a mine may not stand on a free deposit, nor so close a mine wouldn't fit on it (blocked for good)
 const onDeposit = (s, kind, x, y) => !STRUCTS[kind].deposit && (s.deposits || []).some(d => Math.hypot(d.x - x, d.y - y) < (freeDeposit(s, d.kind, d.x, d.y) ? roomPair(s, kind, DEP_KINDS[d.kind].well) : DEP_R + (STRUCTS[kind].r || 20) + 10));
 // a hauler's tick (from updateUnit; always busy with its own round): load at its mine, unload at the nearest plant
@@ -140,7 +152,9 @@ function haulTick(s, u, sq, dt) {
   const ready = n => n.side === u.side && n.hp > 0 && s.t >= n.ready;
   const near = kind => { let b = null, bd = Infinity; for (const n of s.nodes) if (n.kind === kind && ready(n)) { const d = dist(u, n); if (d < bd) { bd = d; b = n; } } return b; };
   if (!u.full) {
-    const w = s.nodes.find(n => n.id === sq.home && ready(n)) || near(H.well); // (its own mine; that one gone — the nearest)
+    const live = n => ready(n) && (!n.dry || (n.store || 0) >= 1);
+    let w = s.nodes.find(n => n.id === sq.home && live(n)); // (its own mine; that one gone or dry and emptied — the nearest still giving)
+    if (!w) { let bd = Infinity; for (const n of s.nodes) if (n.kind === H.well && live(n)) { const d = dist(u, n); if (d < bd) { bd = d; w = n; } } if (w) sq.home = w.id; }
     if (!w) return true; // (no mine: it stands where it is)
     if (dist(u, w) > R(w)) { moveTo(s, u, w.x, w.y, 1, dt); return true; }
     const add = Math.min(HAUL_CAP - u.cargo, HAUL_LOAD * dt, w.store || 0);
@@ -164,7 +178,13 @@ function econTick(s, dt) {
   for (const n of s.nodes) {
     if (n.hp <= 0 || s.t < n.ready) continue;
     const S = STRUCTS[n.kind];
-    if (S.deposit) { const d = s.deposits.find(d => d.id === n.dep); n.store = Math.min(WELL_KEEP, (n.store || 0) + DEP_KINDS[S.deposit].rate * (d ? d.rich : DEP_POOR) * dt); }
+    if (S.deposit && !n.dry) {
+      const d = s.deposits.find(d => d.id === n.dep);
+      let k = Math.min(WELL_KEEP - (n.store || 0), DEP_KINDS[S.deposit].rate * (d ? d.rich : DEP_POOR) * dt);
+      if (d && d.left !== undefined) { k = Math.max(0, Math.min(k, d.left)); d.left -= k; }
+      n.store = (n.store || 0) + Math.max(0, k);
+      if (d && depDry(d)) { d.left = 0; n.dry = true; if (n.side === 'blue') note(s, `${DEP_KINDS[S.deposit].name} נגמר — צריך מרבץ חדש`); }
+    }
     const good = PLANT_OF[n.kind], st = stockOf(s, n.side);
     if (good && n.inbox > 0) {
       let k = Math.min(n.inbox, PLANT_RATE * dt);
@@ -219,11 +239,25 @@ const builtLast = s => s.nodes[s.nodes.length - 1];
 // oil — a mine on the nearest free deposit it can build on (none where an enemy is known), then its plant by the HQ (a
 // second past 4 mines of the kind); then more mines, AI_WANT of each kind. At most three chain sites at a time
 const AI_WANT = { lime: 2, iron: 3, oil: 3, farm: 2, bauxite: 2 };
-function aiEcon(s, side) {
+// what the side is short of: goods its buildings wait for (n.noGood; concrete — a site waiting) → the deposit they come
+// from. The AI digs more of those (AI_SHORT_MORE more mines, hard AI_SHORT_HARD), and hard lays no more workshops for a
+// good already 2 of its buildings wait for (they stood idle: nine jeep workshops waiting for rubber)
+const GOOD_DEP = { steel: 'iron', rubber: 'oil', fuel: 'oil', explosives: 'oil', alu: 'bauxite', rations: 'farm', concrete: 'lime' };
+const AI_SHORT_MORE = 1, AI_SHORT_HARD = 3;
+function shortGoods(s, side) {
+  const out = {};
+  for (const n of s.nodes) if (n.side === side && n.hp > 0) { const g = n.noGood || (n.noCon && 'concrete') || (n.noBurn && 'fuel'); if (g) out[g] = (out[g] || 0) + 1; }
+  return out;
+}
+// a workshop this kind is, whose units take a good 2 of the side's buildings already wait for
+const starved = (s, side, kind) => { const u = STRUCTS[kind] && STRUCTS[kind].unit, c = u && UNIT_COST[u]; if (!c || !s.econ) return false; const sh = shortGoods(s, side); return Object.keys(c).some(g => (sh[g] || 0) >= 2); };
+function aiEcon(s, side, bold) {
   if (!s.econ || !s.deposits) return;
   if (s.t - (s.aiEconAt && s.aiEconAt[side] || -99) < 5) return;
   (s.aiEconAt = s.aiEconAt || {})[side] = s.t;
   const hq = hqOf(s, side); if (!hq || s.t < hq.ready) return;
+  // (a dry mine, emptied: razed — the room for something else; its haulers go to another mine)
+  for (const n of s.nodes) if (n.side === side && n.hp > 0 && n.dry && (n.store || 0) < 1) demolish(s, side, n.id);
   const sites = s.nodes.filter(n => n.side === side && n.hp > 0 && s.t < n.ready && (MINES.includes(n.kind) || PLANT_OF[n.kind])).length;
   if (sites >= 3) return;
   const mine = kind => { const D = DEP_KINDS[kind];
@@ -235,15 +269,16 @@ function aiEcon(s, side) {
     const at = [...s.nodes.filter(n => n.side === side && n.hp > 0 && STRUCTS[n.kind] && STRUCTS[n.kind].econ && !STRUCTS[n.kind].deposit), hq, ...s.nodes.filter(n => n.side === side && n.hp > 0 && n.kind === 'fhq'), ...s.nodes.filter(n => n.side === side && n.hp > 0 && n !== hq && n.kind !== 'fhq' && n.kind !== 'drone' && n.kind !== 'decoy')]; // (by the other plants first: one industrial yard)
     for (const [j, n] of at.slice(0, 12).entries()) for (let i = 0; i < (n === hq ? 24 : 8); i++) { const a = s.rand() * Math.PI * 2, r = roomPair(s, n.kind, P) + 5 + s.rand() * (n !== hq ? 90 : i < 12 ? 320 : 200) + (n === hq && i < 12 ? 100 : 0); if (build(s, side, P, n.x + Math.cos(a) * r, n.y + Math.sin(a) * r)) { jobSoon(s, builtLast(s)); return true; } }
     return false; };
-  const count = k => alive(s, side, [k]).length;
+  const count = k => alive(s, side, [k]).filter(mineLive).length; // (dry mines don't count: a fresh deposit instead)
   const place = P => { for (let i = 0; i < 24; i++) { const a = s.rand() * Math.PI * 2, r = roomPair(s, 'hq', P) + 5 + s.rand() * (i < 12 ? 200 : 360); if (build(s, side, P, hq.x + Math.cos(a) * r, hq.y + Math.sin(a) * r)) { jobSoon(s, builtLast(s)); return true; } } return false; };
   for (const kind of Object.keys(DEP_KINDS)) {
     const D = DEP_KINDS[kind];
     if (!count(D.well)) { if (mine(kind)) return; continue; }
-    if (count(D.plant) < (count(D.well) >= 4 ? 2 : 1)) { if (plant(kind)) return; }
+    if (count(D.plant) < Math.max(1, Math.ceil(count(D.well) / 3))) { if (plant(kind)) return; } // (a plant takes ~3 poor mines' worth)
     // (the refinery up: a fuel station at once — everything that makes vehicles waits for it; the kitchen up: a rations
     // depot — the soldiers' canteens; the steel mill up: a chemical plant — the ammunition)
     for (const [k0, P] of [['oil', 'fuelst'], ['farm', 'waterst'], ['iron', 'chemplant']]) if (kind === k0 && !needsOf(s, side, P) && !alive(s, side, [P]).length && place(P)) return;
   }
-  for (const kind of Object.keys(DEP_KINDS)) if (count(DEP_KINDS[kind].well) < AI_WANT[kind] && mine(kind)) return;
+  const short = shortGoods(s, side), more = k => Object.keys(short).some(g => GOOD_DEP[g] === k) ? (bold ? AI_SHORT_HARD : AI_SHORT_MORE) : 0;
+  for (const kind of Object.keys(DEP_KINDS)) if (count(DEP_KINDS[kind].well) < AI_WANT[kind] + more(kind) && mine(kind)) return;
 }

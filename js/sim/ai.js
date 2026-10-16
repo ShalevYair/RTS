@@ -40,10 +40,13 @@ function aiBuild(s, side, D, who) {
   }
   const asked = who && s.askMake && s.askMake[pk]; // (what the partner was asked for and has none of: what makes it, first — asks.js)
   if (s.logi && may('depot')) aiSupply(s, side, asked, who);
-  if (s.econ && may('refinery')) aiEcon(s, side); // (the supply chain: wells and a refinery — econ.js)
+  if (s.econ && may('refinery')) aiEcon(s, side, D.deps); // (the supply chain: wells and a refinery — econ.js; hard digs more of what it's short of)
   // (the partner: a fuel station and a water point before anything else — the player's vehicles and soldiers need them)
   if (who === 'mate' && s.logi && may('fuelst') && (!alive(s, side, ['fuelst']).length || !alive(s, side, ['waterst']).length)) return;
   if (buildCount(s, side, who) >= buildLimit(s, side)) return;
+  // (hard, with bulldozers: no more plan sites going up at once than it has bulldozers — at ten minutes it had nine
+  // sites open and three bulldozers, nothing done, and hardly a squad till fifteen)
+  if (D.deps && s.dozers && s.nodes.filter(n => n.side === side && n.hp > 0 && s.t < n.ready && STRUCTS[n.kind] && !STRUCTS[n.kind].econ && !STRUCTS[n.kind].free && n.kind !== 'fhq').length >= Math.max(1, dozers(s, side).length)) return;
   if (!D.smart && s.t - (s.lastBuild[pk] || -99) < 30) return; // easy builds slowly
   // the next planned kind this game allows (tutorial levels allow only some)
   let kind = asked && !LOGI_KINDS.includes(asked) && buildable(s, asked, side) ? asked : null, counter = false;
@@ -54,7 +57,8 @@ function aiBuild(s, side, D, who) {
   // rest filled the allowance and the tank workshop never had room — econ.js)
   if (!kind && s.econ) { const k = plan[(s.plan[pk] || 0) % plan.length], w = s.planWait || (s.planWait = {});
     if (buildable(s, k) && needsOf(s, side, k)) { if (w[pk] == null || w[pk].k !== k) w[pk] = { k, t: s.t }; if (s.t - w[pk].t < AI_NEED_WAIT) return; } else w[pk] = null; }
-  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[((s.plan[pk] || 0) + i) % plan.length]; if (buildable(s, k, side)) { kind = k; s.plan[pk] = (s.plan[pk] || 0) + i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
+  // (hard: no more workshops idle for a good their units take — econ.js starved)
+  for (let i = 0; i < plan.length && !kind; i++) { const k = plan[((s.plan[pk] || 0) + i) % plan.length]; if (buildable(s, k, side) && !(D.deps && starved(s, side, k))) { kind = k; s.plan[pk] = (s.plan[pk] || 0) + i; } } // (a fuel station only where there's fuel; s.logi: the supply buildings apart — aiSupply)
   if (!kind) return;
   const foe = foeOf(side), goal = { x: s.bases[foe].x, y: s.H / 2 };
   const anchors = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq').sort((a, b) => dist(a, goal) - dist(b, goal));
@@ -119,7 +123,7 @@ function aiSupply(s, side, asked, who) {
 }
 // forward HQ (DESIGN.md §6): at the front — behind the leading squads, on a hill there if any —, clear of known enemies and
 // short of the enemy HQ; the nearest fit jeep/tank squad goes there (the rest of think leaves it alone) and sets up
-function aiForward(s, side, mine, setOrder) {
+function aiForward(s, side, mine, setOrder, D = {}) {
   const job = s.aiFhq[side], sq = job && s.squads.find(q => q.id === job.sq);
   if (job) {
     if (!sq || sq.dead || sq.retreating || s.t > job.until) s.aiFhq[side] = null;
@@ -141,7 +145,8 @@ function aiForward(s, side, mine, setOrder) {
   // (the front where we can build already — the squads waiting by the rally point —: a hill just past the edge of our
   // control, as before; without it, a side whose squads waited at home never set one up, and games dragged on)
   // (the supply chain: toward a free oil field first, while the side has fewer than AI_OIL_WELLS wells — econ.js)
-  const oil = alive(s, side, MINES).length < AI_MINES && aiDepSpot(s, side);
+  // (hard: a deposit first whenever there's a free one in reach — no cap on mines; they run out)
+  const oil = (D.deps || alive(s, side, MINES).filter(mineLive).length < AI_MINES) && aiDepSpot(s, side, D.deps); // (dry mines don't count; hard: anywhere, the rich ones first)
   if (oil) spot = oil;
   const atFront = !!oil || !(s.oldPlace === true || s.oldPlace === 'fhq') && !(quality(s, side, spot, true) >= BUILD_MIN_Q || Math.abs(spot.x - foe.x) < NODES.hq.r1 || threatAt(s, side, spot, AI_NEAR));
   const nodes = controlNodes(s, side).filter(n => n.kind === 'hq' || n.kind === 'fhq');
@@ -414,7 +419,7 @@ function think(s, side, level, who) {
   // what the AI may do: tutorial levels hold the enemy (red) back; the full game allows everything
   const can = s.aiCan && side === 'red' ? s.aiCan : { build: true, drone: true, fhq: true };
   if (can.build) aiBuild(s, side, D, who);
-  if (D.smart && can.fhq) aiForward(s, side, mine, setOrder);
+  if (D.smart && can.fhq) aiForward(s, side, mine, setOrder, D);
   const structs = knownStructs(s, side);
   const foes = s.squads.filter(q => q.side === foe).map(q => ({ q, k: intel(s, side, q) })).filter(o => o.k);
   // the commander: missiles keep a few squads home

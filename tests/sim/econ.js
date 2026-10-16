@@ -77,6 +77,24 @@ const step = (s, sec, until) => { for (let i = 0; i < sec * 30; i++) { Sim.step(
   st.electronics = 10; s.drones.blue.next = 0.01; step(s, 2);
   ok(s.drones.blue.stock === d0 + 1 && st.electronics < 10, 'electronics: a drone, and one taken');
 }
+// a deposit runs out: its mine stands dry, nothing more comes out of it, and the deposit is no longer free
+{
+  const s = Sim.openField(Sim.create(5, 2200, 'normal', 1280)); s.bots = []; s.fog = false; s.night = false; s.collapseAfter = Infinity;
+  Sim.planHq(s, 'blue', 300, 640); step(s, 240, () => s.nodes.some(n => n.side === 'blue' && n.kind === 'hq' && s.t >= n.ready)); step(s, 1);
+  const lime = s.deposits.find(d => d.home === 'blue' && d.kind === 'lime');
+  ok(lime.amount > 0 && lime.left === lime.amount, `a deposit holds a finite amount (${lime.amount})`);
+  ok(s.deposits.filter(d => d.rich > 1.5).every(d => { const p = s.deposits.find(o => o.kind === d.kind && o.rich < 1.5); return !p || d.amount > p.amount * 3; }), 'a rich one holds more than 3× a poor one of its kind');
+  Sim.build(s, 'blue', 'quarry', lime.x, lime.y);
+  const q = s.nodes.find(n => n.kind === 'quarry' && n.side === 'blue');
+  step(s, 120, () => s.t >= q.ready);
+  const l0 = lime.left; step(s, 20);
+  ok(lime.left < l0, `digging takes from it (${l0.toFixed(1)} → ${lime.left.toFixed(1)})`);
+  lime.left = 1; q.store = 0; step(s, 10);
+  ok(lime.left === 0 && q.dry, 'emptied: the mine stands dry');
+  const st0 = q.store; step(s, 10);
+  ok(q.store <= st0, 'nothing more comes out of it');
+  ok(!Sim.freeDeposit(s, 'lime', lime.x, lime.y), 'a dry deposit is not free to build on');
+}
 // a bot game: both sides build the chain in order, and the stocks move
 {
   let s = Sim.create(41, 2200, 'normal', 1280, {}); Sim.extras(s); s = Sim.openField(s); s.fog = true; s.bots = ['blue', 'red'];
