@@ -324,7 +324,11 @@ cv.addEventListener('pointerup', e => {
     issue(mode, (a.x + z.x) / 2, (a.y + z.y) / 2, fa, false, false, L); return;
   }
   if (d && d.box && d.moved && b) { if (!menu.hidden || s.over) return; pickBox(b, e.shiftKey); return; }
-  if (d && d.right && !d.moved) { unpick(); return; }
+  if (d && d.right && !d.moved) { // (on a front of ours, nothing armed: it's removed; else as ever)
+    const r = cv.getBoundingClientRect(), f = menu.hidden && !(eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed || roadArmed) && frontHit(e.clientX - r.left, e.clientY - r.top, 1.5);
+    if (f) { Sim.removeFront(s, 'blue', f.id); toast(tr('frontOff'), e.clientX, e.clientY, 1500); syncButtons(); return; }
+    unpick(); return;
+  }
   if (d && !d.moved && d.tapOk && e.isPrimary !== false) tap(e);
 });
 cv.addEventListener('pointercancel', e => { lift(e); boxSel = null; faceDrag = null; frontDraw = null; });

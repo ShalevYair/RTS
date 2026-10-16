@@ -803,11 +803,11 @@ function frontDone(e) {
   frontArmed = false; syncButtons();
 }
 // the front whose line is under the screen point (within FRONT_HIT pixels), or null
-function frontHit(sx, sy) {
+function frontHit(sx, sy, k0 = 1) { // (k0: a wider reach — the right click that removes one)
   for (const f of s.fronts && s.fronts.blue || []) for (let i = 1; i < f.pts.length; i++) {
     const a = worldToScr(f.pts[i - 1].x, f.pts[i - 1].y), b = worldToScr(f.pts[i].x, f.pts[i].y), dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy || 1;
     const k = Math.max(0, Math.min(1, ((sx - a.x) * dx + (sy - a.y) * dy) / L2));
-    if (Math.hypot(sx - a.x - dx * k, sy - a.y - dy * k) < FRONT_HIT) return f;
+    if (Math.hypot(sx - a.x - dx * k, sy - a.y - dy * k) < FRONT_HIT * k0) return f;
   }
   return null;
 }
