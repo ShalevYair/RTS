@@ -21,6 +21,8 @@ const buildCount = (s, side, who) => { const w = !s.arms || side !== 'blue' || !
 // arms: whose a building kind / unit type on this side is — 'me' (the player's arms), 'mate' (the computer partner's);
 // null — both's (no arms this game, red, the HQ, forward HQs)
 const armSide = (s, side, k) => !s.arms || side !== 'blue' || !ARM_OF[k] ? null : s.arms.includes(ARM_OF[k]) ? 'me' : 'mate';
+// who puts the HQ down (open field): whoever has the bulldozers — the partner, when they're his arm's ('mate'), else the player
+const hqPlacer = (s, side) => armSide(s, side, 'dozer') === 'mate' ? 'mate' : 'me';
 // the player gives this squad orders (with arms: not the partner's; the command tanks are both's — the player's)
 const ownSquad = (s, q) => !!q.cmd || armSide(s, q.side, q.type) !== 'mate';
 // arms for this game: the player's (some of ARMS); the computer partner plays the rest of blue (think 'mate')

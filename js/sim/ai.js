@@ -400,7 +400,7 @@ function think(s, side, level, who) {
   const own = q => !who || (q.cmd ? who === 'me' : (armSide(s, side, q.type) || 'me') === who);
   // open field: first the HQ — a spot in our strip (away from the middle of it now and then), the command tanks go
   const cmd = s.hqPending && s.hqPending[side] && cmdSquad(s, side);
-  if (cmd && who !== 'mate' && !s.squads.some(q => q.side === side && q.hqAt) && !s.nodes.some(n => n.side === side && n.kind === 'hq')) {
+  if (cmd && (!who || who === hqPlacer(s, side)) && !s.squads.some(q => q.side === side && q.hqAt) && !s.nodes.some(n => n.side === side && n.kind === 'hq')) {
     const [a, b] = hqBand(s, side);
     for (let i = 0; i < 30; i++) if (planHq(s, side, a + s.rand() * (b - a), 60 + s.rand() * (s.H - 120))) break;
   }

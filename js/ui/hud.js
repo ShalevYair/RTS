@@ -820,7 +820,7 @@ $('front').addEventListener('click', armFront);
 $('mic').addEventListener('click', () => micClick()); $('micBtn').addEventListener('click', () => micAsk(false));
 // open field: 🏰, then a spot in our strip; the command tanks drive there and set the HQ up (armed at the start)
 let hqArmed = false, hqTold = false;
-const hqToPlace = () => !!(s.hqPending && s.hqPending.blue && !s.nodes.some(n => n.side === 'blue' && n.kind === 'hq') && Sim.cmdSquad(s, 'blue'));
+const hqToPlace = () => !!(s.hqPending && s.hqPending.blue && Sim.hqPlacer(s, 'blue') === 'me' && !s.nodes.some(n => n.side === 'blue' && n.kind === 'hq') && Sim.cmdSquad(s, 'blue'));
 const hqPlanned = () => s.squads.some(q => q.side === 'blue' && q.hqAt && !q.dead);
 function armHq() { hqArmed = !hqArmed && hqToPlace(); if (hqArmed) { eyeArmed = false; buildArmed = null; fhqArmed = false; frontArmed = false; $('buildm').hidden = true; } syncButtons(); }
 $('hqb').addEventListener('click', armHq);

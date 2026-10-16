@@ -38,7 +38,7 @@ function newGame(skipIntro, saved) {
   if (s.ground) for (const it of decor.rocks.items) if (Sim.groundAt(s, it.x, it.y)) it.gone = 1;
   if (s.extras) Sim.setRoads(s, decor.roads);
   views = {}; wxWas = { rain: false, fog: false };
-  Sim.setCover(s, decor.rocks.items.filter(it => it.t === 'tree').map(it => (it.r = it.s * 0.4, it))); sel = 'all'; selNode = null; selPost = null; nag.at = nag.built = nag.fhq = 0; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = !!(s.hqPending && s.hqPending.blue); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();
+  Sim.setCover(s, decor.rocks.items.filter(it => it.t === 'tree').map(it => (it.r = it.s * 0.4, it))); sel = 'all'; selNode = null; selPost = null; nag.at = nag.built = nag.fhq = 0; pings = []; nodeHp.clear(); can.fhq = can.drone = true; mode = 'attack'; playing = false; logKey = ''; endShown = false; eyeArmed = false; buildArmed = null; hqArmed = hqToPlace(); hqTold = false; sqKey = ''; groups = []; fight = []; fightAt = 0; Radio.reset();
   if (saved) { const u = saved.ui; cam = u.cam; groups = u.groups || []; nextGroup = u.nextGroup || 1; views = u.views || {}; if (s.arms) myArms = s.arms.slice(); for (const i of u.gone || []) if (decor.rocks.items[i]) decor.rocks.items[i].gone = 1; }
   $('buildm').hidden = true; if (tour) { tour = null; $('tourBg').hidden = true; } hideTip();
   $('end').hidden = true; $('share').textContent = tr('share'); outro = null; $('outro').hidden = true; try { $('outroVid').pause(); } catch (e) { /* no video */ }
