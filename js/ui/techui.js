@@ -111,4 +111,6 @@ function techLit(k, on) { for (const p of document.querySelectorAll('#techSvg pa
 $('techClose').addEventListener('click', techClose);
 $('techTree').addEventListener('click', e => { if (e.target === $('techTree')) techClose(); });
 $('stockB').addEventListener('click', techOpen);
+$('techM').querySelector('svg').innerHTML = STOCK_SVG.tech;
+$('techM').addEventListener('click', () => { closeMenu(false); techOpen(); techWas = true; }); // (from the ⚙ menu: it stays still — techOpen keeps it stopped, and closing the tree goes back to play)
 addEventListener('resize', () => { if (!$('techTree').hidden) techLines(); });

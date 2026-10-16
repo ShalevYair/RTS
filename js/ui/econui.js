@@ -69,6 +69,7 @@ const STOCK_SVG = {
   alu: '<path d="M1.5 11l3-6h7l3 6z" fill="#d7dde3" stroke="#69737d"/><path d="M4.5 5h7l3 6H1.5" fill="none"/><path d="M5 6l-1.8 4" stroke="#fff" stroke-width=".9"/>',
   explosives: '<rect x="3" y="5" width="3" height="9" rx="1" fill="#c8322a" stroke="#5e1410"/><rect x="6.5" y="5" width="3" height="9" rx="1" fill="#c8322a" stroke="#5e1410"/><rect x="2.5" y="8" width="7.5" height="1.6" fill="#3b2a1a"/><path d="M8 5c1-2 3-2 4-3.5" stroke="#3b2a1a" fill="none"/><circle cx="12.6" cy="1.8" r="1.3" fill="#ffd34d"/>',
   electronics: '<rect x="4" y="4" width="8" height="8" rx="1" fill="#2c6b3f" stroke="#123020"/><rect x="6" y="6" width="4" height="4" fill="#1a1a1a"/><path d="M5.5 4V1.8M8 4V1.8M10.5 4V1.8M5.5 12v2.2M8 12v2.2M10.5 12v2.2M4 5.5H1.8M4 8H1.8M4 10.5H1.8M12 5.5h2.2M12 8h2.2M12 10.5h2.2" stroke="#d8b25a" stroke-width="1.1"/>',
+  tech: '<path d="M8 4.5v3M4 9.5V7.5h8v2" stroke="#cfe3ff" stroke-width="1.2" fill="none"/><rect x="5.5" y="1" width="5" height="3.5" rx=".8" fill="#4a8fe0" stroke="#173c66"/><rect x="1.5" y="9.5" width="5" height="3.5" rx=".8" fill="#5fbf6a" stroke="#1d4a24"/><rect x="9.5" y="9.5" width="5" height="3.5" rx=".8" fill="#e0a33a" stroke="#6b4a10"/>',
   tree: '<path d="M8 1.5l4.5 6h-2l3 4.5H2.5l3-4.5h-2z" fill="#3f8f4a" stroke="#1d4a24"/><rect x="7" y="12" width="2" height="3" fill="#6b4a2a"/>',
 };
 const stockSvg = g => `<svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true">${STOCK_SVG[g]}</svg>`;

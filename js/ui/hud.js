@@ -484,10 +484,6 @@ function initBuildMenu() {
     b.addEventListener('click', () => pickCat(g, b));
     cats.appendChild(b);
   }
-  // (under them, a little apart: the tech tree — what to build to get to what; techui.js)
-  const tb = document.createElement('button'); tb.id = 'techBtn'; tb.className = 'techBtn'; tb.dataset.tip = 'techBtnTip'; tb.hidden = true;
-  tb.innerHTML = `<svg viewBox="0 0 16 16" width="44" height="44" aria-hidden="true">${STOCK_SVG.tree}</svg><span></span>`;
-  tb.addEventListener('click', () => techToggle()); cats.appendChild(tb);
   nameBuildMenu();
 }
 // a kind of building picked (top left): its page opens beside it (the airfield, one of a kind, is armed at once);
@@ -508,7 +504,7 @@ function pickCat(g, b) {
 }
 // what the column shows: the kinds this game allows; all dimmed with no free slot (or before the HQ stands)
 function syncCats() {
-  const tb = $('techBtn'); if (tb) tb.hidden = !s.econ;
+  $('techRow').hidden = !s.econ; // (the tech tree's row in the ⚙ menu: only with the supply chain)
   const root = new Set(pageItems('root')), full = buildFull() || !!(s.hqPending && s.hqPending.blue), m = $('buildm');
   for (const b of document.querySelectorAll('[data-cat]')) {
     const g = b.dataset.cat, f = freeCat(g) ? !supplyLeft(g) || !!(s.hqPending && s.hqPending.blue) : full; // (supply: its own allowance)
@@ -526,7 +522,6 @@ function syncCats() {
 const pageHas = (g, k) => BUILD_PAGES[g].some(e => e.startsWith('page:') ? pageHas(e.slice(5), k) : e === k);
 function drawPic(cv, kind) { const g = cv.getContext('2d'); g.clearRect(0, 0, 84, 84); const src = buildingPic(kind, colors.blue, kind === 'decoy' ? 34 : 40); const m = src.width * 0.17; g.drawImage(src, m, m, src.width - 2 * m, src.width - 2 * m, 0, 0, 84, 84); }
 function nameBuildMenu() {
-  const tb = $('techBtn'); if (tb) tb.querySelector('span').textContent = tr('techShort');
   for (const b of document.querySelectorAll('[data-build]')) {
     const S = Sim.STRUCTS[b.dataset.build];
     b.querySelector('b').textContent = sn(b.dataset.build);
