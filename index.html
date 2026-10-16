@@ -31,6 +31,8 @@
   <button id="compass" class="glass" data-tip="compass" hidden><svg viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0-8L3.2 0H-3.2Z" fill="#e8463c"/><path d="M0 8L3.2 0H-3.2Z" fill="#e8ecf2"/><circle r="1.3" fill="#1b2230"/></svg></button>
   <!-- under the map: the latest important messages (newest on top); a click goes there -->
   <div id="feed" class="feed" aria-live="polite"></div>
+  <!-- under the power bar: the advisor's caption (advisor.js) -->
+  <div id="advice" class="advice" aria-live="polite" hidden></div>
   <div id="infoCard" class="infoCard" hidden><button id="icClose" class="icon" aria-label="✕">✕</button><canvas width="96" height="96" aria-hidden="true"></canvas><div class="icBody"><b></b><span class="icWho"></span><div class="icBars"></div><div class="icLine"></div><p class="icDesc"></p><button id="icTake" class="icTake" hidden></button></div></div>
   <!-- the tech tree (techui.js): what comes from what — its button in the ⚙ menu, the stock, and K / Tab -->
   <div id="techTree" class="techTree" role="dialog" hidden><div class="tbox glass"><button id="techClose" class="icon tclose" aria-label="✕">✕</button><h2 data-t="techTitle"></h2><p class="thint" data-t="techHint"></p><div class="twrap"><svg id="techSvg" class="tsvg" aria-hidden="true"></svg><div id="techGrid" class="tgrid"></div></div></div></div>
@@ -67,6 +69,7 @@
     <div class="mrow" id="fsRow"><span data-t="fsName"></span><button id="fs" class="icon" aria-pressed="false" data-al="fs" data-tip="fs">⛶</button></div>
     <div class="mrow"><span data-t="gfx"></span><button id="gfxHi" data-gfx="hi" data-t="gfxHi" data-tip="tipGfxHi"></button><button data-gfx="low" data-t="gfxLow" data-tip="tipGfxLow"></button></div>
     <div class="mrow"><span data-t="language"></span><button data-lang="he">עברית</button><button data-lang="en">English</button></div>
+    <div class="mrow"><span data-t="advice"></span><button data-adv="all" data-t="advAll"></button><button data-adv="stuck" data-t="advStuck"></button><button data-adv="off" data-t="advOff"></button><button id="advReset" data-t="advReset" data-tip="advResetTip"></button></div>
     <div class="mrow" id="techRow"><button id="techM" class="techM" data-tip="techBtnTip"><svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"></svg><span data-t="techShort"></span></button></div>
     <div class="mrow"><button id="help" data-t="help" data-tip="tipHelp"></button><button id="saveBtn" data-t="saveGame" data-tip="tipSave"></button><button id="home" data-t="mainScreen"></button></div>
     <div class="mrow sure" id="homeSure" hidden><span data-t="sureHome"></span><button id="homeYes" data-t="yes"></button><button id="homeNo" data-t="no"></button></div>
@@ -195,6 +198,8 @@
 <script src="js/ui/wiki.js"></script>
 <script src="js/ui/input.js"></script>
 <script src="js/ui/coach.js"></script>
+<script src="js/ui/advice.js"></script>
+<script src="js/ui/advisor.js"></script>
 <script src="js/ui/field.js"></script>
 <script src="js/ui/roadui.js"></script>
 <script src="js/ui/askui.js"></script>

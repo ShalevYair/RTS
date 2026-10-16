@@ -471,7 +471,7 @@ function initBuildMenu() {
     if (k === 'decoy') { const i = document.createElement('i'); i.textContent = Sim.STRUCTS[k].badge; b.querySelector('span').appendChild(i); }
     b.addEventListener('click', () => {
       const nd = Sim.needsOf(s, 'blue', k); // (the supply chain: what has to stand first — a toast, not armed)
-      if (nd) { const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('needsWhy', sn(nd)), r.left - st.left + r.width / 2, r.top - st.top - 10); blink(b); return; }
+      if (nd) { advWhy('needs', k); const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('needsWhy', sn(nd)), r.left - st.left + r.width / 2, r.top - st.top - 10); blink(b); return; }
       buildArmed = k; m.hidden = true; hideTip(); syncButtons(); });
     m.appendChild(b);
   }
@@ -490,7 +490,7 @@ function initBuildMenu() {
 // with no free slot the button is dimmed, and pressing it flashes it and the way out: 🏕️
 function pickCat(g, b) {
   const m = $('buildm');
-  if (s.hqPending && s.hqPending.blue) { blink($('hqb')); const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('why').nohq, r.right - st.left + 60, r.top - st.top + 20); return; }
+  if (s.hqPending && s.hqPending.blue) { advWhy('nohq'); blink($('hqb')); const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('why').nohq, r.right - st.left + 60, r.top - st.top + 20); return; }
   if (freeCat(g) ? !supplyLeft(g) : buildFull()) { blink(b); if (!freeCat(g) && !$('fhq').hidden) blink($('fhq')); return; } // (supply: its own allowance)
   const open = !m.hidden && m.dataset.open === g && buildPage === g; // (on one of its inner pages: back to its first)
   buildArmed = null; m.hidden = true; m.classList.remove('side');
@@ -573,7 +573,7 @@ const blink = el => { el.classList.remove('blink'); void el.offsetWidth; el.clas
 // no free slot: the button is dimmed, and pressing it anyway flashes it and the way out: 🏕️
 function toggleBuild() {
   const m = $('buildm');
-  if (!buildArmed && m.hidden && s.hqPending && s.hqPending.blue) { blink($('hqb')); const r = $('bld').getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('why').nohq, r.left - st.left + r.width / 2, r.top - st.top - 30); return; }
+  if (!buildArmed && m.hidden && s.hqPending && s.hqPending.blue) { advWhy('nohq'); blink($('hqb')); const r = $('bld').getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('why').nohq, r.left - st.left + r.width / 2, r.top - st.top - 30); return; }
   if (!buildArmed && m.hidden && buildFull()) { blink($('bld')); if (!$('fhq').hidden) blink($('fhq')); return; }
   if (buildArmed) { buildArmed = null; m.hidden = true; } else m.hidden = !m.hidden;
   m.classList.add('side'); m.dataset.open = 'root'; m.style.setProperty('--bmTop', '8px');
@@ -588,7 +588,7 @@ function placeBuilding(x, y, again) {
   if (buildArmed && Sim.STRUCTS[buildArmed].deposit) ({ x, y } = snapMine(buildArmed, { x, y })); // (a mine: onto the deposit — econui.js)
   nag.built = s.t; // (laid one: no reminder for a minute)
   const why = Sim.buildCheck(s, 'blue', x, y, buildArmed);
-  if (why) { const p = onScreen(x, y), nd = why === 'needs' && Sim.needsOf(s, 'blue', buildArmed); toast(nd ? tr('needsWhy', sn(nd)) : tr('why')[why] || tr('why').bad, p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y, pickedDozer());
+  if (why) { advWhy(why, buildArmed); const p = onScreen(x, y), nd = why === 'needs' && Sim.needsOf(s, 'blue', buildArmed); toast(nd ? tr('needsWhy', sn(nd)) : tr('why')[why] || tr('why').bad, p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y, pickedDozer());
   const room = buildArmed === 'decoy' ? s.nodes.filter(n => n.side === 'blue' && n.kind === 'decoy' && n.hp > 0).length < Sim.DECOY_MAX : Sim.buildCount(s, 'blue', 'me') < Sim.buildLimit(s, 'blue');
   if (!why && !(again && room)) buildArmed = null;
   syncButtons(); updateHud();
@@ -690,7 +690,8 @@ function renderLevels() {
   }
 }
 // "start": a new player goes to the tutorial — the first level, or the next one not yet won; after the last, the full game
-$('go').addEventListener('click', () => startGame(done < Sim.LEVELS ? done + 1 : 0));
+// (the tutorial levels hidden for now — explanations while playing instead, advisor.js): start = the full game
+$('go').addEventListener('click', () => startGame(0)); $('learn').hidden = true;
 // the tour: what each level step brings, pointing at its control (or at a spot on the map for what has none)
 let toured = 0; const tourSeen = new Set();
 try { toured = +localStorage.getItem('irts-tour') || 0; } catch (e) { /* storage unavailable */ }
@@ -827,7 +828,7 @@ function armHq() { hqArmed = !hqArmed && hqToPlace(); if (hqArmed) { eyeArmed = 
 $('hqb').addEventListener('click', armHq);
 function placeHq(x, y) {
   const why = Sim.hqCheck(s, 'blue', x, y);
-  if (why) { const p = onScreen(x, y); toast(tr('hqWhy')[why] || tr('hqWhy').bad, p.x, p.y); return; }
+  if (why) { advWhy(why); const p = onScreen(x, y); toast(tr('hqWhy')[why] || tr('hqWhy').bad, p.x, p.y); return; }
   Sim.planHq(s, 'blue', x, y, pickedDozer()); hqArmed = false; syncButtons(); updateHud();
 }
 // the bulldozer picked (one squad of them), if any: it's the one that goes to build

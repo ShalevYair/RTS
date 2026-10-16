@@ -581,6 +581,8 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 /* the tech tree (techui.js): columns in the reading direction, lines from what's needed to what needs it */
 .stock{cursor:pointer}.stock .techB{opacity:.9;margin-inline-start:2px}
 .stock.nomini{right:10px}@media (max-width:560px){.stock{right:10px;top:46px;max-width:calc(100vw - 70px)}}
+.advice{position:absolute;top:96px;left:50%;transform:translateX(-50%);z-index:3;max-width:min(640px,calc(100vw - 32px));padding:7px 14px;border-radius:10px;background:var(--frost,rgb(15 20 28 / .72));backdrop-filter:blur(6px);color:#f3efe6;font:500 15px/1.45 Rubik,sans-serif;text-align:center;text-shadow:0 1px 2px rgb(0 0 0 / .6);pointer-events:none;transition:opacity .8s}.advice[hidden]{display:none}.advice.out{opacity:0}
+.advHi{animation:advHi 1s ease-in-out 6;border-radius:12px}@keyframes advHi{50%{box-shadow:0 0 0 4px rgb(255 215 90 / .85),0 0 18px rgb(255 215 90 / .7)}}
 .techM{display:inline-flex;align-items:center;gap:6px}.techM svg{display:block}
 .techBtn{margin-top:10px;display:flex;flex-direction:column;align-items:center;width:78px;padding:4px 0;background:none;border:0;border-radius:12px;color:#fff;font:500 11px Rubik,sans-serif;text-shadow:0 1px 2px rgb(0 0 0 / .85);cursor:pointer}.techBtn[hidden]{display:none}.techBtn:hover{background:var(--soft)}.techBtn svg{filter:drop-shadow(0 2px 3px rgb(0 0 0 / .5))}
 .stock .sg,.stock .techB{display:inline-flex;align-items:center;justify-content:space-between;gap:3px;padding:1px 5px 1px 3px;border-radius:9px;background:rgb(0 0 0 / .32)}.stock svg{display:block;filter:drop-shadow(0 1px 1px rgb(0 0 0 / .7))}.stock .sg.low{background:rgb(140 30 20 / .45)}.stock .sg:hover,.stock .techB:hover{background:rgb(255 255 255 / .16)}

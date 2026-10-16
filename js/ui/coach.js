@@ -54,7 +54,7 @@ const TIPS = [
 ];
 function tipCheck() {
   for (const [k, at, when] of TIPS) {
-    if (tipsSeen.has(k)) continue;
+    if (tipsSeen.has(k) || (['front', 'posts', 'asks'].includes(k) && advOn())) continue; // (the advisor says these — advisor.js)
     let ok = false; try { ok = !!when(); } catch (e) { /* not there yet */ }
     if (!ok) continue;
     tipsSeen.add(k); try { localStorage.setItem('irts-tips', JSON.stringify([...tipsSeen])); } catch (e) { /* ignore */ }
@@ -68,5 +68,5 @@ function coachTick() {
   if (now - coachAt < 1000 || coachOff() || !playing || tour || s.over || !$('intro').hidden) { if (!playing || tour) actAt = Math.max(actAt, now - 2000); return; }
   coachAt = now;
   if (lvl && now - actAt > HINT_IDLE * 1000 && now - hintAt > HINT_EVERY * 1000) { hintAt = now; hint(); }
-  tipCheck();
+  tipCheck(); advTick();
 }
