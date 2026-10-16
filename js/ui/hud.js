@@ -741,7 +741,7 @@ function freeTour() {
   out.push({ el: 'bcats', t: tr('t_decoy') }, { el: 'power', t: tr('t_night') });
   // (the big maps: the posts, the weather and roads, spoken orders)
   if (s.posts) out.push({ el: radarSpot, t: tr('t_posts') }, { el: midMap, t: tr('t_weather') });
-  if (!TOUCH) out.push({ el: midMap, t: tr('t_voice') });
+  if (!TOUCH && VOICE_ON) out.push({ el: midMap, t: tr('t_voice') });
   if (s.scale > 1) out.push({ el: 'fhq', t: tr('t_scale', s.scale) });
   out.push({ el: 'gear', t: tr('t_play') });
   return out;
@@ -818,7 +818,7 @@ function frontTap(e) {
   toast(tr('frontHow'), e.clientX, e.clientY);
 }
 $('front').addEventListener('click', armFront);
-$('mic').addEventListener('click', () => micClick()); $('micBtn').addEventListener('click', () => micAsk(false));
+$('mic').addEventListener('click', () => micClick()); $('micBtn').addEventListener('click', () => micAsk(false)); if (!VOICE_ON) $('micBtn').hidden = true;
 // open field: 🏰, then a spot in our strip; the command tanks drive there and set the HQ up (armed at the start)
 let hqArmed = false, hqTold = false;
 const hqToPlace = () => !!(s.hqPending && s.hqPending.blue && Sim.hqPlacer(s, 'blue') === 'me' && !s.nodes.some(n => n.side === 'blue' && n.kind === 'hq') && Sim.cmdSquad(s, 'blue'));

@@ -213,7 +213,7 @@ async function micGate() {
 const MIC_ENDS = 6; // (ended this many times within 20 s: something's wrong — closed)
 function syncMic() {
   const b = $('mic'); if (!b) return;
-  b.hidden = !SR || !s || !s.extras;
+  b.hidden = !VOICE_ON || !SR || !s || !s.extras;
   b.setAttribute('aria-pressed', String(!!talk));
 }
 async function micClick() {

@@ -62,6 +62,8 @@ try { const m = localStorage.getItem('irts-map'); bigMap = m !== 'small'; hugeMa
 // (everyone — the right click's pick, the ★, "everyone" said: not the bulldozers, which would leave their sites, nor
 // the missile trucks, which fire from far behind)
 const NOT_ALL = ['dozer', 'ssm'], inAll = q => !NOT_ALL.includes(q.type) && Sim.ownSquad(s, q); // (arms: not the partner's)
+// voice commands (field.js): hidden for now — the 🎙 button, the main menu's microphone row, their tour bubble and tip (the code stays)
+const VOICE_ON = false;
 let lite = 0; const LITE_RES = 0.7;
 // gfxLow: the low graphics, picked in the settings (irts-gfx) — no shadows at all, no day and night, no rain or
 // morning fog (they're not in the game at all then: s.night, s.wxPlan), the ground plain and at half the pixels (no
