@@ -1008,6 +1008,33 @@ def b_lab(seed=51):  # (the neutral electronics lab: a low white block, dishes a
     M.car(7.5, 4.5, 0.0, 4.6, 2.0, 'white')
     return [('hull', M, None)]
 
+def b_hitech(seed=52):  # (the hi-tech centre: a glass office tower with a low wing, a dish and a mast on the roof, a car park)
+    M = B(seed); L, W = 24, 20
+    M.pad(L, W, 'concrete', 0.08)
+    M.block('white', (-3.0, 5.2, -1.0), (9.0, 10.4, 8.0), 0.04)
+    for y in (1.6, 3.6, 5.6, 7.6, 9.6):
+        M.windows(-6.8, 0.8, y, 3.05, 5, 1.2, 1.1, 1); M.windows(-6.8, 0.8, y, -5.05, 5, 1.2, 1.1, -1)
+    M.k = 0.9; M.box('concrete', (-3.0, 10.55, -1.0), (9.3, 0.3, 8.3))
+    M.block('white', (5.0, 2.0, 1.5), (7.0, 4.0, 6.0), 0.04)
+    for y in (1.4, 3.0): M.windows(2.2, 7.8, y, 4.55, 4, 1.1, 0.9, 1)
+    M.k = 1.0; M.strut('metal', np.array((-5.0, 10.7, -3.0)), np.array((-5.0, 11.8, -3.0)), 0.1); M.cyl('white', (-5.0, 12.1, -3.0), 1.2, 0.3, 'y', 18, r2=0.36, tilt=0.6)
+    M.strut('metal', np.array((-1.0, 10.7, 1.0)), np.array((-1.0, 15.5, 1.0)), 0.07)
+    for k in range(4): M.k = 0.9; M.box('glass', (3.0 + k * 1.5, 4.15, 0.0), (1.2, 0.06, 2.0), tilt=0.3)   # solar panels
+    for x in (-9.0, -6.5, -4.0): M.car(x, 7.0, 0.0, 4.4, 1.9, 'white')
+    return [('hull', M, None)]
+
+def b_elab(seed=53):  # (the side's electronics lab: a long clean-room hall, vents and chillers on its roof, a server annex)
+    M = B(seed); L, W = 22, 18
+    M.pad(L, W, 'concrete', 0.08)
+    M.block('white', (-1.5, 2.6, -1.0), (14.0, 5.2, 8.0), 0.04); M.k = 0.9; M.box('concrete', (-1.5, 5.35, -1.0), (14.3, 0.3, 8.3))
+    M.windows(-7.5, 4.5, 2.2, 3.05, 6, 1.4, 0.7, 1)
+    for x in (-6.0, -3.0, 0.0, 3.0): M.k = 1.0; M.cyl('metal', (x, 5.9, -3.0), 0.7, 0.9, 'y', 14)
+    for x in (-5.0, 1.5): M.k = 0.85; M.box('metal', (x, 5.9, 1.2), (2.6, 0.9, 1.6))
+    M.block('concrete', (7.5, 1.6, 2.5), (4.0, 3.2, 4.0), 0.04); M.k = 0.8; M.box('warn', (7.5, 3.3, 2.5), (4.1, 0.15, 4.1))
+    M.strut('metal', np.array((7.5, 3.3, 0.8)), np.array((7.5, 8.0, 0.8)), 0.05)
+    M.car(-8.0, 6.5, 0.0, 4.6, 2.0, 'white')
+    return [('hull', M, None)]
+
 KINDS = {'b_hq': b_hq, 'b_decoy': lambda: b_hq(1), 'b_fhq': b_fhq, 'b_tent': b_tent, 'b_atpost': b_atpost, 'b_aapost': b_aapost,
          'b_clinic': b_clinic, 'b_commandopost': b_commandopost, 'b_tankshop': b_tankshop, 'b_jeepshop': b_jeepshop,
          'b_jeepat': b_jeepat, 'b_jeepaa': b_jeepaa, 'b_garage': b_garage, 'b_depot': b_depot,
@@ -1017,7 +1044,7 @@ KINDS = {'b_hq': b_hq, 'b_decoy': lambda: b_hq(1), 'b_fhq': b_fhq, 'b_tent': b_t
          'b_radar': b_radar, 'b_power': b_power, 'b_fuel': b_fuel, 'b_supply': b_supply, 'b_hospital': b_hospital,
          'b_motorpool': b_motorpool, 'b_tower': b_tower, 'b_antenna': b_antenna, 'b_bunker': b_bunker,
          'b_oilwell': b_oilwell, 'b_ironmine': b_ironmine, 'b_quarry': b_quarry, 'b_refinery': b_refinery, 'b_steelmill': b_steelmill, 'b_concrete': b_concrete,
-         'b_bauxmine': b_bauxmine, 'b_smelter': b_smelter, 'b_farm': b_farm, 'b_kitchen': b_kitchen, 'b_chemplant': b_chemplant, 'b_lab': b_lab}
+         'b_bauxmine': b_bauxmine, 'b_smelter': b_smelter, 'b_farm': b_farm, 'b_kitchen': b_kitchen, 'b_chemplant': b_chemplant, 'b_lab': b_lab, 'b_hitech': b_hitech, 'b_elab': b_elab}
 
 if __name__ == '__main__':
     for k in (['b_' + a.removeprefix('b_') for a in sys.argv[1:]] or KINDS):

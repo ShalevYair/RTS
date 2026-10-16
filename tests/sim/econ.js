@@ -68,10 +68,14 @@ const step = (s, sec, until) => { for (let i = 0; i < sec * 30; i++) { Sim.step(
   st.fuel = 50; step(s, 30);
   ok(st.alu > a0 + 9 && st.fuel < 50, `with fuel: bauxite → aluminium (+${(st.alu - a0).toFixed(1)}), burning fuel (${(50 - st.fuel).toFixed(1)})`);
   ok(Sim.UNIT_COST.jeep.rubber > 0 && Sim.UNIT_COST.air.alu > 0 && Sim.UNIT_COST.ssm.electronics > 0, 'jeeps take rubber, aircraft aluminium, missile trucks electronics');
-  if (s.posts) {
+  s.drones.blue.next = Infinity; // (no drones taking electronics meanwhile)
+  ok(Sim.NEEDS.elab.includes('hitech') && Sim.NEEDS.hitech.includes('steelmill') && Sim.NEEDS.ssmshop.includes('elab'), 'the lab waits for a hi-tech centre; missiles wait for the lab');
+  { const e0 = st.electronics; step(s, 30); ok(st.electronics <= e0 + 0.01, 'no lab: no electronics'); }
+  s.nodes.push({ id: 902, kind: 'elab', side: 'blue', x: ref.x, y: ref.y + 200, hp: 450, t0: 0, ready: 0, until: Infinity, prog: 0 });
+  { const e0 = st.electronics; step(s, 60); const one = st.electronics - e0; ok(one > 2, `the lab: electronics (+${one.toFixed(1)})`);
+    if (!s.posts) s.posts = [{ id: 'p0', kind: 'lab', x: 1100, y: 100, side: null }]; // (no extras in this game: the institute by hand)
     const lab = s.posts.find(p => p.kind === 'lab');
-    if (lab) { lab.side = 'blue'; const e0 = st.electronics; step(s, 60); ok(st.electronics > e0 + 2, `the lab held: electronics (+${(st.electronics - e0).toFixed(1)})`); }
-  }
+    if (lab) { lab.side = 'blue'; const e1 = st.electronics; step(s, 60); ok(st.electronics - e1 > one * 1.8, `the research institute held: twice as fast (+${(st.electronics - e1).toFixed(1)})`); } }
   st.electronics = 0; const d0 = s.drones.blue.stock; s.drones.blue.next = 0.01; step(s, 2);
   ok(s.drones.blue.stock === d0, 'no electronics: no new drone');
   st.electronics = 10; s.drones.blue.next = 0.01; step(s, 2);

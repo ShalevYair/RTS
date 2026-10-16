@@ -394,6 +394,8 @@ document.addEventListener('keydown', e => {
   if (!$('intro').hidden) { if (e.key === 'Escape') $('go').click(); return; }
   if (!$('end').hidden) return;
   // the "pull it down?" question: Enter = yes, Escape = no
+  // the tech tree open: Escape / K / Tab close it, nothing else (techui.js)
+  if (!$('techTree').hidden) { if (e.key === 'Escape' || e.key === 'Tab' || e.code === 'KeyK') { e.preventDefault(); techClose(); } return; }
   if (!$('razeSure').hidden) { if (e.key === 'Enter') { e.preventDefault(); $('razeYes').click(); } else if (e.key === 'Escape') $('razeNo').click(); return; }
   // Delete / Backspace on a picked building of ours: pull it down, once the player says yes
   if ((e.key === 'Delete' || e.key === 'Backspace') && askRaze()) { e.preventDefault(); return; }
@@ -426,6 +428,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'b') buildHere();
   else if (k === 'g') toggleBuild();
   else if (k === 'f') $('fs').click();
+  else if ((k === 'k' || e.key === 'Tab') && s && s.econ) { e.preventDefault(); techOpen(); } // (the tech tree: techui.js)
   else if (e.key.startsWith('Arrow') && (e.ctrlKey || e.metaKey) && V3.on) { e.preventDefault(); const a = 60; v3Orbit(e.key === 'ArrowLeft' ? -a : e.key === 'ArrowRight' ? a : 0, e.key === 'ArrowUp' ? -a : e.key === 'ArrowDown' ? a : 0); } // (the 3D view: turn and tilt)
   else if (e.key === 'Home' && V3.on) v3OrbitReset();
   else if (e.key.startsWith('Arrow')) { e.preventDefault(); const d = 120; panBy(e.key === 'ArrowLeft' ? d : e.key === 'ArrowRight' ? -d : 0, e.key === 'ArrowUp' ? d : e.key === 'ArrowDown' ? -d : 0); }

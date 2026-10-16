@@ -64,7 +64,7 @@ function syncStock() {
   const on = !!s.econ && !!s.stock; el.hidden = !on; if (!on) return;
   const st = Sim.stockOf(s, 'blue'), v = STOCK_SHOW.map(([g]) => Math.floor(st[g] || 0));
   const key = v.join('|'); if (el.dataset.k === key) return; el.dataset.k = key;
-  el.innerHTML = STOCK_SHOW.map(([g, i, low], j) => `<span class="${v[j] < low ? 'low' : ''}">${i}${v[j]}</span>`).join('');
+  el.innerHTML = STOCK_SHOW.map(([g, i, low], j) => `<span class="${v[j] < low ? 'low' : ''}">${i}${v[j]}</span>`).join('') + '<span class="techB">🌳</span>'; // (🌳: the tech tree — a click anywhere on the stock opens it, techui.js)
   el.tipText = () => tr('stockTip', STOCK_SHOW.map(([g, i], j) => `${i} ${tr('good_' + g)} ${v[j]}`).join(' · '));
 }
 // a hauler's / mine's / plant's state for tooltips and the info card

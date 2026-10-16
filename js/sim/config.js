@@ -222,20 +222,23 @@ const STRUCTS = {
   farm:     { name: 'חווה', icon: '🌾', hp: 300, value: 1, unit: 'graintruck', build: 15, every: 90, size: 1, keep: 2, first: true, free: true, max: 12, r: 26, cat: 'supply', econ: true, deposit: 'farm' },
   kitchen:  { name: 'מטבח שדה', icon: '🍲', hp: 450, value: 3, build: 25, free: true, max: 2, r: 26, cat: 'supply', econ: true },
   chemplant: { name: 'מפעל כימיקלים', icon: '🧪', hp: 550, value: 3, build: 40, free: true, max: 2, r: 28, cat: 'supply', econ: true },
+  // (electronics: a hi-tech centre — one a side, all it does is let a lab go up — then the lab, one, which makes them)
+  hitech:   { name: 'מרכז הייטק', icon: '🏢', hp: 500, value: 3, build: 40, free: true, max: 1, r: 30, cat: 'supply', econ: true },
+  elab:     { name: 'מעבדת אלקטרוניקה', icon: '💾', hp: 450, value: 3, build: 35, free: true, max: 1, r: 28, cat: 'supply', econ: true },
   concrete: { name: 'מפעל בטון', icon: '🏗️', hp: 550, value: 3, build: 25, free: true, max: 2, r: 30, cat: 'supply', econ: true },
   // a fake HQ: cheap, no slot, draws the enemy (under fog it passes for the HQ until made out closely)
   decoy:    { name: 'מפקדה מזויפת', icon: '🏰', hp: 250,  value: 0.5, build: 15, badge: '🎭', r: 48, cat: 'service' },
 };
 const PRODUCERS = Object.keys(STRUCTS).filter(k => STRUCTS[k].unit);
 // what the player can build: the producers and the fake HQ (at most DECOY_MAX standing, outside the slots; full game only)
-const BUILDABLE = [...PRODUCERS, 'decoy', 'refinery', 'steelmill', 'concrete', 'smelter', 'kitchen', 'chemplant'], DECOY_MAX = 2;
+const BUILDABLE = [...PRODUCERS, 'decoy', 'refinery', 'steelmill', 'concrete', 'smelter', 'kitchen', 'chemplant', 'hitech', 'elab'], DECOY_MAX = 2;
 // arms (DESIGN.md, "זרועות"): each player commands some of the four, the computer partner the rest (Sim.setArms);
 // which arm each building, and the unit it makes, is of. Not in it — the HQ, the forward HQs, the command tanks — both's
 const ARMS = {
   armor:    { name: 'שריון', icon: '🛡️', builds: ['tankshop', 'jeepshop', 'jeepat', 'jeepaa', 'garage'] },
   infantry: { name: 'חיל רגלים', icon: '🪖', builds: ['tent', 'atpost', 'aapost', 'commandopost', 'clinic'] },
   air:      { name: 'חיל האוויר', icon: '✈️', builds: ['airfield', 'tankerbase', 'heliatk', 'heligun', 'helilift', 'domesite', 'arrowsite'] },
-  guns:     { name: 'תותחנים והנדסה', icon: '💥', builds: ['howshop', 'mlrsshop', 'ssmshop', 'depot', 'fuelst', 'waterst', 'decoy', 'oilwell', 'refinery', 'ironmine', 'steelmill', 'quarry', 'concrete', 'bauxmine', 'smelter', 'farm', 'kitchen', 'chemplant'], also: ['dozer', 'radio', 'drone'] }, // (also: the bulldozers and signals trucks the HQ sends, the drones, the roads)
+  guns:     { name: 'תותחנים והנדסה', icon: '💥', builds: ['howshop', 'mlrsshop', 'ssmshop', 'depot', 'fuelst', 'waterst', 'decoy', 'oilwell', 'refinery', 'ironmine', 'steelmill', 'quarry', 'concrete', 'bauxmine', 'smelter', 'farm', 'kitchen', 'chemplant', 'hitech', 'elab'], also: ['dozer', 'radio', 'drone'] }, // (also: the bulldozers and signals trucks the HQ sends, the drones, the roads)
 };
 const ARM_OF = {};
 for (const a in ARMS) for (const k of [...ARMS[a].builds, ...(ARMS[a].also || [])]) { ARM_OF[k] = a; if (STRUCTS[k] && STRUCTS[k].unit) ARM_OF[STRUCTS[k].unit] = a; }
@@ -461,7 +464,7 @@ const POSTS = {
   tower:     { name: 'מגדל תצפית', icon: '🗼', r: 18, n: [2, 4], hill: true },
   antenna:   { name: 'אנטנת קשר',  icon: '📶', r: 18, n: [2, 4] },
   bunker:    { name: 'בונקר',      icon: '🧱', r: 20, n: [2, 4] },
-  lab:       { name: 'מעבדת אלקטרוניקה', icon: '💾', r: 26, n: [1, 1] }, // (the supply chain: its holder's electronics — econ.js)
+  lab:       { name: 'מכון המחקר', icon: '💾', r: 26, n: [1, 1] }, // (the supply chain: its holder's electronics lab makes twice as fast — econ.js)
 };
 // radar: its side's units see and shoot RADAR_K further · power station: its side's buildings produce POWER_K faster ·
 // fuel station: its side's vehicles go FUEL_K faster · supply depot / hospital / garage: within POST_R of its edge,

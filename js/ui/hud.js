@@ -406,7 +406,7 @@ function believedShare() {
 // BUILD_UP: where ‹ goes back to.
 const BUILD_PAGES = {
   root: ['page:industry', 'page:energy', 'page:tents', 'page:shops', 'page:air', 'page:service', 'page:supply'],
-  industry: ['quarry', 'concrete', 'ironmine', 'steelmill', 'bauxmine', 'smelter'],
+  industry: ['quarry', 'concrete', 'ironmine', 'steelmill', 'bauxmine', 'smelter', 'hitech', 'elab'],
   energy: ['oilwell', 'refinery', 'chemplant', 'farm', 'kitchen'], // (fuel, explosives and rations — econ.js) // (the supply chain — econ.js: past the allowance)
   air: ['airfield', 'tankerbase', 'page:helis'],
   helis: ['heliatk', 'heligun', 'helilift'],

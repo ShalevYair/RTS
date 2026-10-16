@@ -15,7 +15,8 @@
 // grain to the field kitchen, which makes rations (they replace the water: the rations depot fills its trucks from the
 // stock); bauxite from its mines to the aluminium smelter (which burns fuel, `burn`) — aircraft take aluminium; the
 // chemical plant turns fuel into explosives (CHEM_RATE) — ammunition trucks fill up with explosives and steel; and the
-// electronics lab, a neutral post on the centre line, gives its holder electronics (ELEC_RATE) — missiles, the missile
+// electronics: a hi-tech centre (one a side) lets the side's one lab go up, which makes them (ELEC_RATE; twice that while
+// it holds the research institute, the neutral post on the centre line) — missiles, the missile
 // defences' trucks and drones take them. What each unit takes: UNIT_COST; each truck's fill: REFILL.
 // A side starts with STOCK_START of each product.
 const DEP_R = 30, DEP_SNAP = 40, WELL_KEEP = 40;
@@ -44,8 +45,8 @@ const UNIT_COST = { inf: { rations: 2 }, at: { rations: 2, explosives: 1 }, aa: 
 // what one of a truck's fulls takes from the stock as it fills up at its building
 const REFILL = { fueltruck: { fuel: 1 }, watertruck: { rations: 1 }, truck: { explosives: 0.6, steel: 0.3 } };
 // (a drone: one electronics, and only past DRONE_KEEP in stock — the missiles first: the drones took it all, and no
-// missile truck came out; HQ_ELEC: an HQ's trickle, so a side without the lab isn't left with none for good)
-const DRONE_COST = { electronics: 1 }, DRONE_KEEP = 6, HQ_ELEC = 0.01;
+// missile truck came out)
+const DRONE_COST = { electronics: 1 }, DRONE_KEEP = 6;
 const DEP_POOR = 1, DEP_RICH = 2.2, AI_MINES = 7, AI_NEED_WAIT = 480;
 // a deposit runs out: what's in it (d.amount, d.left) = a mine's rate on it for DEP_LIFE seconds — a rich one DEP_RICH_LIFE
 // times as long (on top of the faster rate: 3.3× what a poor one holds). Then its mine stands dry (n.dry), its haulers go
@@ -58,7 +59,8 @@ const NEEDS = { concrete: ['quarry'], steelmill: ['ironmine'], refinery: ['oilwe
   airfield: ['smelter'], tankerbase: ['refinery', 'smelter'], heliatk: ['smelter'], heligun: ['smelter'], helilift: ['smelter'],
   waterst: ['kitchen'], depot: ['chemplant', 'steelmill'],
   tankshop: ['steelmill'], jeepshop: ['steelmill', 'refinery'], jeepat: ['steelmill', 'refinery'], jeepaa: ['steelmill', 'refinery'],
-  howshop: ['steelmill'], mlrsshop: ['steelmill'], ssmshop: ['steelmill'], garage: ['steelmill'], fuelst: ['refinery'] };
+  howshop: ['steelmill'], mlrsshop: ['steelmill'], ssmshop: ['steelmill', 'elab'], garage: ['steelmill'], fuelst: ['refinery'],
+  hitech: ['steelmill', 'refinery'], elab: ['hitech'], arrowsite: ['elab'], domesite: ['elab'] };
 const NO_CONCRETE = ['hq', 'fhq', 'quarry', 'concrete'];
 // concrete a second of a site's work (STEEL_COST: the steel in UNIT_COST, for the UI)
 const CON_RATE = 0.3, STEEL_COST = Object.fromEntries(Object.entries(UNIT_COST).filter(([k, c]) => c.steel).map(([k, c]) => [k, c.steel]));
@@ -199,8 +201,8 @@ function econTick(s, dt) {
     }
     if (n.kind === 'chemplant') { const k = Math.max(0, Math.min(CHEM_RATE * dt, st.fuel - CHEM_KEEP)); st.fuel -= k; st.explosives = (st.explosives || 0) + k; n.busy = k > 0 ? s.t : n.busy; }
   }
-  for (const side of ['blue', 'red']) if (standing(s, side, 'hq')) stockOf(s, side).electronics += HQ_ELEC * dt;
-  if (s.posts) for (const p of s.posts) if (p.kind === 'lab' && p.side) { const st = stockOf(s, p.side); st.electronics = (st.electronics || 0) + ELEC_RATE * dt; }
+  // (electronics: the side's lab, ELEC_RATE a second — twice that while it holds the research institute, the neutral post)
+  for (const n of s.nodes) if (n.kind === 'elab' && n.hp > 0 && s.t >= n.ready) { const st = stockOf(s, n.side); st.electronics = (st.electronics || 0) + ELEC_RATE * dt * (s.held && s.held[n.side] && s.held[n.side].lab ? 2 : 1); n.busy = s.t; }
 }
 // take up to `want` of a product from the side's stock (what was there)
 function takeStock(s, side, good, want) {
@@ -272,6 +274,7 @@ function aiEcon(s, side, bold) {
     const at = [...s.nodes.filter(n => n.side === side && n.hp > 0 && STRUCTS[n.kind] && STRUCTS[n.kind].econ && !STRUCTS[n.kind].deposit), hq, ...s.nodes.filter(n => n.side === side && n.hp > 0 && n.kind === 'fhq'), ...s.nodes.filter(n => n.side === side && n.hp > 0 && n !== hq && n.kind !== 'fhq' && n.kind !== 'drone' && n.kind !== 'decoy')]; // (by the other plants first: one industrial yard)
     for (const [j, n] of at.slice(0, 12).entries()) for (let i = 0; i < (n === hq ? 24 : 8); i++) { const a = s.rand() * Math.PI * 2, r = roomPair(s, n.kind, P) + 5 + s.rand() * (n !== hq ? 90 : i < 12 ? 320 : 200) + (n === hq && i < 12 ? 100 : 0); if (build(s, side, P, n.x + Math.cos(a) * r, n.y + Math.sin(a) * r)) { jobSoon(s, builtLast(s)); return true; } }
     return false; };
+  const plant2 = P => { for (const n of [...s.nodes.filter(n => n.side === side && n.hp > 0 && STRUCTS[n.kind] && STRUCTS[n.kind].econ && !STRUCTS[n.kind].deposit), hq].slice(0, 10)) for (let i = 0; i < 8; i++) { const a = s.rand() * Math.PI * 2, r = roomPair(s, n.kind, P) + 5 + s.rand() * 120; if (build(s, side, P, n.x + Math.cos(a) * r, n.y + Math.sin(a) * r)) { jobSoon(s, builtLast(s)); return true; } } return false; };
   const count = k => alive(s, side, [k]).filter(mineLive).length; // (dry mines don't count: a fresh deposit instead)
   const place = P => { for (let i = 0; i < 24; i++) { const a = s.rand() * Math.PI * 2, r = roomPair(s, 'hq', P) + 5 + s.rand() * (i < 12 ? 200 : 360); if (build(s, side, P, hq.x + Math.cos(a) * r, hq.y + Math.sin(a) * r)) { jobSoon(s, builtLast(s)); return true; } } return false; };
   for (const kind of Object.keys(DEP_KINDS)) {
@@ -282,6 +285,8 @@ function aiEcon(s, side, bold) {
     // depot — the soldiers' canteens; the steel mill up: a chemical plant — the ammunition)
     for (const [k0, P] of [['oil', 'fuelst'], ['farm', 'waterst'], ['iron', 'chemplant']]) if (kind === k0 && !needsOf(s, side, P) && !alive(s, side, [P]).length && place(P)) return;
   }
+  // (electronics: the hi-tech centre once the steel mill and the refinery stand, then the lab)
+  for (const P of ['hitech', 'elab']) if (!needsOf(s, side, P) && !alive(s, side, [P]).length && plant2(P)) return;
   const short = shortGoods(s, side), more = k => Object.keys(short).some(g => GOOD_DEP[g] === k) ? (bold ? AI_SHORT_HARD : AI_SHORT_MORE) : 0;
   for (const kind of Object.keys(DEP_KINDS)) if (count(DEP_KINDS[kind].well) < AI_WANT[kind] + more(kind) && mine(kind)) return;
 }
