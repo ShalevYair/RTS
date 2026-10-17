@@ -383,7 +383,21 @@ function v3Model(type, part, side) {
   const mesh = new THREE.InstancedMesh(v3Geo(type, part, side), v3Paint3(clean, head, type.startsWith('b_'), fly, wing), 64);
   mesh.castShadow = mesh.receiveShadow = true; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.frustumCulled = false;
   mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3);
+  mesh.customDepthMaterial = v3GhostDepth(); // (a ghost — ours out of the exact picture — casts no shadow)
   V3.scene.add(mesh); P = { mesh, w: 1, h: 1, ox: 0, oy: 0, n: 0 }; V3.pics.set(key, P); return P;
+}
+// the sun's shadow pass for the units' and buildings' models: as the usual, but an instance with the ghost flag
+// (instanceColor.b >= 100 — v3Units, v3Camo) left out
+function v3GhostDepth() {
+  if (V3.ghostDepth) return V3.ghostDepth;
+  const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  m.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vGh;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGh = 0.0;\n#ifdef USE_INSTANCING_COLOR\nif (instanceColor.g < 0.0 && instanceColor.b >= 100.0) vGh = 1.0;\n#endif');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vGh;')
+      .replace('void main() {', 'void main() {\nif (vGh > 0.5) discard;');
+  };
+  return (V3.ghostDepth = m);
 }
 // ---- camouflage: each unit's paint (its `team` part) in colours of its own — a scheme of three (a base, a dark, a
 // light) in its side's hues (blue: deep blue, teal, indigo, slate; red: brick, maroon, rust, brown and sand), laid in a
@@ -444,9 +458,9 @@ function v3Camo(mat) {
     sh.uniforms.v3Panel = { value: V3_PANEL.map(x => { const c = new THREE.Color(x); return new THREE.Vector3(c.r, c.g, c.b); }) };
     sh.uniforms.v3Pal = { value: V3_PAL.flat().map(x => { const c = new THREE.Color(x); return new THREE.Vector3(c.r, c.g, c.b); }) }; // (linear)
     Object.assign(sh.uniforms, V3B);
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;\n#if defined(V3_BLD) || defined(V3_UNIT)\nvarying vec3 vTV0; varying vec3 vTV1; varying vec3 vTV2;\n#endif')
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aTeam; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint; varying float vGhost;\n#if defined(V3_BLD) || defined(V3_UNIT)\nvarying vec3 vTV0; varying vec3 vTV1; varying vec3 vTV2;\n#endif')
       .replace('#include <color_vertex>', `#include <color_vertex>
-      vP3 = position; vN3 = normal; vTeam = aTeam; vPat = vec3(-1.0); vTint = 1.0;
+      vP3 = position; vN3 = normal; vTeam = aTeam; vPat = vec3(-1.0); vTint = 1.0; vGhost = 0.0;
       #if defined(V3_BLD) || defined(V3_UNIT)
         mat3 v3im = mat3(1.0);
         #ifdef USE_INSTANCING
@@ -455,10 +469,10 @@ function v3Camo(mat) {
         vTV0 = normalMatrix * (v3im * vec3(1.0, 0.0, 0.0)); vTV1 = normalMatrix * (v3im * vec3(0.0, 1.0, 0.0)); vTV2 = normalMatrix * (v3im * vec3(0.0, 0.0, 1.0)); // (the model's frame, in the view)
       #endif
       #ifdef USE_INSTANCING_COLOR
-      if (instanceColor.g < 0.0) { vPat = vec3(floor(-instanceColor.g), fract(-instanceColor.g), floor(instanceColor.b)); vColor.xyz = color.xyz * instanceColor.r; vTint = instanceColor.r; }
+      if (instanceColor.g < 0.0) { float bz = instanceColor.b; if (bz >= 100.0) { vGhost = 1.0; bz -= 100.0; } vPat = vec3(floor(-instanceColor.g), fract(-instanceColor.g), floor(bz)); vColor.xyz = color.xyz * instanceColor.r; vTint = instanceColor.r; }
       #endif`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      uniform vec3 v3Pal[${V3_PAL.length * 3}]; uniform vec3 v3Panel[2]; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint;
+      uniform vec3 v3Pal[${V3_PAL.length * 3}]; uniform vec3 v3Panel[2]; varying vec3 vP3; varying vec3 vN3; varying float vTeam; varying vec3 vPat; varying float vTint; varying float vGhost;
       #ifdef V3_UNIT
         varying vec3 vTV0; varying vec3 vTV1; varying vec3 vTV2; uniform sampler2D v3Up; uniform sampler2D v3Upn; uniform float v3Uavg;
         vec3 v3W() { vec3 a = abs(normalize(vN3)); a = a * a; a = a * a; return a / max(a.x + a.y + a.z, 1e-4); }
@@ -473,6 +487,7 @@ function v3Camo(mat) {
         return mix(mix(mix(v3h(i), v3h(i + vec3(1,0,0)), f.x), mix(v3h(i + vec3(0,1,0)), v3h(i + vec3(1,1,0)), f.x), f.y),
                    mix(mix(v3h(i + vec3(0,0,1)), v3h(i + vec3(1,0,1)), f.x), mix(v3h(i + vec3(0,1,1)), v3h(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
+      if (vGhost > 0.5 && mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0) < 1.0) discard; // (a ghost — ours where it was last reported: see-through)
       if (vPat.x > -0.5 && vTeam > 0.01) {
         int b = int(vPat.z) * 3; vec3 c0 = v3Pal[b], c1 = v3Pal[b + 1], c2 = v3Pal[b + 2], q = vP3 + vPat.y * 17.0, c = c0;
         if (vPat.x > 0.5 && vPat.x < 1.5) { float n = v3n(q * 6.0) * 0.65 + v3n(q * 14.0) * 0.35; c = n < 0.4 ? c1 : n > 0.6 ? c2 : c0; }
@@ -491,6 +506,7 @@ function v3Camo(mat) {
       #endif
       float v3g = v3n(vP3 * 9.0 + 3.1) * 0.6 + v3n(vP3 * 31.0) * 0.4, v3m = 0.0;
       diffuseColor.rgb = mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, ${V3_SAT}); // (paint a little faded)
+      if (vGhost > 0.5) diffuseColor.rgb = mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, 0.25) * 1.25 + vec3(0.03, 0.05, 0.09); // (a ghost: faded, nearly grey)
       diffuseColor.rgb *= (0.78 + 0.3 * v3g) * (0.72 + 0.28 * smoothstep(-0.6, 0.4, vN3.y)); // (grime in blotches; under-sides darker)
       #ifdef V3_BLD
       { // (concrete and metal: their light and dark over the model's colours)
@@ -635,7 +651,7 @@ function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, 
     dm.makeScale(1, 1 - k, 1).setPosition(0, top * k, 0); v3Put(v3Model(type, 'door', side), dm2.multiplyMatrices(m, dm), tint);
   }
   if (D.parts.fan0) v3Put(v3Model(type, 'fan' + (tint && tint.r < 1 ? 0 : Math.floor(performance.now() / 1000 * V3_FAN + x * 0.37) & 3), side), m, tint); // (roof fans: a turn a frame — still on a site, a ruin, a memory)
-  if (D.lights && V3.nightK > 0.02 && !(tint && tint.g >= 0) && !pose) { // (at night: its lamps lit — where they are now)
+  if (D.lights && V3.nightK > 0.02 && !(tint && (tint.g >= 0 || tint.b >= 100)) && !pose) { // (at night: its lamps lit — where they are now)
     const lv = v3Tmp.lv || (v3Tmp.lv = new THREE.Vector3()), A = V3.lamps;
     for (const l of D.lights) {
       if (l[3] === 'y') { const h = Math.sin(l[0] * 91.7 + l[2] * 37.3 + x * 0.13 + y * 0.07) * 4375.85; if (h - Math.floor(h) > V3.nightK * 1.4) continue; } // (the windows: lit one by one as it gets dark)
@@ -650,7 +666,7 @@ function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, 
   t.yaw.setFromAxisAngle(t.up, -aim); if (lift) t.q.multiply(t.yaw.setFromAxisAngle(t.up, hd - aim)); else t.q.setFromUnitVectors(t.up, t.n).multiply(t.yaw); // (a rotor: on its body, tilted with it — it stood on the slope of the ground below)
   if (kick) { t.off.set(-kick * V3_KICK * L, 0, 0).applyQuaternion(t.q); t.p.add(t.off); } // (the gun kicked back as it fires)
   v3Put(T, m.compose(t.p, t.q, t.sc.set(L, L, L)), tint);
-  if (lift && !(tint && tint.g >= 0) && Sim.TYPES[type] && Sim.TYPES[type].air) v3Blur(type, m, L); // (a rotor turning: a faint disc where its blades sweep)
+  if (lift && !(tint && (tint.g >= 0 || tint.b >= 100)) && Sim.TYPES[type] && Sim.TYPES[type].air) v3Blur(type, m, L); // (a rotor turning: a faint disc where its blades sweep)
 }
 // a helicopter's rotor disc: the round its blades sweep (their reach and height from the rotor's own shape), faint
 function v3Blur(type, m, L) {
@@ -712,6 +728,20 @@ function v3Units() {
     }
     if (!lite) V3.discs.push(u.x, u.y, (SIZE[u.type] || 8) * (CAR.has(u.type) || T.air ? (V3_LEN[u.type] || 1.6) * V3_DISC.veh : V3_DISC.foot), u.side === 'blue' ? 0 : 1); // (its side's colour on the ground under it — v3Deco)
     if (u.side === 'blue' && isSel(u.squad) && u.type !== 'dozer') rings.push({ x: u.x, y: u.y, air: T.air, r: (SIZE[u.type] || 8) * (CAR.has(u.type) || T.air ? 0.75 : V3_FOOT * 0.9) });
+  }
+  // (ours out of the exact picture: the model itself, see-through and faded, where it was last reported and probably
+  // is by now — guessAt; a squad of several keeps its shape round that spot. The ring of doubt round it: v3Doubt)
+  if (s.fog && Sim.friction(s)) for (const q of s.squads) {
+    if (q.side !== 'blue' || q.dead || sqShown(q)) continue;
+    const p = guessAt(q), us = s.units.filter(u => u.squad === q.id); if (!p || !us.length) continue;
+    const cx = us.reduce((a, u) => a + u.x, 0) / us.length, cy = us.reduce((a, u) => a + u.y, 0) / us.length;
+    for (const u of us) {
+      if (!v3HasModel(u.type)) continue;
+      const T = Sim.TYPES[u.type], man = !!MODELS[u.type].poses, x = p.x + u.x - cx, y = p.y + u.y - cy, hd = p.hd ?? u.hd ?? 0;
+      const c = v3CamoOf(u, v3Tmp.gh || (v3Tmp.gh = new THREE.Color())); c.b += 100; // (the ghost flag — v3Camo)
+      v3PutModel(u.type, u.side, x, y, hd, hd, m, c, null, T.air ? V3_AIR : man ? 0.01 : 0);
+      if (isSel(u.squad) && u.type !== 'dozer') rings.push({ x, y, air: T.air, r: (SIZE[u.type] || 8) * (CAR.has(u.type) || T.air ? 0.75 : V3_FOOT * 0.9) });
+    }
   }
   // (the enemy just gone out of sight: dim where last seen, GHOST_T s — the flat map's drawGhosts)
   if (s.fog) {
@@ -1866,9 +1896,20 @@ function v3Deco() {
   v3Discs(g);
   if (s.fog) { if (Sim.friction(s)) drawQuality(g); drawEnemyIntel(g); drawMarks(g); }
   drawDeposits(g, true); drawDozerJobs(g); drawBuildArea(g); // (deposits: econui.js)
-  for (const q of s.squads) if (q.side === 'blue' && !q.dead && !sqShown(q)) drawGuess(g, q, guessAt(q), isSel(q.id));
+  for (const q of s.squads) if (q.side === 'blue' && !q.dead && !sqShown(q)) v3Doubt(g, q, guessAt(q), sel !== 'all' && isSel(q.id));
   drawRoutes(g); drawFront(g); drawPicked(g); drawDesignated(g); drawAsks(g); drawPings(g);
   V3U.v3DecoBox.value.set(B.x, B.y, B.w, B.h); D.t.needsUpdate = true;
+}
+// a squad of ours out of the exact picture (its ghost model: v3Units): a soft ring round where it probably is, growing
+// with the time since its last report — how far it could have gone (V3_DOUBT: from r0, k × its speed a second, to max)
+const V3_DOUBT = { r0: 10, k: 0.12, max: 70, fill: 0.07, fillOn: 0.14 };
+function v3Doubt(c, q, p, on) {
+  if (!p) return;
+  const T = Sim.TYPES[q.type], age = Math.max(0, s.t - (p.t ?? s.t)), r = Math.min(V3_DOUBT.max, V3_DOUBT.r0 + age * (T.speed || 20) * V3_DOUBT.k);
+  const g = c.createRadialGradient(p.x, p.y, r * 0.3, p.x, p.y, r);
+  g.addColorStop(0, hexA(colors.blue, 0)); g.addColorStop(1, hexA(colors.blue, on ? V3_DOUBT.fillOn : V3_DOUBT.fill));
+  c.fillStyle = g; c.beginPath(); c.arc(p.x, p.y, r, 0, Math.PI * 2); c.fill();
+  c.setLineDash([4, 4]); c.lineWidth = 1.2; c.strokeStyle = on ? 'rgba(255,255,255,.6)' : 'rgba(200,225,255,.3)'; c.stroke(); c.setLineDash([]);
 }
 // ---- close up, the ground's small things: tufts of grass where the map is green, and pebbles where it's earth or
 // rock — set out round what's on screen, in cells of V3_TUFT.cell (each cell's the same every time: a hash of where
