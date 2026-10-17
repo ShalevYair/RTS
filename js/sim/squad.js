@@ -132,7 +132,7 @@ function underFire(s) {
   for (const u of s.units) {
     if (!(s.t - (u.shotAt ?? -99) < 1) || TYPES[u.type].air || !sameRules(s, u.side, 'fire')) continue;
     const sq = s.squads.find(q => q.id === u.squad), a = byId.get(u.shotBy);
-    if (!sq || sq.dead || !a || a.side === u.side || s.t - (sq.reactAt ?? -99) < REACT_EVERY || sq.retreating || sq.boarding || u.care || u.resup || (sq.order.move && !sq.arrived)) continue; // (only moving: on its way, whatever shoots at it)
+    if (!sq || sq.dead || sq.bunker || !a || a.side === u.side || s.t - (sq.reactAt ?? -99) < REACT_EVERY || sq.retreating || sq.boarding || u.care || u.resup || (sq.order.move && !sq.arrived)) continue; // (only moving: on its way, whatever shoots at it)
     if (TYPES[u.type].care) {
       const h = hqOf(s, u.side); if (!h) continue;
       const d = dist(u, h), go = Math.min(FLEE_D, d - nodeR(h) - 30); if (go < 20) continue;

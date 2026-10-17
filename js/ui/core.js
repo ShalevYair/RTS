@@ -61,7 +61,7 @@ try { const m = localStorage.getItem('irts-map'); bigMap = m !== 'small'; hugeMa
 // LITE_RES of the pixels too. Better plainer and a little dumber than a game that hardly moves.
 // (everyone — the right click's pick, the ★, "everyone" said: not the bulldozers, which would leave their sites, nor
 // the missile trucks, which fire from far behind)
-const NOT_ALL = ['dozer', 'ssm'], inAll = q => !NOT_ALL.includes(q.type) && Sim.ownSquad(s, q); // (arms: not the partner's)
+const NOT_ALL = ['dozer', 'ssm'], inAll = q => !NOT_ALL.includes(q.type) && !q.bunker && !q.bunkerGo && Sim.ownSquad(s, q); // (arms: not the partner's; not a bunker's garrison — it leaves only when picked itself)
 // voice commands (field.js): hidden for now — the 🎙 button, the main menu's microphone row, their tour bubble and tip (the code stays)
 const VOICE_ON = false;
 let lite = 0; const LITE_RES = 0.7;

@@ -127,7 +127,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 #mini{position:absolute;inset:8px 8px auto auto;width:180px;height:auto;aspect-ratio:var(--ar,2);padding:0;border-radius:8px;cursor:pointer;touch-action:none}
 @media (max-width:560px){#mini{top:80px;width:110px}.hudl .score{font-size:20px;padding:2px 9px}}
 #mini[hidden]{display:none}
-#mini{transition:width .18s ease-out}@media (hover:hover){#mini:hover{width:360px}} /* (under the mouse: twice as wide and high) */
+#mini{transition:width .18s ease-out}@media (hover:hover){#mini:hover{width:270px}} /* (under the mouse: half as big again) */
 /* tutorial: level path on the intro, controls that just arrived pulse */
 .levels{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0 14px}
 .levels button{width:44px;height:44px;border-radius:50%;padding:0;font:20px/1 Rubik,sans-serif}
@@ -152,7 +152,7 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 @keyframes nudge{0%,100%{box-shadow:0 0 0 0 rgb(60 170 70 / 0)}50%{box-shadow:0 0 0 7px rgb(60 170 70 / .55);background:color-mix(in srgb,#3caa46 22%,var(--panel))}}
 @media (prefers-reduced-motion:reduce){#bld.nudge{animation:none;outline:3px solid #3caa46}}
 /* tooltip, notes and the tour */
-.tip{position:absolute;z-index:50;max-width:min(300px,calc(100% - 16px));padding:7px 11px;border-radius:10px;font-size:14px;line-height:1.35;background:var(--panel);pointer-events:none}
+.tip{white-space:pre-line;position:absolute;z-index:50;max-width:min(300px,calc(100% - 16px));padding:7px 11px;border-radius:10px;font-size:14px;line-height:1.35;background:var(--panel);pointer-events:none}
 .tip[hidden]{display:none}
 .tip::after{content:"";position:absolute;left:var(--ax,50%);bottom:-6px;width:10px;height:10px;margin-left:-5px;background:var(--panel);border:1px solid var(--border);border-top:0;border-left:0;transform:rotate(45deg)}
 .tip.below::after{bottom:auto;top:-6px;transform:rotate(225deg)}
@@ -505,7 +505,7 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
 #talk{position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:30;max-width:min(560px,90vw);padding:8px 16px;border-radius:999px;background:var(--frost,rgb(20 24 30 / .72));backdrop-filter:blur(8px);color:#fff;font:600 16px/1.35 Rubik,sans-serif;text-align:center;pointer-events:none;box-shadow:0 4px 18px rgb(0 0 0 / .35)}
 #talk[hidden]{display:none}
 .feed{position:absolute;right:8px;top:8px;width:min(340px,60vw);height:calc(5 * 30px);display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-end;gap:4px;pointer-events:none;z-index:4}
-.feed.underMini{top:calc(8px + 360px / var(--ar,2) + 10px)}
+.feed.underMini{top:calc(8px + 270px / var(--ar,2) + 10px)}
 html[dir="rtl"] .feed{align-items:flex-start} /* (the right edge either way: in RTL the start is the right) */
 .feedItem{pointer-events:auto;font:500 14px/1.2 Rubik,system-ui,sans-serif;color:#fff;background:var(--frost,rgb(20 24 28 / .62));backdrop-filter:blur(6px);border:0;border-radius:8px;padding:5px 12px;cursor:pointer;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgb(0 0 0 / .6);animation:feedLife var(--life,20s) linear forwards}
 .feedItem.bad{box-shadow:inset 3px 0 0 #e53935}
@@ -514,7 +514,7 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 @keyframes feedLife{0%{opacity:0;transform:translateY(-6px)}3%{opacity:1;transform:none}60%{opacity:1}100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.feedItem{animation-timing-function:steps(1,end)}}
 @media (max-width:560px){.feed{width:calc(100% - 140px)}.feed.underMini{top:calc(80px + 110px / var(--ar,2) + 8px)}.feedItem{font-size:12px}}
-@media (max-width:560px) and (hover:hover){.feed.underMini{top:calc(80px + 360px / var(--ar,2) + 8px)}}
+@media (max-width:560px) and (hover:hover){.feed.underMini{top:calc(80px + 270px / var(--ar,2) + 8px)}}
 
 /* the tooltip: a line each where the text has them (a squad: what, health, ammunition, what for) */
 #tipT{white-space:pre-line}
@@ -611,3 +611,4 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 .tnode:hover{background:#2c362d}
 .tnode.mate{outline:1px dashed rgb(255 255 255 / .35);outline-offset:-1px}.tnode.mate.can{box-shadow:none}
 @media (max-width:760px){.tgrid{gap:8px 18px}.tnode{width:70px}.tnode canvas{width:40px;height:40px}}
+body:has(#bar.empty) .stock{left:10px} /* (no buttons in the bottom-left column — the partner's 🏰 🏕️ drone: the stock right in the corner) */

@@ -78,7 +78,7 @@ function cardTick(now) {
     title = sn(kind) + (n.side === 'blue' && n.kind === 'decoy' ? ' 🎭' : '');
     who = n.side === 'blue' ? (Sim.armSide(s, 'blue', n.kind) === 'mate' ? tr('mate') : tr('ic_ours')) : tr('foe');
     if (card.t !== 'mem' && (n.side === 'blue' || !s.fog || Sim.idLevel(s, 'blue', n) >= 2)) bars.hp = n.hp / S.hp;
-    line = nodeInfo(n).split(' · ').slice(1).filter(t => !/%$/.test(t)).join(' · ');
+    line = nodeInfo(n, true);
     about = descS[kind] || '';
   }
   el.querySelector('b').textContent = title; el.querySelector('.icWho').textContent = who;

@@ -147,7 +147,7 @@ function syncButtons() {
   $('fs').setAttribute('aria-pressed', String(fsOn()));
   document.querySelectorAll('[data-fog]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.fog === '1') === fog)));
   document.querySelectorAll('[data-map]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.map === (hugeMap ? 'huge' : bigMap ? 'big' : 'small'))));
-  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye') || Sim.armSide(s, 'blue', 'drone') === 'mate'; $('fhq').hidden = !uiHas('fhq') || !fhqMine(); $('front').hidden = !uiHas('fhq') || !!(s.hqPending && s.hqPending.blue); $('front').setAttribute('aria-pressed', String(frontArmed)); syncMic(); $('front').classList.toggle('set', !!(s.front && s.front.blue) || Sim.onFronts(s, 'blue'));
+  $('eye').setAttribute('aria-pressed', String(eyeArmed)); $('fhq').setAttribute('aria-pressed', String(fhqArmed)); $('eye').hidden = !s.fog || !uiHas('eye') || Sim.armSide(s, 'blue', 'drone') === 'mate'; $('fhq').hidden = !uiHas('fhq') || !fhqMine(); $('front').hidden = !uiHas('fhq'); // (fronts from the very start — before the HQ too) $('front').setAttribute('aria-pressed', String(frontArmed)); syncMic(); $('front').classList.toggle('set', !!(s.front && s.front.blue) || Sim.onFronts(s, 'blue'));
   $('fsRow').hidden = !fsCan() && !fsOn();
   $('bld').setAttribute('aria-expanded', String(!$('buildm').hidden || !!buildArmed));
   if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed) roadArmed = false; // (another thing armed: the road's off — roadui.js)
@@ -155,7 +155,7 @@ function syncButtons() {
   $('road').hidden = true || !s.dozers || !!(s.hqPending && s.hqPending.blue) || Sim.armSide(s, 'blue', 'dozer') === 'mate'; $('road').setAttribute('aria-pressed', String(roadArmed));
   if (eyeArmed || buildArmed || fhqArmed || hqArmed || frontArmed || roadArmed) cv.style.cursor = eyeArmed ? DRONE_CUR : 'copy'; // (else the hover sets it)
   $('hqb').hidden = !hqToPlace(); $('hqb').setAttribute('aria-pressed', String(hqArmed));
-  bar.classList.toggle('empty', ![...bar.children].some(c => !c.hidden)); // (the early levels have none of its buttons)
+  bar.classList.toggle('empty', ![...bar.children].some(c => !c.hidden && getComputedStyle(c).display !== 'none')); // (#bld: hidden by the style sheet, not the attribute) // (the early levels have none of its buttons)
 }
 
 let replayAuto = false, replayAt = 0;
@@ -461,7 +461,10 @@ function initBuildMenu() {
   for (const g in PAGE_PIC) {
     const b = document.createElement('button');
     b.dataset.page = g; b.innerHTML = '<span></span><b></b><small></small>'; pic(b);
-    b.addEventListener('click', () => showBuildPage(g));
+    b.addEventListener('click', () => {
+      const nd = pageLock(g); // (every building on it still locked: nothing to open — a toast, as for one of them)
+      if (nd) { advWhy('needs', nd.k); const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('needsWhy', needName(nd.nd)), r.left - st.left + r.width / 2, r.top - st.top - 10); blink(b); return; }
+      showBuildPage(g); });
     m.appendChild(b);
   }
   const IND = [...BUILD_PAGES.industry, ...BUILD_PAGES.energy];
@@ -518,10 +521,24 @@ function syncCats() {
     const nd = Sim.needsOf(s, 'blue', b.dataset.build), sm = b.querySelector('small'), txt = nd ? tr('needsItem', needName(nd)) : b.dataset.sm;
     b.classList.toggle('locked', !!nd); if (sm && txt && sm.textContent !== txt) sm.textContent = txt;
   }
+  if (!m.hidden) for (const b of m.querySelectorAll('[data-page]')) { // (a sub-page — the jeep workshops — all locked: so is its button)
+    const l = pageLock(b.dataset.page), sm = b.querySelector('small'), txt = l ? tr('needsItem', needName(l.nd)) : tr('bpn_' + b.dataset.page);
+    b.classList.toggle('locked', !!l); if (sm && sm.textContent !== txt) sm.textContent = txt;
+  }
 }
 // what a building waits for, as said: the plant's name — or, when it stands and hasn't made anything yet, what it makes
 // ("steel", not "steel mill": econ.js needsOf counts a plant only once it has made something)
 const needName = nd => { const g = Sim.PLANT_OF[nd] || (nd === 'chemplant' ? 'explosives' : null); return g && nd !== 'concrete' && s.nodes.some(n => n.side === 'blue' && n.kind === nd && n.hp > 0 && s.t >= n.ready) ? tr('good_' + g) : sn(nd); };
+// a page all of whose buildings (that this game allows) still wait for something: the first one's { k, nd }; else null
+function pageLock(g) {
+  let first = null;
+  for (const e of BUILD_PAGES[g] || []) {
+    if (e.startsWith('page:')) { const l = pageLock(e.slice(5)); if (!l) { if (pageItems(e.slice(5)).length) return null; continue; } first = first || l; continue; }
+    if (!buildOk(e)) continue;
+    const nd = Sim.needsOf(s, 'blue', e); if (!nd) return null; first = first || { k: e, nd };
+  }
+  return first;
+}
 const pageHas = (g, k) => BUILD_PAGES[g].some(e => e.startsWith('page:') ? pageHas(e.slice(5), k) : e === k);
 function drawPic(cv, kind) { const g = cv.getContext('2d'); g.clearRect(0, 0, 84, 84); const src = buildingPic(kind, colors.blue, kind === 'decoy' ? 34 : 40); const m = src.width * 0.17; g.drawImage(src, m, m, src.width - 2 * m, src.width - 2 * m, 0, 0, 84, 84); }
 function nameBuildMenu() {

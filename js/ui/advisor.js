@@ -107,6 +107,7 @@ function advTick() {
   if (s.wxNow && (s.wxNow.rain > 0.3 || s.wxNow.fog > 0.3 || s.wxNow.dust > 0.3)) advise('f_weather', { pri: 1 });
   if (s.missiles && s.missiles.length) advise('f_missile', { pri: 4 });
   if (hq.hp < Sim.STRUCTS.hq.hp * 0.95) advise('f_hqhit', { pri: 6 });
+  if (Sim.friction(s) && s.squads.some(q => q.side === 'blue' && !q.dead && Sim.ownSquad(s, q) && !sqShown(q))) advise('f_ghost', { pri: 3 }); // (one of ours gone out of the exact picture: what the ghost means)
 }
 // every frame (main.js, by the coach): the queue
 function adviceFrame() { if (advOn()) advNext(); }

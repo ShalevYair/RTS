@@ -61,6 +61,7 @@ const ADV_FIXED = [
   ['f_night', 'יורד לילה. בחושך רואים ויורים פחות טוב.', 'Night is falling. In the dark, everyone sees and shoots worse.'],
   ['f_weather', 'מזג האוויר מקצר את הראייה ואת הטווח.', 'The weather shortens sight and range.'],
   ['f_missile', 'שיגור טיל! כיפת ברזל וחץ מיירטים טילים.', 'Missile launch! Iron Dome and Arrow intercept missiles.'],
+  ['f_ghost', 'כוח שיוצא מטווח הראייה של משאית קשר, רחפן, ג׳יפ סיור או מבנה שלנו נראה כמו רוח רפאים: המיקום שלו רק מוערך, לפי הדיווח האחרון. לוקח זמן עד שפקודה מגיעה אליו, והיא לא תמיד מבוצעת בדיוק.', 'A unit out of sight of a signals truck, a drone, a recon jeep or one of our buildings shows as a ghost: where it is is only a guess, from its last report. Orders take a while to reach it, and are not always carried out exactly.'],
   ['f_hqhit', 'המפקדה תחת התקפה. אם היא נופלת, הפסדתם.', 'Your headquarters is under attack. If it falls, you lose.'],
 ];
 // the lines made from the game's data: which arms are yours, what needs what, what opens

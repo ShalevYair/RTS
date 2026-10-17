@@ -67,6 +67,7 @@ function truckTick(s, u, sq, dt) {
   if (bd > nodeR(st) + FUEL_R) { moveTo(s, u, st.x, st.y, 1, dt); return true; }
   const add = Math.min(cap - u.load, cap / TRUCK_REFILL * dt);
   const got = takeFill(s, u.side, u.type, add); u.load += got; // (the supply chain: out of the side's stock — none, it waits by its building)
+  if (got > 0) { u.fillAt = s.t; u.fillFrom = st.id; } // (filling now — the UI shows it: a hose from the building and a ring filling up)
   u.dry = got < add * 0.5;
   if (u.dry && u.side === 'blue' && s.t - ((s.dryNoteAt || {})[u.type] ?? -99) > 90) { (s.dryNoteAt = s.dryNoteAt || {})[u.type] = s.t; note(s, { fueltruck: 'אין דלק במלאי — משאיות הדלק מחכות בתחנה', watertruck: 'אין מנות קרב במלאי — המשאיות מחכות במחסן', truck: 'אין חומר נפץ או פלדה במלאי — משאיות התחמושת מחכות' }[u.type]); } // (the supply chain: say so, once in a while)
   if (u.load >= cap - 0.01) u.load = cap;
@@ -93,7 +94,7 @@ function fuelTick(s, dt) {
     }
     if (s.water && needsWater(u.type)) {
       if (u.water === undefined) u.water = 1;
-      u.water = Math.max(0, u.water - dt / WATER_T);
+      u.water = u.bunk ? 1 : Math.max(0, u.water - dt / WATER_T); // (in a bunker: fed — posts.js)
       if (!u.water) { u.hp -= THIRST * T.hp * dt; if (!u.thirstSaid && u.side === 'blue') { u.thirstSaid = true; const q = s.squads.find(q => q.id === u.squad); if (q) report(s, q, 'נגמרו המים'); } }
       else if (u.water > 0.05) u.thirstSaid = false;
       if (s.nodes.some(n => n.kind === 'waterst' && n.side === u.side && n.hp > 0 && s.t >= n.ready && dist(n, u) <= nodeR(n) + WATER_NEAR)) u.water = Math.min(1, u.water + takeFill(s, u.side, 'watertruck', Math.min(1 - u.water, WATER_FILL * dt))); // (by the rations depot: out of the stock)

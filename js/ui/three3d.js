@@ -271,7 +271,7 @@ function v3Apron(mat) {
 }
 // ---- hills far round the map (only to look at, never reached): a ring of ridges, V3_FAR_HILLS — from the edge (in),
 // its crest (mid) and out — of the bigger side; heights h0..h1 world units; in the haze; else the plain met the sky in a ruler's line ----
-const V3_FAR_HILLS = { in: 0.45, mid: 1.0, out: 1.7, h0: 200, h1: 950, n: 360 }, V3_FAR_COL = '#4f6438';
+const V3_FAR_HILLS = { in: 0.03, mid: 0.4, out: 1.0, h0: 160, h1: 650, n: 360 }, V3_FAR_COL = '#4f6438'; // (in: right past the map's edge — further out, a white band of hazed plain showed between the map and them)
 function v3FarHills() {
   if (V3.farHills) { V3.scene.remove(V3.farHills); V3.farHills.geometry.dispose(); }
   const F = V3_FAR_HILLS, L = Math.max(s.W, s.H), cx = s.W / 2, cy = s.H / 2, N = F.n, rows = [[F.in, 0], [(F.in * 2 + F.mid) / 3, 0.3], [(F.in + F.mid * 2) / 3, 0.75], [F.mid, 1], [(F.mid + F.out) / 2, 0.65], [F.out, 0.2]];
@@ -348,7 +348,7 @@ function v3Sheet(key, img, w, h, ox = 0, oy = 0) {
 function v3Put(P, m, col) {
   if (P.n >= P.mesh.instanceMatrix.count) {
     const old = P.mesh, big = new THREE.InstancedMesh(old.geometry, old.material, old.instanceMatrix.count * 2);
-    big.castShadow = old.castShadow; big.receiveShadow = old.receiveShadow; big.instanceMatrix.setUsage(THREE.DynamicDrawUsage); big.frustumCulled = false;
+    big.castShadow = old.castShadow; big.receiveShadow = old.receiveShadow; big.customDepthMaterial = old.customDepthMaterial; big.instanceMatrix.setUsage(THREE.DynamicDrawUsage); big.frustumCulled = false;
     for (let i = 0; i < P.n; i++) { old.getMatrixAt(i, v3Tmp.g); big.setMatrixAt(i, v3Tmp.g); old.getColorAt(i, v3Tmp.c); big.setColorAt(i, v3Tmp.c); }
     V3.scene.remove(old); old.dispose(); V3.scene.add(big); P.mesh = big;
   }
@@ -658,6 +658,10 @@ function v3PutModel(type, side, x, y, hd, aim, m, tint, run, lift = 0, len = 0, 
       lv.set(l[0], l[1], l[2]).applyMatrix4(m); A.push(lv.x, lv.y, lv.z, V3_LAMP_K.indexOf(l[3]));
     }
   }
+  if (D.parts.load) { // (an open truck's load: risen out of its bed by how full it is — v3Tmp.loadK, 0..1; empty — none)
+    const f = v3Tmp.loadK ?? 1;
+    if (f > 0.03) { const lm = v3Tmp.lm || (v3Tmp.lm = new THREE.Matrix4()), lm2 = v3Tmp.lm2 || (v3Tmp.lm2 = new THREE.Matrix4()); lm.makeTranslation(0, -(1 - f) * 0.14, 0); v3Put(v3Model(type, 'load', side), lm2.multiplyMatrices(m, lm), tint); }
+  }
   const K = D.track;
   if (K) ['L', 'R'].forEach((k, i) => { const r = run ? run[i] / (K.cycle * L) : 0, f = Math.floor((r - Math.floor(r)) * K.frames) % K.frames; v3Put(v3Model(type, 'track' + k + f, 'track'), m, tint); });
   if (!D.parts.turret) return;
@@ -714,6 +718,7 @@ function v3Units() {
     if (s.fog && u.side === 'red') anim.last.set(u.id, { x: u.x, y: u.y, type: u.type, side: u.side, hd: u.hd, t: s.t }); // (out of sight: its ghost, below)
     if (u.type === 'tank' && u.dig > 0 && !u.dug && v3HasModel('inf')) { const p = digger(u); v3PutModel('inf', u.side, p.x, p.y, p.a, 0, m, null, null, 0.01, 0, 1, 'pose' + (Math.floor(performance.now() / 160) % MODELS.inf.poses)); } // (its crewman digging the berm)
     if (T.air && v3HasModel(u.type)) v3AirTilt(u, T);
+    v3Tmp.loadK = u.cargo !== undefined && Sim.HAUL[u.type] ? Math.min(1, u.cargo / Sim.HAUL_CAP) : null; // (a hauler: its load as full as it is)
     if (v3HasModel(u.type)) {
       const man = !!MODELS[u.type].poses, pose = v3Walk(u), face = man && s.t - u.lastFire < 3 ? u.aim : hd; // (a soldier faces where it fires, and stands upright)
       v3PutModel(u.type, u.side, u.x, u.y, face, T.hover || u.type === 'lift' ? performance.now() / 1000 * V3_ROTOR + u.id : s.t - u.lastFire < 3 ? u.aim : hd, m, v3CamoOf(u, v3Tmp.camo || (v3Tmp.camo = new THREE.Color())), T.air || man ? null : v3Run(u, hd), man ? 0.01 : lift, 0, 1, pose, u.type === 'tank' || u.type === 'how' ? Math.max(0, 1 - (s.t - u.lastFire) / 0.25) : 0);
@@ -729,6 +734,7 @@ function v3Units() {
     if (!lite) V3.discs.push(u.x, u.y, (SIZE[u.type] || 8) * (CAR.has(u.type) || T.air ? (V3_LEN[u.type] || 1.6) * V3_DISC.veh : V3_DISC.foot), u.side === 'blue' ? 0 : 1); // (its side's colour on the ground under it — v3Deco)
     if (u.side === 'blue' && isSel(u.squad) && u.type !== 'dozer') rings.push({ x: u.x, y: u.y, air: T.air, r: (SIZE[u.type] || 8) * (CAR.has(u.type) || T.air ? 0.75 : V3_FOOT * 0.9) });
   }
+  v3Tmp.loadK = null;
   // (ours out of the exact picture: the model itself, see-through and faded, where it was last reported and probably
   // is by now — guessAt; a squad of several keeps its shape round that spot. The ring of doubt round it: v3Doubt)
   if (s.fog && Sim.friction(s)) for (const q of s.squads) {
@@ -793,7 +799,7 @@ function v3Rings(rings) {
 // turning slowly. ----
 const V3_BLD_K = 1.0; // (a building's model: its length, of its picture's)
 const V3_HURT = 0.6, V3_BURNT = 0.3, V3_RUIN = 0.3, V3_RUIN_H = 0.08, V3_RUBBLE = 44, V3_COLLAPSE = { t: 2.2, dust: 4.5, n: 26 }; // (hurt below this: darker, to V3_BURNT at nothing; a ruin: this dark, of its height)
-const V3_BLOCK = { hq: 0.9, fhq: 0.6, decoy: 0.9, tower: 3.2, antenna: 2.4, radar: 1.4, power: 1.1 }, V3_SITE = 0.3, V3_MEM = 0.55;
+const V3_BLOCK = { hq: 0.9, fhq: 0.6, decoy: 0.9, tower: 3.2, antenna: 2.4, radar: 1.4, power: 1.1 }, V3_SITE = 0.3, V3_MEM = 0.55, V3_POST_FOG = 0.3; // (V3_POST_FOG: a neutral building no one of ours sees — dark, it stood out too much)
 function v3Building(kind, col, px) {
   const own = BUILDING_PIC[kind], bare = !!(own && sprite.img[own]), key = 'b:' + kind + col + px;
   const P = V3.pics.get(key); if (P) return P;
@@ -902,7 +908,7 @@ function v3Nodes(rings) {
   }
   V3.rubble.count = nr; V3.rubble.instanceMatrix.needsUpdate = true; if (V3.rubble.instanceColor) V3.rubble.instanceColor.needsUpdate = true;
   if (s.fog) for (const id in s.memNodes.blue) if (!s.visNodes.blue.has(+id)) { const g = s.memNodes.blue[id]; if (g.kind === 'drone') continue; /* (a drone gone out of sight isn't 'remembered' where it was: it flies on — it showed as its icon, a flying saucer) */ put(g.kind, colors.red, g.x, g.y, Sim.STRUCTS[g.kind].r, pxOf(g.kind), V3_MEM, 'red'); }
-  if (s.posts) for (const p of s.posts) { const R = Sim.POSTS[p.kind].r; put(p.kind, postCol(p), p.x, p.y, R, Math.round(R * 2.4), s.fog && !postSeen(p) ? V3_MEM : 1, p.side); if (selPost === p) rings.push({ x: p.x, y: p.y, r: R + 10 }); }
+  if (s.posts) for (const p of s.posts) { const R = Sim.POSTS[p.kind].r; put(p.kind, postCol(p), p.x, p.y, R, Math.round(R * 2.4), s.fog && !postSeen(p) ? V3_POST_FOG : 1, p.side); if (selPost === p) rings.push({ x: p.x, y: p.y, r: R + 10 }); }
   v3Flags();
   v3Pads(pads); V3.blocks.count = nb; V3.blocks.instanceMatrix.needsUpdate = true; V3.plinth.count = np; V3.plinth.instanceMatrix.needsUpdate = true;
 }
@@ -1433,20 +1439,7 @@ function v3Deposits() {
     for (let i = 0; i < ca.count; i++) ca.setW(i, a0[i] * k); ca.needsUpdate = true;
     if (dry || taken) continue;
     const rnd = v3DepHash(d), R = Sim.DEP_R * (d.rich > 1.5 ? V3_DEP.rich : 1), keep = Math.max(0.25, full);
-    if (d.kind === 'farm') { // (rows of wheat across the field, fewer as it's reaped)
-      const a = rnd() * Math.PI, ca2 = Math.cos(a), sa = Math.sin(a), N = V3_DEP.rows, w = R * 1.9 / N;
-      for (let j = 0; j < N; j++) {
-        if (j / N > keep || n[5] >= 2400) break;
-        const off = (j - (N - 1) / 2) * w, len = 2 * Math.sqrt(Math.max(0, (R * 1.05) ** 2 - off * off)); if (len < 6) continue;
-        const NS = Math.max(1, Math.round(len / 7)), sl = len / NS; // (in short pieces, each at the land's height there — a field on a slope)
-        for (let q = 0; q < NS && n[5] < 2400; q++) {
-          const along = -len / 2 + (q + 0.5) * sl, x = d.x - sa * off + ca2 * along, y = d.y + ca2 * off + sa * along;
-          const h1 = v3E(x - ca2 * sl / 2, y - sa * sl / 2), h2 = v3E(x + ca2 * sl / 2, y + sa * sl / 2); // (tilted along the slope: level, one end was buried)
-          o.position.set(x, (h1 + h2) / 2 - 0.15, y); o.rotation.set(0, -a, Math.atan2(h2 - h1, sl), 'YXZ'); o.scale.set(sl * 1.15, V3_DEP.wheat * (0.75 + 0.5 * rnd()), w * 0.38); o.updateMatrix(); I[5].setMatrixAt(n[5], o.matrix); const v = 0.85 + 0.25 * rnd(); I[5].setColorAt(n[5]++, c.setRGB(v, v * (0.95 + 0.1 * rnd()), v));
-        }
-      }
-      continue;
-    }
+    if (d.kind === 'farm') continue; // (a field: only its patch of earth and furrows — the rows of wheat on it looked ugly, the player had them out)
     if (d.kind === 'oil') { // (black pools)
       for (let j = 0; j < V3_DEP.pools; j++) {
         const ang = rnd() * Math.PI * 2, q = Math.sqrt(rnd()) * R * 0.8, r0 = 5 + rnd() * 8, x = d.x + Math.cos(ang) * q, y = d.y + Math.sin(ang) * q, sq = 0.55 + 0.3 * rnd(), ro = rnd() * 6.28;
@@ -1660,6 +1653,8 @@ function v3GroundTex(macroLum) {
   U.v3GndOn.value = 1;
 }
 function v3Shaded(mat, deco) {
+  if (!V3U.v3GLum.value) V3U.v3GLum.value = new THREE.Vector3(1, 1, 1); // (till the ground's textures are in: a mesh shaded so before them broke every frame — a vec3 of null)
+  if (!V3U.v3Meadow.value) V3U.v3Meadow.value = new THREE.Vector3(0.06, 0.09, 0.03);
   if (deco) mat.defines = { V3_DECO: 1 }; // (the ground: what's drawn on it too, v3Deco)
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, V3U);
@@ -1895,7 +1890,7 @@ function v3Deco() {
   if (!lite) { drawTracks(g); drawClouds(g, V3_CLOUDS); } drawWeather(g); if (s.extras) drawBoltFlat(g); // (tracks in the ground, clouds' shadows, the morning fog; rain — over the screen)
   v3Discs(g);
   if (s.fog) { if (Sim.friction(s)) drawQuality(g); drawEnemyIntel(g); drawMarks(g); }
-  drawDeposits(g, true); drawDozerJobs(g); drawBuildArea(g); // (deposits: econui.js)
+  drawDeposits(g, true); drawDozerJobs(g); drawRefills(g); drawBuildArea(g); // (deposits: econui.js; trucks filling up: fuelui.js)
   for (const q of s.squads) if (q.side === 'blue' && !q.dead && !sqShown(q)) v3Doubt(g, q, guessAt(q), sel !== 'all' && isSel(q.id));
   drawRoutes(g); drawFront(g); drawPicked(g); drawDesignated(g); drawAsks(g); drawPings(g);
   V3U.v3DecoBox.value.set(B.x, B.y, B.w, B.h); D.t.needsUpdate = true;

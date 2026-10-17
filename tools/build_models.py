@@ -973,9 +973,9 @@ def k_oretruck(load='ore'):  # a dump truck: a tipper body, sloped at the back, 
     M.k = 1.0; M.box('body', (x1 + 0.35, 2.95, 0), (0.7, 0.08, hw * 2 - 0.2))                       # the guard over the cab
     for xx in np.linspace(x0 + 0.3, x1 - 0.3, 5):
         for sz in (-1, 1): M.k = 0.8; M.box('body', (xx, 1.95, sz * (hw + 0.02)), (0.08, 1.25, 0.05))
-    a = np.linspace(0, 2 * np.pi, 10, endpoint=False)                                                     # the load
-    M.k = 1.0; M.hull(load, [(xc + (L / 2 - 0.2) * np.cos(t), 2.3, (hw - 0.15) * np.sin(t)) for t in a] + [(xc + 0.6 * np.cos(t), 3.0, 0.5 * np.sin(t)) for t in a[::2]])
-    return [('hull', M, None)]
+    a = np.linspace(0, 2 * np.pi, 10, endpoint=False)                                                     # the load: a part of its own (it rises as the truck loads — v3PutModel)
+    Ld = Mesh(); Ld.k = 1.0; Ld.hull(load, [(xc + (L / 2 - 0.2) * np.cos(t), 2.3, (hw - 0.15) * np.sin(t)) for t in a] + [(xc + 0.6 * np.cos(t), 3.0, 0.5 * np.sin(t)) for t in a[::2]])
+    return [('hull', M, None), ('load', Ld, None)]
 
 def k_cementtruck():  # a mixer: a drum tilted up toward the back, a spiral band, the chute and hopper at the back
     M, f, hw, cx0 = truck(); x0, x1 = -3.4, cx0 - 0.3; L = x1 - x0; xc = (x0 + x1) / 2
@@ -1000,9 +1000,9 @@ def k_graintruck():  # a grain truck: high slatted sides, a golden heap under a 
         for sz in (-1, 1): M.k = 0.9; M.box('body', (xx, 1.9, sz * (hw + 0.01)), (0.08, 1.3, 0.06))
     M.k = 0.88; M.box('body', (x1 - 0.05, 1.9, 0), (0.1, 1.3, hw * 2)); M.box('body', (x0 + 0.05, 1.9, 0), (0.1, 1.3, hw * 2))
     a = np.linspace(0, 2 * np.pi, 10, endpoint=False)
-    M.k = 1.0; M.hull('grain', [(xc + (L / 2 - 0.2) * np.cos(t), 2.3, (hw - 0.15) * np.sin(t)) for t in a] + [(xc + 0.8 * np.cos(t), 2.85, 0.45 * np.sin(t)) for t in a[::2]])
+    Ld = Mesh(); Ld.k = 1.0; Ld.hull('grain', [(xc + (L / 2 - 0.2) * np.cos(t), 2.3, (hw - 0.15) * np.sin(t)) for t in a] + [(xc + 0.8 * np.cos(t), 2.85, 0.45 * np.sin(t)) for t in a[::2]])
     M.k = 1.0; M.cyl('tarp', (x0 + 0.5, 2.6, 0), 0.25, hw * 2, 'z', 10)
-    return [('hull', M, None)]
+    return [('hull', M, None), ('load', Ld, None)]
 
 KINDS = {'inf': k_soldier('inf'), 'at': k_soldier('at'), 'aa': k_soldier('aa'), 'med': k_soldier('med'), 'commando': k_soldier('commando'),
          'air': k_air, 'tanker': k_tanker, 'heli': k_heli, 'gunship': k_gunship, 'lift': k_lift, 'ajeep': k_ajeep, 'tjeep': k_tjeep,

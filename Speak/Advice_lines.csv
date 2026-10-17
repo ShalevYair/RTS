@@ -45,6 +45,7 @@ f_wheel,"Alt and click on the map opens a wheel: summon forces, and ask your par
 f_night,"Night is falling. In the dark, everyone sees and shoots worse.","יורד לילה. בחושך רואים ויורים פחות טוב."
 f_weather,"The weather shortens sight and range.","מזג האוויר מקצר את הראייה ואת הטווח."
 f_missile,"Missile launch! Iron Dome and Arrow intercept missiles.","שיגור טיל! כיפת ברזל וחץ מיירטים טילים."
+f_ghost,"A unit out of sight of a signals truck, a drone, a recon jeep or one of our buildings shows as a ghost: where it is is only a guess, from its last report. Orders take a while to reach it, and are not always carried out exactly.","כוח שיוצא מטווח הראייה של משאית קשר, רחפן, ג׳יפ סיור או מבנה שלנו נראה כמו רוח רפאים: המיקום שלו רק מוערך, לפי הדיווח האחרון. לוקח זמן עד שפקודה מגיעה אליו, והיא לא תמיד מבוצעת בדיוק."
 f_hqhit,"Your headquarters is under attack. If it falls, you lose.","המפקדה תחת התקפה. אם היא נופלת, הפסדתם."
 arms_armor_infantry,"You command the armour and the infantry. Your partner commands the air force and artillery and engineering.","אתם מפקדים על השריון ועל חיל הרגלים, והשותף על חיל האוויר ועל התותחנים וההנדסה."
 arms_armor_air,"You command the armour and the air force. Your partner commands the infantry and artillery and engineering.","אתם מפקדים על השריון ועל חיל האוויר, והשותף על חיל הרגלים ועל התותחנים וההנדסה."

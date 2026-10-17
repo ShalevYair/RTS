@@ -74,7 +74,7 @@ function removeFront(s, side, id) {
   const F = s.fronts && s.fronts[side]; if (!F) return false;
   const i = F.findIndex(f => f.id === id); if (i < 0) return false;
   F.splice(i, 1);
-  for (const q of s.squads) if (q.side === side && q.front === id) q.front = null;
+  for (const q of s.squads) if (q.side === side && q.front === id) { q.front = null; if (!F.length && CARGO[q.type]) q.told = true; } // (the last one gone: its trucks stay put, not off to the autopilot's spots)
   s.frontAt = -99; return true;
 }
 // a squad the player sent somewhere by hand: off its front for FRONT_FREE s (then back to it on its own)
@@ -118,7 +118,7 @@ function frontTick(s) {
     const F = s.fronts[side]; if (!F || !F.length) continue;
     const geo = new Map(F.map(f => [f.id, frontGeo(s, side, f)])), busy = askBusy(s, side), byRole = {};
     for (const q of s.squads) {
-      if (q.side !== side || q.dead || q.aboard || q.boarding || q.fhqAt || q.hqAt || busy.has(q.id) || s.t - (q.freeAt ?? -1e9) < FRONT_FREE) continue; // (sent by hand lately, or answering an ask: not now)
+      if (q.side !== side || q.dead || q.aboard || q.boarding || q.fhqAt || q.hqAt || q.bunker || q.bunkerGo || busy.has(q.id) || s.t - (q.freeAt ?? -1e9) < FRONT_FREE) continue; // (sent by hand lately, or answering an ask: not now)
       const r = frontRole(q); if (!r) { q.front = null; continue; }
       if (q.type === 'ssm' && q.fire) continue;
       const us = s.units.filter(u => u.squad === q.id); if (!us.length) continue;
@@ -190,22 +190,27 @@ function frontTick(s) {
 const DRY = { fueltruck: u => needsFuel(u.type) && !TYPES[u.type].air && (u.fuel ?? 1) < 0.05, truck: u => !!SUPPLY[u.type] && u.sup !== undefined && u.sup < 0.05, watertruck: u => needsWater(u.type) && (u.water ?? 1) < 0.15 };
 const FULL = { fueltruck: u => (u.fuel ?? 1) > 0.9, truck: u => (u.sup ?? 1) > 0.9, watertruck: u => (u.water ?? 1) > 0.9 };
 const frontDry = (s, q) => s.units.some(u => u.squad === q.id && Object.values(DRY).some(f => f(u)));
-// a truck of the kind goes to it (the nearest with a load, no more than half a kind's trucks at once — the line still
-// served), stays till it's full, then back to its place on the line (FRONT_RESCUE s at most)
+// the trucks of a front go round its squads: each free one with a load to the nearest unit of its own front short of
+// what it carries (NEEDY — not only those run dry), stays till it's full (FULL, FRONT_RESCUE s at most), then on to
+// the next; none short — back to its place behind the line. A unit a truck is already by (TRUCK_R) or on its way to
+// isn't sent another.
+const NEEDY = { fueltruck: u => needsFuel(u.type) && !TYPES[u.type].air && (u.fuel ?? 1) < 0.6, truck: u => !!SUPPLY[u.type] && u.sup !== undefined && u.sup < 0.6, watertruck: u => needsWater(u.type) && (u.water ?? 1) < 0.6 };
 const FRONT_RESCUE = 120;
 function frontRescue(s, side, byRole) {
-  const on = new Set(); for (const r of Object.keys(byRole)) for (const o of byRole[r]) on.add(o.q.id);
-  for (const kind of Object.keys(DRY)) {
+  const frontOf = new Map(); for (const r of Object.keys(byRole)) for (const o of byRole[r]) frontOf.set(o.q.id, o.q.front);
+  const tu = q => s.units.find(u => u.squad === q.id);
+  for (const kind of Object.keys(NEEDY)) {
     const trucks = (byRole['truck:' + kind] || []).map(o => o.q);
-    for (const q of trucks) if (q.rescue) { const u = s.units.find(u => u.id === q.rescue.u); if (!u || FULL[kind](u) || s.t - q.rescue.t > FRONT_RESCUE) q.rescue = null; }
-    const dry = s.units.filter(u => u.side === side && on.has(u.squad) && DRY[kind](u)); if (!dry.length || !trucks.length) continue;
-    const tu = q => s.units.find(u => u.squad === q.id);
-    for (const u of dry) {
-      if (trucks.some(q => { const t = tu(q); return t && dist(t, u) < TRUCK_R * 0.9 || q.rescue && (() => { const v = s.units.find(v => v.id === q.rescue.u); return v && dist(v, u) < 150; })(); })) continue;
-      if (trucks.filter(q => q.rescue).length >= Math.max(1, Math.floor(trucks.length / 2))) break;
-      const free = trucks.filter(q => !q.rescue && tu(q) && !tu(q).refill && (tu(q).load ?? 1) > TRUCK_CAP[kind] * 0.3).sort((a, b) => dist(tu(a), u) - dist(tu(b), u))[0];
-      if (!free) break;
-      free.rescue = { u: u.id, t: s.t };
+    for (const q of trucks) if (q.rescue) { const u = s.units.find(u => u.id === q.rescue.u); if (!u || FULL[kind](u) || frontOf.get(u.squad) !== q.front || s.t - q.rescue.t > FRONT_RESCUE || (tu(q) && tu(q).refill)) { q.rescue = null; q.rescued = s.t; } }
+    const need = s.units.filter(u => u.side === side && frontOf.has(u.squad) && NEEDY[kind](u)); if (!need.length || !trucks.length) continue;
+    // (the driest first)
+    const lvl = u => kind === 'fueltruck' ? u.fuel ?? 1 : kind === 'truck' ? u.sup ?? 1 : u.water ?? 1;
+    need.sort((a, b) => lvl(a) - lvl(b));
+    for (const u of need) {
+      const fr = frontOf.get(u.squad);
+      if (trucks.some(q => { const t = tu(q); return q.front === fr && (t && dist(t, u) < TRUCK_R * 0.9 && !t.refill || q.rescue && (() => { const v = s.units.find(v => v.id === q.rescue.u); return v && dist(v, u) < TRUCK_R * 0.9; })()); })) continue;
+      const free = trucks.filter(q => q.front === fr && !q.rescue && tu(q) && !tu(q).refill && (tu(q).load ?? 1) > TRUCK_CAP[kind] * 0.15).sort((a, b) => dist(tu(a), u) - dist(tu(b), u))[0];
+      if (free) free.rescue = { u: u.id, t: s.t };
     }
     for (const q of trucks) if (q.rescue) { const u = s.units.find(u => u.id === q.rescue.u); if (u) frontOrder(s, q, 'hold', u.x, u.y); }
   }

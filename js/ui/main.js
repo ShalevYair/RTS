@@ -135,7 +135,7 @@ function frameBody(now) {
   }
   // a forward HQ that can be set up now, a drone to fly now: said once when it becomes so, a note by its button
   if (playing && !s.over) {
-    const fc = uiHas('fhq') && s.cd.blue.fhq <= 0 && Sim.fhqCount(s, 'blue') < Sim.fhqMax(s) && fhqCrews().length > 0, dc = uiHas('eye') && s.fog && s.drones.blue.stock > 0;
+    const fc = uiHas('fhq') && s.cd.blue.fhq <= 0 && Sim.fhqCount(s, 'blue') < Sim.fhqMax(s) && fhqCrews().length > 0 && fhqMine(), dc = uiHas('eye') && s.fog && s.drones.blue.stock > 0 && Sim.armSide(s, 'blue', 'drone') !== 'mate'; // (not the partner's drones / forward HQs: you can't fly or set them up)
     if (fc && !can.fhq && s.t > 3) { Radio.hear({ kind: 'fhqCan' }); noteBy('fhq', tr('fhqCan')); }
     if (dc && !can.drone && s.t > 3) { Radio.hear({ kind: 'droneCan' }); noteBy('eye', tr('droneCan')); }
     can.fhq = fc; can.drone = dc;

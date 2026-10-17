@@ -404,7 +404,7 @@ function think(s, side, level, who) {
     const [a, b] = hqBand(s, side);
     for (let i = 0; i < 30; i++) if (planHq(s, side, a + s.rand() * (b - a), 60 + s.rand() * (s.H - 120))) break;
   }
-  const all = s.squads.filter(q => q.side === side && !q.dead && !q.retreating && !(q.cmd && s.hqPending && s.hqPending[side]) && own(q));
+  const all = s.squads.filter(q => q.side === side && !q.dead && !q.retreating && !q.bunker && !q.bunkerGo && !(q.cmd && s.hqPending && s.hqPending[side]) && own(q)); // (not a bunker's garrison: it stays — posts.js)
   // (the player's fronts: the squads on them go where the fronts say, not the AI — fronts.js)
   const mine = onFronts(s, side) ? all.filter(q => !q.front) : all;
   // (arms: the whole side's squads — the support (signals trucks, guns, supply trucks) stands behind the partner's

@@ -35,7 +35,7 @@ function drawPosts(c) {
 }
 let selPost = null;
 // does any of ours see a post: ours, or a unit, building or drone of ours near enough (as the fog's holes, roughly)
-const POST_FOG_A = 0.5;
+const POST_FOG_A = 0.3;
 function postSeen(p) {
   if (p.side === 'blue') return true;
   const sk = Sim.skySight(s, 'blue');
@@ -54,7 +54,8 @@ function postReach(p) {
 // its line: name, who holds it, what it gives, how it's taken
 function postInfo(p) {
   const who = tr(p.side === 'blue' ? 'pi_ours' : p.side === 'red' ? 'pi_theirs' : 'pi_free');
-  return [pn(p.kind), who, tr('fx_' + p.kind), p.side === 'blue' ? '' : tr('pi_take')].filter(Boolean).join(' · ');
+  const men = p.kind === 'bunker' && p.side ? tr('bunkerIn', Sim.bunkerMen(s, p).length, Sim.BUNKER_MAX) : '';
+  return [pn(p.kind), who, men, tr('fx_' + p.kind), p.side === 'blue' ? '' : tr('pi_take')].filter(Boolean).join(' · ');
 }
 
 // ---- the weather ----

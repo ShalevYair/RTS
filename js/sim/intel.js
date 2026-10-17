@@ -39,7 +39,7 @@ function visibility(s) {
     // (each eye's sight worked out once a tick, not once for every enemy it might see)
     const eyeS = eyes.map(u => { const r = sightOf(s, u); return { x: u.x, y: u.y, r2: r * r }; });
     // (the posts a side holds see round them: an observation tower far)
-    if (s.posts) for (const p of s.posts) if (p.side === side) { const r = (p.kind === 'tower' ? TOWER_SIGHT : POST_SIGHT) * skySight(s, side); eyeS.push({ x: p.x, y: p.y, r2: r * r }); }
+    if (s.posts) for (const p of s.posts) if (p.side === side) { const r = (p.kind === 'tower' ? TOWER_SIGHT : p.kind === 'bunker' && s.squads.some(q => q.bunker === p.id && !q.dead) ? TYPES.radio.sight : POST_SIGHT) * skySight(s, side); eyeS.push({ x: p.x, y: p.y, r2: r * r }); } // (a manned bunker: as far as a signals truck)
     // (lying in ambush under the trees: seen only close up, or by a drone / signals truck)
     // (our units near it only, from the tick's grid; and each eye listed in the squares of EYE_CELL its sight reaches,
     // so a unit is tested against those only — every eye for every enemy was slow with hundreds on each side)

@@ -89,6 +89,16 @@ function syncStock() {
   el.querySelectorAll('.sg').forEach((sp, j) => { sp.querySelector('b').textContent = v[j]; sp.classList.toggle('low', v[j] < STOCK_SHOW[j][2]); });
 }
 // a hauler's / mine's / plant's state for tooltips and the info card
+// a building's supply-chain lines, each saying what it is: a mine — its yard (what's dug and waits for a truck) and what's
+// left in its deposit; else what it waits for
+function econLines(o) {
+  if (o.kind && Sim.STRUCTS[o.kind] && Sim.STRUCTS[o.kind].deposit) {
+    const d = (s.deposits || []).find(d => d.id === o.dep);
+    if (o.dry) return [tr('depDry')];
+    return [tr('ni_yard', Math.round((o.store || 0) / Sim.WELL_KEEP * 100)), ...(d && d.amount ? [depLeft(d)] : [])];
+  }
+  const l = econLine(o); return l ? [l] : [];
+}
 function econLine(o) {
   if (o.cargo !== undefined && Sim.HAUL[o.type]) return Math.round(o.cargo / Sim.HAUL_CAP * 100) + '%';
   if (o.kind && Sim.STRUCTS[o.kind] && Sim.STRUCTS[o.kind].deposit) { const d = (s.deposits || []).find(d => d.id === o.dep); return o.dry ? tr('depDry') : Math.round((o.store || 0) / Sim.WELL_KEEP * 100) + '%' + (d && d.amount ? ' · ' + depLeft(d) : ''); }

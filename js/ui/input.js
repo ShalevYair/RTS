@@ -30,14 +30,16 @@ function hitNode(x, y, side) {
   const m = Object.values(s.memNodes.blue).find(m => !s.visNodes.blue.has(m.id) && m.kind !== 'drone' && near(m));
   return m ? { ...m, side: 'red', mem: true } : null;
 }
-// a building's line: its name, its state, and (ours) what it makes and when the next one comes out
-function nodeInfo(n) {
+// a building's lines (one under the other, each saying what it is): its name, its health, its state, and (ours) what it
+// makes and when the next one comes out. card: for the info card — no name or health (its title and bar say them)
+function nodeInfo(n, card) {
   const S = Sim.STRUCTS[n.kind], kind = n.side === 'red' && n.kind === 'decoy' ? 'hq' : n.kind;
   const out = [sn(kind) + (n.side === 'blue' && n.kind === 'decoy' ? ' 🎭' : '')];
-  if (n.mem) { out.push(tr('ni_seen', Math.round(s.t - n.t))); return out.join(' · '); }
-  if (n.side === 'blue' || !s.fog || Sim.idLevel(s, 'blue', n) >= 2) out.push(Math.max(1, Math.round(100 * n.hp / S.hp)) + '%');
-  if (n.side !== 'blue') return out.join(' · ');
-  const el = econLine(n); if (el) out.push(el); // (the supply chain: a mine's yard, waiting for steel / concrete — econui.js)
+  let hp = null; const done = () => card ? out.slice(1).filter(t => t !== hp).join(' · ') : out.join('\n');
+  if (n.mem) { out.push(tr('ni_seen', Math.round(s.t - n.t))); return done(); }
+  if (n.side === 'blue' || !s.fog || Sim.idLevel(s, 'blue', n) >= 2) out.push(hp = tr('ni_hp', Math.max(1, Math.round(100 * n.hp / S.hp))));
+  if (n.side !== 'blue') return done();
+  const el = econLines(n); out.push(...el); // (the supply chain: a mine's yard, waiting for steel / concrete — econui.js)
   if (Sim.isSite(n) && s.t < n.ready) out.push(tr(n.working ? 'ni_site' : 'ni_wait', Math.round(100 * n.work / n.need)));
   else if (s.t < n.ready) out.push(tr('ni_build', Math.ceil(n.ready - s.t)));
   else if (S.upgrade && n.upg) out.push(tr('trophyOn', Math.ceil(n.upg.until - s.t)));
@@ -47,7 +49,7 @@ function nodeInfo(n) {
     const have = s.units.filter(u => { const q = s.squads.find(k => k.id === u.squad); return q && (q.home === n.id); }).length;
     out.push(have >= (Sim.uncapped(s, n.kind) ? Infinity : s.singles ? Sim.BUILD_UNITS : S.size) ? tr('ni_full') : tr('ni_next', tn(S.unit), Math.max(1, Math.ceil((1 - (n.prog || 0)) * S.every))));
   }
-  return out.join(' · ');
+  return done();
 }
 // a squad tapped: Shift adds it to what's picked, or takes it out (with its group); a double click picks every squad
 // of its kind on the screen; else it alone (its group)
@@ -169,8 +171,18 @@ function tap(e) {
   // (only missile trucks picked, on the enemy HQ — or what passes for it: not at it, said where clicked)
   const hn = ssm.length && ssm.length === selIds().length && hitNode(x, y, 'red');
   if (hn && (hn.kind === 'hq' || hn.kind === 'decoy')) { const p = worldToScr(x, y), r = cv.getBoundingClientRect(); toast(tr('noSsmHq'), p.x + r.left, p.y + r.top); return; }
+  // our bunker: soldiers picked go into it (as many as there's room for); none picked — its garrison is picked (an order
+  // then takes them out: posts.js)
+  const bk = hitPost(x, y);
+  if (bk && bk.kind === 'bunker' && bk.side === 'blue') {
+    const ids = (sel === 'all' ? [] : selIds()).filter(id => { const q = s.squads.find(k => k.id === id); return q && !q.dead && q.bunker !== bk.id && ['inf', 'at', 'aa', 'med'].includes(q.type) && Sim.ownSquad(s, q); });
+    const p = onScreen(x, y);
+    if (ids.length) { if (Sim.garrison(s, 'blue', ids, bk.id)) { pings.push({ x: bk.x, y: bk.y, t: performance.now(), cap: true }); Radio.hear({ kind: 'go', id: ids[0] }); } else toast(tr('bunkerFull', Sim.BUNKER_MAX), p.x, p.y); return; }
+    const men = s.squads.filter(q => q.bunker === bk.id && !q.dead && Sim.ownSquad(s, q)).map(q => q.id);
+    if (men.length) { if (men.length > 1) pickIds(men); else pickSquad(men[0]); toast(tr('bunkerOut'), p.x, p.y, 2200); return; }
+  }
   // a post not ours, with soldiers picked: in to take it (yellow arrows)
-  if (sendCapture(hitPost(x, y))) return;
+  if (sendCapture(bk)) return;
   // at an enemy: an attack on it, whatever the order button says
   const foe = selIds().length || sel === 'all' ? hitFoe(x, y) : null;
   // (Shift: queued — after where they're going now)

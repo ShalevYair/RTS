@@ -122,7 +122,7 @@ const SUMMON_HOT = 3, SUMMON_WAIT = 300, SUMMON_T = 240;
 const summonHot = (s, q) => s.t - q.lastContact < SUMMON_HOT || s.units.some(u => u.squad === q.id && u.engaged);
 function summon(s, side, ids, x, y, icon) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  const qs = ids.map(id => s.squads.find(q => q.id === id)).filter(q => q && !q.dead && !q.aboard && q.side === side);
+  const qs = ids.map(id => s.squads.find(q => q.id === id)).filter(q => q && !q.dead && !q.aboard && !q.bunker && !q.bunkerGo && q.side === side); // (not a bunker's garrison — posts.js)
   for (const q of qs) q.told = true; // (sent: a truck stays where it's summoned — playerTrucks leaves it be)
   const now = qs.filter(q => !summonHot(s, q)), wait = qs.filter(q => summonHot(s, q));
   if (now.length > 1) formation(s, now.map(q => q.id), 'hold', x, y, true, undefined, undefined, { arrive: true }); else // (arrive: each straight from where it is to its place, all there at once)

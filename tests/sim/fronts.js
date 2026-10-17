@@ -22,7 +22,7 @@ while (!s.over && s.t < t0 + 180) {
   if (Math.abs(s.t % 2) < 1 / 30) {
     for (const [i, f] of s.fronts.blue.entries()) {
       const us = s.units.filter(u => u.side === 'blue' && (s.squads.find(q => q.id === u.squad) || {}).front === f.id);
-      const fight = us.filter(u => !Sim.TYPES[u.type].care && !Sim.TYPES[u.type].air), trucks = us.filter(u => /truck$/.test(u.type) || u.type === 'truck');
+      const fight = us.filter(u => !Sim.TYPES[u.type].care && !Sim.TYPES[u.type].air), trucks = us.filter(u => (/truck$/.test(u.type) || u.type === 'truck') && !(q => q.rescue || s.t - (q.rescued ?? -1e9) < 25)(s.squads.find(q => q.id === u.squad) || {})); // (not one gone up to fill a unit that's short, or on its way back from it — frontRescue)
       if (!fight.length) continue;
       const fd = fight.reduce((a, u) => a + behind(geo[i], u), 0) / fight.length;
       for (const t of trucks) { samples++; if (behind(geo[i], t) < fd - 20) ahead++; }

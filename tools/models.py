@@ -186,7 +186,7 @@ def bake(path):
     def walk(i, P, turret, pose=None):
         n = J['nodes'][i]; M = P @ node_matrix(n); name = (n.get('name') or '').lower()
         turret = turret or any(k in name for k in TURRET)
-        pose = pose or (name if re.match(r'(pose|spin|fan)\d+$|dead$|door$', name) else None)  # (a soldier's walking poses, fallen; a drone's props: parts of their own)
+        pose = pose or (name if re.match(r'(pose|spin|fan)\d+$|dead$|door$|load$', name) else None)  # (a soldier's walking poses, fallen; a drone's props: parts of their own)
         ct = code and re.match(r'track([lr])(\d+)$', name)
         track = fwd is not None and 'skin' in n and 'track' in name and 'mesh' in n
         if 'mesh' in n:
@@ -232,7 +232,7 @@ def bake(path):
         allp = np.concatenate([v[0] for v in cat.values()] + [frames[s][0] for s in ('L', 'R') if s in frames])
         L0 = max(np.ptp(allp[:, 0]), np.ptp(allp[:, 2])); air = name in AIRBORNE
         groups = {}  # (a soldier's poses each shade only themselves; the rest — hull, turret, tracks — together)
-        for k in cat: groups.setdefault(k[0] if re.match(r'(pose|spin|fan)\d+$|dead$|door$', k[0]) else '', []).append(k)
+        for k in cat: groups.setdefault(k[0] if re.match(r'(pose|spin|fan)\d+$|dead$|door$|load$', k[0]) else '', []).append(k)
         for g, keys in groups.items():
             if g == '' and not any(k[0] == 'pose0' for k in cat) and name != 'drone':  # (soldiers and the drone: tiny — their corners do)
                 for k in keys: cat[k] = split_long(*cat[k], AO_EDGE * L0)
