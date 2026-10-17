@@ -13,7 +13,7 @@ import eleven as E  # (the key, the models and the voices: the same as the radio
 ROOT = E.ROOT
 LANG_KEY = {'English': 'en', 'Hebrew': 'he'}
 # the narrator of each language (ElevenLabs voice IDs)
-VOICE = {'English': 'kPzsL2i3teMYv0FxEYQ6', 'Hebrew': 'UZzDIQRRTW2Id7YBcbgC'}
+VOICE = {'English': 'XfNU2rGpBa01ckF309OY', 'Hebrew': 'UZzDIQRRTW2Id7YBcbgC'}
 # the first 20 a new player hears (default arms: armor + infantry; engineering with the partner)
 MAIN = ['intro_goal', 'intro_mate', 'arms_armor_infantry', 'hq_mate', 'intro_supply', 'intro_off', 'hq_ready',
         'matechain_armor', 'matechain_infantry', 'why_nohq_mate', 'needm_tankshop', 'tech',
