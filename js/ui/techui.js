@@ -60,10 +60,10 @@ function techNode(k) {
   drawPic(b.querySelector('canvas'), k);
   b.querySelector('b').textContent = sn(k); b.querySelector('small').textContent = techLine(k);
   const fuel = S.unit && Sim.needsFuel(S.unit) && Sim.STRUCTS.fuelst; if (fuel) { const i = document.createElement('i'); i.className = 'tfuel'; i.textContent = '⛽'; b.appendChild(i); }
-  b.tipText = () => { const nd = Sim.needsOf(s, 'blue', k); return sn(k) + (mate ? ' · ' + tr('techMate') : '') + ' · ' + (nd ? tr('needsItem', sn(nd)) : st === 'done' ? tr('techDone') : tr('techCan')); };
+  b.tipText = () => { const nd = Sim.needsOf(s, 'blue', k); return sn(k) + (mate ? ' · ' + tr('techMate') : '') + ' · ' + (nd ? tr('needsItem', needName(nd)) : st === 'done' ? tr('techDone') : tr('techCan')); };
   b.addEventListener('click', () => {
     const nd = Sim.needsOf(s, 'blue', k);
-    if (nd) { advWhy('needs', k); const r = b.getBoundingClientRect(); toast(tr('needsWhy', sn(nd)), r.left + r.width / 2, r.top - 10); blink(b); return; }
+    if (nd) { advWhy('needs', k); const r = b.getBoundingClientRect(); toast(tr('needsWhy', needName(nd)), r.left + r.width / 2, r.top - 10); blink(b); return; }
     if (Sim.armSide(s, 'blue', k) === 'mate') { const r = b.getBoundingClientRect(); toast(tr('techMate'), r.left + r.width / 2, r.top - 10); return; } // (the partner's arm: he builds it)
     if (!buildOk(k)) return;
     techClose(); buildArmed = k; syncButtons();

@@ -415,7 +415,7 @@ const Music = (() => {
 // the generated music above instead. A game starts with FIRST (FirstRound), then on as above. A menu video with its own
 // sound (MENU_ART.sound): no music on the menu ----
 const Tracks = (() => {
-  const MENU = typeof MENU_ART === 'object' && MENU_ART.sound ? null : 'music/last_stand.mp3', FIRST = 'music/FirstRound.mp3', CALM = ['music/planning.mp3', 'music/ashes.mp3'], BATTLE = ['music/iron_line.mp3', 'music/breakthrough.mp3', 'music/last_stand.mp3'];
+  const MENU = typeof MENU_ART === 'object' && MENU_ART.sound ? null : 'music/last_stand.mp3', FIRST = 'music/FirstRound.mp3', CALM = ['music/planning.mp3'] /* (ashes out: too soft) */, BATTLE = ['music/iron_line.mp3', 'music/breakthrough.mp3', 'music/last_stand.mp3'];
   const FADE = 3; // seconds
   let mode = 'menu', mood = 'calm', vol = 0.3, on = false, cur = null, last = '', failed = false, fresh = false; // (fresh: a game just started — FIRST next)
   const all = new Set(); // (every piece made: whatever isn't cur is faded out and stopped)
@@ -424,7 +424,7 @@ const Tracks = (() => {
     a.fadeT = setInterval(() => { const k = Math.min(1, (performance.now() - t0) / (sec * 1000)); a.volume = Math.max(0, Math.min(1, v0 + (to - v0) * k)); if (k >= 1) { clearInterval(a.fadeT); a.fadeT = 0; then && then(); } }, 50);
   };
   const quiet = a => fade(a, 0, a.volume > 0 ? FADE : 0.05, () => { a.pause(); all.delete(a); });
-  const pick = () => { if (mode === 'menu') return MENU; if (fresh) { fresh = false; return (last = FIRST); } const pool = (mood === 'battle' ? BATTLE : CALM).filter(f => f !== last); return (last = pool[Math.floor(Math.random() * pool.length)]); };
+  const pick = () => { if (mode === 'menu') return MENU; if (fresh) { fresh = false; return (last = FIRST); } const L = mood === 'battle' ? BATTLE : CALM, pool = L.length > 1 ? L.filter(f => f !== last) : L; return (last = pool[Math.floor(Math.random() * pool.length)]); };
   function play(src) {
     if (!src) { cur = null; for (const o of all) if (!o.starting) quiet(o); return; } // (nothing to play here: the others fade out)
     const a = new Audio(src); cur = a; all.add(a); a.starting = true;
@@ -485,7 +485,7 @@ const Radio = (() => {
   const synth = window.speechSynthesis, SAY = { 'חי"ר': 'חיל רגלים', 'נ"מ': 'נגד מטוסים', 'מכ"ם': 'מכם' };
   const PRI = { missile: 3, intercept: 2, promo: 1, unclear: 2, lost: 3, hit: 3, flagLost: 3, call: 3, nodeLost: 3, ff: 3, contact: 2, flag: 2, fhq: 1, ok: 1, hqHit: 3, fhqHit: 3, baseHit: 2, droneLost: 2, dozerReady: 1, dozerIdle: 1, radioReady: 1, fhqCan: 1, droneCan: 1, canBuild: 1, placeHq: 2, hqReady: 2, selected: 0, rep_fuel: 1, rep_water: 1, rep_ammo: 1, rep_hurt: 1, go: 1, attacking: 1, holding: 1, retreating: 1 };
   // an event's folder of recorded lines
-  const EVENT = { rep_fuel: 'report_fuel', rep_water: 'report_water', rep_ammo: 'report_ammo', rep_hurt: 'report_hurt', selected: 'selected', go: 'on_the_way', attacking: 'attacking', holding: 'holding', retreating: 'retreating', ok: 'in_position', contact: 'under_attack',
+  const EVENT = { rep_fuel: 'report_fuel', rep_water: 'report_food', rep_ammo: 'report_ammo', rep_hurt: 'report_hurt', selected: 'selected', go: 'on_the_way', attacking: 'attacking', holding: 'holding', retreating: 'retreating', ok: 'in_position', contact: 'under_attack',
     hit: 'heavy_losses', lost: 'squad_lost', ff: 'friendly_fire', promo: 'promoted', unclear: 'say_again', fhq: 'forward_hq', nodeLost: 'building_lost', hqHit: 'hq_attack', fhqHit: 'fhq_attack', baseHit: 'base_attack', droneLost: 'drone_lost', dozerReady: 'dozer_ready', dozerIdle: 'dozer_idle', radioReady: 'radio_ready', fhqCan: 'fhq_ready', droneCan: 'drone_ready', placeHq: 'place_hq', hqReady: 'hq_ready', flagLost: 'lost_post', canBuild: 'can_build', missile: 'missile_incoming', intercept: 'intercepted' };
   // (a post taken: the radar, the power and fuel stations their own lines, the rest one)
   const TOOK = { radar: 'took_radar', power: 'took_power', fuel: 'took_fuel' };
@@ -493,6 +493,7 @@ const Radio = (() => {
   const lastTake = {};
   // a take of the event: any of its lines (each recorded once, in one of several voices), not the same one twice running
   function take(ev) {
+    ev = { mate_water: 'mate_food' }[ev] || ev; // (the rations: their own lines — the old ones said "water")
     let pool = (recs() || {})[ev]; if (!pool || !pool.length) return null;
     if (pool.length > 1) pool = pool.filter(f => f !== lastTake[ev]);
     return (lastTake[ev] = pool[Math.floor(Math.random() * pool.length)]);

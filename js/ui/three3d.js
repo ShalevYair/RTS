@@ -1473,38 +1473,8 @@ function v3TrenchGeo(tank) {
   const vert = (x, y, z, col) => { P.push(x, y, z); C.push(...col); return P.length / 3 - 1; };
   const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
   let sd = tank ? 11 : 5; const R = () => (sd = sd * 16807 % 2147483647) / 2147483647;
-  // (the bank's path: a list of { x, z, nx, nz (outward), k (height there, 0–1) })
-  const path = [];
-  if (!tank) {
-    const a0 = Math.PI * 0.22, a1 = Math.PI * 1.78, N = 40; // (the gap at the back, −X)
-    for (let i = 0; i <= N; i++) { const t = i / N, a = Math.PI + a0 + (a1 - a0) * t, end = Math.min(1, Math.min(t, 1 - t) / 0.12); path.push({ x: Math.cos(a), z: Math.sin(a), nx: Math.cos(a), nz: Math.sin(a), k: end * end * (3 - 2 * end) * (0.85 + 0.15 * Math.cos(a)) }); }
-  } else {
-    // (a U: back-left, along the left side to the front, round the front, back along the right side; open behind)
-    const W = 0.62, F = 0.62, B = -0.75, rc = 0.3, pts = [];
-    for (let i = 0; i <= 10; i++) pts.push([B + (F - rc - B) * i / 10, -W, 0, -1]);
-    for (let i = 1; i < 8; i++) { const a = -Math.PI / 2 + Math.PI / 2 * i / 8; pts.push([F - rc + Math.cos(a) * rc, -W + rc + Math.sin(a) * rc, Math.cos(a), Math.sin(a)]); }
-    for (let i = 0; i <= 8; i++) pts.push([F, -W + rc + (2 * (W - rc)) * i / 8, 1, 0]);
-    for (let i = 1; i < 8; i++) { const a = Math.PI / 2 * i / 8; pts.push([F - rc + Math.cos(a) * rc, W - rc + Math.sin(a) * rc, Math.cos(a), Math.sin(a)]); }
-    for (let i = 0; i <= 10; i++) pts.push([F - rc - (F - rc - B) * i / 10, W, 0, 1]);
-    pts.forEach(([x, z, nx, nz], i) => { const t = i / (pts.length - 1), end = Math.min(1, Math.min(t, 1 - t) / 0.1), front = Math.max(0, (x - B) / (F - B)); path.push({ x, z, nx, nz, k: end * end * (3 - 2 * end) * (0.55 + 0.45 * front) }); });
-  }
-  // (the bank's cross-section: o = out from the path, h = up — inner foot, inner lip, crest, outer slope, outer foot)
-  const prof = [[-0.2, 0], [-0.1, 0.55], [0.0, 0.9], [0.1, 1], [0.24, 0.72], [0.42, 0.3], [0.62, 0]];
-  const rows = path.map(p => prof.map(([o, h], j) => {
-    const w = 1 + (R() - 0.5) * 0.18, y = h * p.k * (0.42 + (R() - 0.5) * 0.04), col = j === 0 || j === prof.length - 1 ? C0.damp : mix(C0.damp, C0.dry, Math.min(1, h * 1.2) * (0.85 + R() * 0.15));
-    return vert(p.x + p.nx * o * w * (tank ? 0.9 : 1), y, p.z + p.nz * o * w * (tank ? 0.9 : 1), col);
-  }));
-  for (let i = 0; i < rows.length - 1; i++) for (let j = 0; j < prof.length - 1; j++) { const a = rows[i][j], b = rows[i][j + 1], c = rows[i + 1][j], d = rows[i + 1][j + 1]; tri(a, c, b); tri(b, c, d); }
-  // (the pit: a dark floor inside, lighter at its rim)
-  if (!tank) {
-    const c = vert(0, 0.03, 0, C0.pit), N = 24, r0 = [];
-    for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2; r0.push(vert(Math.cos(a) * 0.82, 0.03, Math.sin(a) * 0.82, mix(C0.pit, C0.damp, 0.7))); }
-    for (let i = 0; i < N; i++) tri(c, r0[(i + 1) % N], r0[i]);
-  } else {
-    const q = [[-0.75, -0.52], [0.5, -0.52], [0.5, 0.52], [-0.75, 0.52]].map(([x, z], i) => vert(x, 0.03, z, i === 1 || i === 2 ? C0.pit : mix(C0.pit, C0.damp, 0.6)));
-    tri(q[0], q[2], q[1]); tri(q[0], q[3], q[2]);
-  }
-  // (sandbags along the front: rounded little blocks on the crest, two rows staggered)
+  // (only the sandbags: the earth bank and the dark pit under them came out — the player found the earth ugly)
+  // (sandbags along the front: rounded little blocks on the ground, two rows staggered)
   const bag = (x, y, z, a, L, Wd, Ht, col) => {
     const ca = Math.cos(a), sa = Math.sin(a), at = (u, v, w) => [x + u * ca - w * sa, y + v, z + u * sa + w * ca], k = 0.75; // (k: the top and the ends drawn in — a bag, not a brick)
     const c8 = [[-L, 0, -Wd], [L, 0, -Wd], [L, 0, Wd], [-L, 0, Wd], [-L * k, Ht, -Wd * k], [L * k, Ht, -Wd * k], [L * k, Ht, Wd * k], [-L * k, Ht, Wd * k]].map(([u, v, w]) => vert(...at(u, v, w), mix(col, C0.pit, v ? 0 : 0.35)));
@@ -1513,12 +1483,12 @@ function v3TrenchGeo(tank) {
   if (!tank) {
     for (let r = 0; r < 2; r++) for (let i = 0; i < 7 - r; i++) {
       const a = -Math.PI * 0.42 + (Math.PI * 0.84) * (i + 0.5 + r * 0.5) / 7, rr = 0.98, x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-      bag(x, 0.36 + r * 0.1, z, a + Math.PI / 2 + (R() - 0.5) * 0.25, 0.15, 0.08, 0.1, R() < 0.5 ? C0.bag : C0.bag2);
+      bag(x, r * 0.1, z, a + Math.PI / 2 + (R() - 0.5) * 0.25, 0.15, 0.08, 0.1, R() < 0.5 ? C0.bag : C0.bag2);
     }
   } else {
     for (let r = 0; r < 2; r++) for (let i = 0; i < 8 - r; i++) {
       const z = -0.48 + 0.96 * (i + 0.5 + r * 0.5) / 8;
-      bag(0.66, 0.4 + r * 0.09, z, Math.PI / 2 + (R() - 0.5) * 0.2, 0.07, 0.045, 0.085, R() < 0.5 ? C0.bag : C0.bag2);
+      bag(0.66, r * 0.085, z, Math.PI / 2 + (R() - 0.5) * 0.2, 0.07, 0.045, 0.085, R() < 0.5 ? C0.bag : C0.bag2);
     }
   }
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.setIndex(I); g.computeVertexNormals();

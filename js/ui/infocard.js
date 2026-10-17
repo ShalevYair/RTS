@@ -4,7 +4,7 @@
 // and what it's for (the wiki's line). It follows the thing while open; a click on bare ground, ✕ or Esc closes it.
 // The mouse over anything still gives the short line (input.js hover) — the partner's squads too now (hitMateSquad).
 let card = null, cardT = 0;
-const CARD_MS = 250, CARD_BARS = [['hp', '❤️'], ['ammo', '🔫'], ['fuel', '⛽'], ['water', '💧'], ['load', '📦']];
+const CARD_MS = 250, CARD_BARS = [['hp', '❤️'], ['ammo', '🔫'], ['fuel', '⛽'], ['water', '🍽️'], ['load', '📦']];
 // a partner's squad under a spot (seen and picked by nobody — only looked at)
 function hitMateSquad(x, y) {
   const tol = Math.max(12, 22 / view.css); let best = null, bd = tol;

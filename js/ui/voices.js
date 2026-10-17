@@ -205,9 +205,6 @@ const VOICES = {
   "report_fuel": [
    "Speak/Hebrew/report_fuel/A_1.mp3"
   ],
-  "report_water": [
-   "Speak/Hebrew/report_water/A_1.mp3"
-  ],
   "report_ammo": [
    "Speak/Hebrew/report_ammo/A_1.mp3"
   ],
@@ -228,9 +225,6 @@ const VOICES = {
   ],
   "mate_ammo": [
    "Speak/Hebrew/mate_ammo/A_1.mp3"
-  ],
-  "mate_water": [
-   "Speak/Hebrew/mate_water/A_1.mp3"
   ],
   "mate_fire": [
    "Speak/Hebrew/mate_fire/A_1.mp3"

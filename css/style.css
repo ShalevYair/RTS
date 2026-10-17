@@ -97,7 +97,8 @@ button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1p
 #go{width:100%;font-size:18px;background:var(--accent);color:#fff;border-color:var(--accent)}
 @media (prefers-reduced-motion: reduce){.log li{transition:none}}
 @media (max-width:560px){.log{top:50px;width:calc(100% - 24px)}}
-.hudl{position:absolute;top:8px;left:8px;display:flex;gap:6px;align-items:center;pointer-events:none}
+.hudl{position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+.hudl #front{pointer-events:auto;order:-1}
 .hudl .score{position:static}
 .bar button.blink{animation:blink .35s ease-in-out 4}
 @keyframes blink{50%{background:var(--c-red);color:#fff}}
@@ -444,7 +445,7 @@ html[dir="ltr"] .menuSide{background:linear-gradient(to right,rgb(3 7 5 / .78),r
 .hudl{flex-direction:column;align-items:flex-start}
 .fullgame #gSq,#gOrd{display:none!important} /* (attack/hold and radio silence: keys only — H/A/R, S) */
 .bcats{display:flex;flex-direction:column;gap:6px;pointer-events:auto}
-.bcats[hidden],.bcats button[hidden]{display:none}
+.bcats[hidden],.bcats button[hidden]{display:none!important}
 .bcats button{position:relative;display:grid;justify-items:center;width:78px;white-space:nowrap;padding:3px 0 4px;background:none;border:0;border-radius:12px;color:#fff;font:500 11px Rubik,sans-serif;text-shadow:0 1px 2px rgb(0 0 0 / .85);cursor:pointer}
 .bcats button:hover{background:var(--soft)}
 .bcats button[aria-expanded="true"]{background:var(--soft2)}
@@ -576,11 +577,11 @@ html[dir="rtl"] .feedItem.bad{box-shadow:inset -3px 0 0 #e53935}
 #intro.mainmenu #resume:hover{background:rgb(30 41 59 / .75)}
 #intro.mainmenu #resume small{font-size:12px;opacity:.75}
 .buildm button.locked{opacity:.5;filter:grayscale(.85)}.buildm button.locked small{color:#ffc2a8}
-.stock{position:absolute;top:10px;right:222px;z-index:2;display:grid;grid-template-columns:repeat(4,auto);direction:ltr;gap:4px;pointer-events:auto;font-size:13px;font-weight:600;color:#f3efe6;text-shadow:0 1px 2px rgb(0 0 0 / .8);white-space:nowrap}.stock[hidden]{display:none}.stock span.low{color:#ff8a70}
+.stock{position:absolute;bottom:12px;left:78px;z-index:2;display:grid;grid-template-columns:repeat(4,auto);direction:ltr;gap:4px;pointer-events:auto;font-size:13px;font-weight:600;color:#f3efe6;text-shadow:0 1px 2px rgb(0 0 0 / .8);white-space:nowrap}.stock[hidden]{display:none}.stock span.low{color:#ff8a70}
 
 /* the tech tree (techui.js): columns in the reading direction, lines from what's needed to what needs it */
 .stock{cursor:pointer}.stock .techB{opacity:.9;margin-inline-start:2px}
-.stock.nomini{right:10px}@media (max-width:560px){.stock{right:10px;top:46px;max-width:calc(100vw - 70px)}}
+@media (max-width:560px){.stock{max-width:calc(100vw - 90px)}} /* (bottom left, beside the 🏰 🏕️ drone column — where the fronts' flag was) */
 .advice{position:absolute;top:96px;left:50%;transform:translateX(-50%);z-index:3;max-width:min(640px,calc(100vw - 32px));padding:7px 14px;border-radius:10px;background:var(--frost,rgb(15 20 28 / .72));backdrop-filter:blur(6px);color:#f3efe6;font:500 15px/1.45 Rubik,sans-serif;text-align:center;text-shadow:0 1px 2px rgb(0 0 0 / .6);pointer-events:none;transition:opacity .8s}.advice[hidden]{display:none}.advice.out{opacity:0}
 .advHi{animation:advHi 1s ease-in-out 6;border-radius:12px}@keyframes advHi{50%{box-shadow:0 0 0 4px rgb(255 215 90 / .85),0 0 18px rgb(255 215 90 / .7)}}
 .techM{display:inline-flex;align-items:center;gap:6px}.techM svg{display:block}

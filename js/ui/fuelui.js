@@ -1,5 +1,5 @@
-// UI: supplies (fuel.js) — over a unit of ours a small light when it runs low: fuel yellow (a pump), water blue (a
-// drop), out of ammunition grey (a shell); empty: pulsing. Under a supply truck of ours, how full it is.
+// UI: supplies (fuel.js) — over a unit of ours a small light when it runs low: fuel yellow (a pump), rations orange (a
+// fork and knife), out of ammunition grey (a shell); empty: pulsing. Under a supply truck of ours, how full it is.
 function drawPiles(c) {} // (no piles of barrels any more: the trucks serve on the spot)
 function lightPic(kind, col) {
   // (a tiny glyph: a fuel pump, a drop, a shell — drawn once and kept)
@@ -8,14 +8,16 @@ function lightPic(kind, col) {
   g.fillStyle = 'rgba(0,0,0,.55)'; g.beginPath(); g.arc(16, 16, 15, 0, Math.PI * 2); g.fill();
   g.fillStyle = col; g.strokeStyle = col; g.lineWidth = 2.2;
   if (kind === 'fuel') { g.fillRect(9, 9, 10, 15); g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(11, 11, 6, 4); g.beginPath(); g.moveTo(19, 12); g.lineTo(23, 15); g.lineTo(23, 22); g.stroke(); }
-  else if (kind === 'water') { g.beginPath(); g.moveTo(16, 6); g.bezierCurveTo(16, 6, 24, 16, 24, 19); g.arc(16, 19, 8, 0, Math.PI); g.bezierCurveTo(8, 16, 16, 6, 16, 6); g.fill(); }
+  else if (kind === 'water') { // (rations: a fork and a knife)
+    g.fillRect(9, 5, 2, 9); g.fillRect(12, 5, 2, 9); g.fillRect(15, 5, 2, 9); g.fillRect(9, 13, 8, 3); g.fillRect(11.5, 15, 3, 13);
+    g.beginPath(); g.moveTo(20, 5); g.quadraticCurveTo(26, 9, 25, 18); g.lineTo(22.5, 18); g.lineTo(22.5, 28); g.lineTo(19.5, 28); g.lineTo(19.5, 6); g.closePath(); g.fill(); }
   else { g.beginPath(); g.moveTo(12, 25); g.lineTo(12, 13); g.quadraticCurveTo(16, 4, 20, 13); g.lineTo(20, 25); g.closePath(); g.fill(); }
   return lightPic.c[key] = cv;
 }
 function fuelGauge(c, u) {
   const L = Sim.LIGHT_AT, k = SIZE[u.type], lights = [];
   if (u.fuel !== undefined && u.fuel < L) lights.push(['fuel', '#ffd23f', u.fuel <= 0]);
-  if (u.water !== undefined && u.water < L) lights.push(['water', '#4fb3ff', u.water <= 0]);
+  if (u.water !== undefined && u.water < L) lights.push(['water', '#ffb347', u.water <= 0]);
   if (s.logi && Sim.SUPPLY[u.type] && u.sup <= 0) lights.push(['ammo', '#c8c8c8', true]);
   const z = 12 / view.css;
   lights.forEach(([kind, col, empty], i) => {

@@ -471,7 +471,7 @@ function initBuildMenu() {
     if (k === 'decoy') { const i = document.createElement('i'); i.textContent = Sim.STRUCTS[k].badge; b.querySelector('span').appendChild(i); }
     b.addEventListener('click', () => {
       const nd = Sim.needsOf(s, 'blue', k); // (the supply chain: what has to stand first — a toast, not armed)
-      if (nd) { advWhy('needs', k); const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('needsWhy', sn(nd)), r.left - st.left + r.width / 2, r.top - st.top - 10); blink(b); return; }
+      if (nd) { advWhy('needs', k); const r = b.getBoundingClientRect(), st = $('stage').getBoundingClientRect(); toast(tr('needsWhy', needName(nd)), r.left - st.left + r.width / 2, r.top - st.top - 10); blink(b); return; }
       buildArmed = k; m.hidden = true; hideTip(); syncButtons(); });
     m.appendChild(b);
   }
@@ -515,10 +515,13 @@ function syncCats() {
   }
   // (the supply chain: a building whose turn hasn't come — dimmed, and what it waits for under its name)
   if (!m.hidden) for (const b of m.querySelectorAll('[data-build]')) {
-    const nd = Sim.needsOf(s, 'blue', b.dataset.build), sm = b.querySelector('small'), txt = nd ? tr('needsItem', sn(nd)) : b.dataset.sm;
+    const nd = Sim.needsOf(s, 'blue', b.dataset.build), sm = b.querySelector('small'), txt = nd ? tr('needsItem', needName(nd)) : b.dataset.sm;
     b.classList.toggle('locked', !!nd); if (sm && txt && sm.textContent !== txt) sm.textContent = txt;
   }
 }
+// what a building waits for, as said: the plant's name — or, when it stands and hasn't made anything yet, what it makes
+// ("steel", not "steel mill": econ.js needsOf counts a plant only once it has made something)
+const needName = nd => { const g = Sim.PLANT_OF[nd] || (nd === 'chemplant' ? 'explosives' : null); return g && nd !== 'concrete' && s.nodes.some(n => n.side === 'blue' && n.kind === nd && n.hp > 0 && s.t >= n.ready) ? tr('good_' + g) : sn(nd); };
 const pageHas = (g, k) => BUILD_PAGES[g].some(e => e.startsWith('page:') ? pageHas(e.slice(5), k) : e === k);
 function drawPic(cv, kind) { const g = cv.getContext('2d'); g.clearRect(0, 0, 84, 84); const src = buildingPic(kind, colors.blue, kind === 'decoy' ? 34 : 40); const m = src.width * 0.17; g.drawImage(src, m, m, src.width - 2 * m, src.width - 2 * m, 0, 0, 84, 84); }
 function nameBuildMenu() {
@@ -588,7 +591,7 @@ function placeBuilding(x, y, again) {
   if (buildArmed && Sim.STRUCTS[buildArmed].deposit) ({ x, y } = snapMine(buildArmed, { x, y })); // (a mine: onto the deposit — econui.js)
   nag.built = s.t; // (laid one: no reminder for a minute)
   const why = Sim.buildCheck(s, 'blue', x, y, buildArmed);
-  if (why) { advWhy(why, buildArmed); const p = onScreen(x, y), nd = why === 'needs' && Sim.needsOf(s, 'blue', buildArmed); toast(nd ? tr('needsWhy', sn(nd)) : tr('why')[why] || tr('why').bad, p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y, pickedDozer());
+  if (why) { advWhy(why, buildArmed); const p = onScreen(x, y), nd = why === 'needs' && Sim.needsOf(s, 'blue', buildArmed); toast(nd ? tr('needsWhy', needName(nd)) : tr('why')[why] || tr('why').bad, p.x, p.y); } else Sim.build(s, 'blue', buildArmed, x, y, pickedDozer());
   const room = buildArmed === 'decoy' ? s.nodes.filter(n => n.side === 'blue' && n.kind === 'decoy' && n.hp > 0).length < Sim.DECOY_MAX : Sim.buildCount(s, 'blue', 'me') < Sim.buildLimit(s, 'blue');
   if (!why && !(again && room)) buildArmed = null;
   syncButtons(); updateHud();

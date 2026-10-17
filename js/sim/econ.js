@@ -79,12 +79,17 @@ function pay(s, side, cost, k = 1) {
 }
 const stockOf = (s, side) => (s.stock || (s.stock = {}))[side] || (s.stock[side] = { ...STOCK_START });
 const standing = (s, side, kind) => s.nodes.some(n => n.side === side && n.kind === kind && n.hp > 0 && s.t >= n.ready);
+// a plant counts for what needs it only once it has made something (n.busy) — a jeep workshop after the steel, not
+// just the steel mill standing empty (the player's call). Not the concrete plant: everything waits for it, and there's
+// concrete to start with.
+const madeFirst = k => k !== 'concrete' && (!!PLANT_OF[k] || k === 'chemplant');
+const making = (s, side, kind) => s.nodes.some(n => n.side === side && n.kind === kind && n.hp > 0 && s.t >= n.ready && n.busy !== undefined);
 // the first building this kind still waits for on this side (null: none — or no supply chain this game)
 function needsOf(s, side, kind) {
   if (!s.econ || !STRUCTS[kind]) return null;
   // (and whatever makes something that burns fuel: a fuel station first)
   const fuel = STRUCTS[kind].unit && needsFuel(STRUCTS[kind].unit) ? ['fuelst'] : [];
-  for (const k of [...(NO_CONCRETE.includes(kind) ? [] : ['concrete']), ...(NEEDS[kind] || []), ...fuel]) if (!standing(s, side, k)) return k;
+  for (const k of [...(NO_CONCRETE.includes(kind) ? [] : ['concrete']), ...(NEEDS[kind] || []), ...fuel]) if (!(madeFirst(k) ? making(s, side, k) : standing(s, side, k))) return k;
   return null;
 }
 
