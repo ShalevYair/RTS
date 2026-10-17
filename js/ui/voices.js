@@ -240,4 +240,49 @@ const VOICES = {
   ]
  }
 };
-const ADVICE_REC = {};
+const ADVICE_REC = {
+ "en": {
+  "arms_armor_infantry": "Speak/English/Instructions/arms_armor_infantry.mp3",
+  "f_dry": "Speak/English/Instructions/f_dry.mp3",
+  "f_fronts": "Speak/English/Instructions/f_fronts.mp3",
+  "f_hqhit": "Speak/English/Instructions/f_hqhit.mp3",
+  "f_missile": "Speak/English/Instructions/f_missile.mp3",
+  "f_night": "Speak/English/Instructions/f_night.mp3",
+  "f_post": "Speak/English/Instructions/f_post.mp3",
+  "f_select": "Speak/English/Instructions/f_select.mp3",
+  "f_wheel": "Speak/English/Instructions/f_wheel.mp3",
+  "hq_mate": "Speak/English/Instructions/hq_mate.mp3",
+  "hq_ready": "Speak/English/Instructions/hq_ready.mp3",
+  "intro_goal": "Speak/English/Instructions/intro_goal.mp3",
+  "intro_mate": "Speak/English/Instructions/intro_mate.mp3",
+  "intro_off": "Speak/English/Instructions/intro_off.mp3",
+  "intro_supply": "Speak/English/Instructions/intro_supply.mp3",
+  "matechain_armor": "Speak/English/Instructions/matechain_armor.mp3",
+  "matechain_infantry": "Speak/English/Instructions/matechain_infantry.mp3",
+  "needm_tankshop": "Speak/English/Instructions/needm_tankshop.mp3",
+  "tech": "Speak/English/Instructions/tech.mp3",
+  "why_nohq_mate": "Speak/English/Instructions/why_nohq_mate.mp3"
+ },
+ "he": {
+  "arms_armor_infantry": "Speak/Hebrew/Instructions/arms_armor_infantry.mp3",
+  "f_dry": "Speak/Hebrew/Instructions/f_dry.mp3",
+  "f_fronts": "Speak/Hebrew/Instructions/f_fronts.mp3",
+  "f_hqhit": "Speak/Hebrew/Instructions/f_hqhit.mp3",
+  "f_missile": "Speak/Hebrew/Instructions/f_missile.mp3",
+  "f_night": "Speak/Hebrew/Instructions/f_night.mp3",
+  "f_post": "Speak/Hebrew/Instructions/f_post.mp3",
+  "f_select": "Speak/Hebrew/Instructions/f_select.mp3",
+  "f_wheel": "Speak/Hebrew/Instructions/f_wheel.mp3",
+  "hq_mate": "Speak/Hebrew/Instructions/hq_mate.mp3",
+  "hq_ready": "Speak/Hebrew/Instructions/hq_ready.mp3",
+  "intro_goal": "Speak/Hebrew/Instructions/intro_goal.mp3",
+  "intro_mate": "Speak/Hebrew/Instructions/intro_mate.mp3",
+  "intro_off": "Speak/Hebrew/Instructions/intro_off.mp3",
+  "intro_supply": "Speak/Hebrew/Instructions/intro_supply.mp3",
+  "matechain_armor": "Speak/Hebrew/Instructions/matechain_armor.mp3",
+  "matechain_infantry": "Speak/Hebrew/Instructions/matechain_infantry.mp3",
+  "needm_tankshop": "Speak/Hebrew/Instructions/needm_tankshop.mp3",
+  "tech": "Speak/Hebrew/Instructions/tech.mp3",
+  "why_nohq_mate": "Speak/Hebrew/Instructions/why_nohq_mate.mp3"
+ }
+};
