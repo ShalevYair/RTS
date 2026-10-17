@@ -1,7 +1,7 @@
 // UI: explanations while playing (in place of the tutorial levels) — an advisor that speaks and never stops the game.
 // One line at a time (a queue, the urgent first, ADV_GAP s between), each once ever (irts-advice-seen); a caption under
 // the power bar (#advice) in the game's language, and the voice: the recording if there is one (ADVICE_REC — from
-// Speak/<English|Hebrew>/Advice/<id>.mp3, when they're made), else the browser's English voice. What it says follows
+// Speak/<English|Hebrew>/Instructions/<id>.mp3 — tools/eleven_advice.py), else the browser's English voice. What it says follows
 // the arms: with engineering the partner's, he puts the HQ and the chain up, and you hear that, not orders meant for him.
 // ⚙ "explanations": all / only when stuck (the "why not"s, and the next step after ADV_IDLE s of building nothing) / off;
 // "from the start" forgets what was said. The lines: advice.js. Only in the full game; none with irts-tour = 99 (tests).
@@ -35,7 +35,7 @@ function advNext() {
 }
 // the voice: a recording (when there are), else the browser's — English for now, whatever the game's language
 function advSpeak(id, L, done) {
-  const rec = typeof ADVICE_REC === 'object' && (ADVICE_REC[lang] || ADVICE_REC.en || {})[id];
+  const rec = typeof ADVICE_REC === 'object' && ((ADVICE_REC[lang] || {})[id] || (ADVICE_REC.en || {})[id]);
   const vol = 0.9;
   setTimeout(done, 2500 + L.en.length * 80); // (a guard: speech that never ends; the radio off — only the caption, this long)
   if (!radioOn) return;
